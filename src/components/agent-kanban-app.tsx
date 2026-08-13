@@ -16,6 +16,8 @@ import {
   PlayIcon,
   PlusIcon,
   SignOutIcon,
+  StarIcon,
+  WarningIcon,
   XIcon,
 } from "@phosphor-icons/react"
 
@@ -44,7 +46,9 @@ import { Textarea } from "@/components/ui/textarea"
 import type {
   AgentCard,
   AgentListResponse,
+  ChlkStatus,
   CreateAgentResponse,
+  FounderStrip,
   ModelOption,
   PublicSession,
   RepositoryOption,
@@ -76,6 +80,14 @@ type ApiError = {
 
 const sessionStorageKey = "agent-kanban-session-id"
 const defaultGroupBy: GroupBy = "status"
+
+/** Chlk board status display order */
+const chlkStatusOrder = new Map<string, number>([
+  ["To Do", 0],
+  ["In Progress", 1],
+  ["Blocked", 2],
+  ["Done", 3],
+])
 
 const groupOptions: GroupOption[] = [
   { id: "status", label: "Status", icon: CirclesFourIcon },
@@ -124,6 +136,10 @@ export function AgentKanbanApp() {
   const [status, setStatus] = React.useState<AppStatus>("checking")
   const [session, setSession] = React.useState<PublicSession | null>(null)
   const [agents, setAgents] = React.useState<AgentCard[]>([])
+  const [founderStrip, setFounderStrip] = React.useState<FounderStrip>({
+    priorityOneId: null,
+    founderDecisionIds: [],
+  })
   const [repositories, setRepositories] = React.useState<RepositoryOption[]>([])
   const [models, setModels] = React.useState<ModelOption[]>([])
   const [groupBy, setGroupBy] = React.useState<GroupBy>(defaultGroupBy)
@@ -147,6 +163,7 @@ export function AgentKanbanApp() {
         apiFetch<{ models: ModelOption[] }>("/api/models", sessionId),
       ])
       setAgents(agentResult.agents)
+      setFounderStrip(agentResult.founderStrip ?? { priorityOneId: null, founderDecisionIds: [] })
       setRepositories(repositoryResult.repositories)
       setModels(modelResult.models)
     } catch (loadError) {
@@ -207,6 +224,7 @@ export function AgentKanbanApp() {
     await fetch("/api/session", { method: "DELETE" })
     setSession(null)
     setAgents([])
+    setFounderStrip({ priorityOneId: null, founderDecisionIds: [] })
     setRepositories([])
     setModels([])
     setStatus("onboarding")
@@ -214,6 +232,41 @@ export function AgentKanbanApp() {
 
   async function handleAgentCreated(agent: AgentCard) {
     setAgents((current) => [agent, ...current])
+    if (session) {
+      await loadBoard(session.id)
+    }
+  }
+
+  async function handleSetPriorityOne(agentId: string | null) {
+    if (agentId) {
+      // Setting a new #1 — server atomically demotes the previous one
+      await fetchJson(`/api/tickets/${encodeURIComponent(agentId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPriorityOne: true }),
+      }).catch(() => undefined)
+    } else {
+      // Clearing #1 — PATCH the current priority ticket to remove the flag
+      const currentId = founderStrip.priorityOneId
+      if (currentId) {
+        await fetchJson(`/api/tickets/${encodeURIComponent(currentId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPriorityOne: false }),
+        }).catch(() => undefined)
+      }
+    }
+    if (session) {
+      await loadBoard(session.id)
+    }
+  }
+
+  async function handleToggleFounderDecision(agentId: string, needs: boolean) {
+    await fetchJson(`/api/tickets/${encodeURIComponent(agentId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ needsFounderDecision: needs }),
+    }).catch(() => undefined)
     if (session) {
       await loadBoard(session.id)
     }
@@ -281,9 +334,9 @@ export function AgentKanbanApp() {
                 <KanbanIcon aria-hidden="true" className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">Agent Kanban</div>
+                <div className="truncate text-sm font-semibold">Chlk Dashboard</div>
                 <div className="truncate text-xs text-muted-foreground">
-                  Cursor Cloud Agents
+                  Founder Ops Board
                 </div>
               </div>
               <Button
@@ -357,6 +410,13 @@ export function AgentKanbanApp() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {/* Founder Strip — persistent, always visible */}
+        <FounderStripBar
+          founderStrip={founderStrip}
+          agents={agents}
+          onSetPriorityOne={handleSetPriorityOne}
+        />
+
         <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
           <div className="relative flex min-w-48 flex-1 items-center">
             <MagnifyingGlassIcon
@@ -451,6 +511,9 @@ export function AgentKanbanApp() {
                     title={group.title}
                     icon={selectedGroupOption?.icon ?? CirclesFourIcon}
                     agents={group.agents}
+                    founderStrip={founderStrip}
+                    onSetPriorityOne={handleSetPriorityOne}
+                    onToggleFounderDecision={handleToggleFounderDecision}
                   />
                 ))
               ) : showBoardLoading ? (
@@ -472,6 +535,114 @@ export function AgentKanbanApp() {
           onCreated={handleAgentCreated}
         />
       ) : null}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Founder Strip
+// ---------------------------------------------------------------------------
+
+function FounderStripBar({
+  founderStrip,
+  agents,
+  onSetPriorityOne,
+}: {
+  founderStrip: FounderStrip
+  agents: AgentCard[]
+  onSetPriorityOne: (agentId: string | null) => Promise<void>
+}) {
+  const priorityOne = founderStrip.priorityOneId
+    ? (agents.find((a) => a.id === founderStrip.priorityOneId) ?? null)
+    : null
+  const decisionCount = founderStrip.founderDecisionIds.length
+  const decisionTickets = agents.filter((a) =>
+    founderStrip.founderDecisionIds.includes(a.id)
+  )
+
+  function scrollToCard(agentId: string) {
+    document
+      .getElementById(`card-${agentId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
+
+  return (
+    <div
+      className="flex shrink-0 items-center gap-4 border-b bg-amber-50/80 px-4 py-2 text-xs dark:bg-amber-950/20"
+      aria-label="Founder strip"
+    >
+      {/* #1 Priority */}
+      <div className="flex min-w-0 items-center gap-2">
+        <StarIcon
+          aria-hidden="true"
+          weight="fill"
+          className="size-3.5 shrink-0 text-amber-500"
+        />
+        <span className="shrink-0 font-semibold text-amber-800 dark:text-amber-300">
+          #1 Priority
+        </span>
+        {priorityOne ? (
+          <button
+            type="button"
+            onClick={() => scrollToCard(priorityOne.id)}
+            className="flex min-w-0 items-center gap-1.5 rounded hover:underline underline-offset-2"
+            title="Jump to card"
+          >
+            <span
+              className="max-w-[180px] truncate font-medium text-foreground"
+              title={priorityOne.title}
+            >
+              {priorityOne.title}
+            </span>
+            {priorityOne.owner ? (
+              <span className="shrink-0 text-muted-foreground">
+                · {priorityOne.owner}
+              </span>
+            ) : null}
+            {priorityOne.chlkStatus ? (
+              <ChlkStatusBadge status={priorityOne.chlkStatus} />
+            ) : null}
+          </button>
+        ) : (
+          <span className="text-muted-foreground italic">#1 unset</span>
+        )}
+        {priorityOne ? (
+          <button
+            type="button"
+            onClick={() => onSetPriorityOne(null)}
+            className="ml-1 shrink-0 rounded px-1 py-0.5 text-[0.65rem] text-muted-foreground hover:bg-amber-200/60 hover:text-foreground dark:hover:bg-amber-800/40"
+            title="Clear #1 priority"
+          >
+            clear
+          </button>
+        ) : null}
+      </div>
+
+      <Separator orientation="vertical" className="h-4 shrink-0" />
+
+      {/* Open decisions */}
+      <div className="flex min-w-0 items-center gap-2">
+        <WarningIcon
+          aria-hidden="true"
+          className={cn(
+            "size-3.5 shrink-0",
+            decisionCount > 0 ? "text-orange-500" : "text-muted-foreground"
+          )}
+        />
+        <span className="shrink-0 font-semibold text-amber-800 dark:text-amber-300">
+          Needs Rashad
+        </span>
+        {decisionCount > 0 ? (
+          <span
+            className="text-foreground"
+            title={decisionTickets.map((t) => t.title).join(", ")}
+          >
+            {decisionCount} open {decisionCount === 1 ? "decision" : "decisions"}
+          </span>
+        ) : (
+          <span className="text-muted-foreground italic">none</span>
+        )}
+      </div>
     </div>
   )
 }
@@ -581,10 +752,16 @@ function BoardColumn({
   title,
   icon: Icon,
   agents,
+  founderStrip,
+  onSetPriorityOne,
+  onToggleFounderDecision,
 }: {
   title: string
   icon: IconComponent
   agents: AgentCard[]
+  founderStrip: FounderStrip
+  onSetPriorityOne: (agentId: string | null) => Promise<void>
+  onToggleFounderDecision: (agentId: string, needs: boolean) => Promise<void>
 }) {
   return (
     <section className="flex w-80 shrink-0 flex-col rounded-xl bg-muted/20">
@@ -597,7 +774,13 @@ function BoardColumn({
       </header>
       <div className="flex flex-col gap-2 p-2">
         {agents.map((agent) => (
-          <AgentCardPreview key={agent.id} agent={agent} />
+          <AgentCardPreview
+            key={agent.id}
+            agent={agent}
+            isPriorityOne={founderStrip.priorityOneId === agent.id}
+            onSetPriorityOne={onSetPriorityOne}
+            onToggleFounderDecision={onToggleFounderDecision}
+          />
         ))}
       </div>
     </section>
@@ -725,27 +908,72 @@ function GroupOptionContent({ option }: { option: SelectableGroupOption }) {
   )
 }
 
-function AgentCardPreview({ agent }: { agent: AgentCard }) {
+function AgentCardPreview({
+  agent,
+  isPriorityOne,
+  onSetPriorityOne,
+  onToggleFounderDecision,
+}: {
+  agent: AgentCard
+  isPriorityOne: boolean
+  onSetPriorityOne: (agentId: string | null) => Promise<void>
+  onToggleFounderDecision: (agentId: string, needs: boolean) => Promise<void>
+}) {
   const previewArtifact = getPreviewArtifact(agent.artifacts)
   const hasCardContent = Boolean(agent.latestMessage || previewArtifact)
 
   return (
     <Card
+      id={`card-${agent.id}`}
       size="sm"
-      className="gap-3 bg-card/70 ring-border/60 transition-colors hover:bg-card/90"
+      className={cn(
+        "gap-3 bg-card/70 ring-border/60 transition-colors hover:bg-card/90",
+        isPriorityOne && "ring-2 ring-amber-400/70 dark:ring-amber-500/60"
+      )}
     >
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-3">
-          <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
-          <StatusBadge status={agent.status} />
+          <div className="flex min-w-0 flex-1 items-start gap-1.5">
+            {isPriorityOne ? (
+              <StarIcon
+                aria-label="#1 Priority"
+                weight="fill"
+                className="mt-0.5 size-3.5 shrink-0 text-amber-400"
+              />
+            ) : null}
+            <CardTitle className="line-clamp-2">{agent.title}</CardTitle>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {agent.chlkStatus ? (
+              <ChlkStatusBadge status={agent.chlkStatus} />
+            ) : (
+              <StatusBadge status={agent.status} />
+            )}
+          </div>
         </div>
+
+        {/* Owner row */}
+        {agent.owner ? (
+          <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+            <CirclesFourIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="truncate">{agent.owner}</span>
+          </div>
+        ) : null}
+
         <CardDescription className="flex items-center gap-1.5 truncate text-xs">
           <GitBranchIcon aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="truncate">{agent.repository}</span>
         </CardDescription>
       </CardHeader>
-      {hasCardContent ? (
+
+      {hasCardContent || agent.blockerReason ? (
         <CardContent className="flex flex-col gap-3">
+          {agent.blockerReason ? (
+            <div className="flex items-start gap-1.5 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+              <WarningIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              <span className="line-clamp-2">{agent.blockerReason}</span>
+            </div>
+          ) : null}
           {agent.latestMessage ? (
             <p className="line-clamp-2 text-sm text-muted-foreground">
               {agent.latestMessage}
@@ -754,18 +982,59 @@ function AgentCardPreview({ agent }: { agent: AgentCard }) {
           {previewArtifact ? <ArtifactTile artifact={previewArtifact} /> : null}
         </CardContent>
       ) : null}
-      <CardFooter className="flex-wrap justify-between gap-2 border-t-0 bg-transparent text-xs text-muted-foreground">
+
+      <CardFooter className="flex-wrap items-center justify-between gap-2 border-t-0 bg-transparent text-xs text-muted-foreground">
         <span>{formatRelativeTime(agent.updatedAt ?? agent.createdAt)}</span>
-        {agent.prUrl ? (
-          <a
-            href={agent.prUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-foreground underline-offset-4 hover:underline"
+        <div className="flex items-center gap-1">
+          {/* Set / unset #1 priority */}
+          <button
+            type="button"
+            onClick={() => onSetPriorityOne(isPriorityOne ? null : agent.id)}
+            className={cn(
+              "rounded p-0.5 transition-colors hover:text-amber-500",
+              isPriorityOne ? "text-amber-400" : "text-muted-foreground/50"
+            )}
+            title={isPriorityOne ? "Unset #1 priority" : "Set as #1 priority"}
+            aria-label={isPriorityOne ? "Unset #1 priority" : "Set as #1 priority"}
           >
-            PR
-          </a>
-        ) : null}
+            <StarIcon weight={isPriorityOne ? "fill" : "regular"} className="size-3.5" />
+          </button>
+          {/* Flag for founder decision */}
+          <button
+            type="button"
+            onClick={() =>
+              onToggleFounderDecision(agent.id, !agent.needsFounderDecision)
+            }
+            className={cn(
+              "rounded p-0.5 transition-colors hover:text-orange-500",
+              agent.needsFounderDecision
+                ? "text-orange-500"
+                : "text-muted-foreground/50"
+            )}
+            title={
+              agent.needsFounderDecision
+                ? "Clear founder decision flag"
+                : "Flag: needs Rashad decision"
+            }
+            aria-label={
+              agent.needsFounderDecision
+                ? "Clear founder decision flag"
+                : "Flag: needs Rashad decision"
+            }
+          >
+            <WarningIcon className="size-3.5" />
+          </button>
+          {agent.prUrl ? (
+            <a
+              href={agent.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline-offset-4 hover:underline"
+            >
+              PR
+            </a>
+          ) : null}
+        </div>
       </CardFooter>
     </Card>
   )
@@ -1118,6 +1387,31 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={variant}>{formatStatusLabel(status)}</Badge>
 }
 
+const chlkStatusVariantMap: Record<ChlkStatus, "outline" | "secondary" | "destructive"> = {
+  to_do: "outline",
+  in_progress: "outline",
+  blocked: "destructive",
+  done: "secondary",
+}
+
+function ChlkStatusBadge({ status }: { status: ChlkStatus }) {
+  return (
+    <Badge variant={chlkStatusVariantMap[status]}>
+      {formatChlkStatusLabel(status)}
+    </Badge>
+  )
+}
+
+function formatChlkStatusLabel(status: ChlkStatus): string {
+  const labels: Record<ChlkStatus, string> = {
+    to_do: "To Do",
+    in_progress: "In Progress",
+    blocked: "Blocked",
+    done: "Done",
+  }
+  return labels[status]
+}
+
 function groupAgents(agents: AgentCard[], groupBy: GroupBy) {
   const groups = new Map<string, AgentCard[]>()
 
@@ -1133,6 +1427,10 @@ function groupAgents(agents: AgentCard[], groupBy: GroupBy) {
     entries.sort(
       ([leftTitle], [rightTitle]) => dateBucketRank(leftTitle) - dateBucketRank(rightTitle)
     )
+  } else if (groupBy === "status") {
+    entries.sort(
+      ([leftTitle], [rightTitle]) => statusColumnRank(leftTitle) - statusColumnRank(rightTitle)
+    )
   }
 
   return entries.map(([title, group]) => ({
@@ -1140,6 +1438,15 @@ function groupAgents(agents: AgentCard[], groupBy: GroupBy) {
     title,
     agents: group,
   }))
+}
+
+function statusColumnRank(title: string): number {
+  const chlkRank = chlkStatusOrder.get(title)
+  if (chlkRank !== undefined) {
+    return chlkRank
+  }
+  // Non-Chlk statuses sort after Chlk columns
+  return chlkStatusOrder.size + (dateBucketOrder.get(title) ?? 10)
 }
 
 function dateBucketRank(title: string) {
@@ -1151,11 +1458,19 @@ function groupTitle(agent: AgentCard, groupBy: GroupBy) {
     return dateBucket(agent.createdAt)
   }
 
-  const value = agent[groupBy]
-  if (groupBy === "status" && typeof value === "string" && value.trim()) {
-    return formatStatusLabel(value)
+  if (groupBy === "status") {
+    // Prefer Chlk status label when set
+    if (agent.chlkStatus) {
+      return formatChlkStatusLabel(agent.chlkStatus)
+    }
+    const value = agent.status
+    if (typeof value === "string" && value.trim()) {
+      return formatStatusLabel(value)
+    }
+    return "Unassigned"
   }
 
+  const value = agent[groupBy]
   return typeof value === "string" && value.trim() ? value : "Unassigned"
 }
 
@@ -1169,6 +1484,9 @@ function searchAgents(agents: AgentCard[], query: string) {
     [
       agent.title,
       agent.status,
+      agent.chlkStatus,
+      agent.owner,
+      agent.blockerReason,
       agent.repository,
       agent.branch,
       agent.createdBy,
