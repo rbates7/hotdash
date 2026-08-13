@@ -1,10 +1,10 @@
 "use client"
 
 import Image from "next/image"
-import { DevBoard } from "./dev-board"
+import { OpsBoard } from "./ops-board"
 import { AppRail } from "@/components/shared/app-rail"
 
-export function HQShell() {
+export function OpsShell() {
   return (
     <div className="flex h-full" style={{ backgroundColor: "#FCFAF5" }}>
       <AppRail />
@@ -25,13 +25,13 @@ export function HQShell() {
           />
           <div className="h-4 w-px flex-shrink-0" style={{ backgroundColor: "#EAE8E2" }} />
           <div className="flex flex-col justify-center">
-            <span className="text-sm font-semibold text-[#1A1C18] leading-none">Dev board</span>
-            <span className="text-[10px] text-[#9BA39A] leading-none mt-0.5">Tickets. Click a card.</span>
+            <span className="text-sm font-semibold text-[#1A1C18] leading-none">Ops board</span>
+            <span className="text-[10px] text-[#9BA39A] leading-none mt-0.5">Crew work. Blocked needs a reason.</span>
           </div>
         </header>
 
         <div className="flex-1 min-h-0 overflow-hidden flex">
-          <DevBoard />
+          <OpsBoard />
         </div>
       </div>
     </div>
