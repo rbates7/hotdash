@@ -239,13 +239,23 @@ export function AgentKanbanApp() {
 
   async function handleSetPriorityOne(agentId: string | null) {
     if (agentId) {
+      // Setting a new #1 — server atomically demotes the previous one
       await fetchJson(`/api/tickets/${encodeURIComponent(agentId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isPriorityOne: true }),
       }).catch(() => undefined)
+    } else {
+      // Clearing #1 — PATCH the current priority ticket to remove the flag
+      const currentId = founderStrip.priorityOneId
+      if (currentId) {
+        await fetchJson(`/api/tickets/${encodeURIComponent(currentId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPriorityOne: false }),
+        }).catch(() => undefined)
+      }
     }
-    // Re-fetch the board to sync founder strip
     if (session) {
       await loadBoard(session.id)
     }
