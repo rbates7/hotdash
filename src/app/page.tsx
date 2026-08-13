@@ -1,5 +1,5 @@
-import { AgentKanbanApp } from "@/components/agent-kanban-app"
+import { HQShell } from "@/components/hq/hq-shell"
 
 export default function Home() {
-  return <AgentKanbanApp />
+  return <HQShell />
 }

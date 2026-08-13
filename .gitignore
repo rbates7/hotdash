@@ -8,3 +8,6 @@ out/
 .env
 .env*.local
 .debug/
+
+# Dev board data (runtime-generated, seeded on first run)
+data/hq-cards.json
