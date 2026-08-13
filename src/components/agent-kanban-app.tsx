@@ -560,6 +560,12 @@ function FounderStripBar({
     founderStrip.founderDecisionIds.includes(a.id)
   )
 
+  function scrollToCard(agentId: string) {
+    document
+      .getElementById(`card-${agentId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
+
   return (
     <div
       className="flex shrink-0 items-center gap-4 border-b bg-amber-50/80 px-4 py-2 text-xs dark:bg-amber-950/20"
@@ -576,11 +582,29 @@ function FounderStripBar({
           #1 Priority
         </span>
         {priorityOne ? (
-          <span className="truncate font-medium text-foreground max-w-[200px]" title={priorityOne.title}>
-            {priorityOne.title}
-          </span>
+          <button
+            type="button"
+            onClick={() => scrollToCard(priorityOne.id)}
+            className="flex min-w-0 items-center gap-1.5 rounded hover:underline underline-offset-2"
+            title="Jump to card"
+          >
+            <span
+              className="max-w-[180px] truncate font-medium text-foreground"
+              title={priorityOne.title}
+            >
+              {priorityOne.title}
+            </span>
+            {priorityOne.owner ? (
+              <span className="shrink-0 text-muted-foreground">
+                · {priorityOne.owner}
+              </span>
+            ) : null}
+            {priorityOne.chlkStatus ? (
+              <ChlkStatusBadge status={priorityOne.chlkStatus} />
+            ) : null}
+          </button>
         ) : (
-          <span className="text-muted-foreground italic">unset</span>
+          <span className="text-muted-foreground italic">#1 unset</span>
         )}
         {priorityOne ? (
           <button
@@ -900,6 +924,7 @@ function AgentCardPreview({
 
   return (
     <Card
+      id={`card-${agent.id}`}
       size="sm"
       className={cn(
         "gap-3 bg-card/70 ring-border/60 transition-colors hover:bg-card/90",
