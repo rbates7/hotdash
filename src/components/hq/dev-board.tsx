@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   DndContext,
   DragEndEvent,
   DragOverEvent,
+  DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -23,6 +24,9 @@ export function DevBoard() {
   const [activeCard, setActiveCard] = useState<HQCard | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Track the status the dragged card had when the drag began
+  const dragOriginStatus = useRef<CardStatus | null>(null)
+
   const fetchCards = useCallback(async () => {
     const res = await fetch("/api/hq/cards")
     if (res.ok) {
@@ -40,12 +44,16 @@ export function DevBoard() {
   )
 
   function cardsByStatus(status: CardStatus): HQCard[] {
-    return cards.filter((c) => c.status === status)
+    return cards
+      .filter((c) => c.status === status)
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
   }
 
-  function handleDragStart({ active }: { active: { id: string | number } }) {
-    const card = cards.find((c) => c.id === active.id)
-    setActiveCard(card ?? null)
+  function handleDragStart(event: DragStartEvent) {
+    const id = event.active.id as string
+    const card = cards.find((c) => c.id === id) ?? null
+    setActiveCard(card)
+    dragOriginStatus.current = card?.status ?? null
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -55,77 +63,81 @@ export function DevBoard() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    const activeCard = cards.find((c) => c.id === activeId)
-    if (!activeCard) return
+    const draggingCard = cards.find((c) => c.id === activeId)
+    if (!draggingCard) return
 
-    // Determine target status
-    const targetStatus = STATUSES.includes(overId as CardStatus)
+    const targetStatus: CardStatus | undefined = STATUSES.includes(overId as CardStatus)
       ? (overId as CardStatus)
       : cards.find((c) => c.id === overId)?.status
 
-    if (!targetStatus || activeCard.status === targetStatus) return
+    if (!targetStatus || draggingCard.status === targetStatus) return
 
-    // Optimistically update status
+    // Optimistic cross-column move
     setCards((prev) =>
-      prev.map((c) =>
-        c.id === activeId ? { ...c, status: targetStatus } : c
-      )
+      prev.map((c) => (c.id === activeId ? { ...c, status: targetStatus } : c))
     )
   }
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setActiveCard(null)
-    if (!over) return
+
+    const originStatus = dragOriginStatus.current
+    dragOriginStatus.current = null
+
+    if (!over || !originStatus) return
 
     const activeId = active.id as string
     const overId = over.id as string
 
-    const movedCard = cards.find((c) => c.id === activeId)
-    if (!movedCard) return
+    // Read the card's current (post-DragOver) status from state
+    setCards((prev) => {
+      const currentCard = prev.find((c) => c.id === activeId)
+      if (!currentCard) return prev
 
-    // Target status
-    const targetStatus = STATUSES.includes(overId as CardStatus)
-      ? (overId as CardStatus)
-      : cards.find((c) => c.id === overId)?.status
+      const finalStatus = currentCard.status
 
-    if (!targetStatus) return
-
-    // Reorder within same column
-    if (movedCard.status === targetStatus && activeId !== overId) {
-      const colCards = cardsByStatus(targetStatus)
-      const oldIdx = colCards.findIndex((c) => c.id === activeId)
-      const newIdx = colCards.findIndex((c) => c.id === overId)
-      if (oldIdx !== -1 && newIdx !== -1) {
-        const reordered = arrayMove(colCards, oldIdx, newIdx)
-        setCards((prev) => {
-          const others = prev.filter((c) => c.status !== targetStatus)
-          return [...others, ...reordered]
-        })
+      // Same-column reorder
+      if (finalStatus === originStatus && activeId !== overId) {
+        const overCard = prev.find((c) => c.id === overId)
+        if (overCard && overCard.status === finalStatus) {
+          const colCards = prev.filter((c) => c.status === finalStatus)
+          const oldIdx = colCards.findIndex((c) => c.id === activeId)
+          const newIdx = colCards.findIndex((c) => c.id === overId)
+          if (oldIdx !== -1 && newIdx !== -1) {
+            const reordered = arrayMove(colCards, oldIdx, newIdx)
+            const others = prev.filter((c) => c.status !== finalStatus)
+            return [...others, ...reordered]
+          }
+        }
       }
-    }
 
-    // Persist status change to server
-    if (movedCard.status !== targetStatus || true) {
-      const finalCard = cards.find((c) => c.id === activeId)
-      if (finalCard && finalCard.status !== movedCard.status) {
-        await fetch(`/api/hq/cards/${activeId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: finalCard.status }),
-        })
-      } else if (targetStatus !== movedCard.status) {
-        await fetch(`/api/hq/cards/${activeId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: targetStatus }),
-        })
-      }
-    }
+      return prev
+    })
+
+    // Persist cross-column status change
+    setCards((prev) => {
+      const currentCard = prev.find((c) => c.id === activeId)
+      if (!currentCard || currentCard.status === originStatus) return prev
+
+      // Fire and forget the persist
+      fetch(`/api/hq/cards/${activeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: currentCard.status }),
+      }).catch(() => {
+        // On error, revert the card to its origin status
+        setCards((p) =>
+          p.map((c) => (c.id === activeId ? { ...c, status: originStatus } : c))
+        )
+      })
+
+      return prev
+    })
   }
 
   function handleSelect(card: HQCard) {
-    setSelectedId(selectedId === card.id ? null : card.id)
+    setSelectedId((prev) => (prev === card.id ? null : card.id))
   }
 
   function handleUpdate(updated: HQCard) {
@@ -145,7 +157,7 @@ export function DevBoard() {
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
-      {/* Board area */}
+      {/* Board */}
       <div className="flex-1 min-w-0 flex flex-col">
         <DndContext
           sensors={sensors}
@@ -167,14 +179,11 @@ export function DevBoard() {
               ))}
             </div>
           </div>
-          <DragOverlay>
+
+          <DragOverlay dropAnimation={{ duration: 150, easing: "ease" }}>
             {activeCard && (
-              <div className="rotate-2 opacity-90 shadow-xl w-[220px]">
-                <CompactCard
-                  card={activeCard}
-                  isSelected={false}
-                  onClick={() => {}}
-                />
+              <div className="rotate-1 opacity-95 shadow-2xl w-[230px]">
+                <CompactCard card={activeCard} isSelected={false} onClick={() => {}} />
               </div>
             )}
           </DragOverlay>
@@ -184,8 +193,8 @@ export function DevBoard() {
       {/* Detail drawer */}
       {selectedCard && (
         <div
-          className="w-[400px] flex-shrink-0 flex flex-col min-h-0 overflow-hidden"
-          style={{ borderLeft: "1px solid #EAE8E2" }}
+          className="w-[400px] flex-shrink-0 flex flex-col min-h-0 overflow-hidden border-l"
+          style={{ borderColor: "#EAE8E2" }}
         >
           <DetailDrawer
             card={selectedCard}

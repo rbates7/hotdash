@@ -17,12 +17,15 @@ export async function PATCH(
 ) {
   const { id } = await params
   const body = await req.json()
-  const allowed = ["status", "owner", "label", "description", "estimate_hours", "title"]
+
+  // Only allow these fields; pass null through so the store can clear optional fields
+  const ALLOWED = new Set(["status", "owner", "label", "description", "estimate_hours", "title"])
   const patch: Record<string, unknown> = {}
-  for (const key of allowed) {
-    if (key in body) patch[key] = body[key]
+  for (const key of Object.keys(body)) {
+    if (ALLOWED.has(key)) patch[key] = body[key]
   }
-  const updated = updateCard(id, patch as Parameters<typeof updateCard>[1])
+
+  const updated = updateCard(id, patch)
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 })
   return NextResponse.json(updated)
 }

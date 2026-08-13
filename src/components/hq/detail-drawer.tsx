@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from "react"
 import { HQCard, CardLabel, STATUSES, STATUS_LABELS, LABEL_OPTIONS } from "@/lib/hq/types"
-import { StatusPill } from "./status-pill"
 import { LabelChip } from "./label-chip"
 import { OwnerAvatar } from "./owner-avatar"
+import { StatusPill } from "./status-pill"
 
 function formatChicago(iso: string): string {
   try {
@@ -37,14 +37,14 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [card.comments.length])
 
-  async function patchCard(patch: Partial<HQCard>) {
+  async function patchCard(patch: Record<string, unknown>) {
     const res = await fetch(`/api/hq/cards/${card.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     })
     if (res.ok) {
-      const updated = await res.json()
+      const updated: HQCard = await res.json()
       onUpdate(updated)
     }
   }
@@ -58,7 +58,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
       body: JSON.stringify({ author: commentAuthor, body: commentText.trim() }),
     })
     if (res.ok) {
-      const updated = await res.json()
+      const updated: HQCard = await res.json()
       onUpdate(updated)
       setCommentText("")
     }
@@ -66,10 +66,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
   }
 
   return (
-    <div
-      className="flex flex-col h-full border-l"
-      style={{ borderColor: "#EAE8E2", backgroundColor: "#FFFFFF" }}
-    >
+    <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div
         className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b flex-shrink-0"
@@ -84,7 +81,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
           </div>
           {card.chlk_key && (
             <span
-              className="mt-1.5 inline-block text-xs text-[#9BA39A] tracking-wide"
+              className="mt-1.5 inline-block text-xs text-[#9BA39A]"
               style={{ fontFamily: "var(--font-jetbrains, monospace)" }}
             >
               {card.chlk_key}
@@ -104,7 +101,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-        {/* Status selector */}
+        {/* Status */}
         <section>
           <label className="text-[10px] font-semibold text-[#9BA39A] uppercase tracking-widest block mb-2">
             Status
@@ -127,14 +124,14 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
           </div>
         </section>
 
-        {/* Label picker */}
+        {/* Label */}
         <section>
           <label className="text-[10px] font-semibold text-[#9BA39A] uppercase tracking-widest block mb-2">
             Label
           </label>
           <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => patchCard({ label: undefined })}
+              onClick={() => patchCard({ label: null })}
               className={[
                 "px-2.5 py-1 rounded-full text-xs border transition-all",
                 !card.label
@@ -161,16 +158,17 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
           </div>
         </section>
 
-        {/* Description */}
-        <section>
+        {/* Description — key forces remount on card change so defaultValue is fresh */}
+        <section key={`desc-${card.id}`}>
           <label className="text-[10px] font-semibold text-[#9BA39A] uppercase tracking-widest block mb-2">
             Description
           </label>
           <textarea
             defaultValue={card.description ?? ""}
             onBlur={(e) => {
-              if (e.target.value !== (card.description ?? "")) {
-                patchCard({ description: e.target.value })
+              const val = e.target.value
+              if (val !== (card.description ?? "")) {
+                patchCard({ description: val })
               }
             }}
             rows={4}
@@ -179,22 +177,21 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
           />
         </section>
 
-        {/* Estimate */}
-        <section>
+        {/* Estimate — key forces remount on card change */}
+        <section key={`est-${card.id}`}>
           <label className="text-[10px] font-semibold text-[#9BA39A] uppercase tracking-widest block mb-2">
             Estimate
           </label>
-          <div
-            className="flex items-center gap-2 bg-[#F6F5F2] rounded-lg px-3 py-2 border border-[#EAE8E2] w-32"
-          >
+          <div className="flex items-center gap-2 bg-[#F6F5F2] rounded-lg px-3 py-2 border border-[#EAE8E2] w-32">
             <input
               type="number"
               step="0.5"
               min="0"
               defaultValue={card.estimate_hours ?? ""}
               onBlur={(e) => {
-                const val = e.target.value === "" ? undefined : parseFloat(e.target.value)
-                if (val !== card.estimate_hours) {
+                const raw = e.target.value
+                const val = raw === "" ? null : parseFloat(raw)
+                if (val !== (card.estimate_hours ?? null)) {
                   patchCard({ estimate_hours: val })
                 }
               }}
@@ -219,7 +216,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
               <div key={c.id} className="flex gap-2.5">
                 <OwnerAvatar owner={c.author} size="md" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2 mb-0.5">
+                  <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
                     <span className="text-xs font-semibold text-[#1A1C18]">{c.author}</span>
                     <span className="text-[10px] text-[#9BA39A]">{formatChicago(c.created_at)}</span>
                   </div>
@@ -233,10 +230,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
       </div>
 
       {/* Comment composer */}
-      <div
-        className="px-5 pb-5 pt-3 border-t flex-shrink-0"
-        style={{ borderColor: "#EAE8E2" }}
-      >
+      <div className="px-5 pb-5 pt-3 border-t flex-shrink-0" style={{ borderColor: "#EAE8E2" }}>
         <div className="flex items-center gap-2 mb-2">
           <label className="text-[10px] text-[#9BA39A]">Posting as:</label>
           <input

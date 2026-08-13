@@ -199,12 +199,24 @@ export function getCardById(id: string): HQCard | null {
 
 export function updateCard(
   id: string,
-  patch: Partial<Pick<HQCard, "status" | "owner" | "label" | "description" | "estimate_hours" | "title">>
+  patch: Record<string, unknown>
 ): HQCard | null {
   const cards = readCards()
   const idx = cards.findIndex((c) => c.id === id)
   if (idx === -1) return null
-  cards[idx] = { ...cards[idx], ...patch, updated_at: new Date().toISOString() }
+
+  const updated = { ...cards[idx], updated_at: new Date().toISOString() }
+
+  for (const [key, val] of Object.entries(patch)) {
+    if (val === null || val === undefined) {
+      // null/undefined clears optional fields
+      delete (updated as Record<string, unknown>)[key]
+    } else {
+      (updated as Record<string, unknown>)[key] = val
+    }
+  }
+
+  cards[idx] = updated as HQCard
   writeCards(cards)
   return cards[idx]
 }
