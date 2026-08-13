@@ -78,6 +78,7 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
             <OwnerAvatar owner={card.owner} size="md" />
             <span className="text-sm text-[#6B6E65]">{card.owner}</span>
             <StatusPill status={card.status} />
+            {card.label && <LabelChip label={card.label} size="xs" />}
           </div>
           {card.chlk_key && (
             <span
