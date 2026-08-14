@@ -37,3 +37,5 @@ export const LABEL_OPTIONS: Array<{ value: CardLabel; label: string }> = [
   { value: "chore", label: "chore" },
   { value: "spike", label: "spike" },
 ]
+
+export const CREW: readonly string[] = ["Fitz", "Simmons", "Mack", "Radcliffe", "May", "Mace"]

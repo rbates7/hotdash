@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { HQCard, CardLabel, STATUSES, STATUS_LABELS, LABEL_OPTIONS } from "@/lib/hq/types"
+import { HQCard, CardLabel, STATUSES, STATUS_LABELS, LABEL_OPTIONS, CREW } from "@/lib/hq/types"
 import { LabelChip } from "./label-chip"
 import { OwnerAvatar } from "./owner-avatar"
 import { StatusPill } from "./status-pill"
@@ -120,6 +120,40 @@ export function DetailDrawer({ card, onClose, onUpdate }: DetailDrawerProps) {
                 ].join(" ")}
               >
                 {STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Owner */}
+        <section>
+          <label className="text-[10px] font-semibold text-[#9BA39A] uppercase tracking-widest block mb-2">
+            Owner
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => patchCard({ owner: "Unassigned" })}
+              className={[
+                "px-2.5 py-1 rounded-full text-xs border transition-all",
+                card.owner === "Unassigned" || !CREW.includes(card.owner)
+                  ? "border-[#2B76BA] bg-[#E1F2FB] text-[#1A5A8A]"
+                  : "border-[#EAE8E2] bg-white text-[#6B6E65] hover:border-[#C5C3BD]",
+              ].join(" ")}
+            >
+              Unassigned
+            </button>
+            {CREW.map((name) => (
+              <button
+                key={name}
+                onClick={() => patchCard({ owner: name })}
+                className={[
+                  "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                  card.owner === name
+                    ? "border-[#2B76BA] bg-[#E1F2FB] text-[#1A5A8A]"
+                    : "border-[#EAE8E2] bg-white text-[#6B6E65] hover:border-[#2B76BA]",
+                ].join(" ")}
+              >
+                {name}
               </button>
             ))}
           </div>
