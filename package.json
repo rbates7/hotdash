@@ -13,6 +13,9 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@cursor/sdk": "^1.0.7",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -34,6 +37,9 @@
     "typescript": "^5"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["sqlite3"]
+    "onlyBuiltDependencies": [
+      "sqlite3",
+      "better-sqlite3"
+    ]
   }
 }
