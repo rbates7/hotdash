@@ -1,5 +1,5 @@
-import { AgentKanbanApp } from "@/components/agent-kanban-app"
+import { redirect } from "next/navigation"
 
-export default function Home() {
-  return <AgentKanbanApp />
+export default function RootPage() {
+  redirect("/home")
 }
