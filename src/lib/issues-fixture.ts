@@ -1,0 +1,318 @@
+import type { Actor, Issue, Sprint } from "@/lib/issues"
+
+/**
+ * Dummy data for the Agent Workplace design mock. Timestamps are generated
+ * relative to a fixed epoch rather than `Date.now()` so server and client
+ * render identically — a moving "now" would hydrate mismatched.
+ */
+export const NOW = new Date("2026-08-27T14:00:00.000Z")
+
+const hoursAgo = (h: number) =>
+  new Date(NOW.getTime() - h * 3_600_000).toISOString()
+const daysFromNow = (d: number) =>
+  new Date(NOW.getTime() + d * 86_400_000).toISOString()
+
+export const RASHAD = "rashad"
+
+export const actors: Actor[] = [
+  { id: RASHAD, name: "Rashad Bates", kind: "human", initials: "RB", presence: "idle" },
+  { id: "mo", name: "Mohamed", kind: "human", initials: "M", presence: "idle" },
+  { id: "grok-1", name: "Grok-1", kind: "agent", initials: "G1", presence: "working" },
+  { id: "grok-2", name: "Grok-2", kind: "agent", initials: "G2", presence: "working" },
+  { id: "grok-3", name: "Grok-3", kind: "agent", initials: "G3", presence: "idle" },
+]
+
+export const sprints: Sprint[] = [
+  {
+    id: "sprint-4",
+    name: "Sprint 4",
+    goal: "Founder dashboard shell and the agent board",
+    startDate: hoursAgo(24 * 5),
+    endDate: daysFromNow(9),
+    status: "active",
+  },
+  {
+    id: "sprint-5",
+    name: "Sprint 5",
+    goal: "Metrics and CRM surfaces",
+    startDate: daysFromNow(10),
+    endDate: daysFromNow(24),
+    status: "planned",
+  },
+]
+
+type Seed = Omit<Issue, "activity" | "comments"> & {
+  activity?: Issue["activity"]
+  comments?: Issue["comments"]
+}
+
+function issue(seed: Seed): Issue {
+  return {
+    activity: [
+      {
+        id: `${seed.key}-a1`,
+        actorId: seed.createdById,
+        verb: "created this issue",
+        at: seed.createdAt,
+      },
+    ],
+    comments: [],
+    ...seed,
+  }
+}
+
+export const issues: Issue[] = [
+  // ---- active sprint -----------------------------------------------------
+  issue({
+    key: "CHLK-2",
+    title: "Need to get done",
+    description: "Stuff to do",
+    status: "todo",
+    priority: "none",
+    assigneeId: null,
+    sprintId: "sprint-4",
+    labels: [],
+    createdById: RASHAD,
+    createdAt: hoursAgo(0.02),
+    updatedAt: hoursAgo(0.02),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-11",
+    title: "Wire the sidebar active state to the router",
+    description: "Highlight should follow the route, not local state.",
+    status: "done",
+    priority: "medium",
+    assigneeId: "grok-1",
+    sprintId: "sprint-4",
+    labels: ["frontend"],
+    createdById: "grok-1",
+    createdAt: hoursAgo(96),
+    updatedAt: hoursAgo(30),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-12",
+    title: "Vendor the shadcn sidebar primitives",
+    description:
+      "Copy from shadcn-ui/ui at a pinned commit rather than reconstructing.",
+    status: "done",
+    priority: "high",
+    assigneeId: "grok-2",
+    sprintId: "sprint-4",
+    labels: ["frontend", "chore"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(94),
+    updatedAt: hoursAgo(28),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-13",
+    title: "Build the Issues board for Agent Workplace",
+    description:
+      "Five columns scoped to the active sprint, with agent and human assignees visually distinct.",
+    status: "in_progress",
+    priority: "urgent",
+    assigneeId: "grok-1",
+    sprintId: "sprint-4",
+    labels: ["frontend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(50),
+    updatedAt: hoursAgo(0.4),
+    isAgentWorking: true,
+  }),
+  issue({
+    key: "CHLK-14",
+    title: "Ticket detail view with properties rail",
+    description: "Activity feed, comment composer, and editable properties.",
+    status: "in_progress",
+    priority: "high",
+    assigneeId: "grok-2",
+    sprintId: "sprint-4",
+    labels: ["frontend"],
+    createdById: "grok-2",
+    createdAt: hoursAgo(44),
+    updatedAt: hoursAgo(0.8),
+    isAgentWorking: true,
+  }),
+  issue({
+    key: "CHLK-15",
+    title: "Sprint model and backlog planning surface",
+    status: "in_review",
+    priority: "high",
+    assigneeId: "grok-3",
+    sprintId: "sprint-4",
+    labels: ["frontend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(40),
+    updatedAt: hoursAgo(3),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-16",
+    title: "Dark mode audit across the dashboard shell",
+    description: "Check every surface token resolves in both themes.",
+    status: "in_review",
+    priority: "medium",
+    assigneeId: "mo",
+    sprintId: "sprint-4",
+    labels: ["design"],
+    createdById: "mo",
+    createdAt: hoursAgo(36),
+    updatedAt: hoursAgo(5),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-17",
+    title: "Vercel preview deploys on every branch",
+    status: "blocked",
+    priority: "high",
+    assigneeId: "grok-3",
+    sprintId: "sprint-4",
+    labels: ["infra"],
+    createdById: "grok-3",
+    createdAt: hoursAgo(60),
+    updatedAt: hoursAgo(7),
+    isAgentWorking: false,
+    blockerReason: "Needs the production domain decided before builds can pin it",
+  }),
+  issue({
+    key: "CHLK-18",
+    title: "Agent roster tab",
+    description: "Name, bot avatar, idle/working, current task.",
+    status: "todo",
+    priority: "medium",
+    assigneeId: "grok-3",
+    sprintId: "sprint-4",
+    labels: ["frontend"],
+    createdById: "grok-3",
+    createdAt: hoursAgo(20),
+    updatedAt: hoursAgo(20),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-19",
+    title: "Replace eyeballed brand palette with real tokens",
+    status: "todo",
+    priority: "low",
+    assigneeId: null,
+    sprintId: "sprint-4",
+    labels: ["design"],
+    createdById: "grok-2",
+    createdAt: hoursAgo(16),
+    updatedAt: hoursAgo(16),
+    isAgentWorking: false,
+  }),
+
+  // ---- backlog -----------------------------------------------------------
+  issue({
+    key: "CHLK-20",
+    title: "Runtimes tab: token usage and daily cost",
+    description:
+      "Input / output / cache read / cache write split, plus a 7/30/90d cost chart.",
+    status: "todo",
+    priority: "medium",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["frontend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(70),
+    updatedAt: hoursAgo(70),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-21",
+    title: "Activity heatmap for agent runs",
+    status: "todo",
+    priority: "low",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["frontend"],
+    createdById: "grok-1",
+    createdAt: hoursAgo(68),
+    updatedAt: hoursAgo(68),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-22",
+    title: "Unified chat thread",
+    description: "One input, one running conversation. No per-agent routing yet.",
+    status: "todo",
+    priority: "medium",
+    assigneeId: "grok-1",
+    sprintId: null,
+    labels: ["frontend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(66),
+    updatedAt: hoursAgo(66),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-23",
+    title: "Autopilots: daily standup summary",
+    description: "Cron job posting yesterday's movement each morning.",
+    status: "todo",
+    priority: "low",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["backend"],
+    createdById: "grok-2",
+    createdAt: hoursAgo(64),
+    updatedAt: hoursAgo(64),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-24",
+    title: "Inbox: ping only when a decision is needed",
+    description: "Not a notification per status change.",
+    status: "todo",
+    priority: "medium",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["backend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(62),
+    updatedAt: hoursAgo(62),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-25",
+    title: "Persist board state to a real datastore",
+    description: "Everything is in memory today; a reload resets it.",
+    status: "todo",
+    priority: "high",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["backend", "infra"],
+    createdById: "grok-3",
+    createdAt: hoursAgo(58),
+    updatedAt: hoursAgo(58),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-26",
+    title: "Metrics page: first three founder charts",
+    status: "todo",
+    priority: "medium",
+    assigneeId: "mo",
+    sprintId: null,
+    labels: ["frontend"],
+    createdById: RASHAD,
+    createdAt: hoursAgo(54),
+    updatedAt: hoursAgo(54),
+    isAgentWorking: false,
+  }),
+  issue({
+    key: "CHLK-27",
+    title: "CRM import from the MaxPreps list",
+    status: "todo",
+    priority: "low",
+    assigneeId: null,
+    sprintId: null,
+    labels: ["backend"],
+    createdById: "grok-1",
+    createdAt: hoursAgo(52),
+    updatedAt: hoursAgo(52),
+    isAgentWorking: false,
+  }),
+]
