@@ -42,6 +42,44 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-app-shell: var(--app-shell);
+  --color-page-canvas: var(--page-canvas);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-border: var(--surface-border);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  /* Role-named type scale, after Multica: name sizes by what they are for,
+     not how big they are. `text-body` is the workhorse. */
+  --text-micro: 11px;
+  --text-micro--line-height: 15px;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-body-lg: 15px;
+  --text-body-lg--line-height: 22px;
+  --text-title-sm: 16px;
+  --text-title-sm--line-height: 24px;
+  --text-title: 18px;
+  --text-title--line-height: 28px;
+  --text-title-lg: 20px;
+  --text-title-lg--line-height: 28px;
+  --text-display-sm: 24px;
+  --text-display-sm--line-height: 32px;
+  --text-display: 36px;
+  --text-display--line-height: 40px;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -76,6 +114,30 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+
+
+  /* Surface system, after Multica: the app shell is the quiet outer frame; the
+     page canvas is where boards and lists live; surfaces are bounded content
+     groups such as cards. */
+  --app-shell: oklch(0.964 0 0);
+  --page-canvas: oklch(0.982 0 0);
+  --surface: oklch(1 0 0);
+  --surface-foreground: oklch(0.145 0 0);
+  --surface-hover: oklch(0.967 0 0);
+  --surface-selected: oklch(0.95 0 0);
+  --surface-border: oklch(0.92 0 0);
+  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
+
+  /* Lightest step still clearing 3:1 — for non-text marks only. Exists so
+     nobody reaches for text-muted-foreground/40. */
+  --faint-foreground: oklch(0.606 0 0);
+
+  --success: oklch(0.55 0.16 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.16 85);
+  --warning-foreground: oklch(0.205 0 0);
+  --info: oklch(0.55 0.18 250);
+  --info-foreground: oklch(0.985 0 0);
 
   /* Chlk brand — the blue on the founder avatar and the active nav item. */
   --brand: oklch(0.588 0.166 253);
@@ -116,6 +178,24 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+
+  --app-shell: oklch(0.155 0 0);
+  --page-canvas: oklch(0.145 0 0);
+  --surface: oklch(0.21 0 0);
+  --surface-foreground: oklch(0.985 0 0);
+  --surface-hover: oklch(0.24 0 0);
+  --surface-selected: oklch(0.27 0 0);
+  --surface-border: oklch(1 0 0 / 8%);
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 1px rgb(0 0 0 / 0.2);
+
+  --faint-foreground: oklch(0.556 0 0);
+
+  --success: oklch(0.65 0.15 145);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.80 0.15 85);
+  --warning-foreground: oklch(0.205 0 0);
+  --info: oklch(0.65 0.16 250);
+  --info-foreground: oklch(0.145 0 0);
 
   --brand: oklch(0.588 0.166 253);
   --brand-foreground: oklch(0.985 0 0);

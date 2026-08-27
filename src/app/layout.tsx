@@ -45,9 +45,11 @@ export default async function RootLayout({
         <ThemeProvider>
           <SidebarProvider defaultOpen={sidebarOpen}>
             <AppSidebar />
-            <SidebarInset>
-              <main className="flex-1 p-6">{children}</main>
-            </SidebarInset>
+            {/* SidebarInset already renders the <main> landmark. It also sets
+                w-full, which beside a sibling rail resolves wider than the space
+                actually left — min-w-0 lets it shrink so wide content scrolls
+                inside the page instead of off the edge. */}
+            <SidebarInset className="min-w-0 p-6">{children}</SidebarInset>
           </SidebarProvider>
         </ThemeProvider>
       </body>
