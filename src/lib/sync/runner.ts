@@ -9,6 +9,9 @@ import {
   founderAliasesFromEnv,
 } from "@/lib/gmail/client"
 import { syncGmail } from "@/lib/gmail/sync"
+import { createStripeApi } from "@/lib/stripe/client"
+import { syncStripe } from "@/lib/stripe/sync"
+import { createSupabaseSource, syncSupabase } from "@/lib/supabase/adapter"
 
 // Placeholder implementations replaced in the Stripe/Supabase phase.
 type SourceResult = {
@@ -26,12 +29,22 @@ async function runGmail(db: Db): Promise<SourceResult> {
   return { status: "success", stats: { ...stats } }
 }
 
-async function runStripe(_db: Db): Promise<SourceResult> {
-  return { status: "skipped", message: "Not configured" }
+async function runStripe(db: Db): Promise<SourceResult> {
+  const api = createStripeApi()
+  if (!api) return { status: "skipped", message: "Not configured" }
+  const stats = await syncStripe(db, api)
+  return { status: "success", stats: { ...stats } }
 }
 
-async function runSupabase(_db: Db): Promise<SourceResult> {
-  return { status: "skipped", message: "Not configured" }
+async function runSupabase(db: Db): Promise<SourceResult> {
+  const source = createSupabaseSource()
+  if (!source) return { status: "skipped", message: "Not configured" }
+  try {
+    const stats = await syncSupabase(db, source)
+    return { status: "success", stats: { ...stats } }
+  } finally {
+    await source.close()
+  }
 }
 
 const RUNNERS: Record<SyncSource, (db: Db) => Promise<SourceResult>> = {
