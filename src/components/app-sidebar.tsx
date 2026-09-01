@@ -32,7 +32,7 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function AppSidebar() {
+export function AppSidebar({ triageCount = 0 }: { triageCount?: number }) {
   const pathname = usePathname()
 
   return (
@@ -63,6 +63,11 @@ export function AppSidebar() {
                 className="size-4 shrink-0"
               />
               <span className="max-lg:hidden">{item.label}</span>
+              {item.href === "/triage" && triageCount > 0 ? (
+                <span className="ml-auto rounded-full bg-chart-4/20 px-1.5 text-[0.65rem] font-semibold text-chart-4 tabular-nums max-lg:hidden">
+                  {triageCount}
+                </span>
+              ) : null}
             </Link>
           )
         })}
