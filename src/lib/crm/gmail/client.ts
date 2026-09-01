@@ -4,6 +4,7 @@ import { OAuth2Client, type Credentials } from "google-auth-library"
 
 import { decryptSecret, encryptSecret } from "@/lib/crm/crypto"
 import { IntegrationError } from "@/lib/crm/core/errors"
+import { logError } from "@/lib/crm/core/log"
 import type { Db } from "@/lib/crm/db/client"
 import { oauthTokens } from "@/lib/crm/db/schema"
 
@@ -31,6 +32,13 @@ function appSecret(): string {
   if (!secret) {
     throw new IntegrationError(
       "APP_SECRET must be set to store Google tokens securely."
+    )
+  }
+  // HKDF-Extract is a single HMAC, so a short passphrase is brute-forceable
+  // offline against a copied database.
+  if (secret.length < 32) {
+    throw new IntegrationError(
+      "APP_SECRET is too short — use at least 32 characters (openssl rand -hex 32)."
     )
   }
   return secret
@@ -114,7 +122,25 @@ export function getGoogleConnection(db: Db) {
   }
 }
 
-export function disconnectGoogle(db: Db) {
+export async function disconnectGoogle(db: Db) {
+  const row = db
+    .select()
+    .from(oauthTokens)
+    .where(eq(oauthTokens.provider, "google"))
+    .get()
+
+  // Best-effort revoke first: deleting the row alone leaves the refresh
+  // token valid at Google indefinitely, so a token leaked from a database
+  // copy would survive a "Disconnect".
+  if (row?.refreshTokenEnc) {
+    try {
+      const refreshToken = decryptSecret(row.refreshTokenEnc, appSecret())
+      await newOAuthClient().revokeToken(refreshToken)
+    } catch (error) {
+      logError("google-revoke", error)
+    }
+  }
+
   db.delete(oauthTokens).where(eq(oauthTokens.provider, "google")).run()
 }
 
@@ -179,8 +205,10 @@ export async function createGmailApi(
   client.on("tokens", (tokens) => {
     try {
       saveTokens(db, tokens)
-    } catch {
-      // Persisting refreshed tokens is best-effort; the run still works.
+    } catch (error) {
+      // The run still works, but a rotated APP_SECRET shows up here first
+      // and would otherwise fail silently on every refresh.
+      logError("google-token-persist", error)
     }
   })
 

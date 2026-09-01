@@ -25,9 +25,22 @@ export function EmailBody({
   const [height, setHeight] = React.useState(120)
 
   if (html) {
-    const srcDoc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>${FRAME_STYLES}</style></head><body>${html}</body></html>`
+    const srcDoc =
+      `<!doctype html><html><head><meta charset="utf-8">` +
+      // Blocks every remote load. Without it, opening a case pings the
+      // sender's tracker with the reader's IP and User-Agent — and the
+      // corpus here is unsolicited inbound mail. Also defence in depth
+      // against a future sanitizer bypass.
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">` +
+      `<base target="_blank"><style>${FRAME_STYLES}</style></head>` +
+      `<body>${html}</body></html>`
     return (
       <iframe
+        // NEVER add allow-scripts here. This frame renders attacker-supplied
+        // email HTML and runs in the app's own origin, so scripts would mean
+        // same-origin XSS against a page holding Gmail tokens. allow-same-origin
+        // exists only so onLoad can measure the document height below; if that
+        // ever needs scripts, drop allow-same-origin in the same change.
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
         srcDoc={srcDoc}
         title="Email content"

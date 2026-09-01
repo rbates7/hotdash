@@ -1,6 +1,7 @@
 import { ZodError } from "zod"
 
 import { AppError } from "./errors"
+import { logError } from "./log"
 
 export function jsonError(error: unknown, fallback: string): Response {
   if (error instanceof AppError) {
@@ -15,7 +16,7 @@ export function jsonError(error: unknown, fallback: string): Response {
       { status: 400 }
     )
   }
-  console.error(error)
+  logError("api", error)
   return Response.json(
     { error: fallback, code: "internal_error" },
     { status: 500 }

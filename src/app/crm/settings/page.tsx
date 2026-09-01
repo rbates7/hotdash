@@ -29,6 +29,14 @@ import { cn } from "@/lib/utils"
 export const metadata: Metadata = { title: "CRM Settings · Chlk" }
 export const dynamic = "force-dynamic"
 
+const GOOGLE_ERRORS: Record<string, string> = {
+  denied: "Google authorization was declined.",
+  state_mismatch:
+    "Google authorization could not be verified. Please try connecting again.",
+  exchange_failed:
+    "Google authorization failed. Check the client credentials in .env.local.",
+}
+
 function StatusDot({ tone }: { tone: "ok" | "warn" | "off" }) {
   const color =
     tone === "ok"
@@ -68,8 +76,8 @@ export default async function SettingsPage({
       </p>
 
       {googleError ? (
-        <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          Google authorization failed: {googleError}
+        <p className="border-destructive/40 bg-destructive/10 text-destructive text-body mt-4 rounded-lg border px-3 py-2">
+          {GOOGLE_ERRORS[googleError] ?? GOOGLE_ERRORS.exchange_failed}
         </p>
       ) : null}
 

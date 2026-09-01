@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm"
 
 import { getDb, type Db } from "@/lib/crm/db/client"
 import { oauthTokens, SYNC_SOURCES, type SyncSource } from "@/lib/crm/db/schema"
+import { logError } from "@/lib/crm/core/log"
 import { isSyncPaused } from "@/lib/crm/settings/server"
 
 import { runSync } from "./runner"
@@ -53,7 +54,7 @@ async function tick(lastAttempt: Map<string, number>) {
     }
   } catch (error) {
     // The scheduler loop must never take the process down.
-    console.error("[sync-scheduler]", error)
+    logError("sync-scheduler", error)
   }
 }
 

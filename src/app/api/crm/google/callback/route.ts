@@ -1,3 +1,4 @@
+import { logError } from "@/lib/crm/core/log"
 import { getDb } from "@/lib/crm/db/client"
 import { handleOAuthCallback } from "@/lib/crm/gmail/client"
 
@@ -7,12 +8,17 @@ export const dynamic = "force-dynamic"
 const CLEAR_STATE_COOKIE =
   "hd_oauth_state=; Path=/api/crm/google; HttpOnly; SameSite=Lax; Max-Age=0"
 
-function redirectToSettings(origin: string, error?: string) {
-  const url = new URL("/crm/settings", origin)
-  if (error) url.searchParams.set("google_error", error)
+/** Fixed codes only — the value is rendered back on the settings page, and
+ * arbitrary attacker text there reads as an official warning. */
+type GoogleErrorCode = "denied" | "state_mismatch" | "exchange_failed"
+
+// Relative Location: deriving an absolute origin from the request host lets
+// a spoofed Host header bounce the founder to an attacker origin.
+function redirectToSettings(error?: GoogleErrorCode) {
+  const path = error ? `/crm/settings?google_error=${error}` : "/crm/settings"
   return new Response(null, {
     status: 302,
-    headers: { Location: url.toString(), "Set-Cookie": CLEAR_STATE_COOKIE },
+    headers: { Location: path, "Set-Cookie": CLEAR_STATE_COOKIE },
   })
 }
 
@@ -26,25 +32,21 @@ function readCookie(request: Request, name: string) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   try {
-    const oauthError = searchParams.get("error")
-    if (oauthError) return redirectToSettings(origin, oauthError)
+    if (searchParams.get("error")) return redirectToSettings("denied")
 
     const code = searchParams.get("code")
     const state = searchParams.get("state")
     const expectedState = readCookie(request, "hd_oauth_state")
     if (!code || !state || !expectedState || state !== expectedState) {
-      return redirectToSettings(origin, "Authorization state mismatch.")
+      return redirectToSettings("state_mismatch")
     }
 
     await handleOAuthCallback(getDb(), code)
-    return redirectToSettings(origin)
+    return redirectToSettings()
   } catch (error) {
-    console.error(error)
-    return redirectToSettings(
-      origin,
-      error instanceof Error ? error.message : "Authorization failed."
-    )
+    logError("google-callback", error)
+    return redirectToSettings("exchange_failed")
   }
 }

@@ -24,6 +24,7 @@ import { getCaseWithTimeline } from "@/lib/crm/cases/server"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import { NotFoundError } from "@/lib/crm/core/errors"
 import { getDb } from "@/lib/crm/db/client"
+import { sanitizeEmailHtml } from "@/lib/crm/gmail/parse"
 import type { EmailMessage, Note } from "@/lib/crm/db/schema"
 import {
   formatDateTime,
@@ -161,7 +162,17 @@ export default async function CaseDetailPage({
                   </span>
                 </div>
                 <div className="px-3.5 py-2.5">
-                  <EmailBody html={message.bodyHtml} text={message.bodyText} />
+                  <EmailBody
+                    // Re-sanitised here, not trusted from storage: rows
+                    // written before an allowlist change would otherwise
+                    // render as they were saved.
+                    html={
+                      message.bodyHtml
+                        ? sanitizeEmailHtml(message.bodyHtml)
+                        : null
+                    }
+                    text={message.bodyText}
+                  />
                   {message.attachments.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {message.attachments.map((attachment, index) => (

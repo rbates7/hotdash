@@ -103,3 +103,44 @@ describe("sanitizeEmailHtml", () => {
     expect(out).toBe("<p>hi</p>")
   })
 })
+
+describe("sanitizer hardening", () => {
+  it("strips script, event handlers, and javascript: urls", () => {
+    const out = sanitizeEmailHtml(
+      '<p onclick="steal()">hi</p><script>x()</script>' +
+        '<a href="javascript:alert(1)">click</a>' +
+        '<a href="JaVaScRiPt&#9;:alert(1)">tab</a>'
+    )
+    expect(out).not.toContain("script")
+    expect(out).not.toContain("onclick")
+    expect(out.toLowerCase()).not.toContain("javascript:")
+  })
+
+  it("drops style attributes and tags, which are the CSS exfiltration vector", () => {
+    const out = sanitizeEmailHtml(
+      '<div style="background:url(https://evil.example/x)">a</div>' +
+        "<style>@import url(https://evil.example/y);</style>"
+    )
+    expect(out).not.toContain("style")
+    expect(out).not.toContain("evil.example")
+  })
+
+  it("neutralises redirect and base-tag vectors", () => {
+    const out = sanitizeEmailHtml(
+      '<meta http-equiv="refresh" content="0;url=https://evil.example">' +
+        '<base href="https://evil.example/">' +
+        '<iframe src="https://evil.example"></iframe>' +
+        '<form action="https://evil.example"><input name="a"></form>'
+    )
+    expect(out).not.toContain("evil.example")
+  })
+
+  it("forces safe link attributes even when the sender sets their own", () => {
+    const out = sanitizeEmailHtml(
+      '<a href="https://ok.example" target="_self" rel="opener">x</a>'
+    )
+    expect(out).toContain('target="_blank"')
+    expect(out).toContain('rel="noopener noreferrer"')
+    expect(out).not.toContain('rel="opener"')
+  })
+})
