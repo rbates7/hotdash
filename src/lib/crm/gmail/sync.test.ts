@@ -24,7 +24,7 @@ import {
   unknownHumanFollowup,
 } from "./__fixtures__/messages"
 import { FakeGmailApi } from "./fake-api"
-import { syncGmail } from "./sync"
+import { resetGmailCursor, syncGmail } from "./sync"
 
 describe("syncGmail", () => {
   let db: Db
@@ -38,6 +38,22 @@ describe("syncGmail", () => {
       nameSource: "supabase",
       source: "stripe",
     })
+  })
+
+  it("ignores a widened window until the cursor is reset", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER, { initialWindow: "7d" })
+    expect(api.lastQuery).toBe("-in:chat newer_than:7d")
+
+    // Second pass resumes from the stored cursor, so the wider window is
+    // never consulted — this is what made "just change the env var" a no-op.
+    api.lastQuery = null
+    await syncGmail(db, api, FOUNDER, { initialWindow: "2026-01-01" })
+    expect(api.lastQuery).toBeNull()
+
+    resetGmailCursor(db)
+    await syncGmail(db, api, FOUNDER, { initialWindow: "2026-01-01" })
+    expect(api.lastQuery).toBe("-in:chat after:2026/01/01")
   })
 
   it("backfills from a relative window by default", async () => {

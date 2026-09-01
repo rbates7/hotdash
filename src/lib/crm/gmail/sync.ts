@@ -276,6 +276,17 @@ async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
   return { ids: [...ids], newCursor: profile.historyId }
 }
 
+/**
+ * Drop the stored history cursor so the next sync takes the full-sync path
+ * again. Without this, widening GMAIL_INITIAL_SYNC_WINDOW after the first
+ * successful sync does nothing at all — the window is only consulted when
+ * there is no cursor, so the setting silently has no effect and the mail you
+ * asked for never arrives.
+ */
+export function resetGmailCursor(db: Db) {
+  db.delete(syncState).where(eq(syncState.source, "gmail")).run()
+}
+
 export async function syncGmail(
   db: Db,
   api: GmailApi,

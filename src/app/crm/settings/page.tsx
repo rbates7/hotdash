@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { getDb } from "@/lib/crm/db/client"
 import { getGoogleConnection } from "@/lib/crm/gmail/client"
+import { DEFAULT_SYNC_WINDOW } from "@/lib/crm/gmail/window"
 import { isSyncPaused } from "@/lib/crm/settings/server"
 import { lastSuccessBySource, listRuns } from "@/lib/crm/sync/runner"
 import { cn } from "@/lib/utils"
@@ -63,6 +64,8 @@ export default async function SettingsPage({
   const runs = listRuns(db, undefined, 15)
   const paused = isSyncPaused(db)
   const lastSyncedBySource = lastSuccessBySource(db)
+  const syncWindow =
+    process.env.GMAIL_INITIAL_SYNC_WINDOW ?? DEFAULT_SYNC_WINDOW
   const stripeConfigured = Boolean(process.env.STRIPE_API_KEY)
   const supabaseConfigured = Boolean(process.env.SUPABASE_DB_URL)
 
@@ -102,7 +105,7 @@ export default async function SettingsPage({
               {google.connected
                 ? google.errorMessage
                   ? google.errorMessage
-                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")}`
+                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")} Backfill reaches ${syncWindow}.`
                 : "Not connected. Email-to-case needs read access to your inbox."}
             </CardDescription>
           </CardHeader>
@@ -121,6 +124,12 @@ export default async function SettingsPage({
             {google.connected ? (
               <>
                 <RefreshButton source="gmail" label="Sync now" />
+                <RefreshButton
+                  source="gmail"
+                  label="Backfill"
+                  full
+                  confirm={`Re-read your inbox from GMAIL_INITIAL_SYNC_WINDOW (currently ${syncWindow}). Existing cases are updated, not duplicated. This can take a while on a wide window.`}
+                />
                 <GoogleDisconnectButton />
               </>
             ) : null}

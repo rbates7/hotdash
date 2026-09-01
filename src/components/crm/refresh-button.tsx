@@ -18,17 +18,26 @@ function summarize(stats: Record<string, number> | null | undefined) {
 export function RefreshButton({
   source,
   label = "Refresh",
+  full = false,
+  confirm,
 }: {
   source: "gmail" | "stripe" | "supabase" | "all"
   label?: string
+  /** Re-read GMAIL_INITIAL_SYNC_WINDOW instead of resuming from the cursor. */
+  full?: boolean
+  confirm?: string
 }) {
   const router = useRouter()
   const [isRunning, setIsRunning] = React.useState(false)
 
   async function handleClick() {
+    if (confirm && !window.confirm(confirm)) return
     setIsRunning(true)
     try {
-      const response = await fetch(`/api/crm/sync/${source}`, { method: "POST" })
+      const response = await fetch(
+        `/api/crm/sync/${source}${full ? "?full=1" : ""}`,
+        { method: "POST" }
+      )
       const payload = (await response.json()) as {
         error?: string
         status?: string

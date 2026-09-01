@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { OAuth2Client, type Credentials } from "google-auth-library"
 
 import { decryptSecret, encryptSecret } from "@/lib/crm/crypto"
+import { resetGmailCursor } from "@/lib/crm/gmail/sync"
 import { IntegrationError } from "@/lib/crm/core/errors"
 import { logError } from "@/lib/crm/core/log"
 import type { Db } from "@/lib/crm/db/client"
@@ -146,6 +147,10 @@ export async function disconnectGoogle(db: Db) {
   }
 
   db.delete(oauthTokens).where(eq(oauthTokens.provider, "google")).run()
+  // The history cursor belongs to the mailbox we just let go of. Reconnecting
+  // a different account with it still in place would resume from a stranger's
+  // history id.
+  resetGmailCursor(db)
 }
 
 export async function handleOAuthCallback(db: Db, code: string) {

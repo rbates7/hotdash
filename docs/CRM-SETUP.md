@@ -56,8 +56,14 @@ from known contacts into cases.
 > "sync all" endpoint enforces this order, but the per-source buttons do not.
 
 > **Start narrow.** Set `GMAIL_INITIAL_SYNC_WINDOW=7d` for the first pass so
-> the result is reviewable, then widen to `30d` (or more) and sync again. The
-> sync is idempotent, so re-running never duplicates anything.
+> the result is reviewable, then widen and go again. The sync is idempotent,
+> so re-running never duplicates anything.
+>
+> Widening the window is **not** enough on its own: ordinary syncs resume from
+> a stored history cursor and never re-read the window. After changing it,
+> restart the server and use **Backfill** on the Settings page (or
+> `POST /api/crm/sync/gmail?full=1`), which clears the cursor first. Plain
+> "Sync now" will not reach back further.
 
 Optional: `FOUNDER_ALIASES` for send-as addresses that also count as you,
 and `GMAIL_INITIAL_SYNC_WINDOW` (default `30d`) for how far back the first
