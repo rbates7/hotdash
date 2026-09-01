@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# local CRM database
+/data
+
 # next.js
 /.next/
 /out/
