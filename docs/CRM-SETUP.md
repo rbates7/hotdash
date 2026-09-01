@@ -3,6 +3,17 @@
 The CRM lives at `/crm` in this dashboard. It runs on demo data out of the
 box; the three integrations below are optional and can be added whenever.
 
+## Check your setup before you start
+
+```bash
+pnpm crm:doctor
+```
+
+Validates `.env.local` and names anything that would stop Gmail connecting —
+including a redirect URI that doesn't match the route, which is the easiest
+thing to get wrong. Run it after editing `.env.local` and before touching
+the Google console.
+
 ## First run (no credentials)
 
 ```bash
@@ -33,7 +44,20 @@ from known contacts into cases.
    (add your deployed URL later if this ever leaves localhost).
 5. Copy the client ID/secret into `.env.local`, and set `APP_SECRET`
    (`openssl rand -hex 32`) — it encrypts the stored Google tokens at rest.
-6. **CRM → Settings → Connect Google**, approve, then **Sync now**.
+   It must be at least 32 characters; anything shorter is rejected, because
+   a short passphrase is brute-forceable against a copied database.
+6. Run `pnpm crm:doctor` and fix anything it flags.
+7. **CRM → Settings → Connect Google**, approve, then **Sync now**.
+
+> **Sync Stripe before Gmail on the very first run.** Gmail only opens a case
+> when the sender is already a known contact; everyone else waits in triage.
+> Import customers from Stripe first and your existing customers' mail
+> becomes cases immediately instead of arriving as a triage pile. The
+> "sync all" endpoint enforces this order, but the per-source buttons do not.
+
+> **Start narrow.** Set `GMAIL_INITIAL_SYNC_WINDOW=7d` for the first pass so
+> the result is reviewable, then widen to `30d` (or more) and sync again. The
+> sync is idempotent, so re-running never duplicates anything.
 
 Optional: `FOUNDER_ALIASES` for send-as addresses that also count as you,
 and `GMAIL_INITIAL_SYNC_WINDOW` (default `30d`) for how far back the first

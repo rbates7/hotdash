@@ -19,11 +19,15 @@ export async function POST(
     const { source } = paramsSchema.parse(await params)
     const db = getDb()
     if (source === "all") {
-      const results = await Promise.all([
-        runSync(db, "gmail", "manual"),
-        runSync(db, "stripe", "manual"),
-        runSync(db, "supabase", "manual"),
-      ])
+      // Order matters, and it is not cosmetic: Gmail only opens a case when
+      // the sender is already a known contact, so it must run *after* the
+      // sources that create contacts. Run it first — or in parallel — and a
+      // whole customer base lands in triage instead of becoming cases.
+      // Sequential also keeps SQLite's single writer uncontended.
+      const results = []
+      for (const source of ["stripe", "supabase", "gmail"] as const) {
+        results.push({ source, ...(await runSync(db, source, "manual")) })
+      }
       return Response.json({ results })
     }
     const result = await runSync(db, source, "manual")
