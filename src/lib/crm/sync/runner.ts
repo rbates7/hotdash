@@ -9,6 +9,7 @@ import {
   founderAliasesFromEnv,
 } from "@/lib/crm/gmail/client"
 import { syncGmail } from "@/lib/crm/gmail/sync"
+import { DEFAULT_SYNC_WINDOW } from "@/lib/crm/gmail/window"
 import { createStripeApi } from "@/lib/crm/stripe/client"
 import { syncStripe } from "@/lib/crm/stripe/sync"
 import { createSupabaseSource, syncSupabase } from "@/lib/crm/supabase/adapter"
@@ -24,7 +25,7 @@ async function runGmail(db: Db): Promise<SourceResult> {
   const { api, accountEmail } = await createGmailApi(db)
   const stats = await syncGmail(db, api, accountEmail, {
     founderAliases: founderAliasesFromEnv(),
-    initialWindow: process.env.GMAIL_INITIAL_SYNC_WINDOW ?? "30d",
+    initialWindow: process.env.GMAIL_INITIAL_SYNC_WINDOW ?? DEFAULT_SYNC_WINDOW,
   })
   return { status: "success", stats: { ...stats } }
 }

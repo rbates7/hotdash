@@ -10,6 +10,8 @@ export class FakeGmailApi implements GmailApi {
   emailAddress: string
   historyBatches: { historyId: string; ids: string[] }[] = []
   expireHistoryOnce = false
+  /** The `q` of the most recent listMessageIds call, for window assertions. */
+  lastQuery: string | null = null
   calls = { getProfile: 0, listMessageIds: 0, listHistory: 0, getThread: 0 }
 
   constructor(emailAddress: string, messages: GmailRawMessage[] = []) {
@@ -26,8 +28,9 @@ export class FakeGmailApi implements GmailApi {
     return { emailAddress: this.emailAddress, historyId: this.historyId }
   }
 
-  async listMessageIds() {
+  async listMessageIds({ q }: { q?: string } = {}) {
     this.calls.listMessageIds += 1
+    this.lastQuery = q ?? null
     return { ids: [...this.messages.keys()] }
   }
 

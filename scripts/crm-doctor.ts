@@ -7,6 +7,12 @@
 import fs from "node:fs"
 import path from "node:path"
 
+import {
+  DEFAULT_SYNC_WINDOW,
+  isValidSyncWindow,
+  syncWindowQuery,
+} from "../src/lib/crm/gmail/window"
+
 type Level = "ok" | "warn" | "fail"
 const results: { level: Level; label: string; detail: string }[] = []
 const add = (level: Level, label: string, detail: string) =>
@@ -62,6 +68,21 @@ if (!redirect) {
   )
 } else {
   add("ok", "Redirect URI", redirect)
+}
+
+// A bad window is not fatal — the sync falls back to the default — but it
+// silently changes how much mail the first backfill reaches, so say so here.
+const window = env.GMAIL_INITIAL_SYNC_WINDOW ?? ""
+if (!window) {
+  add("ok", "Gmail window", `not set — first sync reaches back ${DEFAULT_SYNC_WINDOW}`)
+} else if (!isValidSyncWindow(window)) {
+  add(
+    "warn",
+    "Gmail window",
+    `"${window}" is not a duration (30d, 8m, 2y) or a date (2026-01-01) — falling back to ${DEFAULT_SYNC_WINDOW}`
+  )
+} else {
+  add("ok", "Gmail window", `${window} → gmail query "${syncWindowQuery(window)}"`)
 }
 
 const stripe = env.STRIPE_API_KEY ?? ""

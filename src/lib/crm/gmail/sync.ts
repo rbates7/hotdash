@@ -18,6 +18,7 @@ import {
 } from "@/lib/crm/db/schema"
 
 import { isExcludedByLabels, parseMessage } from "./parse"
+import { DEFAULT_SYNC_WINDOW, syncWindowQuery } from "./window"
 import type {
   GmailApi,
   GmailRawMessage,
@@ -253,10 +254,20 @@ async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
   // mid-backfill is replayed by the next incremental pass and deduped.
   const profile = await api.getProfile()
   const ids = new Set<string>()
+  // A malformed window must not take the whole backfill down with it, so fall
+  // back to the default rather than throwing. `pnpm crm:doctor` rejects a bad
+  // value up front, which is where a typo should surface.
+  let windowQuery = syncWindowQuery(initialWindow)
+  if (!windowQuery) {
+    console.warn(
+      `[gmail] ignoring malformed GMAIL_INITIAL_SYNC_WINDOW; using ${DEFAULT_SYNC_WINDOW}`
+    )
+    windowQuery = syncWindowQuery(DEFAULT_SYNC_WINDOW)!
+  }
   let pageToken: string | undefined
   do {
     const page = await api.listMessageIds({
-      q: `-in:chat newer_than:${initialWindow}`,
+      q: `-in:chat ${windowQuery}`,
       pageToken,
     })
     for (const id of page.ids) ids.add(id)
@@ -277,7 +288,7 @@ export async function syncGmail(
       a.trim().toLowerCase()
     )
   )
-  const initialWindow = options.initialWindow ?? "30d"
+  const initialWindow = options.initialWindow ?? DEFAULT_SYNC_WINDOW
 
   const state = db
     .select()

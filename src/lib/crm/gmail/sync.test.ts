@@ -40,6 +40,27 @@ describe("syncGmail", () => {
     })
   })
 
+  it("backfills from a relative window by default", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER)
+    expect(api.lastQuery).toBe("-in:chat newer_than:30d")
+  })
+
+  it("backfills from an absolute date when one is configured", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER, { initialWindow: "2026-01-01" })
+    expect(api.lastQuery).toBe("-in:chat after:2026/01/01")
+  })
+
+  it("falls back to the default rather than failing on a bad window", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    const stats = await syncGmail(db, api, FOUNDER, {
+      initialWindow: "january",
+    })
+    expect(api.lastQuery).toBe("-in:chat newer_than:30d")
+    expect(stats.stored).toBe(1)
+  })
+
   it("full sync: known senders become cases, unknown humans triage, bulk is dropped", async () => {
     const api = new FakeGmailApi(FOUNDER, [
       inboundPlainDana,

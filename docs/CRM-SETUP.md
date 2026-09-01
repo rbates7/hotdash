@@ -61,7 +61,11 @@ from known contacts into cases.
 
 Optional: `FOUNDER_ALIASES` for send-as addresses that also count as you,
 and `GMAIL_INITIAL_SYNC_WINDOW` (default `30d`) for how far back the first
-sync reaches.
+sync reaches. That window takes either a duration (`7d`, `8m`, `2y`) or an
+absolute date (`2026-01-01`). Prefer a date when backfilling from a known
+starting point — a duration drifts, so a later re-sync after a history gap
+would reach further back than the first one did. `pnpm crm:doctor` prints the
+Gmail query it resolves to.
 
 ### What the sync does
 
