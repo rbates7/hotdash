@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { PRIORITY_LABELS, STATUS_LABELS } from "@/lib/crm/cases/server"
+import { PRIORITY_LABELS, STATUS_LABELS } from "@/lib/crm/cases/labels"
 import type { CasePriority, CaseStatus } from "@/lib/crm/db/schema"
 import { cn } from "@/lib/utils"
 

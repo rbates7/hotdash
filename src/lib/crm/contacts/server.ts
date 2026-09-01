@@ -8,6 +8,7 @@ import type { Db } from "@/lib/crm/db/client"
 import {
   cases,
   contacts,
+  emailMessages,
   organizations,
   type Contact,
   type NameSource,
@@ -109,6 +110,47 @@ export function enrichContactName(
   return db.select().from(contacts).where(eq(contacts.id, contact.id)).get()!
 }
 
+/** Mirrors product-usage fields from the Chlk app database. Unlike names,
+ * these have no competing source, so incoming values always win; a field
+ * the mapping doesn't select is left untouched rather than blanked. */
+export function updateContactUsage(
+  db: Db,
+  contact: Contact,
+  incoming: {
+    appUserId?: string | null
+    signupAt?: Date | null
+    lastActiveAt?: Date | null
+    appProfile?: Record<string, string | number | boolean | null> | null
+  }
+): Contact {
+  const updates: Partial<typeof contacts.$inferInsert> = {}
+  if (incoming.appUserId && incoming.appUserId !== contact.appUserId) {
+    updates.appUserId = incoming.appUserId
+  }
+  if (
+    incoming.signupAt &&
+    incoming.signupAt.getTime() !== contact.signupAt?.getTime()
+  ) {
+    updates.signupAt = incoming.signupAt
+  }
+  if (
+    incoming.lastActiveAt &&
+    incoming.lastActiveAt.getTime() !== contact.lastActiveAt?.getTime()
+  ) {
+    updates.lastActiveAt = incoming.lastActiveAt
+  }
+  if (
+    incoming.appProfile &&
+    JSON.stringify(incoming.appProfile) !== JSON.stringify(contact.appProfile)
+  ) {
+    updates.appProfile = incoming.appProfile
+  }
+  if (Object.keys(updates).length === 0) return contact
+  updates.updatedAt = new Date()
+  db.update(contacts).set(updates).where(eq(contacts.id, contact.id)).run()
+  return db.select().from(contacts).where(eq(contacts.id, contact.id)).get()!
+}
+
 export function updateContactManual(
   db: Db,
   contactId: string,
@@ -198,7 +240,10 @@ export async function getContactWithCases(db: Db, contactId: string) {
     where: eq(contacts.id, contactId),
     with: {
       organization: true,
-      cases: { orderBy: [desc(cases.lastActivityAt)] },
+      cases: {
+        orderBy: [desc(cases.lastActivityAt)],
+        with: { messages: { orderBy: [asc(emailMessages.sentAt)] } },
+      },
     },
   })
   if (!contact) throw new NotFoundError("Contact not found.")

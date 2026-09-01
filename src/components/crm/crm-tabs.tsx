@@ -22,7 +22,7 @@ type CrmTab = {
 const TABS: CrmTab[] = [
   { href: "/crm", label: "Overview", icon: LayoutDashboardIcon },
   { href: "/crm/cases", label: "Cases", icon: InboxIcon },
-  { href: "/crm/contacts", label: "Contacts", icon: UsersIcon },
+  { href: "/crm/customers", label: "Customers", icon: UsersIcon },
   { href: "/crm/triage", label: "Triage", icon: TriangleAlertIcon },
   { href: "/crm/settings", label: "Settings", icon: SettingsIcon },
 ]

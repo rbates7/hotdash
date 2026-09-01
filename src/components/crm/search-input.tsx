@@ -32,7 +32,7 @@ export function SearchInput({ placeholder }: { placeholder: string }) {
         value={q}
         onChange={(event) => setQ(event.target.value)}
         placeholder={placeholder}
-        className="h-8 w-56 pl-9"
+        className="h-8 w-56 pl-9!"
       />
     </div>
   )

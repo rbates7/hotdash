@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm"
 
+import { STATUS_LABELS } from "@/lib/crm/cases/labels"
 import { transitionOnMessage, type MessageDirection } from "@/lib/crm/cases/rules"
 import { NotFoundError, ValidationError } from "@/lib/crm/core/errors"
 import { rawClient, type Db } from "@/lib/crm/db/client"
@@ -150,19 +151,6 @@ export function setCasePriority(
   return db.select().from(cases).where(eq(cases.id, caseId)).get()!
 }
 
-export const STATUS_LABELS: Record<CaseStatus, string> = {
-  new: "New",
-  open: "Open",
-  waiting: "Waiting on customer",
-  closed: "Closed",
-}
-
-export const PRIORITY_LABELS: Record<CasePriority, string> = {
-  low: "Low",
-  normal: "Normal",
-  high: "High",
-  urgent: "Urgent",
-}
 
 export type CaseListFilters = {
   status?: CaseStatus

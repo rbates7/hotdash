@@ -57,7 +57,7 @@ describe("syncSupabase", () => {
       ])
     )
 
-    expect(stats).toEqual({ rowsSeen: 3, contactsEnriched: 1 })
+    expect(stats).toEqual({ rowsSeen: 3, contactsEnriched: 1, usageUpdated: 0 })
     expect(db.select().from(contacts).all()).toHaveLength(2)
 
     const dana = db
@@ -88,6 +88,7 @@ describe("syncSupabase", () => {
       ])
     )
     expect(stats.contactsEnriched).toBe(0)
+    expect(stats.usageUpdated).toBe(0)
     const contact = db
       .select()
       .from(contacts)
@@ -106,5 +107,48 @@ describe("syncSupabase", () => {
     }))
     const stats = await syncSupabase(db, fakeSource(rows))
     expect(stats.rowsSeen).toBe(1200)
+  })
+
+  it("mirrors product usage and tolerates missing or unparseable values", async () => {
+    const stats = await syncSupabase(
+      db,
+      fakeSource([
+        {
+          email: "dana@acme.com",
+          app_user_id: 8812,
+          signup_at: "2025-06-01T00:00:00Z",
+          last_active_at: new Date("2026-08-30T09:00:00Z"),
+        },
+        // No usage columns at all — the mapping simply didn't select them.
+        { email: "manual@x.io", first_name: null },
+      ])
+    )
+    expect(stats.usageUpdated).toBe(1)
+
+    const dana = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "dana@acme.com"))
+      .get()!
+    expect(dana.appUserId).toBe("8812")
+    expect(dana.signupAt?.toISOString()).toBe("2025-06-01T00:00:00.000Z")
+    expect(dana.lastActiveAt?.toISOString()).toBe("2026-08-30T09:00:00.000Z")
+
+    const untouched = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "manual@x.io"))
+      .get()!
+    expect(untouched.appUserId).toBeNull()
+    expect(untouched.signupAt).toBeNull()
+  })
+
+  it("is idempotent on repeated usage syncs", async () => {
+    const rows = [
+      { email: "dana@acme.com", app_user_id: "abc", signup_at: "2025-06-01T00:00:00Z" },
+    ]
+    await syncSupabase(db, fakeSource(rows))
+    const second = await syncSupabase(db, fakeSource(rows))
+    expect(second.usageUpdated).toBe(0)
   })
 })

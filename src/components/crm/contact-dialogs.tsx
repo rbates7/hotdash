@@ -90,13 +90,13 @@ export function ContactNewDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" />}>
         <PlusIcon data-icon="inline-start" />
-        New contact
+        New customer
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New contact</DialogTitle>
+          <DialogTitle>New customer</DialogTitle>
           <DialogDescription>
-            Add someone manually — most contacts arrive from Stripe or triage.
+            Add someone manually — most customers arrive from Stripe or triage.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

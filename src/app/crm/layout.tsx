@@ -1,5 +1,6 @@
 import { CommandPalette } from "@/components/crm/command-palette"
 import { CrmTabs } from "@/components/crm/crm-tabs"
+import { CustomerSearch } from "@/components/crm/customer-search"
 import { Toaster } from "@/components/ui/sonner"
 import { getDb } from "@/lib/crm/db/client"
 import { countTriagePending } from "@/lib/crm/triage/server"
@@ -20,7 +21,10 @@ export default function CrmLayout({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <h1 className="text-title-lg font-semibold">CRM</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-title-lg font-semibold">CRM</h1>
+        <CustomerSearch />
+      </div>
       <CrmTabs triageCount={triageCount} />
       {children}
       <CommandPalette />

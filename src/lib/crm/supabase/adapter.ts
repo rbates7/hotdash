@@ -1,7 +1,11 @@
 import postgres from "postgres"
 
 import { normalizeEmail } from "@/lib/crm/contacts/matching"
-import { enrichContactName, findContactByEmail } from "@/lib/crm/contacts/server"
+import {
+  enrichContactName,
+  findContactByEmail,
+  updateContactUsage,
+} from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 
 import { chlkMapping, type SupabaseProfileRow } from "./mapping"
@@ -30,9 +34,34 @@ export function createSupabaseSource(): SupabaseSource | null {
   }
 }
 
+/** Postgres hands back Date, ISO strings, or epoch numbers depending on the
+ * column type; anything unparseable is treated as absent. */
+function toDate(value: string | number | Date | null | undefined): Date | null {
+  if (value == null) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/** Picks the configured `extras` columns off the row for the profile card. */
+function extrasFrom(row: SupabaseProfileRow) {
+  const extras: Record<string, string | number | boolean | null> = {}
+  for (const column of chlkMapping.extras) {
+    const value = row[column]
+    if (value == null) continue
+    extras[column] =
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+        ? value
+        : String(value)
+  }
+  return Object.keys(extras).length > 0 ? extras : null
+}
+
 export type SupabaseSyncStats = {
   rowsSeen: number
   contactsEnriched: number
+  usageUpdated: number
 }
 
 const PAGE_SIZE = 500
@@ -43,7 +72,11 @@ export async function syncSupabase(
   db: Db,
   source: SupabaseSource
 ): Promise<SupabaseSyncStats> {
-  const stats: SupabaseSyncStats = { rowsSeen: 0, contactsEnriched: 0 }
+  const stats: SupabaseSyncStats = {
+    rowsSeen: 0,
+    contactsEnriched: 0,
+    usageUpdated: 0,
+  }
   let offset = 0
   for (;;) {
     const rows = await source.fetchRows(PAGE_SIZE, offset)
@@ -54,12 +87,20 @@ export async function syncSupabase(
       const contact = findContactByEmail(db, normalizeEmail(row.email))
       if (!contact) continue
       const enriched = enrichContactName(db, contact, {
-        firstName: row.first_name,
-        lastName: row.last_name,
-        organizationName: row.org_name,
+        firstName: row.first_name ?? null,
+        lastName: row.last_name ?? null,
+        organizationName: row.org_name ?? null,
         source: "supabase",
       })
       if (enriched !== contact) stats.contactsEnriched += 1
+
+      const usage = updateContactUsage(db, enriched, {
+        appUserId: row.app_user_id == null ? null : String(row.app_user_id),
+        signupAt: toDate(row.signup_at),
+        lastActiveAt: toDate(row.last_active_at),
+        appProfile: extrasFrom(row),
+      })
+      if (usage !== enriched) stats.usageUpdated += 1
     }
     if (rows.length < PAGE_SIZE) break
     offset += PAGE_SIZE

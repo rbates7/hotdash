@@ -141,7 +141,7 @@ export function CommandPalette() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => go(`/crm/contacts/${item.id}`)}
+                  onClick={() => go(`/crm/customers/${item.id}`)}
                   className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                 >
                   <UserIcon className="size-4 shrink-0 text-muted-foreground" />

@@ -105,7 +105,7 @@ export function CasesFilterBar() {
           value={q}
           onChange={(event) => setQ(event.target.value)}
           placeholder="Search cases…"
-          className="h-8 w-56 pl-9"
+          className="h-8 w-56 pl-9!"
         />
       </div>
     </div>

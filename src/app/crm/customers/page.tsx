@@ -16,7 +16,7 @@ import {
 import { contactDisplayName, listContacts } from "@/lib/crm/contacts/server"
 import { getDb } from "@/lib/crm/db/client"
 
-export const metadata: Metadata = { title: "Contacts · CRM · Chlk" }
+export const metadata: Metadata = { title: "Customers · CRM · Chlk" }
 export const dynamic = "force-dynamic"
 
 export default async function ContactsPage({
@@ -32,19 +32,19 @@ export default async function ContactsPage({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-muted-foreground text-body">
-            {rows.length} {rows.length === 1 ? "person" : "people"} — imported
+            {rows.length} {rows.length === 1 ? "customer" : "customers"} — imported
             from Stripe, promoted from triage, or added by hand.
           </p>
         </div>
         <ContactNewDialog />
       </div>
       <div>
-        <SearchInput placeholder="Search contacts…" />
+        <SearchInput placeholder="Search customers…" />
       </div>
       <div className="rounded-xl border">
         {rows.length === 0 ? (
           <p className="px-4 py-12 text-center text-sm text-muted-foreground">
-            No contacts yet. Run a Stripe sync from Settings, or add one
+            No customers yet. Run a Stripe sync from Settings, or add one
             manually.
           </p>
         ) : (
@@ -65,7 +65,7 @@ export default async function ContactsPage({
                   <TableRow key={contact.id}>
                     <TableCell>
                       <Link
-                        href={`/crm/contacts/${contact.id}`}
+                        href={`/crm/customers/${contact.id}`}
                         className="flex items-center gap-2 font-medium hover:underline"
                       >
                         <ContactAvatar name={name} />

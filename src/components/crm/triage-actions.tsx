@@ -168,7 +168,7 @@ export function TriageActions({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search contacts…"
+            placeholder="Search customers…"
             autoFocus
           />
           <div className="flex max-h-64 flex-col gap-1 overflow-y-auto">

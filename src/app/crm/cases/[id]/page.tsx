@@ -189,7 +189,7 @@ export default async function CaseDetailPage({
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <Link
-                href={`/crm/contacts/${contact.id}`}
+                href={`/crm/customers/${contact.id}`}
                 className="flex items-center gap-2.5 hover:underline"
               >
                 <ContactAvatar name={contactName} className="size-8 text-xs" />

@@ -38,6 +38,15 @@ export const contacts = sqliteTable(
     stripeCustomerId: text("stripe_customer_id"),
     plan: text("plan"),
     planStatus: text("plan_status"),
+    // Product usage, mirrored from the Chlk app database by the Supabase
+    // sync. appProfile carries whatever extra columns the mapping selects,
+    // so unknown fields still surface on the customer profile.
+    appUserId: text("app_user_id"),
+    signupAt: integer("signup_at", { mode: "timestamp_ms" }),
+    lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" }),
+    appProfile: text("app_profile", { mode: "json" }).$type<
+      Record<string, string | number | boolean | null>
+    >(),
     source: text("source", { enum: ["gmail", "stripe", "manual"] }).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
