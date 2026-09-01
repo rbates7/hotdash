@@ -15,7 +15,8 @@
     "crm:generate": "drizzle-kit generate",
     "crm:seed": "tsx scripts/seed-dev.ts",
     "crm:seed:scale": "tsx scripts/seed-scale.ts",
-    "crm:doctor": "tsx scripts/crm-doctor.ts"
+    "crm:doctor": "tsx scripts/crm-doctor.ts",
+    "crm:repair-forms": "tsx scripts/crm-repair-forms.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

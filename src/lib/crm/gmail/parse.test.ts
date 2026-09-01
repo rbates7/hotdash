@@ -16,8 +16,10 @@ import {
 import {
   isBulk,
   parseAddressList,
+  parseFormFields,
   parseMessage,
   resolveRelaySender,
+  subjectFromForm,
   sanitizeEmailHtml,
 } from "./parse"
 
@@ -277,5 +279,85 @@ describe("resolveRelaySender", () => {
     expect(
       resolveRelaySender(new Map(), relayFrom, "Your invoice is ready.")
     ).toBeNull()
+  })
+})
+
+describe("parseFormFields", () => {
+  // Rashad's real submission, as Gmail renders it: fields run together.
+  const inline =
+    "Name: Aaron Sword Email: asword11c@gmail.com Message: I am trying to create a formation with an imbalanced line, however after I save it, and select it again, the app resets the line formation to a balanced one."
+
+  const multiline = [
+    "Form Submission - Contact Form",
+    "",
+    "Name: Aaron Sword",
+    "Email: asword11c@gmail.com",
+    "Message: I am trying to create a formation with an imbalanced line.",
+  ].join("\n")
+
+  it("splits fields that run together on one line", () => {
+    const fields = parseFormFields(inline)
+    expect(fields.get("name")).toBe("Aaron Sword")
+    expect(fields.get("email")).toBe("asword11c@gmail.com")
+    expect(fields.get("message")).toMatch(/^I am trying to create a formation/)
+  })
+
+  it("reads the same fields when each is on its own line", () => {
+    const fields = parseFormFields(multiline)
+    expect(fields.get("name")).toBe("Aaron Sword")
+    expect(fields.get("email")).toBe("asword11c@gmail.com")
+  })
+
+  it("normalises label variants", () => {
+    const fields = parseFormFields(
+      "Full Name: Jane Coach\nE-Mail Address: jane@westhigh.edu\nPhone Number: 555"
+    )
+    expect(fields.get("name")).toBe("Jane Coach")
+    expect(fields.get("email")).toBe("jane@westhigh.edu")
+    expect(fields.get("phone")).toBe("555")
+  })
+
+  it("finds nothing in ordinary prose", () => {
+    expect(parseFormFields("Hey, quick question about playbooks.").size).toBe(0)
+  })
+})
+
+describe("subjectFromForm", () => {
+  it("leads with the message rather than the form's template subject", () => {
+    expect(
+      subjectFromForm(
+        "Name: Aaron Sword Email: asword11c@gmail.com Message: I am trying to create a formation with an imbalanced line, however after I save it the app resets it."
+      )
+    ).toBe("I am trying to create a formation with an imbalanced line, however…")
+  })
+
+  it("leaves a short message whole, with no ellipsis", () => {
+    expect(subjectFromForm("Name: Jane\nMessage: Do you have a team plan?")).toBe(
+      "Do you have a team plan?"
+    )
+  })
+
+  it("does not leave punctuation dangling before the ellipsis", () => {
+    const subject = subjectFromForm(
+      `Message: ${"word ".repeat(13)}tail, and more words after the cut`
+    )!
+    expect(subject).not.toMatch(/[,;:.]…$/)
+  })
+
+  it("breaks on a word, never mid-word", () => {
+    const subject = subjectFromForm(`Message: ${"alpha ".repeat(40)}`)!
+    expect(subject.endsWith("…")).toBe(true)
+    expect(subject).not.toMatch(/alph…$/)
+  })
+
+  it("falls back to the body when there is no message field", () => {
+    expect(subjectFromForm("Just checking in about the app.")).toBe(
+      "Just checking in about the app."
+    )
+  })
+
+  it("returns null with nothing to say", () => {
+    expect(subjectFromForm(null)).toBeNull()
+    expect(subjectFromForm("   ")).toBeNull()
   })
 })

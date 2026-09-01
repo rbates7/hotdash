@@ -86,7 +86,14 @@ Gmail query it resolves to.
   the form body, so the case or triage entry belongs to the coach rather than
   to Squarespace. If your form carries neither, the message still reaches
   triage under the host's name rather than being dropped — an unattributed
-  lead is fixable, a missing one is not.
+  lead is fixable, a missing one is not. The case is titled from the form's
+  message rather than its template subject, so a queue of submissions is
+  readable at a glance.
+
+  Cases created before this existed can be repaired in place from the message
+  bodies already stored: `pnpm crm:repair-forms` reports what it would change,
+  `pnpm crm:repair-forms --write` applies it. It never overwrites a name you
+  edited by hand, and re-running it is a no-op.
 - **Bulk mail** (List-Unsubscribe, Precedence, no-reply senders) from
   unknown senders → skipped entirely, so no Gmail filters are needed.
 - Your own outbound threads with no case (investors, lawyers) → ignored.

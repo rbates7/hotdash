@@ -113,10 +113,49 @@ const BULK_CATEGORIES = new Set([
 // named inside. Taken at face value these look like machine mail, so they get
 // dropped, and taken at face value in triage they would create a contact named
 // "Squarespace". Neither is what the message is: it is a coach asking for help.
-const BODY_EMAIL_LABEL =
-  /^[ \t>*]*(?:your[ \t]+)?e-?mail(?:[ \t]+address)?[ \t]*[:*]+[ \t]*<?([^\s<>@]+@[^\s<>@]+\.[^\s<>@,;)]+)/im
-const BODY_NAME_LABEL =
-  /^[ \t>*]*(?:your[ \t]+)?(?:full[ \t]+)?name[ \t]*[:*]+[ \t]*(\S.{0,80}?)[ \t]*$/im
+// Form hosts lay their fields out inconsistently: Squarespace's plain-text
+// part puts each on its own line, its HTML part runs them together, and other
+// hosts do neither. So rather than anchoring to line starts, find every known
+// label and take each value as the text up to the next one.
+const FORM_LABEL =
+  /(?:^|[\s>*|])((?:your[ \t]+)?(?:full[ \t]+)?(?:name|e-?mail(?:[ \t]+address)?|message|comments?|subject|phone(?:[ \t]+number)?|school|team|organi[sz]ation))[ \t]*[:*]+[ \t]*/gi
+
+export function parseFormFields(body: string | null): Map<string, string> {
+  const fields = new Map<string, string>()
+  if (!body) return fields
+
+  const matches = [...body.matchAll(FORM_LABEL)]
+  for (const [index, match] of matches.entries()) {
+    const key = match[1]!
+      .toLowerCase()
+      .replace(/^your[ \t]+/, "")
+      .replace(/^full[ \t]+/, "")
+      .replace(/[ \t]+(address|number)$/, "")
+      .replace(/e-mail/, "email")
+    const valueStart = match.index! + match[0].length
+    const valueEnd = matches[index + 1]?.index ?? body.length
+    const value = body.slice(valueStart, valueEnd).replace(/\s+/g, " ").trim()
+    if (value && !fields.has(key)) fields.set(key, value)
+  }
+  return fields
+}
+
+const EMAIL_IN_TEXT = /[^\s<>@]+@[^\s<>@]+\.[^\s<>@,;)]+/
+
+/** Enough of a text rendering to read form labels out of an HTML-only body. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])\b[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+/g, " ")
+}
 
 function isListMail(headers: Map<string, string>): boolean {
   if (headers.has("list-unsubscribe") || headers.has("list-id")) return true
@@ -140,7 +179,8 @@ export function resolveRelaySender(
   if (!isRelaySender(from.email)) return null
   if (isListMail(headers)) return null
 
-  const bodyName = bodyText?.match(BODY_NAME_LABEL)?.[1]?.trim() || null
+  const fields = parseFormFields(bodyText)
+  const bodyName = fields.get("name") ?? null
 
   const replyTo = parseAddressList(headers.get("reply-to"))[0]
   if (
@@ -151,7 +191,7 @@ export function resolveRelaySender(
     return { email: replyTo.email, name: replyTo.name ?? bodyName }
   }
 
-  const bodyEmail = bodyText?.match(BODY_EMAIL_LABEL)?.[1]
+  const bodyEmail = fields.get("email")?.match(EMAIL_IN_TEXT)?.[0]
   if (bodyEmail) {
     const email = normalizeEmail(bodyEmail)
     if (email !== from.email && !isBulkSender(email)) {
@@ -159,6 +199,28 @@ export function resolveRelaySender(
     }
   }
   return null
+}
+
+/**
+ * A subject worth reading for a relayed message. Every submission through the
+ * same form carries the same template subject ("Form Submission - Contact
+ * Form"), so a queue of them is indistinguishable at a glance — which is the
+ * one thing a case list has to do. The message itself is the only part that
+ * differs, so lead with it.
+ */
+export function subjectFromForm(bodyText: string | null): string | null {
+  const fields = parseFormFields(bodyText)
+  const message = fields.get("message") ?? fields.get("comment") ?? fields.get("comments")
+  const source = (message ?? bodyText ?? "").replace(/\s+/g, " ").trim()
+  if (!source) return null
+
+  const limit = 72
+  if (source.length <= limit) return source
+  const cut = source.slice(0, limit)
+  const lastSpace = cut.lastIndexOf(" ")
+  const trimmed = lastSpace > 40 ? cut.slice(0, lastSpace) : cut
+  // "…line,…" reads as a typo; drop punctuation left dangling by the cut.
+  return `${trimmed.replace(/[\s,;:.\-–—]+$/, "")}…`
 }
 
 // Bulk/automated mail announces itself via headers; real humans never set
@@ -262,8 +324,11 @@ export function parseMessage(
   // ...but everything downstream — contact matching, the ignore list, who
   // triage offers to promote — keys off the sender, so a relayed message has
   // to name the person, not the postman.
+  // Some hosts send the form HTML-only, so fall back to its text content
+  // rather than losing the fields the message is made of.
+  const scannable = text ?? (html ? htmlToText(html) : null)
   const relaySender =
-    direction === "inbound" ? resolveRelaySender(headers, from, text) : null
+    direction === "inbound" ? resolveRelaySender(headers, from, scannable) : null
   const sender = relaySender ?? from
 
   let counterparty: Address | null
@@ -295,7 +360,11 @@ export function parseMessage(
     ccEmails: ccAddresses.map((a) => a.email),
     counterpartyEmail: counterparty?.email ?? null,
     counterpartyName: counterparty?.name ?? null,
-    subject: headers.get("subject") ?? null,
+    // A form's template subject is the same on every submission; the message
+    // is the only part that tells them apart.
+    subject: relaySender
+      ? (subjectFromForm(scannable) ?? headers.get("subject") ?? null)
+      : (headers.get("subject") ?? null),
     snippet: raw.snippet ?? null,
     bodyText: text,
     bodyHtml: html ? sanitizeEmailHtml(html) : null,
