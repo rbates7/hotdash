@@ -1,4 +1,17 @@
 .DS_Store
 .env
 .env*.local
+
 node_modules/
+/.next/
+/out/
+*.tsbuildinfo
+
+# local databases & scratch
+data/
+.tmp/
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
