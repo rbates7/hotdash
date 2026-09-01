@@ -13,7 +13,12 @@ import {
   outboundReplyFounder,
   unknownHuman,
 } from "./__fixtures__/messages"
-import { parseAddressList, parseMessage, sanitizeEmailHtml } from "./parse"
+import {
+  isBulk,
+  parseAddressList,
+  parseMessage,
+  sanitizeEmailHtml,
+} from "./parse"
 
 const founders = new Set([FOUNDER, FOUNDER_ALIAS])
 
@@ -142,5 +147,51 @@ describe("sanitizer hardening", () => {
     expect(out).toContain('target="_blank"')
     expect(out).toContain('rel="noopener noreferrer"')
     expect(out).not.toContain('rel="opener"')
+  })
+})
+
+describe("isBulk", () => {
+  const noHeaders = new Map<string, string>()
+
+  it("catches automation words anywhere in the local part", () => {
+    // The real miss: this reached triage because the pattern was anchored.
+    expect(isBulk(noHeaders, "payments-noreply@google.com")).toBe(true)
+    expect(isBulk(noHeaders, "billing.do-not-reply@vendor.com")).toBe(true)
+    expect(isBulk(noHeaders, "mailer-daemon@relay.net")).toBe(true)
+  })
+
+  it("matches weaker words only as a whole segment", () => {
+    expect(isBulk(noHeaders, "news@league.org")).toBe(true)
+    expect(isBulk(noHeaders, "form-submission@squarespace.info")).toBe(true)
+    // A coach whose name merely contains one of them is not bulk.
+    expect(isBulk(noHeaders, "newsome@westhigh.edu")).toBe(false)
+    expect(isBulk(noHeaders, "jupdates@school.org")).toBe(false)
+  })
+
+  it("treats Gmail's marketing categories as bulk", () => {
+    expect(isBulk(noHeaders, "info@e.atlassian.com", ["INBOX"])).toBe(false)
+    expect(
+      isBulk(noHeaders, "info@e.atlassian.com", [
+        "INBOX",
+        "CATEGORY_PROMOTIONS",
+      ])
+    ).toBe(true)
+  })
+
+  it("leaves CATEGORY_UPDATES alone — real first contact lands there", () => {
+    expect(isBulk(noHeaders, "coach@westhigh.edu", ["CATEGORY_UPDATES"])).toBe(
+      false
+    )
+  })
+
+  it("still honours the bulk headers", () => {
+    expect(
+      isBulk(new Map([["list-unsubscribe", "<mailto:x@y.z>"]]), "hi@y.z")
+    ).toBe(true)
+    expect(isBulk(new Map([["precedence", "bulk"]]), "hi@y.z")).toBe(true)
+  })
+
+  it("lets an ordinary human through", () => {
+    expect(isBulk(noHeaders, "dana@acme.com")).toBe(false)
   })
 })

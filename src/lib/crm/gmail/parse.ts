@@ -41,14 +41,54 @@ function headerMap(headers: GmailHeader[] | null | undefined) {
   return map
 }
 
-const BULK_FROM_PATTERN =
-  /^(no-?reply|do-?not-?reply|notifications?|updates?|newsletter|news|marketing|mailer(-daemon)?|bounce[s]?)@/i
+// Words that mean "machine" wherever they appear in the local part.
+// `payments-noreply@google.com` is not a person, and anchoring this to the
+// start of the address (as it once was) let every prefixed variant through.
+const BULK_ANYWHERE = /no-?reply|do-?not-?reply|mailer-?daemon|postmaster/i
+
+// Words that only mean "machine" as a whole segment. `news@` is a newsletter;
+// a coach named Newsome is not, so these must not match as substrings.
+const BULK_SEGMENTS = new Set([
+  "alert",
+  "alerts",
+  "automated",
+  "bounce",
+  "bounces",
+  "mailer",
+  "marketing",
+  "news",
+  "newsletter",
+  "notification",
+  "notifications",
+  "submission",
+  "submissions",
+  "update",
+  "updates",
+])
+
+function isBulkSender(fromEmail: string): boolean {
+  const local = fromEmail.split("@")[0]?.toLowerCase() ?? ""
+  if (BULK_ANYWHERE.test(local)) return true
+  return local.split(/[.\-_+]/).some((segment) => BULK_SEGMENTS.has(segment))
+}
+
+// Gmail's own categorisation, which is better at recognising marketing than
+// any pattern we could write. Deliberately excludes CATEGORY_UPDATES: real
+// first-contact mail from a coach lands there often enough that dropping it
+// would lose actual support requests.
+const BULK_CATEGORIES = new Set([
+  "CATEGORY_PROMOTIONS",
+  "CATEGORY_SOCIAL",
+  "CATEGORY_FORUMS",
+])
 
 // Bulk/automated mail announces itself via headers; real humans never set
-// List-Unsubscribe or Precedence: bulk. Known contacts bypass this check.
+// List-Unsubscribe or Precedence: bulk. Known contacts bypass this check, so
+// a customer whose mail Gmail files under Promotions still opens a case.
 export function isBulk(
   headers: Map<string, string>,
-  fromEmail: string
+  fromEmail: string,
+  labelIds: string[] = []
 ): boolean {
   if (headers.has("list-unsubscribe") || headers.has("list-id")) return true
   const precedence = headers.get("precedence")?.trim().toLowerCase()
@@ -57,7 +97,8 @@ export function isBulk(
   }
   const autoSubmitted = headers.get("auto-submitted")?.trim().toLowerCase()
   if (autoSubmitted && autoSubmitted !== "no") return true
-  return BULK_FROM_PATTERN.test(fromEmail)
+  if (labelIds.some((label) => BULK_CATEGORIES.has(label))) return true
+  return isBulkSender(fromEmail)
 }
 
 function decodeBody(data: string | null | undefined): string | null {
@@ -172,7 +213,9 @@ export function parseMessage(
     bodyHtml: html ? sanitizeEmailHtml(html) : null,
     attachments,
     sentAt,
-    isBulk: direction === "inbound" && isBulk(headers, from.email),
+    isBulk:
+      direction === "inbound" &&
+      isBulk(headers, from.email, raw.labelIds ?? []),
   }
 }
 
