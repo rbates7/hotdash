@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 import {
   ExternalLinkIcon,
   PaperclipIcon,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/card"
 import { getCaseWithTimeline } from "@/lib/crm/cases/server"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
+import { NotFoundError } from "@/lib/crm/core/errors"
 import { getDb } from "@/lib/crm/db/client"
 import type { EmailMessage, Note } from "@/lib/crm/db/schema"
 import {
@@ -43,7 +45,10 @@ export default async function CaseDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const caseRow = await getCaseWithTimeline(getDb(), id)
+  const caseRow = await getCaseWithTimeline(getDb(), id).catch((error) => {
+    if (error instanceof NotFoundError) notFound()
+    throw error
+  })
   const contact = caseRow.contact
   const contactName = contactDisplayName(contact)
 

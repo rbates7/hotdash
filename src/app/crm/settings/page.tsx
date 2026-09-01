@@ -99,7 +99,7 @@ export default async function SettingsPage({
           <CardContent className="flex items-center gap-2">
             {/* Full-page navigation so the OAuth redirect chain works. */}
             <a
-              href="/api/google/connect"
+              href="/api/crm/google/connect"
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               {google.connected

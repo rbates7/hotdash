@@ -23,8 +23,10 @@ export function createSupabaseSource(): SupabaseSource | null {
   const sql = postgres(url, { max: 1, prepare: false })
   return {
     async fetchRows(limit, offset) {
+      // A stable ORDER BY is required: paging an unordered query can
+      // repeat or skip rows, silently leaving contacts unenriched.
       const rows = await sql.unsafe(
-        `select * from (${chlkMapping.query}) as profiles limit ${limit} offset ${offset}`
+        `select * from (${chlkMapping.query}) as profiles order by email limit ${limit} offset ${offset}`
       )
       return rows as unknown as SupabaseProfileRow[]
     },

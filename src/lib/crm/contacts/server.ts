@@ -11,6 +11,7 @@ import { NotFoundError } from "@/lib/crm/core/errors"
 import type { Db } from "@/lib/crm/db/client"
 import {
   cases,
+  contactEmails,
   contacts,
   emailMessages,
   organizations,
@@ -19,11 +20,40 @@ import {
 } from "@/lib/crm/db/schema"
 
 export function findContactByEmail(db: Db, email: string) {
+  const normalized = normalizeEmail(email)
+  const direct = db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.email, normalized))
+    .get()
+  if (direct) return direct
+  // Fall back to addresses learned from triage linking.
+  const alias = db
+    .select()
+    .from(contactEmails)
+    .where(eq(contactEmails.email, normalized))
+    .get()
+  if (!alias) return undefined
   return db
     .select()
     .from(contacts)
-    .where(eq(contacts.email, normalizeEmail(email)))
+    .where(eq(contacts.id, alias.contactId))
     .get()
+}
+
+/** Teaches the CRM that `email` also belongs to this contact. */
+export function addContactEmail(db: Db, contactId: string, email: string) {
+  const normalized = normalizeEmail(email)
+  const contact = db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.id, contactId))
+    .get()
+  if (!contact || contact.email === normalized) return
+  db.insert(contactEmails)
+    .values({ email: normalized, contactId, createdAt: new Date() })
+    .onConflictDoNothing()
+    .run()
 }
 
 export function findOrCreateOrganizationByName(
@@ -101,10 +131,9 @@ export function enrichContactName(
     updates.lastName = incoming.lastName ?? null
     updates.nameSource = incoming.source
   }
-  if (
-    incoming.organizationName &&
-    canOverwriteName(contact.nameSource, incoming.source)
-  ) {
+  // Organization is independent of the name-source contest: a manual name
+  // edit must not stop an account link from ever arriving.
+  if (incoming.organizationName && !contact.organizationId) {
     const org = findOrCreateOrganizationByName(db, incoming.organizationName)
     updates.organizationId = org.id
   }
@@ -280,7 +309,11 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
     .leftJoin(lastInbound, eq(lastInbound.contactId, contacts.id))
     .where(where)
-    .orderBy(asc(contacts.firstName), asc(contacts.email))
+    .orderBy(
+      sql`case when ${contacts.firstName} is null or ${contacts.firstName} = '' then 1 else 0 end`,
+      asc(contacts.firstName),
+      asc(contacts.email)
+    )
     .limit(limit)
     .offset(offset)
     .all()
@@ -445,20 +478,36 @@ export async function getOrganizationWithStaff(db: Db, organizationId: string) {
     .orderBy(asc(contacts.firstName), asc(contacts.email))
     .all()
 
+  const CASE_LIMIT = 100
   const accountCases = db
     .select({ caseRow: cases, contact: contacts })
     .from(cases)
     .innerJoin(contacts, eq(cases.contactId, contacts.id))
     .where(eq(contacts.organizationId, organizationId))
     .orderBy(desc(cases.lastActivityAt))
-    .limit(100)
+    .limit(CASE_LIMIT)
     .all()
+
+  // Counts come from aggregates, not from the page of cases above, or a
+  // busy account would under-report once it passes the limit.
+  const totals = db
+    .select({
+      total: sql<number>`count(*)`,
+      open: sql<number>`sum(case when ${cases.status} != 'closed' then 1 else 0 end)`,
+    })
+    .from(cases)
+    .innerJoin(contacts, eq(cases.contactId, contacts.id))
+    .where(eq(contacts.organizationId, organizationId))
+    .get()
 
   return {
     organization,
     staff: staffWithCounts,
     staffCount: staff.length,
     cases: accountCases,
+    totalCases: totals?.total ?? 0,
+    openCases: totals?.open ?? 0,
+    casesTruncated: (totals?.total ?? 0) > CASE_LIMIT,
   }
 }
 

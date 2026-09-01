@@ -75,7 +75,7 @@ describe("syncSupabase", () => {
     expect(org.name).toBe("Acme Robotics")
   })
 
-  it("never clobbers manual edits", async () => {
+  it("never clobbers a manually edited name, but still links the account", async () => {
     const stats = await syncSupabase(
       db,
       fakeSource([
@@ -87,15 +87,41 @@ describe("syncSupabase", () => {
         },
       ])
     )
-    expect(stats.contactsEnriched).toBe(0)
     expect(stats.usageUpdated).toBe(0)
+
     const contact = db
       .select()
       .from(contacts)
       .where(eq(contacts.email, "manual@x.io"))
       .get()!
+    // The hand-typed name wins over the app database, as always...
     expect(contact.firstName).toBe("Hand")
-    expect(contact.organizationId).toBeNull()
+    expect(contact.lastName).toBe("Edited")
+    // ...but organization is not part of that contest: editing someone's
+    // name must not permanently stop their account from being linked.
+    expect(contact.organizationId).not.toBeNull()
+    const org = db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, contact.organizationId!))
+      .get()!
+    expect(org.name).toBe("Some Org")
+  })
+
+  it("leaves an already-linked account alone", async () => {
+    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: "First Org" }]))
+    const before = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "manual@x.io"))
+      .get()!
+    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: "Second Org" }]))
+    const after = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "manual@x.io"))
+      .get()!
+    expect(after.organizationId).toBe(before.organizationId)
   })
 
   it("pages through large result sets", async () => {

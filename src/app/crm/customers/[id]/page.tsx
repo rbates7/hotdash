@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 import { ExternalLinkIcon } from "lucide-react"
 
 import { PlanBadge } from "@/components/crm/case-badges"
@@ -19,6 +20,7 @@ import {
   listTeammates,
 } from "@/lib/crm/contacts/server"
 import { customerType } from "@/lib/crm/contacts/matching"
+import { NotFoundError } from "@/lib/crm/core/errors"
 import { getDb } from "@/lib/crm/db/client"
 import { formatDateTime, relativeTime } from "@/lib/crm/format"
 
@@ -45,7 +47,10 @@ export default async function CustomerProfilePage({
 }) {
   const { id } = await params
   const db = getDb()
-  const contact = await getContactWithCases(db, id)
+  const contact = await getContactWithCases(db, id).catch((error) => {
+    if (error instanceof NotFoundError) notFound()
+    throw error
+  })
   const name = contactDisplayName(contact)
   const isTeam = customerType(contact) === "team"
   // B2B customers are worked as an account, so show who else is on it.

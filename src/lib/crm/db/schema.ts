@@ -60,6 +60,21 @@ export const contacts = sqliteTable(
   ]
 )
 
+/** Additional addresses that resolve to a contact, learned when a triage
+ * thread is linked by hand. The contact's primary address lives on
+ * `contacts.email`; this covers the rest. */
+export const contactEmails = sqliteTable(
+  "contact_emails",
+  {
+    email: text("email").primaryKey(),
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contacts.id),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("contact_emails_contact_id_idx").on(table.contactId)]
+)
+
 export const CASE_STATUSES = ["new", "open", "waiting", "closed"] as const
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 

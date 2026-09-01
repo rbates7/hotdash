@@ -15,6 +15,13 @@
       "when": 1788292308452,
       "tag": "0001_jazzy_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788295234268,
+      "tag": "0002_lonely_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

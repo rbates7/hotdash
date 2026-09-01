@@ -170,6 +170,11 @@ export async function listCases(db: Db, filters: CaseListFilters = {}) {
   if (filters.priority) conditions.push(eq(cases.priority, filters.priority))
   if (filters.q) {
     const pattern = `%${filters.q.toLowerCase()}%`
+    // Contact matches go in as a subquery rather than by loading every
+    // matching id and binding them all: with thousands of customers that
+    // defeats the pagination below and risks the bound-parameter cap.
+    // (A raw correlated EXISTS is not an option here — inside the relational
+    // query builder, interpolated columns get rewritten to the root alias.)
     const matchingContacts = db
       .select({ id: contacts.id })
       .from(contacts)
@@ -182,16 +187,10 @@ export async function listCases(db: Db, filters: CaseListFilters = {}) {
           )
         )
       )
-      .all()
     conditions.push(
       or(
         like(sql`lower(${cases.subject})`, pattern),
-        matchingContacts.length > 0
-          ? inArray(
-              cases.contactId,
-              matchingContacts.map((c) => c.id)
-            )
-          : sql`0`
+        inArray(cases.contactId, matchingContacts)
       )
     )
   }

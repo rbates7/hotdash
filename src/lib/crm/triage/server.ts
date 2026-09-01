@@ -7,7 +7,11 @@ import {
   getCaseByThreadId,
 } from "@/lib/crm/cases/server"
 import { splitDisplayName } from "@/lib/crm/contacts/matching"
-import { createContact, findContactByEmail } from "@/lib/crm/contacts/server"
+import {
+  addContactEmail,
+  createContact,
+  findContactByEmail,
+} from "@/lib/crm/contacts/server"
 import { NotFoundError, ValidationError } from "@/lib/crm/core/errors"
 import type { Db } from "@/lib/crm/db/client"
 import {
@@ -133,7 +137,10 @@ export function resolveTriage(db: Db, resolution: TriageResolution) {
   if (pending.length === 0) {
     throw new NotFoundError("No pending messages in that thread.")
   }
-  const senderEmail = pending[0]!.fromEmail
+  // Match the sender the UI shows: threads are listed newest-first.
+  const senderEmail = [...pending].sort(
+    (a, b) => b.sentAt.getTime() - a.sentAt.getTime()
+  )[0]!.fromEmail
 
   if (resolution.action === "ignore") {
     db.update(emailMessages)
@@ -187,6 +194,9 @@ export function resolveTriage(db: Db, resolution: TriageResolution) {
         source: "gmail",
       })
   }
+
+  // Linking by hand is how the CRM learns a customer's other addresses.
+  addContactEmail(db, contact.id, senderEmail)
 
   const caseRow = promoteThreadToCase(db, contact, resolution.gmailThreadId)
 

@@ -8,9 +8,16 @@ import {
   emailMessages,
   ignoredSenders,
 } from "@/lib/crm/db/schema"
-import { FOUNDER, makeMessage, unknownHuman, unknownHumanFollowup } from "@/lib/crm/gmail/__fixtures__/messages"
+import {
+  FOUNDER,
+  makeMessage,
+  unknownHuman,
+  unknownHumanFollowup,
+} from "@/lib/crm/gmail/__fixtures__/messages"
 import { FakeGmailApi } from "@/lib/crm/gmail/fake-api"
 import { syncGmail } from "@/lib/crm/gmail/sync"
+
+import { findContactByEmail } from "@/lib/crm/contacts/server"
 
 import { countTriagePending, listTriageThreads, resolveTriage } from "./server"
 
@@ -126,5 +133,83 @@ describe("triage", () => {
         .where(eq(ignoredSenders.email, "lena@futurebridge.vc"))
         .get()
     ).toBeTruthy()
+  })
+
+  it("teaches the contact the address that was linked, so later threads become cases", async () => {
+    // A coach writes from a personal address that Stripe has never seen.
+    db.insert(contacts)
+      .values({
+        id: "contact_school",
+        email: "coach@school.edu",
+        firstName: "Coach",
+        lastName: "Reyes",
+        nameSource: "stripe",
+        source: "stripe",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .run()
+
+    resolveTriage(db, {
+      gmailThreadId: "t_lena",
+      action: "link",
+      contactId: "contact_school",
+    })
+
+    // The linked address now resolves to that contact...
+    expect(findContactByEmail(db, "lena@futurebridge.vc")?.id).toBe(
+      "contact_school"
+    )
+
+    // ...so a brand-new thread from it opens a case instead of returning
+    // to triage, which was the whole point of linking.
+    const followUp = makeMessage({
+      id: "m_lena_third",
+      threadId: "t_lena_3",
+      from: "Lena Ortiz <lena@futurebridge.vc>",
+      subject: "Third thread",
+      text: "Following up again.",
+      sentAt: "2026-08-29T10:00:00Z",
+    })
+    const api = new FakeGmailApi(FOUNDER, [followUp])
+    api.historyId = "2000"
+    api.historyBatches = [{ historyId: "2000", ids: ["m_lena_third"] }]
+    await syncGmail(db, api, FOUNDER)
+
+    const newCase = db
+      .select()
+      .from(cases)
+      .where(eq(cases.gmailThreadId, "t_lena_3"))
+      .get()
+    expect(newCase).toBeTruthy()
+    expect(newCase!.contactId).toBe("contact_school")
+  })
+
+  it("ignores the sender shown on the thread, not an arbitrary one", async () => {
+    // A second person replies into the thread; the UI labels the thread
+    // with the newest sender, so that is who must be blacklisted.
+    const reply = makeMessage({
+      id: "m_lena_colleague",
+      threadId: "t_lena",
+      from: "Priya Colleague <colleague@futurebridge.vc>",
+      subject: "Re: Intro",
+      text: "Adding my colleague.",
+      sentAt: "2026-08-29T12:00:00Z",
+    })
+    const api = new FakeGmailApi(FOUNDER, [reply])
+    api.historyId = "2000"
+    api.historyBatches = [{ historyId: "2000", ids: ["m_lena_colleague"] }]
+    await syncGmail(db, api, FOUNDER)
+
+    resolveTriage(db, {
+      gmailThreadId: "t_lena",
+      action: "ignore",
+      ignoreSenderAlways: true,
+    })
+
+    const ignored = db.select().from(ignoredSenders).all()
+    expect(ignored.map((row) => row.email)).toContain(
+      "colleague@futurebridge.vc"
+    )
   })
 })

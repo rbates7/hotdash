@@ -118,7 +118,21 @@ function storeMessage(
 
 function attachToCase(db: Db, caseId: string, parsed: ParsedMessage) {
   const stored = storeMessage(db, parsed, { kind: "case", caseId })
-  if (!stored) return false
+  if (!stored) {
+    // Already stored — most often as a pending triage item that this thread
+    // is now claiming. Adopt it into the case rather than dropping it, or
+    // the conversation's opening message never reaches the timeline.
+    const existing = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.gmailMessageId, parsed.gmailMessageId))
+      .get()
+    if (!existing || existing.caseId === caseId) return false
+    db.update(emailMessages)
+      .set({ caseId, triageState: null })
+      .where(eq(emailMessages.id, existing.id))
+      .run()
+  }
   const caseRow = db.select().from(cases).where(eq(cases.id, caseId)).get()
   if (caseRow) {
     applyMessageToCase(db, caseRow, {
@@ -305,16 +319,19 @@ export async function syncGmail(
   }
 
   const now = new Date()
+  // Keep the previous cursor when Gmail returns no history id; overwriting
+  // it with null would trigger a full window re-sync on every tick.
+  const cursorToStore = newCursor ?? state?.cursor ?? null
   db.insert(syncState)
     .values({
       source: "gmail",
-      cursor: newCursor,
+      cursor: cursorToStore,
       lastSyncedAt: now,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: syncState.source,
-      set: { cursor: newCursor, lastSyncedAt: now, updatedAt: now },
+      set: { cursor: cursorToStore, lastSyncedAt: now, updatedAt: now },
     })
     .run()
 

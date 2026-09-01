@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { notFound } from "next/navigation"
 
 import {
   PlanBadge,
@@ -19,6 +20,7 @@ import {
   contactDisplayName,
   getOrganizationWithStaff,
 } from "@/lib/crm/contacts/server"
+import { NotFoundError } from "@/lib/crm/core/errors"
 import { getDb } from "@/lib/crm/db/client"
 import { relativeTime } from "@/lib/crm/format"
 
@@ -40,11 +42,11 @@ export default async function AccountDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const { organization, staff, cases } = await getOrganizationWithStaff(
-    getDb(),
-    id
-  )
-  const openCases = cases.filter((c) => c.caseRow.status !== "closed")
+  const { organization, staff, cases, totalCases, openCases, casesTruncated } =
+    await getOrganizationWithStaff(getDb(), id).catch((error) => {
+      if (error instanceof NotFoundError) notFound()
+      throw error
+    })
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -66,8 +68,8 @@ export default async function AccountDetailPage({
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Stat label="Coaches on account" value={String(staff.length)} />
-        <Stat label="Open cases" value={String(openCases.length)} />
-        <Stat label="Cases all time" value={String(cases.length)} />
+        <Stat label="Open cases" value={String(openCases)} />
+        <Stat label="Cases all time" value={String(totalCases)} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -156,6 +158,11 @@ export default async function AccountDetailPage({
                 </TableBody>
               </Table>
             )}
+            {casesTruncated ? (
+              <p className="text-muted-foreground border-t px-3 py-2 text-xs">
+                Showing the {cases.length} most recent of {totalCases} cases.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
