@@ -6,13 +6,19 @@ import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import { ContactEditDialog } from "@/components/crm/contact-dialogs"
 import { CustomerCaseList } from "@/components/crm/customer-case-list"
+import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { contactDisplayName, getContactWithCases } from "@/lib/crm/contacts/server"
+import {
+  contactDisplayName,
+  getContactWithCases,
+  listTeammates,
+} from "@/lib/crm/contacts/server"
+import { customerType } from "@/lib/crm/contacts/matching"
 import { getDb } from "@/lib/crm/db/client"
 import { formatDateTime, relativeTime } from "@/lib/crm/format"
 
@@ -38,8 +44,15 @@ export default async function CustomerProfilePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const contact = await getContactWithCases(getDb(), id)
+  const db = getDb()
+  const contact = await getContactWithCases(db, id)
   const name = contactDisplayName(contact)
+  const isTeam = customerType(contact) === "team"
+  // B2B customers are worked as an account, so show who else is on it.
+  const teammates =
+    isTeam && contact.organizationId
+      ? listTeammates(db, contact.organizationId, contact.id)
+      : []
 
   const openCases = contact.cases.filter((c) => c.status !== "closed")
   const emailCount = contact.cases.reduce((n, c) => n + c.messages.length, 0)
@@ -51,10 +64,7 @@ export default async function CustomerProfilePage({
     )
 
   const hasUsage = Boolean(
-    contact.appUserId ||
-      contact.signupAt ||
-      contact.lastActiveAt ||
-      contact.appProfile
+    contact.appUserId || contact.signupAt || contact.appProfile
   )
 
   return (
@@ -74,9 +84,15 @@ export default async function CustomerProfilePage({
               <h2 className="text-title-lg font-semibold">{name}</h2>
               <PlanBadge plan={contact.plan} planStatus={contact.planStatus} />
             </div>
-            <p className="text-muted-foreground text-body">
+            <p className="text-muted-foreground text-body flex flex-wrap items-center gap-1.5">
               {contact.email}
-              {contact.organization ? ` · ${contact.organization.name}` : ""}
+              {isTeam ? (
+                <>· <span>{contact.organization?.name}</span></>
+              ) : (
+                <Badge variant="outline" className="font-normal">
+                  Individual
+                </Badge>
+              )}
             </p>
           </div>
         </div>
@@ -136,6 +152,44 @@ export default async function CustomerProfilePage({
         </div>
 
         <div className="flex flex-col gap-4">
+          {isTeam ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-caption">
+                  Others on {contact.organization?.name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1.5">
+                {teammates.length === 0 ? (
+                  <p className="text-muted-foreground text-caption">
+                    No one else from this account is in the CRM yet.
+                  </p>
+                ) : (
+                  teammates.map(({ contact: mate, openCases }) => {
+                    const mateName = contactDisplayName(mate)
+                    return (
+                      <Link
+                        key={mate.id}
+                        href={`/crm/customers/${mate.id}`}
+                        className="hover:bg-muted -mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1"
+                      >
+                        <ContactAvatar name={mateName} />
+                        <span className="text-body min-w-0 flex-1 truncate">
+                          {mateName}
+                        </span>
+                        {openCases > 0 ? (
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {openCases} open
+                          </span>
+                        ) : null}
+                      </Link>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-caption">Product usage</CardTitle>
@@ -155,12 +209,6 @@ export default async function CustomerProfilePage({
                     <div className="flex justify-between gap-2">
                       <span className="text-muted-foreground">Signed up</span>
                       <span>{formatDateTime(contact.signupAt)}</span>
-                    </div>
-                  ) : null}
-                  {contact.lastActiveAt ? (
-                    <div className="flex justify-between gap-2">
-                      <span className="text-muted-foreground">Last active</span>
-                      <span>{relativeTime(contact.lastActiveAt)}</span>
                     </div>
                   ) : null}
                   {Object.entries(contact.appProfile ?? {}).map(

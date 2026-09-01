@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   canOverwriteName,
+  customerType,
   normalizeEmail,
   splitDisplayName,
 } from "./matching"
@@ -61,5 +62,15 @@ describe("canOverwriteName precedence (manual > supabase > stripe > gmail)", () 
     expect(canOverwriteName("manual", "supabase")).toBe(false)
     expect(canOverwriteName("supabase", "stripe")).toBe(false)
     expect(canOverwriteName("stripe", "gmail")).toBe(false)
+  })
+})
+
+describe("customerType", () => {
+  it("treats a customer with no organization as an individual (B2C)", () => {
+    expect(customerType({ organizationId: null })).toBe("individual")
+  })
+
+  it("treats a customer attached to an organization as team (B2B)", () => {
+    expect(customerType({ organizationId: "org_acme" })).toBe("team")
   })
 })

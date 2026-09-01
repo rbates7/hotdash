@@ -31,3 +31,12 @@ export function canOverwriteName(
   if (existing === null) return true
   return NAME_SOURCE_RANK[incoming] >= NAME_SOURCE_RANK[existing]
 }
+
+export type CustomerType = "individual" | "team"
+
+/** B2C (a solo coach) vs B2B (someone on a program's staff). */
+export function customerType(contact: {
+  organizationId: string | null
+}): CustomerType {
+  return contact.organizationId ? "team" : "individual"
+}

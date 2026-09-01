@@ -9,7 +9,8 @@ import {
   organizations,
 } from "../src/lib/crm/db/schema"
 
-const HOUR = 60 * 60 * 1000
+const MIN = 60 * 1000
+const HOUR = 60 * MIN
 const DAY = 24 * HOUR
 
 export function seed(db: Db, sqlite: Database.Database, now: number) {
@@ -42,6 +43,10 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
       { id: "contact_priya", email: "priya@birchwood.io", firstName: "Priya", lastName: "Raman", nameSource: "supabase", organizationId: "org_birchwood", stripeCustomerId: "cus_dev_priya", plan: "Starter", planStatus: "trialing", appUserId: "chlk_9120", signupAt: at(70 * DAY), lastActiveAt: at(3 * HOUR), appProfile: { team: "Birchwood Labs", role: "Analyst", seats: 6 }, source: "stripe", createdAt: at(60 * DAY), updatedAt: at(3 * DAY) },
       { id: "contact_jonah", email: "jonah@sunrisemedia.co", firstName: "Jonah", lastName: "Beck", nameSource: "stripe", organizationId: "org_sunrise", stripeCustomerId: "cus_dev_jonah", plan: "Pro", planStatus: "active", appUserId: "chlk_7431", signupAt: at(500 * DAY), lastActiveAt: at(5 * DAY), appProfile: { team: "Sunrise Media", role: "Admin", seats: 12 }, source: "stripe", createdAt: at(45 * DAY), updatedAt: at(10 * DAY) },
       { id: "contact_elena", email: "elena@sunrisemedia.co", firstName: "Elena", lastName: "Souza", nameSource: "supabase", organizationId: "org_sunrise", stripeCustomerId: "cus_dev_elena", plan: "Pro", planStatus: "canceled", appUserId: "chlk_7432", signupAt: at(498 * DAY), lastActiveAt: at(45 * DAY), appProfile: { team: "Sunrise Media", role: "Editor", seats: 12 }, source: "stripe", createdAt: at(44 * DAY), updatedAt: at(30 * DAY) },
+      { id: "contact_ray", email: "ray.donnelly@gmail.com", firstName: "Ray", lastName: "Donnelly", nameSource: "stripe", organizationId: null, stripeCustomerId: "cus_dev_ray", plan: "Starter", planStatus: "active", appUserId: "chlk_10233", signupAt: at(120 * DAY), lastActiveAt: at(6 * HOUR), appProfile: { team: "Independent", role: "Position Coach", seats: 1 }, source: "stripe", createdAt: at(120 * DAY), updatedAt: at(6 * HOUR) },
+      { id: "contact_bea", email: "bea.n.coach@outlook.com", firstName: "Bea", lastName: "Nakamura", nameSource: "stripe", organizationId: null, stripeCustomerId: "cus_dev_bea", plan: "Pro", planStatus: "active", appUserId: "chlk_10456", signupAt: at(210 * DAY), lastActiveAt: at(2 * DAY), appProfile: { team: "Independent", role: "Head Coach", seats: 1 }, source: "stripe", createdAt: at(210 * DAY), updatedAt: at(2 * DAY) },
+      { id: "contact_will", email: "wgrant.film@gmail.com", firstName: "Will", lastName: "Grant", nameSource: "gmail", organizationId: null, stripeCustomerId: "cus_dev_will", plan: "Starter", planStatus: "trialing", appUserId: "chlk_10877", signupAt: at(9 * DAY), lastActiveAt: at(20 * HOUR), appProfile: { team: "Independent", role: "Analyst", seats: 1 }, source: "stripe", createdAt: at(9 * DAY), updatedAt: at(20 * HOUR) },
+      { id: "contact_sam", email: "coachsamv@icloud.com", firstName: "Sam", lastName: "Vega", nameSource: "stripe", organizationId: null, stripeCustomerId: "cus_dev_sam", plan: "Starter", planStatus: "canceled", appUserId: "chlk_9004", signupAt: at(300 * DAY), lastActiveAt: at(60 * DAY), appProfile: { team: "Independent", role: "Coach", seats: 1 }, source: "stripe", createdAt: at(300 * DAY), updatedAt: at(60 * DAY) },
       { id: "contact_tom", email: "tom.alvarez@gmail.com", firstName: "Tom", lastName: "Alvarez", nameSource: "gmail", organizationId: null, stripeCustomerId: "cus_dev_tom", plan: "Starter", planStatus: "active", appUserId: "chlk_9908", signupAt: at(35 * DAY), lastActiveAt: at(26 * HOUR), appProfile: { team: "Independent", role: "Coach", seats: 1 }, source: "stripe", createdAt: at(30 * DAY), updatedAt: at(1 * DAY) },
     ])
     .run()
@@ -70,6 +75,9 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     { id: "case_6", n: 6, subject: "Cancel subscription and export data", status: "closed", priority: "low", contactId: "contact_elena", thread: "thread_dev_6", lastActivity: 30 * DAY, lastInbound: 30 * DAY, closed: 29 * DAY, created: 31 * DAY },
     { id: "case_7", n: 7, subject: "Login loop on Safari 18", status: "open", priority: "normal", contactId: "contact_tom", thread: "thread_dev_7", lastActivity: 26 * HOUR, lastInbound: 26 * HOUR, created: 2 * DAY },
     { id: "case_8", n: 8, subject: "Feature request: weekly digest email", status: "waiting", priority: "low", contactId: "contact_priya", thread: "thread_dev_8", lastActivity: 4 * DAY, lastOutbound: 4 * DAY, lastInbound: 5 * DAY, created: 6 * DAY },
+    { id: "case_9", n: 9, subject: "Can I move my film library to a new account?", status: "open", priority: "normal", contactId: "contact_bea", thread: "thread_dev_9", lastActivity: 4 * HOUR, lastInbound: 4 * HOUR, created: 1 * DAY },
+    { id: "case_10", n: 10, subject: "Trial ended but I was still uploading", status: "new", priority: "high", contactId: "contact_will", thread: "thread_dev_10", lastActivity: 40 * MIN, lastInbound: 40 * MIN, created: 40 * MIN },
+    { id: "case_11", n: 11, subject: "Refund for last month", status: "waiting", priority: "normal", contactId: "contact_sam", thread: "thread_dev_11", lastActivity: 3 * DAY, lastOutbound: 3 * DAY, lastInbound: 4 * DAY, created: 5 * DAY },
   ]
 
   db.insert(cases)
@@ -128,6 +136,10 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     { id: "msg_7_1", caseId: "case_7", thread: "thread_dev_7", dir: "inbound", from: "tom.alvarez@gmail.com", fromName: "Tom Alvarez", subject: "Login loop on Safari 18", text: "On Safari 18 I sign in, get redirected to the dashboard for a second, then bounced back to the login page. Chrome works fine.", sent: 26 * HOUR },
     { id: "msg_8_1", caseId: "case_8", thread: "thread_dev_8", dir: "inbound", from: "priya@birchwood.io", fromName: "Priya Raman", subject: "Feature request: weekly digest email", text: "Would love a Monday-morning digest of the previous week's numbers so I don't have to log in for the basics.", sent: 5 * DAY },
     { id: "msg_8_2", caseId: "case_8", thread: "thread_dev_8", dir: "outbound", from: founder, subject: "Re: Feature request: weekly digest email", text: "Noted — it's on the shortlist. Curious: which 3 numbers would you want at the top of that email?", sent: 4 * DAY },
+    { id: "msg_9_1", caseId: "case_9", thread: "thread_dev_9", dir: "inbound", from: "bea.n.coach@outlook.com", fromName: "Bea Nakamura", subject: "Can I move my film library to a new account?", text: "I'm switching from my personal email to my school address next season. Can my whole film library and tags come with me, or do I have to start over?", sent: 4 * HOUR },
+    { id: "msg_10_1", caseId: "case_10", thread: "thread_dev_10", dir: "inbound", from: "wgrant.film@gmail.com", fromName: "Will Grant", subject: "Trial ended but I was still uploading", text: "My trial cut off mid-upload last night and I lost about an hour of clips. Is there any way to get those back, and can I extend a few days before I commit?", sent: 40 * MIN },
+    { id: "msg_11_1", caseId: "case_11", thread: "thread_dev_11", dir: "inbound", from: "coachsamv@icloud.com", fromName: "Sam Vega", subject: "Refund for last month", text: "I cancelled in the spring but got charged again. Season's over for us so I'd like the last charge back if that's possible.", sent: 4 * DAY },
+    { id: "msg_11_2", caseId: "case_11", thread: "thread_dev_11", dir: "outbound", from: founder, subject: "Re: Refund for last month", text: "Sorry about that Sam — I can see the charge. Refund is on its way and should land in a few business days. I've made sure nothing renews again.", sent: 3 * DAY },
     { id: "msg_t1_1", caseId: null, triage: "pending", thread: "thread_dev_t1", dir: "inbound", from: "lena@futurebridge.vc", fromName: "Lena Ortiz", subject: "Intro — Futurebridge <> Chlk", text: "Hi Rashad, I lead early-stage investments at Futurebridge. We've been following Chlk and would love to hear where you're headed. Open to a 30-minute call in the next couple of weeks?", sent: 7 * HOUR },
     { id: "msg_t2_1", caseId: null, triage: "pending", thread: "thread_dev_t2", dir: "inbound", from: "alex@contractorplus.app", fromName: "Alex Kim", subject: "Integration question", text: "Hey — we build field-service software and a few shared customers asked about a Chlk integration. Is there a partner API or should we scrape the CSV exports?", sent: 22 * HOUR },
     { id: "msg_t2_2", caseId: null, triage: "pending", thread: "thread_dev_t2", dir: "inbound", from: "alex@contractorplus.app", fromName: "Alex Kim", subject: "Re: Integration question", text: "Following up on the below — happy to sign an NDA if that helps.", sent: 4 * HOUR },
@@ -169,7 +181,7 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
 
   return {
     organizations: 3,
-    contacts: 6,
+    contacts: 10,
     cases: caseSeeds.length,
     messages: msgs.length,
   }

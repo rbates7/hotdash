@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto"
 
-import { asc, desc, eq, like, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, isNotNull, isNull, like, ne, or, sql } from "drizzle-orm"
 
-import { canOverwriteName, normalizeEmail } from "@/lib/crm/contacts/matching"
+import {
+  canOverwriteName,
+  normalizeEmail,
+  type CustomerType,
+} from "@/lib/crm/contacts/matching"
 import { NotFoundError } from "@/lib/crm/core/errors"
 import type { Db } from "@/lib/crm/db/client"
 import {
@@ -197,7 +201,10 @@ export function contactDisplayName(contact: {
   return name || contact.email
 }
 
-export async function listContacts(db: Db, filters: { q?: string } = {}) {
+export async function listContacts(
+  db: Db,
+  filters: { q?: string; type?: CustomerType } = {}
+) {
   const openCounts = db
     .select({
       contactId: cases.contactId,
@@ -208,31 +215,88 @@ export async function listContacts(db: Db, filters: { q?: string } = {}) {
     .groupBy(cases.contactId)
     .as("open_counts")
 
+  const lastInbound = db
+    .select({
+      contactId: cases.contactId,
+      at: sql<number>`max(${emailMessages.sentAt})`.as("last_inbound_at"),
+    })
+    .from(emailMessages)
+    .innerJoin(cases, eq(emailMessages.caseId, cases.id))
+    .where(eq(emailMessages.direction, "inbound"))
+    .groupBy(cases.contactId)
+    .as("last_inbound")
+
   const pattern = filters.q ? `%${filters.q.toLowerCase()}%` : null
+  const conditions = []
+  if (pattern) {
+    conditions.push(
+      or(
+        like(sql`lower(${contacts.email})`, pattern),
+        like(
+          sql`lower(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, ''))`,
+          pattern
+        ),
+        like(sql`lower(coalesce(${organizations.name}, ''))`, pattern)
+      )
+    )
+  }
+  if (filters.type === "individual") {
+    conditions.push(isNull(contacts.organizationId))
+  } else if (filters.type === "team") {
+    conditions.push(isNotNull(contacts.organizationId))
+  }
+
   const rows = db
     .select({
       contact: contacts,
       organization: organizations,
       openCases: sql<number>`coalesce(${openCounts.count}, 0)`,
+      lastInboundAt: sql<number | null>`${lastInbound.at}`,
     })
     .from(contacts)
     .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
     .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
+    .leftJoin(lastInbound, eq(lastInbound.contactId, contacts.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(asc(contacts.firstName), asc(contacts.email))
+    .all()
+  return rows.map((row) => ({
+    ...row,
+    lastInboundAt: row.lastInboundAt ? new Date(row.lastInboundAt) : null,
+  }))
+}
+
+/** Everyone else on a B2B customer's account, for the teammates rollup. */
+export function listTeammates(
+  db: Db,
+  organizationId: string,
+  excludeContactId: string
+) {
+  const openCounts = db
+    .select({
+      contactId: cases.contactId,
+      count: sql<number>`count(*)`.as("open_count"),
+    })
+    .from(cases)
+    .where(sql`${cases.status} != 'closed'`)
+    .groupBy(cases.contactId)
+    .as("open_counts")
+
+  return db
+    .select({
+      contact: contacts,
+      openCases: sql<number>`coalesce(${openCounts.count}, 0)`,
+    })
+    .from(contacts)
+    .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
     .where(
-      pattern
-        ? or(
-            like(sql`lower(${contacts.email})`, pattern),
-            like(
-              sql`lower(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, ''))`,
-              pattern
-            ),
-            like(sql`lower(coalesce(${organizations.name}, ''))`, pattern)
-          )
-        : undefined
+      and(
+        eq(contacts.organizationId, organizationId),
+        ne(contacts.id, excludeContactId)
+      )
     )
     .orderBy(asc(contacts.firstName), asc(contacts.email))
     .all()
-  return rows
 }
 
 export async function getContactWithCases(db: Db, contactId: string) {
