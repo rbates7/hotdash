@@ -17,7 +17,11 @@ import { eq } from "drizzle-orm"
 
 import { createDb } from "../src/lib/crm/db/client"
 import { cases, contacts, emailMessages } from "../src/lib/crm/db/schema"
-import { parseFormFields, subjectFromForm } from "../src/lib/crm/gmail/parse"
+import {
+  parseFormFields,
+  scannableBody,
+  subjectFromForm,
+} from "../src/lib/crm/gmail/parse"
 
 const write = process.argv.includes("--write")
 const dbPath = process.env.DATABASE_PATH ?? "./data/crm.db"
@@ -31,6 +35,9 @@ function splitName(full: string): { first: string; last: string | null } {
 
 let subjectsFixed = 0
 let namesFixed = 0
+let examined = 0
+let withoutBody = 0
+let withoutFields = 0
 
 for (const caseRow of db.select().from(cases).all()) {
   // The earliest message is the submission itself; later ones are the thread.
@@ -44,10 +51,21 @@ for (const caseRow of db.select().from(cases).all()) {
   const seed = messages[0]
   if (!seed) continue
 
-  const fields = parseFormFields(seed.bodyText)
-  if (!fields.has("message") && !fields.has("name")) continue
+  examined += 1
+  // Form hosts often send HTML only, so bodyText alone is empty on exactly
+  // the messages this repair is for.
+  const body = scannableBody(seed.bodyText, seed.bodyHtml)
+  if (!body) {
+    withoutBody += 1
+    continue
+  }
+  const fields = parseFormFields(body)
+  if (!fields.has("message") && !fields.has("name")) {
+    withoutFields += 1
+    continue
+  }
 
-  const derived = subjectFromForm(seed.bodyText)
+  const derived = subjectFromForm(body)
   if (derived && derived !== caseRow.subject) {
     console.log(`#${caseRow.caseNumber}  ${caseRow.subject}\n           → ${derived}`)
     subjectsFixed += 1
@@ -79,7 +97,11 @@ for (const caseRow of db.select().from(cases).all()) {
 }
 
 console.log(
-  `\n${subjectsFixed} subject${subjectsFixed === 1 ? "" : "s"}, ` +
+  `\nExamined ${examined} case${examined === 1 ? "" : "s"}: ` +
+    `${withoutFields} carried no form fields, ${withoutBody} had no readable body.`
+)
+console.log(
+  `${subjectsFixed} subject${subjectsFixed === 1 ? "" : "s"}, ` +
     `${namesFixed} name${namesFixed === 1 ? "" : "s"}` +
     (write ? " updated." : " would change. Re-run with --write to apply.")
 )

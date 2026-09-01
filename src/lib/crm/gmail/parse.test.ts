@@ -19,6 +19,7 @@ import {
   parseFormFields,
   parseMessage,
   resolveRelaySender,
+  scannableBody,
   subjectFromForm,
   sanitizeEmailHtml,
 } from "./parse"
@@ -359,5 +360,36 @@ describe("subjectFromForm", () => {
   it("returns null with nothing to say", () => {
     expect(subjectFromForm(null)).toBeNull()
     expect(subjectFromForm("   ")).toBeNull()
+  })
+})
+
+describe("scannableBody", () => {
+  // Squarespace and most form hosts send HTML only; reading bodyText alone
+  // finds nothing on exactly the messages form parsing exists for.
+  const html =
+    '<html><body><table><tr><td><strong>Name:</strong> Aaron Sword</td></tr>' +
+    "<tr><td><strong>Email:</strong> asword11c@gmail.com</td></tr>" +
+    "<tr><td><strong>Message:</strong> The app resets my line formation.</td></tr>" +
+    "</table></body></html>"
+
+  it("prefers the plain-text part when there is one", () => {
+    expect(scannableBody("Name: Jane", html)).toBe("Name: Jane")
+  })
+
+  it("falls back to the HTML part", () => {
+    const fields = parseFormFields(scannableBody(null, html))
+    expect(fields.get("name")).toBe("Aaron Sword")
+    expect(fields.get("email")).toBe("asword11c@gmail.com")
+    expect(fields.get("message")).toBe("The app resets my line formation.")
+  })
+
+  it("titles the case from an HTML-only form", () => {
+    expect(subjectFromForm(scannableBody("   ", html))).toBe(
+      "The app resets my line formation."
+    )
+  })
+
+  it("has nothing to offer when both are empty", () => {
+    expect(scannableBody(null, null)).toBeNull()
   })
 })

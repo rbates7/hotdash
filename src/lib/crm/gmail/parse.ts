@@ -142,8 +142,21 @@ export function parseFormFields(body: string | null): Map<string, string> {
 
 const EMAIL_IN_TEXT = /[^\s<>@]+@[^\s<>@]+\.[^\s<>@,;)]+/
 
+/**
+ * The text of a message for field-scanning purposes. Many form hosts send
+ * HTML only, so reading `bodyText` alone finds nothing at all on exactly the
+ * messages this parsing exists for.
+ */
+export function scannableBody(
+  bodyText: string | null | undefined,
+  bodyHtml: string | null | undefined
+): string | null {
+  if (bodyText?.trim()) return bodyText
+  return bodyHtml ? htmlToText(bodyHtml) : null
+}
+
 /** Enough of a text rendering to read form labels out of an HTML-only body. */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])\b[^>]*>/gi, "\n")
@@ -326,7 +339,7 @@ export function parseMessage(
   // to name the person, not the postman.
   // Some hosts send the form HTML-only, so fall back to its text content
   // rather than losing the fields the message is made of.
-  const scannable = text ?? (html ? htmlToText(html) : null)
+  const scannable = scannableBody(text, html)
   const relaySender =
     direction === "inbound" ? resolveRelaySender(headers, from, scannable) : null
   const sender = relaySender ?? from
