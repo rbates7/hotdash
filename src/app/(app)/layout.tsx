@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { CommandPalette } from "@/components/command-palette"
 import { getDb } from "@/lib/db/client"
 import { countTriagePending } from "@/lib/triage/server"
 
@@ -17,6 +18,7 @@ export default function AppLayout({
     <div className="flex h-dvh overflow-hidden">
       <AppSidebar triageCount={triageCount} />
       <main className="flex-1 overflow-y-auto">{children}</main>
+      <CommandPalette />
     </div>
   )
 }
