@@ -323,6 +323,145 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
   }
 }
 
+export type AccountListFilters = { q?: string; limit?: number; offset?: number }
+
+export const ACCOUNTS_PER_PAGE = 50
+
+/**
+ * One page of B2B accounts with their rollups. Every figure is a SQL
+ * aggregate — with organizations in the hundreds, per-row follow-up
+ * queries would turn this page into hundreds of round trips.
+ */
+export async function listOrganizations(
+  db: Db,
+  filters: AccountListFilters = {}
+) {
+  const limit = filters.limit ?? ACCOUNTS_PER_PAGE
+  const offset = filters.offset ?? 0
+  const where = filters.q
+    ? like(sql`lower(${organizations.name})`, `%${filters.q.toLowerCase()}%`)
+    : undefined
+
+  const staff = db
+    .select({
+      organizationId: contacts.organizationId,
+      count: sql<number>`count(*)`.as("staff_count"),
+      plans: sql<string | null>`group_concat(distinct ${contacts.plan})`.as(
+        "plans"
+      ),
+    })
+    .from(contacts)
+    .where(isNotNull(contacts.organizationId))
+    .groupBy(contacts.organizationId)
+    .as("staff")
+
+  const caseStats = db
+    .select({
+      organizationId: contacts.organizationId,
+      openCases: sql<number>`sum(case when ${cases.status} != 'closed' then 1 else 0 end)`.as(
+        "open_cases"
+      ),
+      lastActivityAt: sql<number>`max(${cases.lastActivityAt})`.as(
+        "last_activity_at"
+      ),
+    })
+    .from(cases)
+    .innerJoin(contacts, eq(cases.contactId, contacts.id))
+    .where(isNotNull(contacts.organizationId))
+    .groupBy(contacts.organizationId)
+    .as("case_stats")
+
+  const rows = db
+    .select({
+      organization: organizations,
+      staffCount: sql<number>`coalesce(${staff.count}, 0)`,
+      plans: sql<string | null>`${staff.plans}`,
+      openCases: sql<number>`coalesce(${caseStats.openCases}, 0)`,
+      lastActivityAt: sql<number | null>`${caseStats.lastActivityAt}`,
+    })
+    .from(organizations)
+    .leftJoin(staff, eq(staff.organizationId, organizations.id))
+    .leftJoin(caseStats, eq(caseStats.organizationId, organizations.id))
+    .where(where)
+    .orderBy(asc(organizations.name))
+    .limit(limit)
+    .offset(offset)
+    .all()
+
+  const totalRow = db
+    .select({ count: sql<number>`count(*)` })
+    .from(organizations)
+    .where(where)
+    .get()
+
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      plans: row.plans ? row.plans.split(",").filter(Boolean).sort() : [],
+      lastActivityAt: row.lastActivityAt
+        ? new Date(row.lastActivityAt)
+        : null,
+    })),
+    total: totalRow?.count ?? 0,
+    limit,
+    offset,
+  }
+}
+
+/** An account with its staff and every case across it. */
+export async function getOrganizationWithStaff(db: Db, organizationId: string) {
+  const organization = db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .get()
+  if (!organization) throw new NotFoundError("Account not found.")
+
+  const staff = db
+    .select({ contact: contacts })
+    .from(contacts)
+    .where(eq(contacts.organizationId, organizationId))
+    .orderBy(asc(contacts.firstName), asc(contacts.email))
+    .all()
+
+  const openCounts = db
+    .select({
+      contactId: cases.contactId,
+      count: sql<number>`count(*)`.as("open_count"),
+    })
+    .from(cases)
+    .where(sql`${cases.status} != 'closed'`)
+    .groupBy(cases.contactId)
+    .as("open_counts")
+
+  const staffWithCounts = db
+    .select({
+      contact: contacts,
+      openCases: sql<number>`coalesce(${openCounts.count}, 0)`,
+    })
+    .from(contacts)
+    .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
+    .where(eq(contacts.organizationId, organizationId))
+    .orderBy(asc(contacts.firstName), asc(contacts.email))
+    .all()
+
+  const accountCases = db
+    .select({ caseRow: cases, contact: contacts })
+    .from(cases)
+    .innerJoin(contacts, eq(cases.contactId, contacts.id))
+    .where(eq(contacts.organizationId, organizationId))
+    .orderBy(desc(cases.lastActivityAt))
+    .limit(100)
+    .all()
+
+  return {
+    organization,
+    staff: staffWithCounts,
+    staffCount: staff.length,
+    cases: accountCases,
+  }
+}
+
 /** Everyone else on a B2B customer's account, for the teammates rollup. */
 export function listTeammates(
   db: Db,

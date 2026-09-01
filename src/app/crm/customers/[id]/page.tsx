@@ -86,8 +86,16 @@ export default async function CustomerProfilePage({
             </div>
             <p className="text-muted-foreground text-body flex flex-wrap items-center gap-1.5">
               {contact.email}
-              {isTeam ? (
-                <>· <span>{contact.organization?.name}</span></>
+              {isTeam && contact.organization ? (
+                <>
+                  ·{" "}
+                  <Link
+                    href={`/crm/accounts/${contact.organization.id}`}
+                    className="hover:underline"
+                  >
+                    {contact.organization.name}
+                  </Link>
+                </>
               ) : (
                 <Badge variant="outline" className="font-normal">
                   Individual
@@ -156,7 +164,12 @@ export default async function CustomerProfilePage({
             <Card>
               <CardHeader>
                 <CardTitle className="text-caption">
-                  Others on {contact.organization?.name}
+                  <Link
+                    href={`/crm/accounts/${contact.organizationId}`}
+                    className="hover:underline"
+                  >
+                    Others on {contact.organization?.name}
+                  </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-1.5">

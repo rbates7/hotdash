@@ -104,10 +104,13 @@ export default async function CustomersPage({
                         </Link>
                       </TableCell>
                       <TableCell>
-                        {isTeam ? (
-                          <span className="text-body">
-                            {organization?.name}
-                          </span>
+                        {isTeam && organization ? (
+                          <Link
+                            href={`/crm/accounts/${organization.id}`}
+                            className="text-body hover:underline"
+                          >
+                            {organization.name}
+                          </Link>
                         ) : (
                           <Badge variant="outline" className="font-normal">
                             Individual

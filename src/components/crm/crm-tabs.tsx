@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  Building2Icon,
   InboxIcon,
   LayoutDashboardIcon,
   SettingsIcon,
@@ -23,6 +24,7 @@ const TABS: CrmTab[] = [
   { href: "/crm", label: "Overview", icon: LayoutDashboardIcon },
   { href: "/crm/cases", label: "Cases", icon: InboxIcon },
   { href: "/crm/customers", label: "Customers", icon: UsersIcon },
+  { href: "/crm/accounts", label: "Accounts", icon: Building2Icon },
   { href: "/crm/triage", label: "Triage", icon: TriangleAlertIcon },
   { href: "/crm/settings", label: "Settings", icon: SettingsIcon },
 ]
