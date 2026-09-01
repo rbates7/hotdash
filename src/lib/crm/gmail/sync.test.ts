@@ -1,7 +1,10 @@
 import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
-import { createContact } from "@/lib/crm/contacts/server"
+import {
+  createContact,
+  findContactByEmail,
+} from "@/lib/crm/contacts/server"
 import { createDb, type Db } from "@/lib/crm/db/client"
 import {
   cases,
@@ -13,6 +16,8 @@ import {
 
 import {
   FOUNDER,
+  formSubmissionKnown,
+  formSubmissionUnknown,
   inboundPlainDana,
   inboundReplyDana,
   makeMessage,
@@ -54,6 +59,36 @@ describe("syncGmail", () => {
     resetGmailCursor(db)
     await syncGmail(db, api, FOUNDER, { initialWindow: "2026-01-01" })
     expect(api.lastQuery).toBe("-in:chat after:2026/01/01")
+  })
+
+  it("routes a contact-form submission to the person, not the form host", async () => {
+    const api = new FakeGmailApi(FOUNDER, [
+      formSubmissionKnown,
+      formSubmissionUnknown,
+    ])
+    const stats = await syncGmail(db, api, FOUNDER)
+
+    // Dana is a known contact, so her submission opens a case for her even
+    // though Squarespace sent the mail.
+    expect(stats.casesCreated).toBe(1)
+    expect(stats.skippedBulk).toBe(0)
+    const [known] = db.select().from(cases).all()
+    expect(known!.contactId).toBe(
+      findContactByEmail(db, "dana@acme.com")!.id
+    )
+
+    // Marcus is not known yet, so he waits in triage as himself — promoting
+    // him must not create a contact called Squarespace.
+    expect(stats.triaged).toBe(1)
+    const triaged = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.gmailThreadId, "t_form_2"))
+      .all()
+    expect(triaged.map((m) => m.fromEmail)).toEqual([
+      "marcus@northside.k12.us",
+    ])
+    expect(triaged[0]!.fromName).toBe("Marcus Hall")
   })
 
   it("backfills from a relative window by default", async () => {

@@ -17,6 +17,7 @@ import {
   isBulk,
   parseAddressList,
   parseMessage,
+  resolveRelaySender,
   sanitizeEmailHtml,
 } from "./parse"
 
@@ -193,5 +194,82 @@ describe("isBulk", () => {
 
   it("lets an ordinary human through", () => {
     expect(isBulk(noHeaders, "dana@acme.com")).toBe(false)
+  })
+})
+
+describe("resolveRelaySender", () => {
+  const relayFrom = { name: "Squarespace", email: "form-submission@squarespace.info" }
+
+  it("prefers Reply-To, which is what a form host sets it for", () => {
+    expect(
+      resolveRelaySender(
+        new Map([["reply-to", "Jane Coach <jane@westhigh.edu>"]]),
+        relayFrom,
+        null
+      )
+    ).toEqual({ name: "Jane Coach", email: "jane@westhigh.edu" })
+  })
+
+  it("reads the form body when Reply-To is absent", () => {
+    const body = [
+      "Form Submission - Contact Form",
+      "",
+      "Name: Jane Coach",
+      "Email: jane@westhigh.edu",
+      "Message: How do I share a playbook with my staff?",
+    ].join("\n")
+    expect(resolveRelaySender(new Map(), relayFrom, body)).toEqual({
+      name: "Jane Coach",
+      email: "jane@westhigh.edu",
+    })
+  })
+
+  it("takes the name from the body when Reply-To has only an address", () => {
+    expect(
+      resolveRelaySender(
+        new Map([["reply-to", "jane@westhigh.edu"]]),
+        relayFrom,
+        "Name: Jane Coach\nEmail: jane@westhigh.edu"
+      )
+    ).toEqual({ name: "Jane Coach", email: "jane@westhigh.edu" })
+  })
+
+  it("leaves ordinary senders alone", () => {
+    expect(
+      resolveRelaySender(
+        new Map([["reply-to", "someone@else.com"]]),
+        { name: "Dana", email: "dana@acme.com" },
+        null
+      )
+    ).toBeNull()
+  })
+
+  it("does not rescue a newsletter with a friendly Reply-To", () => {
+    expect(
+      resolveRelaySender(
+        new Map([
+          ["list-unsubscribe", "<mailto:x@y.z>"],
+          ["reply-to", "hello@vendor.com"],
+        ]),
+        { name: "Vendor News", email: "news@vendor.com" },
+        null
+      )
+    ).toBeNull()
+  })
+
+  it("does not rescue one machine address into another", () => {
+    expect(
+      resolveRelaySender(
+        new Map([["reply-to", "support-noreply@vendor.com"]]),
+        { name: null, email: "noreply@vendor.com" },
+        null
+      )
+    ).toBeNull()
+  })
+
+  it("stays null when there is no human to find", () => {
+    expect(
+      resolveRelaySender(new Map(), relayFrom, "Your invoice is ready.")
+    ).toBeNull()
   })
 })

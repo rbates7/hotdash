@@ -82,6 +82,59 @@ const BULK_CATEGORIES = new Set([
   "CATEGORY_FORUMS",
 ])
 
+// A contact-form notification is addressed *from* the form host — Squarespace,
+// Typeform, a website's own mailer — while the person who actually wrote it is
+// named inside. Taken at face value these look like machine mail, so they get
+// dropped, and taken at face value in triage they would create a contact named
+// "Squarespace". Neither is what the message is: it is a coach asking for help.
+const BODY_EMAIL_LABEL =
+  /^[ \t>*]*(?:your[ \t]+)?e-?mail(?:[ \t]+address)?[ \t]*[:*]+[ \t]*<?([^\s<>@]+@[^\s<>@]+\.[^\s<>@,;)]+)/im
+const BODY_NAME_LABEL =
+  /^[ \t>*]*(?:your[ \t]+)?(?:full[ \t]+)?name[ \t]*[:*]+[ \t]*(\S.{0,80}?)[ \t]*$/im
+
+function isListMail(headers: Map<string, string>): boolean {
+  if (headers.has("list-unsubscribe") || headers.has("list-id")) return true
+  const precedence = headers.get("precedence")?.trim().toLowerCase()
+  return precedence === "bulk" || precedence === "list" || precedence === "junk"
+}
+
+/**
+ * The human behind a relayed message, or null if this is not a relay.
+ *
+ * Deliberately narrow: only mail that already looks machine-sent, and never
+ * list mail — a newsletter with a friendly Reply-To is still a newsletter.
+ * The candidate must not itself look automated, so a `noreply@` bouncing to
+ * `support-noreply@` stays bulk.
+ */
+export function resolveRelaySender(
+  headers: Map<string, string>,
+  from: Address,
+  bodyText: string | null
+): Address | null {
+  if (!isBulkSender(from.email)) return null
+  if (isListMail(headers)) return null
+
+  const bodyName = bodyText?.match(BODY_NAME_LABEL)?.[1]?.trim() || null
+
+  const replyTo = parseAddressList(headers.get("reply-to"))[0]
+  if (
+    replyTo &&
+    replyTo.email !== from.email &&
+    !isBulkSender(replyTo.email)
+  ) {
+    return { email: replyTo.email, name: replyTo.name ?? bodyName }
+  }
+
+  const bodyEmail = bodyText?.match(BODY_EMAIL_LABEL)?.[1]
+  if (bodyEmail) {
+    const email = normalizeEmail(bodyEmail)
+    if (email !== from.email && !isBulkSender(email)) {
+      return { email, name: bodyName }
+    }
+  }
+  return null
+}
+
 // Bulk/automated mail announces itself via headers; real humans never set
 // List-Unsubscribe or Precedence: bulk. Known contacts bypass this check, so
 // a customer whose mail Gmail files under Promotions still opens a case.
@@ -176,10 +229,20 @@ export function parseMessage(
   const toAddresses = parseAddressList(headers.get("to"))
   const ccAddresses = parseAddressList(headers.get("cc"))
 
+  const { text, html, attachments } = collectBodies(raw.payload)
+
+  // Direction is judged on the true From: a relay is never the founder.
   const direction = founderAddresses.has(from.email) ? "outbound" : "inbound"
+  // ...but everything downstream — contact matching, the ignore list, who
+  // triage offers to promote — keys off the sender, so a relayed message has
+  // to name the person, not the postman.
+  const relaySender =
+    direction === "inbound" ? resolveRelaySender(headers, from, text) : null
+  const sender = relaySender ?? from
+
   let counterparty: Address | null
   if (direction === "inbound") {
-    counterparty = from
+    counterparty = sender
   } else {
     counterparty =
       [...toAddresses, ...ccAddresses].find(
@@ -187,7 +250,6 @@ export function parseMessage(
       ) ?? null
   }
 
-  const { text, html, attachments } = collectBodies(raw.payload)
   const sentAtMs = Number(raw.internalDate)
   const dateHeader = headers.get("date")
   const sentAt = Number.isFinite(sentAtMs)
@@ -201,8 +263,8 @@ export function parseMessage(
     gmailThreadId: raw.threadId,
     labelIds: raw.labelIds ?? [],
     direction,
-    fromEmail: from.email,
-    fromName: from.name,
+    fromEmail: sender.email,
+    fromName: sender.name,
     toEmails: toAddresses.map((a) => a.email),
     ccEmails: ccAddresses.map((a) => a.email),
     counterpartyEmail: counterparty?.email ?? null,
@@ -213,8 +275,10 @@ export function parseMessage(
     bodyHtml: html ? sanitizeEmailHtml(html) : null,
     attachments,
     sentAt,
+    // A resolved relay is a person writing in, never bulk.
     isBulk:
       direction === "inbound" &&
+      !relaySender &&
       isBulk(headers, from.email, raw.labelIds ?? []),
   }
 }

@@ -245,3 +245,23 @@ export const spamMessage = makeMessage({
   labels: ["SPAM"],
   sentAt: "2026-08-27T12:00:00Z",
 })
+
+// A website contact form: the host sends it, the coach wrote it.
+export const formSubmissionKnown = makeMessage({
+  id: "m_form_1",
+  threadId: "t_form_1",
+  from: "Squarespace <form-submission@squarespace.info>",
+  extraHeaders: { "Reply-To": "Dana Whitfield <dana@acme.com>" },
+  subject: "Form Submission - Contact Form",
+  text: "Name: Dana Whitfield\nEmail: dana@acme.com\nMessage: Can I move a play between playbooks?",
+  sentAt: "2026-08-28T15:00:00Z",
+})
+
+export const formSubmissionUnknown = makeMessage({
+  id: "m_form_2",
+  threadId: "t_form_2",
+  from: "Squarespace <form-submission@squarespace.info>",
+  subject: "Form Submission - Contact Form",
+  text: "Name: Marcus Hall\nEmail: marcus@northside.k12.us\nMessage: Do you have a team plan?",
+  sentAt: "2026-08-28T16:00:00Z",
+})

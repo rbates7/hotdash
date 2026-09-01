@@ -80,6 +80,13 @@ Gmail query it resolves to.
   case reopens it with a note.
 - Mail from an **unknown human** → waits in **Triage** (promote / link /
   ignore).
+- **Contact-form notifications** (Squarespace, Typeform, a site's own mailer)
+  are sent *by the form host*, not the person who filled the form in. The
+  sender is resolved through `Reply-To`, falling back to the `Email:` field in
+  the form body, so the case or triage entry belongs to the coach rather than
+  to Squarespace. If your form does not carry either, the message is treated
+  as machine mail and dropped — add the address to `FOUNDER_ALIASES`-style
+  handling by filing an issue, or set the form to populate Reply-To.
 - **Bulk mail** (List-Unsubscribe, Precedence, no-reply senders) from
   unknown senders → skipped entirely, so no Gmail filters are needed.
 - Your own outbound threads with no case (investors, lawyers) → ignored.
