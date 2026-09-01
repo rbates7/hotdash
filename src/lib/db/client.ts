@@ -9,6 +9,16 @@ import * as schema from "./schema"
 
 export type Db = BetterSQLite3Database<typeof schema>
 
+const rawClients = new WeakMap<Db, Database.Database>()
+
+// The underlying better-sqlite3 handle, for the rare statement drizzle can't
+// express (e.g. UPDATE … RETURNING on the counters table).
+export function rawClient(db: Db): Database.Database {
+  const sqlite = rawClients.get(db)
+  if (!sqlite) throw new Error("Unknown db instance.")
+  return sqlite
+}
+
 const globalStore = globalThis as unknown as {
   __hotdashDb?: { db: Db; sqlite: Database.Database; path: string }
 }
@@ -35,6 +45,7 @@ export function createDb(filename: string): {
   sqlite
     .prepare("INSERT OR IGNORE INTO counters (id, value) VALUES ('case', 0)")
     .run()
+  rawClients.set(db, sqlite)
   return { db, sqlite }
 }
 
