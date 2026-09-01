@@ -20,10 +20,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getDb } from "@/lib/crm/db/client"
-import { syncState } from "@/lib/crm/db/schema"
 import { getGoogleConnection } from "@/lib/crm/gmail/client"
 import { isSyncPaused } from "@/lib/crm/settings/server"
-import { listRuns } from "@/lib/crm/sync/runner"
+import { lastSuccessBySource, listRuns } from "@/lib/crm/sync/runner"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = { title: "CRM Settings · Chlk" }
@@ -35,6 +34,12 @@ const GOOGLE_ERRORS: Record<string, string> = {
     "Google authorization could not be verified. Please try connecting again.",
   exchange_failed:
     "Google authorization failed. Check the client credentials in .env.local.",
+  // Sign-in itself worked; the project just has not turned the API on. Saying
+  // "check your credentials" here sends you to audit values that are correct.
+  api_disabled:
+    "Signed in, but the Gmail API is not enabled for this Google Cloud project. Enable it at console.cloud.google.com/apis/library/gmail.googleapis.com, wait a minute, then connect again.",
+  gmail_unreachable:
+    "Signed in, but Gmail would not answer. Check the server log for the reason, then connect again.",
 }
 
 function StatusDot({ tone }: { tone: "ok" | "warn" | "off" }) {
@@ -57,10 +62,7 @@ export default async function SettingsPage({
   const google = getGoogleConnection(db)
   const runs = listRuns(db, undefined, 15)
   const paused = isSyncPaused(db)
-  const stateRows = db.select().from(syncState).all()
-  const lastSyncedBySource = new Map(
-    stateRows.map((row) => [row.source, row.lastSyncedAt])
-  )
+  const lastSyncedBySource = lastSuccessBySource(db)
   const stripeConfigured = Boolean(process.env.STRIPE_API_KEY)
   const supabaseConfigured = Boolean(process.env.SUPABASE_DB_URL)
 

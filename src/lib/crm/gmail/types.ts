@@ -79,6 +79,20 @@ export class HistoryExpiredError extends Error {
   }
 }
 
+/**
+ * Enabling the Gmail API is a separate step from creating the OAuth client,
+ * and it is the one people miss. Google reports it as a plain 403 during the
+ * first API call — i.e. *after* a completely successful sign-in — so without
+ * this distinction it surfaces as "authorization failed, check your
+ * credentials" and sends you to audit values that are already correct.
+ */
+export class GmailApiDisabledError extends Error {
+  constructor() {
+    super("Gmail API is not enabled for this Google Cloud project.")
+    this.name = "GmailApiDisabledError"
+  }
+}
+
 export class ReconnectRequiredError extends Error {
   constructor() {
     super("Google authorization expired — reconnect Google in Settings.")

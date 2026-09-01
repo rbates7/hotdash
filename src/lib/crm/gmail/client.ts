@@ -9,7 +9,11 @@ import type { Db } from "@/lib/crm/db/client"
 import { oauthTokens } from "@/lib/crm/db/schema"
 
 import type { GmailApi, GmailRawMessage } from "./types"
-import { HistoryExpiredError, ReconnectRequiredError } from "./types"
+import {
+  GmailApiDisabledError,
+  HistoryExpiredError,
+  ReconnectRequiredError,
+} from "./types"
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 
@@ -149,9 +153,37 @@ export async function handleOAuthCallback(db: Db, code: string) {
   const { tokens } = await client.getToken(code)
   client.setCredentials(tokens)
   const api = gmail({ version: "v1", auth: client })
-  const profile = await api.users.getProfile({ userId: "me" })
+  // Past this point the sign-in succeeded; a failure here is Gmail's, not the
+  // credentials', and the caller reports it differently.
+  let profile
+  try {
+    profile = await api.users.getProfile({ userId: "me" })
+  } catch (error) {
+    if (isApiDisabled(error)) throw new GmailApiDisabledError()
+    throw error
+  }
   saveTokens(db, tokens, profile.data.emailAddress ?? null)
   return { accountEmail: profile.data.emailAddress ?? null }
+}
+
+/**
+ * Google signals a disabled API as a 403 whose reason is `accessNotConfigured`
+ * (older responses only carry the prose). A 403 from an *enabled* API means
+ * insufficient scope, which is a different fix, so match on the reason rather
+ * than the status alone.
+ */
+export function isApiDisabled(error: unknown): boolean {
+  const err = error as {
+    message?: string
+    errors?: { reason?: string }[]
+    response?: { data?: { error?: { errors?: { reason?: string }[] } } }
+  }
+  const reasons = [
+    ...(err?.errors ?? []),
+    ...(err?.response?.data?.error?.errors ?? []),
+  ].map((e) => e.reason)
+  if (reasons.includes("accessNotConfigured")) return true
+  return /has not been used in project|it is disabled/i.test(err?.message ?? "")
 }
 
 function markReconnectRequired(db: Db, message: string) {

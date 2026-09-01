@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, desc, eq, lt, notInArray } from "drizzle-orm"
+import { and, desc, eq, lt, max, notInArray } from "drizzle-orm"
 
 import type { Db } from "@/lib/crm/db/client"
 import { syncRuns, type SyncRun, type SyncSource } from "@/lib/crm/db/schema"
@@ -156,6 +156,27 @@ export async function runSync(
     activeRuns.delete(source)
     pruneRuns(db, source)
   }
+}
+
+/**
+ * When each source last finished successfully. Only the Gmail sync keeps a
+ * row in sync_state (it stores the history cursor), so reading last-synced
+ * from there left Stripe and Supabase reading "Never synced" forever — even
+ * straight after a run that imported thousands of customers. The runs table
+ * is the record of what actually happened, so ask it instead.
+ */
+export function lastSuccessBySource(db: Db): Map<SyncSource, Date> {
+  const rows = db
+    .select({ source: syncRuns.source, finishedAt: max(syncRuns.finishedAt) })
+    .from(syncRuns)
+    .where(eq(syncRuns.status, "success"))
+    .groupBy(syncRuns.source)
+    .all()
+  const result = new Map<SyncSource, Date>()
+  for (const row of rows) {
+    if (row.finishedAt) result.set(row.source, new Date(row.finishedAt))
+  }
+  return result
 }
 
 export function listRuns(db: Db, source?: SyncSource, limit = 20): SyncRun[] {

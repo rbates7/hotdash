@@ -1,6 +1,7 @@
 import { logError } from "@/lib/crm/core/log"
 import { getDb } from "@/lib/crm/db/client"
 import { handleOAuthCallback } from "@/lib/crm/gmail/client"
+import { GmailApiDisabledError } from "@/lib/crm/gmail/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -10,7 +11,11 @@ const CLEAR_STATE_COOKIE =
 
 /** Fixed codes only — the value is rendered back on the settings page, and
  * arbitrary attacker text there reads as an official warning. */
-type GoogleErrorCode = "denied" | "state_mismatch" | "exchange_failed"
+type GoogleErrorCode =
+  | "denied"
+  | "state_mismatch"
+  | "exchange_failed"
+  | "api_disabled"
 
 // Relative Location: deriving an absolute origin from the request host lets
 // a spoofed Host header bounce the founder to an attacker origin.
@@ -47,6 +52,9 @@ export async function GET(request: Request) {
     return redirectToSettings()
   } catch (error) {
     logError("google-callback", error)
+    if (error instanceof GmailApiDisabledError) {
+      return redirectToSettings("api_disabled")
+    }
     return redirectToSettings("exchange_failed")
   }
 }
