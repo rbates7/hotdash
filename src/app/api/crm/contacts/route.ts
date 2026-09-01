@@ -45,7 +45,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const { q } = querySchema.parse(Object.fromEntries(searchParams))
-    const rows = await listContacts(getDb(), { q })
+    // Used by the triage link-contact picker, so a short page is plenty.
+    const { rows } = await listContacts(getDb(), { q, limit: 20 })
     return Response.json({
       contacts: rows.map((row) => ({
         id: row.contact.id,

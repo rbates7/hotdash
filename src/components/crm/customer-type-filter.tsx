@@ -26,6 +26,8 @@ export function CustomerTypeFilter({
     const params = new URLSearchParams(searchParams)
     if (value) params.set("type", value)
     else params.delete("type")
+    // Switching slice starts again at page one.
+    params.delete("offset")
     const qs = params.toString()
     return qs ? `${pathname}?${qs}` : pathname
   }

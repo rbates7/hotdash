@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { CasesFilterBar } from "@/components/crm/cases-filter-bar"
+import { Pager } from "@/components/crm/pager"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import {
   Table,
@@ -11,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { listCases } from "@/lib/crm/cases/server"
+import { CASES_PER_PAGE, listCases } from "@/lib/crm/cases/server"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import { getDb } from "@/lib/crm/db/client"
 import {
@@ -28,7 +29,12 @@ export const dynamic = "force-dynamic"
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; priority?: string; q?: string }>
+  searchParams: Promise<{
+    status?: string
+    priority?: string
+    q?: string
+    offset?: string
+  }>
 }) {
   const params = await searchParams
   const status = CASE_STATUSES.includes(params.status as CaseStatus)
@@ -39,11 +45,26 @@ export default async function CasesPage({
     : undefined
   const q = params.q?.trim() || undefined
 
-  const rows = await listCases(getDb(), { status, priority, q })
+  const parsedOffset = Number(params.offset)
+  const offset =
+    Number.isFinite(parsedOffset) && parsedOffset > 0
+      ? Math.floor(parsedOffset)
+      : 0
+  const { rows, total, limit } = await listCases(getDb(), {
+    status,
+    priority,
+    q,
+    limit: CASES_PER_PAGE,
+    offset,
+  })
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <CasesFilterBar />
+      <div className="flex items-center justify-between gap-3">
+        <Pager total={total} limit={limit} offset={offset} noun="case" />
+      </div>
+
       <div className="rounded-xl border">
         {rows.length === 0 ? (
           <p className="text-muted-foreground text-body px-4 py-12 text-center">

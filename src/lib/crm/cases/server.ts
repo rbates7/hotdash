@@ -156,8 +156,14 @@ export type CaseListFilters = {
   status?: CaseStatus
   priority?: CasePriority
   q?: string
+  limit?: number
+  offset?: number
 }
 
+export const CASES_PER_PAGE = 50
+
+/** One page of cases plus the total for the pager. Cases accumulate for as
+ * long as the CRM runs, so this must never select the whole table. */
 export async function listCases(db: Db, filters: CaseListFilters = {}) {
   const conditions = []
   if (filters.status) conditions.push(eq(cases.status, filters.status))
@@ -190,11 +196,25 @@ export async function listCases(db: Db, filters: CaseListFilters = {}) {
     )
   }
 
-  return db.query.cases.findMany({
-    where: conditions.length > 0 ? and(...conditions) : undefined,
+  const where = conditions.length > 0 ? and(...conditions) : undefined
+  const limit = filters.limit ?? CASES_PER_PAGE
+  const offset = filters.offset ?? 0
+
+  const rows = await db.query.cases.findMany({
+    where,
     with: { contact: { with: { organization: true } } },
     orderBy: [desc(cases.lastActivityAt), desc(cases.createdAt)],
+    limit,
+    offset,
   })
+
+  const totalRow = db
+    .select({ count: sql<number>`count(*)` })
+    .from(cases)
+    .where(where)
+    .get()
+
+  return { rows, total: totalRow?.count ?? 0, limit, offset }
 }
 
 export async function getCaseWithTimeline(db: Db, caseId: string) {

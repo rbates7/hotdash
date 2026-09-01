@@ -46,6 +46,8 @@ export function CasesFilterBar() {
         if (value) params.set(key, value)
         else params.delete(key)
       }
+      // Any filter change starts again at page one.
+      params.delete("offset")
       const qs = params.toString()
       return qs ? `${pathname}?${qs}` : pathname
     },

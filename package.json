@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "crm:generate": "drizzle-kit generate",
-    "crm:seed": "tsx scripts/seed-dev.ts"
+    "crm:seed": "tsx scripts/seed-dev.ts",
+    "crm:seed:scale": "tsx scripts/seed-scale.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

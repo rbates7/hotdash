@@ -5,6 +5,7 @@ import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactNewDialog } from "@/components/crm/contact-dialogs"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import { CustomerTypeFilter } from "@/components/crm/customer-type-filter"
+import { Pager } from "@/components/crm/pager"
 import { SearchInput } from "@/components/crm/search-input"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -16,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  CUSTOMERS_PER_PAGE,
   contactDisplayName,
   listContacts,
 } from "@/lib/crm/contacts/server"
@@ -29,23 +31,25 @@ export const dynamic = "force-dynamic"
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>
+  searchParams: Promise<{ q?: string; type?: string; offset?: string }>
 }) {
-  const { q, type } = await searchParams
+  const { q, type, offset: offsetParam } = await searchParams
   const db = getDb()
   const query = q?.trim() || undefined
   const typeFilter: CustomerType | undefined =
     type === "individual" || type === "team" ? type : undefined
+  const parsedOffset = Number(offsetParam)
+  const offset =
+    Number.isFinite(parsedOffset) && parsedOffset > 0
+      ? Math.floor(parsedOffset)
+      : 0
 
-  const rows = await listContacts(db, { q: query, type: typeFilter })
-  // Counts ignore the type filter so the chips always show the whole book.
-  const all = typeFilter ? await listContacts(db, { q: query }) : rows
-  const counts = {
-    all: all.length,
-    individual: all.filter((r) => customerType(r.contact) === "individual")
-      .length,
-    team: all.filter((r) => customerType(r.contact) === "team").length,
-  }
+  const { rows, total, counts, limit } = await listContacts(db, {
+    q: query,
+    type: typeFilter,
+    limit: CUSTOMERS_PER_PAGE,
+    offset,
+  })
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -55,6 +59,10 @@ export default async function CustomersPage({
           <SearchInput placeholder="Search customers…" />
           <ContactNewDialog />
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <Pager total={total} limit={limit} offset={offset} noun="customer" />
       </div>
 
       <div className="rounded-xl border">

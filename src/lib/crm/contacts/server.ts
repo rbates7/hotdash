@@ -201,10 +201,49 @@ export function contactDisplayName(contact: {
   return name || contact.email
 }
 
-export async function listContacts(
-  db: Db,
-  filters: { q?: string; type?: CustomerType } = {}
-) {
+export type CustomerListFilters = {
+  q?: string
+  type?: CustomerType
+  limit?: number
+  offset?: number
+}
+
+export const CUSTOMERS_PER_PAGE = 50
+
+/** Shared WHERE for the customer list and its counts, so the pager totals
+ * can never disagree with the rows on screen. */
+function customerConditions(filters: CustomerListFilters) {
+  const conditions = []
+  if (filters.q) {
+    const pattern = `%${filters.q.toLowerCase()}%`
+    conditions.push(
+      or(
+        like(sql`lower(${contacts.email})`, pattern),
+        like(
+          sql`lower(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, ''))`,
+          pattern
+        ),
+        like(sql`lower(coalesce(${organizations.name}, ''))`, pattern)
+      )
+    )
+  }
+  if (filters.type === "individual") {
+    conditions.push(isNull(contacts.organizationId))
+  } else if (filters.type === "team") {
+    conditions.push(isNotNull(contacts.organizationId))
+  }
+  return conditions
+}
+
+/**
+ * One page of customers plus the totals the UI needs. Counts come from SQL
+ * rather than from loading every row — the book runs to thousands of
+ * individuals, so the list must never fetch the whole table.
+ */
+export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
+  const limit = filters.limit ?? CUSTOMERS_PER_PAGE
+  const offset = filters.offset ?? 0
+
   const openCounts = db
     .select({
       contactId: cases.contactId,
@@ -226,25 +265,8 @@ export async function listContacts(
     .groupBy(cases.contactId)
     .as("last_inbound")
 
-  const pattern = filters.q ? `%${filters.q.toLowerCase()}%` : null
-  const conditions = []
-  if (pattern) {
-    conditions.push(
-      or(
-        like(sql`lower(${contacts.email})`, pattern),
-        like(
-          sql`lower(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, ''))`,
-          pattern
-        ),
-        like(sql`lower(coalesce(${organizations.name}, ''))`, pattern)
-      )
-    )
-  }
-  if (filters.type === "individual") {
-    conditions.push(isNull(contacts.organizationId))
-  } else if (filters.type === "team") {
-    conditions.push(isNotNull(contacts.organizationId))
-  }
+  const conditions = customerConditions(filters)
+  const where = conditions.length > 0 ? and(...conditions) : undefined
 
   const rows = db
     .select({
@@ -257,13 +279,48 @@ export async function listContacts(
     .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
     .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
     .leftJoin(lastInbound, eq(lastInbound.contactId, contacts.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(where)
     .orderBy(asc(contacts.firstName), asc(contacts.email))
+    .limit(limit)
+    .offset(offset)
     .all()
-  return rows.map((row) => ({
-    ...row,
-    lastInboundAt: row.lastInboundAt ? new Date(row.lastInboundAt) : null,
-  }))
+
+  const totalRow = db
+    .select({ count: sql<number>`count(*)` })
+    .from(contacts)
+    .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+    .where(where)
+    .get()
+
+  // Type counts respect the search term but not the type filter, so the
+  // chips keep showing the whole book while one slice is selected.
+  const searchOnly = customerConditions({ q: filters.q })
+  const searchWhere = searchOnly.length > 0 ? and(...searchOnly) : undefined
+  const byType = db
+    .select({
+      individual: sql<number>`sum(case when ${contacts.organizationId} is null then 1 else 0 end)`,
+      team: sql<number>`sum(case when ${contacts.organizationId} is not null then 1 else 0 end)`,
+      all: sql<number>`count(*)`,
+    })
+    .from(contacts)
+    .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+    .where(searchWhere)
+    .get()
+
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      lastInboundAt: row.lastInboundAt ? new Date(row.lastInboundAt) : null,
+    })),
+    total: totalRow?.count ?? 0,
+    counts: {
+      all: byType?.all ?? 0,
+      individual: byType?.individual ?? 0,
+      team: byType?.team ?? 0,
+    },
+    limit,
+    offset,
+  }
 }
 
 /** Everyone else on a B2B customer's account, for the teammates rollup. */

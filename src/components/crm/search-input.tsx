@@ -19,6 +19,7 @@ export function SearchInput({ placeholder }: { placeholder: string }) {
       const params = new URLSearchParams(searchParams)
       if (q) params.set("q", q)
       else params.delete("q")
+      params.delete("offset")
       const qs = params.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname)
     }, 300)
