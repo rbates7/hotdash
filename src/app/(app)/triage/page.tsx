@@ -36,6 +36,7 @@ export default async function TriagePage() {
           threads.map((thread) => (
             <div
               key={thread.gmailThreadId}
+              data-slot="triage-card"
               className="rounded-xl border bg-card px-4 py-3.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">

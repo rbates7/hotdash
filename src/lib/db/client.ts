@@ -9,7 +9,14 @@ import * as schema from "./schema"
 
 export type Db = BetterSQLite3Database<typeof schema>
 
-const rawClients = new WeakMap<Db, Database.Database>()
+const globalStore = globalThis as unknown as {
+  __hotdashDb?: { db: Db; sqlite: Database.Database; path: string }
+  // Shared across bundles: Next gives each route its own copy of this
+  // module in production, so module-level state alone would fracture.
+  __hotdashRawClients?: WeakMap<object, Database.Database>
+}
+
+const rawClients = (globalStore.__hotdashRawClients ??= new WeakMap())
 
 // The underlying better-sqlite3 handle, for the rare statement drizzle can't
 // express (e.g. UPDATE … RETURNING on the counters table).
@@ -17,10 +24,6 @@ export function rawClient(db: Db): Database.Database {
   const sqlite = rawClients.get(db)
   if (!sqlite) throw new Error("Unknown db instance.")
   return sqlite
-}
-
-const globalStore = globalThis as unknown as {
-  __hotdashDb?: { db: Db; sqlite: Database.Database; path: string }
 }
 
 function databasePath() {
