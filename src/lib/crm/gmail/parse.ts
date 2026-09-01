@@ -48,6 +48,11 @@ const BULK_ANYWHERE = /no-?reply|do-?not-?reply|mailer-?daemon|postmaster/i
 
 // Words that only mean "machine" as a whole segment. `news@` is a newsletter;
 // a coach named Newsome is not, so these must not match as substrings.
+//
+// "submission" is deliberately absent. A contact form is the one machine
+// sender relaying a person who wants an answer, and when the relay cannot be
+// seen through (below) the message must still surface in triage. A lead that
+// looks ugly can be fixed; one that was silently dropped cannot be noticed.
 const BULK_SEGMENTS = new Set([
   "alert",
   "alerts",
@@ -60,16 +65,37 @@ const BULK_SEGMENTS = new Set([
   "newsletter",
   "notification",
   "notifications",
-  "submission",
-  "submissions",
   "update",
   "updates",
 ])
 
+function localPart(email: string): string {
+  return email.split("@")[0]?.toLowerCase() ?? ""
+}
+
 function isBulkSender(fromEmail: string): boolean {
-  const local = fromEmail.split("@")[0]?.toLowerCase() ?? ""
+  const local = localPart(fromEmail)
   if (BULK_ANYWHERE.test(local)) return true
   return local.split(/[.\-_+]/).some((segment) => BULK_SEGMENTS.has(segment))
+}
+
+// Addresses that speak on someone else's behalf. Broader than the bulk list
+// on purpose, and kept separate from it: a contact form is a relay but is not
+// bulk, so it must be looked through here without ever becoming droppable
+// there.
+const RELAY_SEGMENTS = new Set([
+  "form",
+  "forms",
+  "submission",
+  "submissions",
+  "webform",
+])
+
+function isRelaySender(fromEmail: string): boolean {
+  if (isBulkSender(fromEmail)) return true
+  return localPart(fromEmail)
+    .split(/[.\-_+]/)
+    .some((segment) => RELAY_SEGMENTS.has(segment))
 }
 
 // Gmail's own categorisation, which is better at recognising marketing than
@@ -111,7 +137,7 @@ export function resolveRelaySender(
   from: Address,
   bodyText: string | null
 ): Address | null {
-  if (!isBulkSender(from.email)) return null
+  if (!isRelaySender(from.email)) return null
   if (isListMail(headers)) return null
 
   const bodyName = bodyText?.match(BODY_NAME_LABEL)?.[1]?.trim() || null

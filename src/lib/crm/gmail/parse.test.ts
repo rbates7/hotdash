@@ -163,7 +163,7 @@ describe("isBulk", () => {
 
   it("matches weaker words only as a whole segment", () => {
     expect(isBulk(noHeaders, "news@league.org")).toBe(true)
-    expect(isBulk(noHeaders, "form-submission@squarespace.info")).toBe(true)
+    expect(isBulk(noHeaders, "alerts@league.org")).toBe(true)
     // A coach whose name merely contains one of them is not bulk.
     expect(isBulk(noHeaders, "newsome@westhigh.edu")).toBe(false)
     expect(isBulk(noHeaders, "jupdates@school.org")).toBe(false)
@@ -194,6 +194,12 @@ describe("isBulk", () => {
 
   it("lets an ordinary human through", () => {
     expect(isBulk(noHeaders, "dana@acme.com")).toBe(false)
+  })
+
+  it("does not silence a form relay it could not see through", () => {
+    // Unresolvable form mail belongs in triage, ugly and visible, rather
+    // than dropped where no one would know a lead had arrived.
+    expect(isBulk(noHeaders, "form-submission@squarespace.info")).toBe(false)
   })
 })
 
