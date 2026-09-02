@@ -199,11 +199,17 @@ export function updateContactUsage(
     signupAt?: Date | null
     lastActiveAt?: Date | null
     appProfile?: Record<string, string | number | boolean | null> | null
+    /** The school or team they typed into their profile. */
+    affiliation?: string | null
   }
 ): Contact {
   const updates: Partial<typeof contacts.$inferInsert> = {}
   if (incoming.appUserId && incoming.appUserId !== contact.appUserId) {
     updates.appUserId = incoming.appUserId
+  }
+  const affiliation = incoming.affiliation?.trim()
+  if (affiliation && affiliation !== contact.affiliation) {
+    updates.affiliation = affiliation
   }
   if (
     incoming.signupAt &&

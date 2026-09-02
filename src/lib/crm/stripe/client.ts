@@ -39,6 +39,11 @@ export function createStripeApi(): StripeApi | null {
               : (price?.product?.id ?? null),
           nickname: price?.nickname ?? null,
           created: subscription.created,
+          startDate: subscription.start_date,
+          trialEnd: subscription.trial_end ?? null,
+          canceledAt: subscription.canceled_at ?? null,
+          endedAt: subscription.ended_at ?? null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
         }
       }
     },

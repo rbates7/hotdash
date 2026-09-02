@@ -42,6 +42,12 @@ export const contacts = sqliteTable(
     stripeCustomerId: text("stripe_customer_id"),
     plan: text("plan"),
     planStatus: text("plan_status"),
+    // Subscription dates, from Stripe. Started is when paying began — the
+    // end of the trial when there was one, so a trialing customer has a
+    // start in the future. Ended is when the plan actually stopped; a
+    // pending cancel-at-period-end is still paying and has no end yet.
+    planStartedAt: integer("plan_started_at", { mode: "timestamp_ms" }),
+    planEndedAt: integer("plan_ended_at", { mode: "timestamp_ms" }),
     // Product usage, mirrored from the Chlk app database by the Supabase
     // sync. appProfile carries whatever extra columns the mapping selects,
     // so unknown fields still surface on the customer profile.
@@ -51,6 +57,13 @@ export const contacts = sqliteTable(
     appProfile: text("app_profile", { mode: "json" }).$type<
       Record<string, string | number | boolean | null>
     >(),
+    // The school or team someone typed into their Chlk profile. Not an
+    // account: it never links anyone to an organization. It has its own
+    // column (the profile card reads the same value from appProfile) so
+    // that coaches who typed the same school can be grouped in SQL.
+    affiliation: text("affiliation"),
+    // When you ticked "reached out" on the Overview's new / churned lists.
+    reachedOutAt: integer("reached_out_at", { mode: "timestamp_ms" }),
     source: text("source", {
       enum: ["gmail", "stripe", "supabase", "manual"],
     }).notNull(),
@@ -63,6 +76,8 @@ export const contacts = sqliteTable(
       table.stripeCustomerId
     ),
     index("contacts_organization_id_idx").on(table.organizationId),
+    index("contacts_plan_started_at_idx").on(table.planStartedAt),
+    index("contacts_plan_ended_at_idx").on(table.planEndedAt),
   ]
 )
 
@@ -117,10 +132,19 @@ export const cases = sqliteTable(
   ]
 )
 
+export const MESSAGE_CHANNELS = ["email", "feedback"] as const
+export type MessageChannel = (typeof MESSAGE_CHANNELS)[number]
+
 export const emailMessages = sqliteTable(
   "email_messages",
   {
     id: text("id").primaryKey(),
+    // Feedback sent from inside the Chlk app is stored here too, so it runs
+    // through the same case machinery as email. Those rows carry a
+    // synthetic "feedback:<id>" in both gmail columns and no HTML body.
+    channel: text("channel", { enum: MESSAGE_CHANNELS })
+      .notNull()
+      .default("email"),
     gmailMessageId: text("gmail_message_id").notNull(),
     gmailThreadId: text("gmail_thread_id").notNull(),
     // caseId NULL + triageState "pending" is the triage queue; promotion is
@@ -155,19 +179,29 @@ export const emailMessages = sqliteTable(
   ]
 )
 
+export const NOTE_KINDS = ["user", "system", "call"] as const
+export type NoteKind = (typeof NOTE_KINDS)[number]
+
 export const notes = sqliteTable(
   "notes",
   {
     id: text("id").primaryKey(),
-    caseId: text("case_id")
-      .notNull()
-      .references(() => cases.id),
-    // System notes double as the case's audit trail.
-    kind: text("kind", { enum: ["user", "system"] }).notNull(),
+    // A note hangs off a case or straight off a customer — exactly one of
+    // caseId / contactId is set. Case notes are what you keep while working
+    // one conversation; customer notes and logged calls are what you know
+    // about the person regardless of any case.
+    caseId: text("case_id").references(() => cases.id),
+    contactId: text("contact_id").references(() => contacts.id),
+    // System notes double as the case's audit trail. A call is a note you
+    // wrote after speaking with someone, dated when the call happened.
+    kind: text("kind", { enum: NOTE_KINDS }).notNull(),
     body: text("body").notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   },
-  (table) => [index("notes_case_id_idx").on(table.caseId, table.createdAt)]
+  (table) => [
+    index("notes_case_id_idx").on(table.caseId, table.createdAt),
+    index("notes_contact_id_idx").on(table.contactId, table.createdAt),
+  ]
 )
 
 export const oauthTokens = sqliteTable("oauth_tokens", {
@@ -181,7 +215,7 @@ export const oauthTokens = sqliteTable("oauth_tokens", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 })
 
-export const SYNC_SOURCES = ["gmail", "stripe", "supabase"] as const
+export const SYNC_SOURCES = ["gmail", "stripe", "supabase", "feedback"] as const
 export type SyncSource = (typeof SYNC_SOURCES)[number]
 
 export const syncState = sqliteTable("sync_state", {
@@ -233,6 +267,7 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
     references: [organizations.id],
   }),
   cases: many(cases),
+  notes: many(notes),
 }))
 
 export const casesRelations = relations(cases, ({ one, many }) => ({
@@ -255,6 +290,10 @@ export const notesRelations = relations(notes, ({ one }) => ({
   case: one(cases, {
     fields: [notes.caseId],
     references: [cases.id],
+  }),
+  contact: one(contacts, {
+    fields: [notes.contactId],
+    references: [contacts.id],
   }),
 }))
 

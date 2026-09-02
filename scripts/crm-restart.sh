@@ -44,6 +44,10 @@ if pids=$(lsof -ti tcp:"${PORT}" 2>/dev/null) && [ -n "${pids}" ]; then
 fi
 rm -f "${PIDFILE}"
 
+# A build can carry a database migration, and some of those rebuild a table.
+# Keep last night's database alongside, so going back is one copy.
+pnpm crm:backup
+
 rm -rf .next
 pnpm build
 

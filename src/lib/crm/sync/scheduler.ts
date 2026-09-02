@@ -11,7 +11,9 @@ const TICK_MS = 60_000
 
 function intervalFor(source: SyncSource): number {
   const envKey = `SYNC_${source.toUpperCase()}_INTERVAL_SEC`
-  const fallback = { gmail: 120, stripe: 900, supabase: 3600 }[source]
+  const fallback = { gmail: 120, stripe: 900, supabase: 3600, feedback: 900 }[
+    source
+  ]
   const parsed = Number(process.env[envKey])
   return (Number.isFinite(parsed) && parsed > 0 ? parsed : fallback) * 1000
 }
@@ -32,6 +34,9 @@ function isConfigured(db: Db, source: SyncSource): boolean {
       return Boolean(process.env.STRIPE_API_KEY)
     case "supabase":
       return Boolean(process.env.SUPABASE_DB_URL)
+    case "feedback":
+      // Switched on by the feedback step of this round.
+      return false
   }
 }
 

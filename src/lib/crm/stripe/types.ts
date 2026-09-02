@@ -13,7 +13,14 @@ export type StripeSubscription = {
   priceId: string | null
   productId: string | null
   nickname: string | null
+  // Epoch seconds, as Stripe reports them. All required so a client cannot
+  // quietly leave one out and have every plan date come back empty.
   created: number
+  startDate: number
+  trialEnd: number | null
+  canceledAt: number | null
+  endedAt: number | null
+  cancelAtPeriodEnd: boolean
 }
 
 export interface StripeApi {

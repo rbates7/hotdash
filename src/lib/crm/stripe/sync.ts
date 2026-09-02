@@ -25,6 +25,33 @@ const STATUS_RANK: Record<string, number> = {
   incomplete_expired: 0,
 }
 
+/**
+ * When a plan started and, if it has, when it stopped.
+ *
+ * Paying starts when the trial ends: a subscription still in its trial has
+ * a start in the future and only counts as new once that day has passed.
+ * A plan with no trial starts on its start date. Churn is dated by when the
+ * plan actually stopped — a cancellation scheduled for the end of the
+ * period is still paying until then, so it has no end date yet.
+ */
+export function planDatesFor(subscription: StripeSubscription): {
+  planStartedAt: Date
+  planEndedAt: Date | null
+} {
+  const startedSeconds = subscription.trialEnd ?? subscription.startDate
+  const endedSeconds =
+    subscription.endedAt ??
+    (subscription.status === "canceled" ? subscription.canceledAt : null)
+  return {
+    planStartedAt: new Date(startedSeconds * 1000),
+    planEndedAt: endedSeconds == null ? null : new Date(endedSeconds * 1000),
+  }
+}
+
+function sameInstant(a: Date | null, b: Date | null) {
+  return (a?.getTime() ?? null) === (b?.getTime() ?? null)
+}
+
 function findContactByStripeId(db: Db, stripeCustomerId: string) {
   return db
     .select()
@@ -107,9 +134,19 @@ export async function syncStripe(
     if (!contact) continue
     const plan = planLabelFor(subscription)
     const planStatus = subscription.status
-    if (contact.plan === plan && contact.planStatus === planStatus) continue
+    const dates = planDatesFor(subscription)
+    // The dates are part of this comparison on purpose: leaving them out
+    // would mean a customer whose plan never changed never gets them.
+    if (
+      contact.plan === plan &&
+      contact.planStatus === planStatus &&
+      sameInstant(contact.planStartedAt, dates.planStartedAt) &&
+      sameInstant(contact.planEndedAt, dates.planEndedAt)
+    ) {
+      continue
+    }
     db.update(contacts)
-      .set({ plan, planStatus, updatedAt: new Date() })
+      .set({ plan, planStatus, ...dates, updatedAt: new Date() })
       .where(eq(contacts.id, contact.id))
       .run()
     stats.plansSet += 1

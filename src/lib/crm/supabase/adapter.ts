@@ -150,6 +150,8 @@ export async function syncSupabase(
         signupAt: toDate(row.signup_at),
         lastActiveAt: toDate(row.last_active_at),
         appProfile: extrasFrom(row),
+        affiliation:
+          typeof row.affiliation === "string" ? row.affiliation : null,
       })
       if (usage !== enriched) stats.usageUpdated += 1
     }

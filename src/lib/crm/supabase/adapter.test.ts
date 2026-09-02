@@ -271,6 +271,34 @@ describe("syncSupabase", () => {
     expect(untouched.signupAt).toBeNull()
   })
 
+  it("keeps the school someone typed in as their affiliation, and never blanks it", async () => {
+    await syncSupabase(
+      db,
+      fakeSource([{ email: "dana@acme.com", affiliation: "  Westside High " }])
+    )
+    let dana = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "dana@acme.com"))
+      .get()!
+    expect(dana.affiliation).toBe("Westside High")
+    // It is not a team: nothing was linked, no account was created.
+    expect(dana.organizationId).toBeNull()
+    expect(db.select().from(organizations).all()).toHaveLength(0)
+    // The profile card still reads it from the extras.
+    expect(dana.appProfile).toEqual({ affiliation: "  Westside High " })
+
+    // Clearing it upstream leaves what the CRM already knows.
+    await syncSupabase(db, fakeSource([{ email: "dana@acme.com", affiliation: "" }]))
+    await syncSupabase(db, fakeSource([{ email: "dana@acme.com" }]))
+    dana = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "dana@acme.com"))
+      .get()!
+    expect(dana.affiliation).toBe("Westside High")
+  })
+
   it("is idempotent on repeated usage syncs", async () => {
     const rows = [
       { email: "dana@acme.com", app_user_id: "abc", signup_at: "2025-06-01T00:00:00Z" },

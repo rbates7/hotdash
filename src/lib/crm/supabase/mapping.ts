@@ -12,6 +12,8 @@
 //   app_user_id  the Chlk user id, shown on the profile for support lookups
 //   signup_at    when they created their account (timestamp or ISO string)
 //   last_active_at  their most recent activity
+//   affiliation  the school or team they typed in — never an account, but
+//                coaches who typed the same one are grouped as a prospect
 //
 // Anything listed in `extras` is read from the same query and shown as a
 // labelled row in the profile's Product usage card, so you can surface
@@ -97,4 +99,5 @@ export type SupabaseProfileRow = {
   app_user_id?: string | number | null
   signup_at?: string | number | Date | null
   last_active_at?: string | number | Date | null
+  affiliation?: string | null
 } & Record<string, unknown>

@@ -66,10 +66,17 @@ async function runSupabase(db: Db): Promise<SourceResult> {
   }
 }
 
+// In-app feedback shares the Supabase connection; the sync itself lands
+// with the feedback step of this round.
+async function runFeedback(): Promise<SourceResult> {
+  return { status: "skipped", message: "Not configured" }
+}
+
 const RUNNERS: Record<SyncSource, (db: Db) => Promise<SourceResult>> = {
   gmail: runGmail,
   stripe: runStripe,
   supabase: runSupabase,
+  feedback: runFeedback,
 }
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000

@@ -38,7 +38,7 @@ export async function getDashboardData(db: Db) {
   })
 
   const recentNotes = await db.query.notes.findMany({
-    where: eq(notes.kind, "user"),
+    where: and(eq(notes.kind, "user"), isNotNull(notes.caseId)),
     with: { case: { with: { contact: true } } },
     orderBy: [desc(notes.createdAt)],
     limit: 5,

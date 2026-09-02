@@ -156,7 +156,7 @@ export default async function DashboardPage() {
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm">
                         <span className="text-muted-foreground">Note on</span>{" "}
-                        #{note.case.caseNumber} — {note.body}
+                        #{note.case!.caseNumber} — {note.body}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {relativeTime(note.createdAt)}

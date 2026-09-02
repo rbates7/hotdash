@@ -23,6 +23,7 @@
     "crm:stop": "bash scripts/crm-stop.sh",
     "crm:logs": "tail -n 60 -f data/server.log",
     "crm:status": "tsx scripts/crm-status.ts",
+    "crm:backup": "tsx scripts/crm-backup.ts",
     "crm:sync": "tsx scripts/crm-sync.ts"
   },
   "dependencies": {
