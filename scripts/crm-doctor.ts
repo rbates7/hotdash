@@ -7,6 +7,8 @@
 import fs from "node:fs"
 import path from "node:path"
 
+import { loadEnvLocal } from "./load-env"
+
 import {
   DEFAULT_SYNC_WINDOW,
   isValidSyncWindow,
@@ -20,12 +22,12 @@ const add = (level: Level, label: string, detail: string) =>
 
 // .env.local is not loaded outside Next, so read it directly.
 const envPath = path.resolve(".env.local")
-const env: Record<string, string> = { ...process.env } as Record<string, string>
+const fileEnv = loadEnvLocal()
+const env: Record<string, string> = {
+  ...(process.env as Record<string, string>),
+  ...fileEnv,
+}
 if (fs.existsSync(envPath)) {
-  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line)
-    if (match) env[match[1]!] = match[2]!.trim().replace(/^["']|["']$/g, "")
-  }
   add("ok", ".env.local", "found")
 } else {
   add("fail", ".env.local", "missing — copy .env.example to .env.local")

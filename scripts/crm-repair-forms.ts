@@ -15,6 +15,7 @@
  */
 import { eq } from "drizzle-orm"
 
+import { loadEnvLocal } from "./load-env"
 import { createDb } from "../src/lib/crm/db/client"
 import { cases, contacts, emailMessages } from "../src/lib/crm/db/schema"
 import {
@@ -22,6 +23,8 @@ import {
   scannableBody,
   subjectFromForm,
 } from "../src/lib/crm/gmail/parse"
+
+loadEnvLocal()
 
 const write = process.argv.includes("--write")
 const dbPath = process.env.DATABASE_PATH ?? "./data/crm.db"
