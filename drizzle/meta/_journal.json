@@ -22,6 +22,13 @@
       "when": 1788295234268,
       "tag": "0002_lonely_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788314793748,
+      "tag": "0003_redundant_captain_universe",
+      "breakpoints": true
     }
   ]
 }

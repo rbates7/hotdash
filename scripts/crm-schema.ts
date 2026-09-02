@@ -101,10 +101,16 @@ async function main() {
     if (withEmail.length > 0) {
       console.log(`Readable tables with an email column: ${withEmail.join(", ")}\n`)
     }
-    if (unreadable.length > 0) {
-      const schemas = [...new Set(unreadable.map((t) => t.split(".")[0]))]
+    // auth holds session and MFA secrets and storage holds uploaded files;
+    // the CRM has no business in either, so never suggest opening them.
+    const NEVER_SUGGEST = new Set(["auth", "storage"])
+    const suggestable = unreadable.filter(
+      (t) => !NEVER_SUGGEST.has(t.split(".")[0]!)
+    )
+    if (suggestable.length > 0) {
+      const schemas = [...new Set(suggestable.map((t) => t.split(".")[0]))]
       console.log(
-        `${unreadable.length} table${unreadable.length === 1 ? "" : "s"} this role cannot read yet. To grant access, run in the Supabase SQL Editor:\n`
+        `${suggestable.length} app table${suggestable.length === 1 ? "" : "s"} this role cannot read yet. To grant access, run in the Supabase SQL Editor:\n`
       )
       for (const schema of schemas) {
         console.log(`  grant usage on schema ${schema} to crm_reader;`)

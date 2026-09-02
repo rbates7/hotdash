@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
-import { createContact } from "@/lib/crm/contacts/server"
+import { createContact, updateContactManual } from "@/lib/crm/contacts/server"
 import { createDb, type Db } from "@/lib/crm/db/client"
 import { contacts, organizations } from "@/lib/crm/db/schema"
 
@@ -57,7 +57,12 @@ describe("syncSupabase", () => {
       ])
     )
 
-    expect(stats).toEqual({ rowsSeen: 3, contactsEnriched: 1, usageUpdated: 0 })
+    expect(stats).toEqual({
+      rowsSeen: 3,
+      contactsEnriched: 1,
+      usageUpdated: 0,
+      organizationsRemoved: 0,
+    })
     expect(db.select().from(contacts).all()).toHaveLength(2)
 
     const dana = db
@@ -108,20 +113,63 @@ describe("syncSupabase", () => {
     expect(org.name).toBe("Some Org")
   })
 
-  it("leaves an already-linked account alone", async () => {
-    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: "First Org" }]))
-    const before = db
+  it("moves a contact when its own earlier link turns out to be wrong", async () => {
+    // The first run linked everyone by the school name they typed in; the
+    // definition tightened to staff seats, and the sync must be able to
+    // take back what it linked under the old one.
+    await syncSupabase(db, fakeSource([{ email: "dana@acme.com", org_name: "Typed-in High" }]))
+    await syncSupabase(db, fakeSource([{ email: "dana@acme.com", org_name: "Real Staff Account" }]))
+    const dana = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "dana@acme.com"))
+      .get()!
+    const org = db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, dana.organizationId!))
+      .get()!
+    expect(org.name).toBe("Real Staff Account")
+    expect(dana.organizationSource).toBe("supabase")
+  })
+
+  it("unlinks its own link when the source no longer reports a team, and drops the empty account", async () => {
+    await syncSupabase(db, fakeSource([{ email: "dana@acme.com", org_name: "Typed-in High" }]))
+    const stats = await syncSupabase(db, fakeSource([{ email: "dana@acme.com", org_name: null }]))
+
+    const dana = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "dana@acme.com"))
+      .get()!
+    expect(dana.organizationId).toBeNull()
+    expect(dana.organizationSource).toBeNull()
+    // Nobody is on "Typed-in High" any more, so it is gone from Accounts.
+    expect(stats.organizationsRemoved).toBe(1)
+    expect(db.select().from(organizations).all()).toHaveLength(0)
+  })
+
+  it("never touches an account linked by hand", async () => {
+    updateContactManual(
+      db,
+      db.select().from(contacts).where(eq(contacts.email, "manual@x.io")).get()!.id,
+      { organizationName: "Hand Picked FC" }
+    )
+    // Neither a different team nor no team at all moves it.
+    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: "Some Other Org" }]))
+    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: null }]))
+    const contact = db
       .select()
       .from(contacts)
       .where(eq(contacts.email, "manual@x.io"))
       .get()!
-    await syncSupabase(db, fakeSource([{ email: "manual@x.io", org_name: "Second Org" }]))
-    const after = db
+    const org = db
       .select()
-      .from(contacts)
-      .where(eq(contacts.email, "manual@x.io"))
+      .from(organizations)
+      .where(eq(organizations.id, contact.organizationId!))
       .get()!
-    expect(after.organizationId).toBe(before.organizationId)
+    expect(org.name).toBe("Hand Picked FC")
+    expect(contact.organizationSource).toBe("manual")
   })
 
   it("pages through large result sets", async () => {

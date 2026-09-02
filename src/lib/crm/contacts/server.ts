@@ -10,6 +10,7 @@ import {
   isNull,
   like,
   ne,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm"
@@ -66,6 +67,23 @@ export function addContactEmail(db: Db, contactId: string, email: string) {
     .values({ email: normalized, contactId, createdAt: new Date() })
     .onConflictDoNothing()
     .run()
+}
+
+/**
+ * Organizations that no contact points at any more. A sync that unlinks the
+ * last member of an account leaves the account behind otherwise, and the
+ * Accounts view would keep listing teams with nobody on them.
+ */
+export function deleteOrphanOrganizations(db: Db): number {
+  const linked = db
+    .select({ id: contacts.organizationId })
+    .from(contacts)
+    .where(isNotNull(contacts.organizationId))
+  const result = db
+    .delete(organizations)
+    .where(notInArray(organizations.id, linked))
+    .run()
+  return result.changes
 }
 
 export function findOrCreateOrganizationByName(
@@ -144,10 +162,25 @@ export function enrichContactName(
     updates.nameSource = incoming.source
   }
   // Organization is independent of the name-source contest: a manual name
-  // edit must not stop an account link from ever arriving.
-  if (incoming.organizationName && !contact.organizationId) {
-    const org = findOrCreateOrganizationByName(db, incoming.organizationName)
-    updates.organizationId = org.id
+  // edit must not stop an account link from ever arriving. A hand-made link
+  // is never touched. A link this same source made is its own to change or
+  // remove — "team" is defined upstream, and when that definition tightens
+  // (a typed-in school name is not a staff account), the sync has to be
+  // able to take back what it linked under the old one.
+  if (contact.organizationSource !== "manual") {
+    if (incoming.organizationName) {
+      const org = findOrCreateOrganizationByName(db, incoming.organizationName)
+      if (org.id !== contact.organizationId) {
+        updates.organizationId = org.id
+        updates.organizationSource = incoming.source
+      }
+    } else if (
+      contact.organizationId &&
+      contact.organizationSource === incoming.source
+    ) {
+      updates.organizationId = null
+      updates.organizationSource = null
+    }
   }
   if (Object.keys(updates).length === 0) return contact
   updates.updatedAt = new Date()
@@ -220,13 +253,16 @@ export function updateContactManual(
     updates.nameSource = "manual"
   }
   if ("organizationName" in input) {
+    // Marking the link manual is what protects it from every later sync.
+    // Changing the *name* source here was a mistake: it also froze names
+    // that had never been hand-edited.
     if (input.organizationName) {
       const org = findOrCreateOrganizationByName(db, input.organizationName)
       updates.organizationId = org.id
-      updates.nameSource = "manual"
+      updates.organizationSource = "manual"
     } else if (input.organizationName === null) {
       updates.organizationId = null
-      updates.nameSource = "manual"
+      updates.organizationSource = "manual"
     }
   }
   db.update(contacts).set(updates).where(eq(contacts.id, contactId)).run()

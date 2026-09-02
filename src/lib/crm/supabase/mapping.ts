@@ -18,27 +18,65 @@
 // Chlk-specific fields (team, role, seat count…) without code changes.
 export const chlkMapping = {
   // Written against the real Chlk schema (schema `chlk`, discovered with
-  // `pnpm crm:schema`). Reads only the app schema: Supabase guards `auth`
-  // more tightly, and the one thing it would have added — last sign-in —
-  // was not wanted. The org join is LEFT so a profile without one still
-  // comes through with what it has.
+  // `pnpm crm:schema`).
+  //
+  // "Team" means being on a staff account, and that is recorded in
+  // staff_seat_codes: a purchaser buys seats, staff redeem them. The school
+  // name someone typed into their profile is *not* a team — it is kept as
+  // `affiliation` for context and never creates an account. An account is
+  // named after the purchaser's organization when Chlk has one, else after
+  // the purchaser themselves.
   query: /* sql */ `
+    with seat_members as (
+      select redeemed_by_user_id as user_id,
+             purchaser_user_id,
+             'member' as staff_role
+      from chlk.staff_seat_codes
+      where redeemed_by_user_id is not null
+        and lower(coalesce(status, '')) not in
+          ('revoked', 'canceled', 'cancelled', 'expired', 'removed')
+      union all
+      select purchaser_user_id, purchaser_user_id, 'purchaser'
+      from chlk.staff_seat_codes
+      where purchaser_user_id is not null
+    ),
+    membership as (
+      select distinct on (user_id) user_id, purchaser_user_id, staff_role
+      from seat_members
+      order by user_id, (staff_role = 'purchaser') desc
+    )
     select
       p.email                                  as email,
       p.first_name                             as first_name,
       p.last_name                              as last_name,
-      coalesce(o.name, p.organization)         as org_name,
+      case when m.user_id is not null then
+        coalesce(
+          porg.name,
+          morg.name,
+          nullif(trim(coalesce(pp.first_name, '') || ' ' || coalesce(pp.last_name, '')), '') || ' staff',
+          'Staff account ' || left(m.purchaser_user_id::text, 8)
+        )
+      end                                      as org_name,
       p.id                                     as app_user_id,
       p.created_at                             as signup_at,
-      p.role                                   as role
+      p.role                                   as role,
+      p.organization                           as affiliation,
+      m.staff_role                             as staff_role
     from chlk.profiles p
-    left join chlk.organizations o on o.id = p.organization_id
+    left join membership m on m.user_id = p.id
+    left join chlk.profiles pp on pp.id = m.purchaser_user_id
+    left join chlk.organizations porg on porg.id = pp.organization_id
+    left join chlk.organizations morg on morg.id = p.organization_id
     where p.email is not null and p.email <> ''
   `,
   /** Extra column names from the query above, rendered as-is. */
-  extras: ["role"] as string[],
+  extras: ["role", "affiliation", "staff_role"] as string[],
   /** Human labels for `extras`; falls back to a prettified column name. */
-  extraLabels: { role: "Role in Chlk" } as Record<string, string>,
+  extraLabels: {
+    role: "Role in Chlk",
+    affiliation: "School / team (as entered)",
+    staff_role: "Staff account",
+  } as Record<string, string>,
 }
 
 export type SupabaseProfileRow = {

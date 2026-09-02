@@ -22,6 +22,7 @@ import {
 import { customerType } from "@/lib/crm/contacts/matching"
 import { NotFoundError } from "@/lib/crm/core/errors"
 import { getDb } from "@/lib/crm/db/client"
+import { chlkMapping } from "@/lib/crm/supabase/mapping"
 import { formatDateTime, relativeTime } from "@/lib/crm/format"
 
 export const metadata: Metadata = { title: "Customer · CRM · Chlk" }
@@ -233,7 +234,7 @@ export default async function CustomerProfilePage({
                     ([key, value]) => (
                       <div key={key} className="flex justify-between gap-2">
                         <span className="text-muted-foreground">
-                          {prettify(key)}
+                          {chlkMapping.extraLabels[key] ?? prettify(key)}
                         </span>
                         <span className="truncate">{String(value)}</span>
                       </div>

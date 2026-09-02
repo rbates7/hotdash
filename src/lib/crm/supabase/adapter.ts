@@ -2,6 +2,7 @@ import postgres from "postgres"
 
 import { normalizeEmail } from "@/lib/crm/contacts/matching"
 import {
+  deleteOrphanOrganizations,
   enrichContactName,
   findContactByEmail,
   updateContactUsage,
@@ -68,6 +69,7 @@ export type SupabaseSyncStats = {
   rowsSeen: number
   contactsEnriched: number
   usageUpdated: number
+  organizationsRemoved: number
 }
 
 const PAGE_SIZE = 500
@@ -82,6 +84,7 @@ export async function syncSupabase(
     rowsSeen: 0,
     contactsEnriched: 0,
     usageUpdated: 0,
+    organizationsRemoved: 0,
   }
   let offset = 0
   for (;;) {
@@ -111,5 +114,8 @@ export async function syncSupabase(
     if (rows.length < PAGE_SIZE) break
     offset += PAGE_SIZE
   }
+  // Unlinking can leave accounts with nobody on them; drop those so the
+  // Accounts view only ever lists a team that has someone in it.
+  stats.organizationsRemoved = deleteOrphanOrganizations(db)
   return stats
 }

@@ -35,6 +35,10 @@ export const contacts = sqliteTable(
     lastName: text("last_name"),
     nameSource: text("name_source", { enum: NAME_SOURCES }),
     organizationId: text("organization_id").references(() => organizations.id),
+    // Who made the link. A sync may change or remove a link it made itself
+    // when its definition of "team" changes upstream; a hand-made link is
+    // never touched by a sync.
+    organizationSource: text("organization_source", { enum: NAME_SOURCES }),
     stripeCustomerId: text("stripe_customer_id"),
     plan: text("plan"),
     planStatus: text("plan_status"),

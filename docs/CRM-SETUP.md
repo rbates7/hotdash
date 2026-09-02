@@ -159,8 +159,9 @@ team account that is most of them, so Stripe alone cannot say who they are.
    query touches:
 
    ```sql
-   create policy crm_reader_read on chlk.profiles      for select to crm_reader using (true);
-   create policy crm_reader_read on chlk.organizations for select to crm_reader using (true);
+   create policy crm_reader_read on chlk.profiles         for select to crm_reader using (true);
+   create policy crm_reader_read on chlk.organizations    for select to crm_reader using (true);
+   create policy crm_reader_read on chlk.staff_seat_codes for select to crm_reader using (true);
    ```
 
    `pnpm crm:schema` cannot detect this — table structure is visible even
@@ -168,3 +169,13 @@ team account that is most of them, so Stripe alone cannot say who they are.
    this is the first thing to check.
 6. Sync from **CRM → Settings**. Manually edited names always win; Stripe
    and Supabase fill in the rest.
+
+**What makes someone a "Team".** Being on a staff account — a seat in
+`chlk.staff_seat_codes`, as purchaser or redeemer — not the school name they
+typed into their profile. That text is kept on the profile as *School / team
+(as entered)* and never creates an account. An account is named after the
+purchaser's organization when Chlk has one, otherwise after the purchaser.
+
+Links the sync makes it may also change or remove when the upstream answer
+changes; a link made by hand on a customer's profile is never touched by a
+sync. Accounts nobody is on are removed at the end of each run.
