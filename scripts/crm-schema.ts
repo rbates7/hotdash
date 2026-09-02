@@ -84,10 +84,15 @@ async function main() {
         }
         const hasEmail = cols.some((c) => /email/i.test(c.column_name))
         if (hasEmail) withEmail.push(key)
-        const notable = cols.filter((c) => INTERESTING.test(c.column_name))
         console.log(`    ${table.name}${hasEmail ? "   ← has email" : ""}`)
+        // Readable app tables get every column: deciding how membership or
+        // plans are recorded needs the whole shape, not a guess at the
+        // interesting bits. Wide system tables are summarised.
+        const shown =
+          cols.length <= 40 ? cols : cols.filter((c) => INTERESTING.test(c.column_name))
         console.log(
-          `      ${cols.length} columns${notable.length ? ": " + notable.map((c) => `${c.column_name} (${c.data_type})`).join(", ") : ""}`
+          `      ${cols.length} columns${cols.length > 40 ? " (notable only)" : ""}: ` +
+            shown.map((c) => `${c.column_name} (${c.data_type})`).join(", ")
         )
       }
       console.log()
