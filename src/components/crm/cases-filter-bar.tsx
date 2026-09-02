@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ReplyIcon, SearchIcon } from "lucide-react"
+import { HourglassIcon, ReplyIcon, SearchIcon } from "lucide-react"
 
 import { useListUrl } from "@/components/crm/use-list-url"
 import { Button } from "@/components/ui/button"
@@ -54,6 +54,7 @@ export function CasesFilterBar() {
   const window = searchParams.get("window") ?? "all"
   const audience = searchParams.get("audience") ?? "all"
   const needsReply = searchParams.get("needsReply") === "1"
+  const overdue = searchParams.get("overdue") === "1"
   const [q, setQ] = React.useState(searchParams.get("q") ?? "")
 
   const buildUrl = useListUrl()
@@ -95,6 +96,16 @@ export function CasesFilterBar() {
       >
         <ReplyIcon />
         Needs my reply
+      </Button>
+      <Button
+        variant={overdue ? "default" : "outline"}
+        size="sm"
+        aria-pressed={overdue}
+        title="Waiting on your reply for over three days"
+        onClick={() => router.replace(buildUrl({ overdue: overdue ? "" : "1" }))}
+      >
+        <HourglassIcon />
+        Overdue
       </Button>
       <Select
         items={WINDOW_ITEMS}

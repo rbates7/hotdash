@@ -11,6 +11,7 @@ import {
   type CaseSort,
   type CaseWindow,
 } from "@/lib/crm/cases/server"
+import { caseAgeMs, isOverdue } from "@/lib/crm/cases/age"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import { getDb } from "@/lib/crm/db/client"
 import {
@@ -19,7 +20,7 @@ import {
   type CasePriority,
   type CaseStatus,
 } from "@/lib/crm/db/schema"
-import { relativeTime } from "@/lib/crm/format"
+import { formatDuration, relativeTime } from "@/lib/crm/format"
 
 export const metadata = { title: "Cases · CRM · Chlk" }
 export const dynamic = "force-dynamic"
@@ -33,6 +34,7 @@ export default async function CasesPage({
     q?: string
     offset?: string
     needsReply?: string
+    overdue?: string
     window?: string
     audience?: string
     sort?: string
@@ -48,6 +50,7 @@ export default async function CasesPage({
     : undefined
   const q = params.q?.trim() || undefined
   const needsReply = params.needsReply === "1"
+  const overdue = params.overdue === "1"
   const window = (
     params.window && params.window in CASE_WINDOWS ? params.window : undefined
   ) as CaseWindow | undefined
@@ -69,6 +72,7 @@ export default async function CasesPage({
     priority,
     q,
     needsReply,
+    overdue,
     window,
     audience,
     sort,
@@ -87,6 +91,8 @@ export default async function CasesPage({
     contactName: contactDisplayName(row.contact),
     organizationName: row.contact.organization?.name ?? null,
     lastActivity: relativeTime(row.lastActivityAt),
+    age: row.status === "closed" ? "" : formatDuration(caseAgeMs(row)),
+    overdue: isOverdue(row),
   }))
 
   return (

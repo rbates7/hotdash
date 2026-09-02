@@ -12,6 +12,15 @@ export function relativeTime(date: Date | null | undefined, now = Date.now()) {
   return formatDate(date, now)
 }
 
+/** "3d", "5h", "12m": how long something has been the case. */
+export function formatDuration(ms: number) {
+  if (ms < MINUTE) return "<1m"
+  if (ms < HOUR) return `${Math.floor(ms / MINUTE)}m`
+  if (ms < DAY) return `${Math.floor(ms / HOUR)}h`
+  if (ms < 30 * DAY) return `${Math.floor(ms / DAY)}d`
+  return `${Math.floor(ms / (30 * DAY))}mo`
+}
+
 /** "Jun 3", or "Jun 3, 2025" once it is not this year. */
 export function formatDate(date: Date, now = Date.now()) {
   return date.toLocaleDateString(undefined, {

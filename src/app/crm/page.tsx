@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { OVERDUE_THRESHOLD_DAYS } from "@/lib/crm/cases/age"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import {
   CHURNED_THIS_WEEK_FILTERS,
@@ -185,7 +186,7 @@ export default async function DashboardPage() {
         </Link>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard label="New" value={data.counts.new} href="/crm/cases?status=new" />
         <StatCard
           label="Open"
@@ -201,6 +202,12 @@ export default async function DashboardPage() {
           label="Urgent, not closed"
           value={data.urgentOpen}
           href="/crm/cases?priority=urgent"
+          tone="urgent"
+        />
+        <StatCard
+          label={`Waiting on you over ${OVERDUE_THRESHOLD_DAYS} days`}
+          value={data.overdueCount}
+          href="/crm/cases?overdue=1"
           tone="urgent"
         />
       </div>

@@ -5,7 +5,7 @@ import { cases } from "@/lib/crm/db/schema"
 import { createContact } from "@/lib/crm/contacts/server"
 import { eq } from "drizzle-orm"
 
-import { createCaseForThread, listCases } from "./server"
+import { countOverdueCases, createCaseForThread, listCases } from "./server"
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -148,6 +148,25 @@ describe("listCases filtering and sorting", () => {
 
   it("defaults to newest activity first", async () => {
     expect(numbersOf((await listCases(db, {})).rows)).toEqual([1, 3, 2])
+  })
+
+  it("overdue: waiting on your reply for three days or more, and not closed", async () => {
+    // #2 has waited 45 days; #3 only two; on #1 you spoke last.
+    const { rows, total } = await listCases(db, { overdue: true })
+    expect(numbersOf(rows)).toEqual([2])
+    expect(total).toBe(1)
+    expect(countOverdueCases(db)).toBe(1)
+    db.update(cases).set({ status: "closed" }).where(eq(cases.caseNumber, 2)).run()
+    expect(countOverdueCases(db)).toBe(0)
+  })
+
+  it("sorts by age: the longest wait first on the way down", async () => {
+    // Age counts from their last message when they spoke last (#2: 45
+    // days, #3: two days), else from when the case opened (#1: today).
+    const desc = await listCases(db, { sort: "age", direction: "desc" })
+    expect(numbersOf(desc.rows)).toEqual([2, 3, 1])
+    const asc = await listCases(db, { sort: "age", direction: "asc" })
+    expect(numbersOf(asc.rows)).toEqual([1, 3, 2])
   })
 
   it("combines filters, and the total reflects them", async () => {

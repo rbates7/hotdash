@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 
+import { countOverdueCases } from "@/lib/crm/cases/server"
 import { listContacts } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
@@ -100,6 +101,7 @@ export async function getDashboardData(db: Db) {
   return {
     counts,
     urgentOpen: urgentOpen?.count ?? 0,
+    overdueCount: countOverdueCases(db),
     oldestUntouched,
     activity,
     contactCount: contactCount?.count ?? 0,

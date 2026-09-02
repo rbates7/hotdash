@@ -10,10 +10,13 @@ import {
   isNotNull,
   isNull,
   like,
+  lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm"
 
+import { OVERDUE_THRESHOLD_DAYS } from "@/lib/crm/cases/age"
 import { STATUS_LABELS } from "@/lib/crm/cases/labels"
 import { transitionOnMessage, type MessageDirection } from "@/lib/crm/cases/rules"
 import { NotFoundError, ValidationError } from "@/lib/crm/core/errors"
@@ -212,6 +215,7 @@ export const CASE_SORTS = [
   "contact",
   "status",
   "priority",
+  "age",
 ] as const
 export type CaseSort = (typeof CASE_SORTS)[number]
 
@@ -225,6 +229,8 @@ export type CaseListFilters = {
   window?: CaseWindow
   /** Whether the contact is a paying Stripe customer. */
   audience?: CaseAudience
+  /** Waiting on your reply for OVERDUE_THRESHOLD_DAYS or more. */
+  overdue?: boolean
   sort?: CaseSort
   direction?: SortDirection
   limit?: number
@@ -261,6 +267,12 @@ function orderFor(sort: CaseSort | undefined, direction: SortDirection = "desc")
         dir(sql`case ${cases.priority} when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`),
         tiebreak,
       ]
+    case "age": {
+      // Oldest first is the useful way round, so "desc" is the biggest age
+      // — the earliest anchor — at the top.
+      const anchor = ageAnchorSql()
+      return [direction === "desc" ? asc(anchor) : desc(anchor), tiebreak]
+    }
     default:
       return [dir(cases.lastActivityAt), tiebreak]
   }
@@ -278,6 +290,35 @@ function needsReplyCondition() {
       isNull(cases.lastOutboundAt),
       sql`${cases.lastInboundAt} > ${cases.lastOutboundAt}`
     )
+  )
+}
+
+/** The moment a case's age counts from: when they last wrote if the ball
+ * is with you, else when the case was opened. The same rule in plain code
+ * lives in cases/age.ts, which the tests hold this to. */
+function ageAnchorSql() {
+  return sql`case when ${cases.lastInboundAt} is not null and (${cases.lastOutboundAt} is null or ${cases.lastInboundAt} > ${cases.lastOutboundAt}) then ${cases.lastInboundAt} else ${cases.createdAt} end`
+}
+
+/** Waiting on your reply for OVERDUE_THRESHOLD_DAYS or more, and not closed. */
+export function overdueCondition(now = Date.now()) {
+  return and(
+    ne(cases.status, "closed"),
+    needsReplyCondition(),
+    lte(
+      cases.lastInboundAt,
+      new Date(now - OVERDUE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000)
+    )
+  )
+}
+
+export function countOverdueCases(db: Db): number {
+  return (
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(cases)
+      .where(overdueCondition())
+      .get()?.count ?? 0
   )
 }
 
@@ -315,6 +356,7 @@ export async function listCases(db: Db, filters: CaseListFilters = {}) {
   }
 
   if (filters.needsReply) conditions.push(needsReplyCondition())
+  if (filters.overdue) conditions.push(overdueCondition())
 
   if (filters.window) {
     conditions.push(gte(cases.lastActivityAt, sinceWindow(filters.window)))

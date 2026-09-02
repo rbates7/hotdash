@@ -41,6 +41,9 @@ export type CaseTableRow = {
   contactName: string
   organizationName: string | null
   lastActivity: string
+  /** "3d", "5h"; empty for a closed case. */
+  age: string
+  overdue: boolean
 }
 
 async function closeCases(ids: string[]) {
@@ -172,6 +175,9 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                 Priority
               </SortableHeader>
             </TableHead>
+            <TableHead>
+              <SortableHeader column="age">Age</SortableHeader>
+            </TableHead>
             <TableHead className="text-right">
               <SortableHeader column="activity" className="justify-end">
                 Last activity
@@ -229,6 +235,21 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                 </TableCell>
                 <TableCell>
                   <PriorityBadge priority={row.priority} />
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "tabular-nums",
+                    row.overdue
+                      ? "text-destructive font-medium"
+                      : "text-muted-foreground"
+                  )}
+                  title={
+                    row.overdue
+                      ? "Waiting on your reply for over three days"
+                      : undefined
+                  }
+                >
+                  {row.age || "—"}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-right">
                   {row.lastActivity}
