@@ -178,6 +178,9 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
       { id: "note_3", caseId: "case_2", kind: "system", body: "Status changed to Closed", createdAt: at(19 * DAY) },
       { id: "note_4", caseId: "case_6", kind: "system", body: "Status changed to Closed", createdAt: at(29 * DAY) },
       { id: "note_5", caseId: "case_5", kind: "user", body: "Batched endpoint spec drafted — send to Jonah once reviewed.", createdAt: at(5 * DAY) },
+      // Notes and calls about a person rather than a case.
+      { id: "note_6", caseId: null, contactId: "contact_dana", kind: "call", body: "Called about the invite bug. She's fine waiting until Friday if I text her when it's fixed.", createdAt: at(3 * HOUR) },
+      { id: "note_7", caseId: null, contactId: "contact_bea", kind: "user", body: "Prefers texts over email. Also coaches Westside's JV squad.", createdAt: at(2 * DAY) },
     ])
     .run()
 

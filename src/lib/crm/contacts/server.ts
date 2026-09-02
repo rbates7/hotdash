@@ -31,6 +31,7 @@ import {
   contactEmails,
   contacts,
   emailMessages,
+  notes,
   organizations,
   type Contact,
   type NameSource,
@@ -695,6 +696,8 @@ export async function getContactWithCases(db: Db, contactId: string) {
         orderBy: [desc(cases.lastActivityAt)],
         with: { messages: { orderBy: [asc(emailMessages.sentAt)] } },
       },
+      // Notes and calls about the person, newest first.
+      notes: { orderBy: [desc(notes.createdAt)] },
     },
   })
   if (!contact) throw new NotFoundError("Contact not found.")

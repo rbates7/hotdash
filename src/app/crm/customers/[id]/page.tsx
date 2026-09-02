@@ -6,7 +6,10 @@ import { ExternalLinkIcon } from "lucide-react"
 import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import { ContactEditDialog } from "@/components/crm/contact-dialogs"
+import { ContactNoteComposer } from "@/components/crm/contact-note-composer"
+import { ContactTimeline } from "@/components/crm/contact-timeline"
 import { CustomerCaseList } from "@/components/crm/customer-case-list"
+import { ReachedOutCheckbox } from "@/components/crm/reached-out-checkbox"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -111,6 +114,14 @@ export default async function CustomerProfilePage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <label className="text-caption text-muted-foreground mr-1 flex items-center gap-1.5">
+            <ReachedOutCheckbox
+              contactId={contact.id}
+              name={name}
+              reachedOutAt={contact.reachedOutAt?.toISOString() ?? null}
+            />
+            Reached out
+          </label>
           <a
             href={`https://mail.google.com/mail/u/0/#search/${encodeURIComponent(contact.email)}`}
             target="_blank"
@@ -141,7 +152,11 @@ export default async function CustomerProfilePage({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-2">
-          <h3 className="text-body font-semibold">Cases and email</h3>
+          <h3 className="text-body font-semibold">Notes and calls</h3>
+          <ContactNoteComposer contactId={contact.id} />
+          <ContactTimeline notes={contact.notes} />
+
+          <h3 className="text-body mt-4 font-semibold">Cases and email</h3>
           <CustomerCaseList
             customerName={name}
             cases={contact.cases.map((c) => ({
@@ -270,6 +285,24 @@ export default async function CustomerProfilePage({
                 <span className="text-muted-foreground">Status</span>
                 <span>{contact.planStatus ?? "—"}</span>
               </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">
+                  {contact.planStartedAt && contact.planStartedAt > new Date()
+                    ? "Starts paying"
+                    : "Started paying"}
+                </span>
+                <span>
+                  {contact.planStartedAt
+                    ? formatDateTime(contact.planStartedAt)
+                    : "—"}
+                </span>
+              </div>
+              {contact.planEndedAt ? (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Ended</span>
+                  <span>{formatDateTime(contact.planEndedAt)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">In CRM since</span>
                 <span>{formatDateTime(contact.createdAt)}</span>

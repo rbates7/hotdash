@@ -58,9 +58,10 @@ export async function getDashboardData(db: Db) {
     limit: 10,
   })
 
+  // Your own notes and logged calls, on a case or straight on a person.
   const recentNotes = await db.query.notes.findMany({
-    where: and(eq(notes.kind, "user"), isNotNull(notes.caseId)),
-    with: { case: { with: { contact: true } } },
+    where: inArray(notes.kind, ["user", "call"]),
+    with: { case: { with: { contact: true } }, contact: true },
     orderBy: [desc(notes.createdAt)],
     limit: 5,
   })

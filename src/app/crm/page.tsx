@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRightIcon, FlameIcon } from "lucide-react"
+import { ArrowRightIcon, FlameIcon, PhoneIcon } from "lucide-react"
 
 import { StatusBadge } from "@/components/crm/case-badges"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
@@ -274,18 +274,30 @@ export default async function DashboardPage() {
               data.activity.map((item) => {
                 if (item.kind === "note") {
                   const note = item.note
+                  const isCall = note.kind === "call"
+                  // A note lives on a case or straight on a person.
+                  const href = note.caseId
+                    ? `/crm/cases/${note.caseId}`
+                    : `/crm/customers/${note.contactId}`
+                  const about = note.case
+                    ? `#${note.case.caseNumber}`
+                    : note.contact
+                      ? contactDisplayName(note.contact)
+                      : "someone"
                   return (
                     <Link
                       key={`note-${note.id}`}
-                      href={`/crm/cases/${note.caseId}`}
+                      href={href}
                       className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted"
                     >
-                      <span className="size-6 shrink-0 rounded-full bg-warning/20 text-center text-xs leading-6 text-warning">
-                        ✎
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-warning/20 text-xs text-warning">
+                        {isCall ? <PhoneIcon className="size-3" /> : "✎"}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm">
-                        <span className="text-muted-foreground">Note on</span>{" "}
-                        #{note.case!.caseNumber} — {note.body}
+                        <span className="text-muted-foreground">
+                          {isCall ? "Call with" : "Note on"}
+                        </span>{" "}
+                        {about} — {note.body}
                       </span>
                       <span className="shrink-0 text-xs text-muted-foreground">
                         {relativeTime(note.createdAt)}
