@@ -42,6 +42,18 @@ async function runSupabase(db: Db): Promise<SourceResult> {
   if (!source) return { status: "skipped", message: "Not configured" }
   try {
     const stats = await syncSupabase(db, source)
+    // A query that returns nothing is almost never right against a live app
+    // database. The usual cause is row-level security: a fresh role with no
+    // policy sees zero rows and no error, so without this the run reports a
+    // clean success that enriched no one.
+    if (stats.rowsSeen === 0) {
+      return {
+        status: "success",
+        stats: { ...stats },
+        message:
+          "Query returned no rows. If the tables have data, row-level security is hiding them from crm_reader — see docs/CRM-SETUP.md.",
+      }
+    }
     return { status: "success", stats: { ...stats } }
   } finally {
     await source.close()

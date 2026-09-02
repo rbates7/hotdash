@@ -153,5 +153,18 @@ team account that is most of them, so Stripe alone cannot say who they are.
    email to match contacts against.
 4. Write that into `query` in `src/lib/crm/supabase/mapping.ts`, keeping the
    output column aliases exactly as documented there.
-5. Sync from **CRM → Settings**. Manually edited names always win; Stripe
+5. **Let the role through row-level security.** Supabase enables RLS on app
+   tables, and a role with no policy sees zero rows and no error — the sync
+   reports success and enriches nobody. Add a read policy for each table the
+   query touches:
+
+   ```sql
+   create policy crm_reader_read on chlk.profiles      for select to crm_reader using (true);
+   create policy crm_reader_read on chlk.organizations for select to crm_reader using (true);
+   ```
+
+   `pnpm crm:schema` cannot detect this — table structure is visible even
+   when rows are not — so if a sync comes back with "Query returned no rows",
+   this is the first thing to check.
+6. Sync from **CRM → Settings**. Manually edited names always win; Stripe
    and Supabase fill in the rest.
