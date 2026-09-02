@@ -146,6 +146,39 @@ export function setCaseStatus(db: Db, caseId: string, status: CaseStatus) {
   return db.select().from(cases).where(eq(cases.id, caseId)).get()!
 }
 
+/**
+ * Moves several cases at once, all or none: an unknown id rolls the whole
+ * batch back rather than leaving half a selection closed. Each case gets
+ * the same system note it would from the status path. Returns how many
+ * actually changed; cases already in that status are left alone.
+ */
+export function setCaseStatusBulk(
+  db: Db,
+  caseIds: string[],
+  status: CaseStatus
+): number {
+  if (!CASE_STATUSES.includes(status)) {
+    throw new ValidationError(`Unknown status "${status}".`)
+  }
+  const unique = [...new Set(caseIds)]
+  const run = rawClient(db).transaction(() => {
+    let changed = 0
+    for (const caseId of unique) {
+      const before = db
+        .select({ status: cases.status })
+        .from(cases)
+        .where(eq(cases.id, caseId))
+        .get()
+      if (!before) throw new NotFoundError("One of those cases no longer exists.")
+      if (before.status === status) continue
+      setCaseStatus(db, caseId, status)
+      changed += 1
+    }
+    return changed
+  })
+  return run()
+}
+
 export function setCasePriority(
   db: Db,
   caseId: string,

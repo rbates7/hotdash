@@ -1,18 +1,6 @@
-import Link from "next/link"
-
-import { PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { CasesFilterBar } from "@/components/crm/cases-filter-bar"
+import { CasesTable, type CaseTableRow } from "@/components/crm/cases-table"
 import { Pager } from "@/components/crm/pager"
-import { SortableHeader } from "@/components/crm/sortable-header"
-import { ContactAvatar } from "@/components/crm/contact-avatar"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import {
   CASES_PER_PAGE,
   CASE_AUDIENCES,
@@ -88,6 +76,18 @@ export default async function CasesPage({
     limit: CASES_PER_PAGE,
     offset,
   })
+  // Strings only: the table is a client component, and a Date formatted on
+  // the client could differ from the one the server rendered.
+  const tableRows: CaseTableRow[] = rows.map((row) => ({
+    id: row.id,
+    caseNumber: row.caseNumber,
+    subject: row.subject,
+    status: row.status,
+    priority: row.priority,
+    contactName: contactDisplayName(row.contact),
+    organizationName: row.contact.organization?.name ?? null,
+    lastActivity: relativeTime(row.lastActivityAt),
+  }))
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -96,94 +96,13 @@ export default async function CasesPage({
         <Pager total={total} limit={limit} offset={offset} noun="case" />
       </div>
 
-      <div className="rounded-xl border">
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground text-body px-4 py-12 text-center">
-            No cases match these filters.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">
-                  <SortableHeader column="number" defaultDirection="asc">
-                    #
-                  </SortableHeader>
-                </TableHead>
-                <TableHead>
-                  <SortableHeader column="subject" defaultDirection="asc">
-                    Subject
-                  </SortableHeader>
-                </TableHead>
-                <TableHead>
-                  <SortableHeader column="contact" defaultDirection="asc">
-                    Contact
-                  </SortableHeader>
-                </TableHead>
-                <TableHead>
-                  <SortableHeader column="status" defaultDirection="asc">
-                    Status
-                  </SortableHeader>
-                </TableHead>
-                <TableHead>
-                  <SortableHeader column="priority" defaultDirection="asc">
-                    Priority
-                  </SortableHeader>
-                </TableHead>
-                <TableHead className="text-right">
-                  <SortableHeader column="activity" className="justify-end">
-                    Last activity
-                  </SortableHeader>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => {
-                const name = contactDisplayName(row.contact)
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell className="text-muted-foreground">
-                      <Link href={`/crm/cases/${row.id}`}>
-                        #{row.caseNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="max-w-96">
-                      <Link
-                        href={`/crm/cases/${row.id}`}
-                        className="block truncate font-medium hover:underline"
-                      >
-                        {row.subject}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2">
-                        <ContactAvatar name={name} />
-                        <span className="flex flex-col leading-tight">
-                          <span>{name}</span>
-                          {row.contact.organization ? (
-                            <span className="text-muted-foreground text-xs">
-                              {row.contact.organization.name}
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={row.status} />
-                    </TableCell>
-                    <TableCell>
-                      <PriorityBadge priority={row.priority} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-right">
-                      {relativeTime(row.lastActivityAt)}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground text-body rounded-xl border px-4 py-12 text-center">
+          No cases match these filters.
+        </p>
+      ) : (
+        <CasesTable rows={tableRows} />
+      )}
     </div>
   )
 }
