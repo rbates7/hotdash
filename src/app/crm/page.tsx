@@ -113,36 +113,40 @@ function ContactsCard({
         {list.rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">{empty}</p>
         ) : (
-          list.rows.map(({ contact }) => {
-            const name = contactDisplayName(contact)
-            return (
-              <div
-                key={contact.id}
-                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
-              >
-                <Link
-                  href={`/crm/customers/${contact.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 hover:underline"
+          // Seven rows tall (7 × 44px rows + 6 × 4px gaps); the rest scroll
+          // inside the card so a busy week does not push the page down.
+          <div className="-mx-2 flex max-h-[332px] flex-col gap-1 overflow-y-auto px-2">
+            {list.rows.map(({ contact }) => {
+              const name = contactDisplayName(contact)
+              return (
+                <div
+                  key={contact.id}
+                  className="flex h-11 shrink-0 items-center gap-2.5 rounded-md py-1.5"
                 >
-                  <ContactAvatar name={name} />
-                  <span className="flex min-w-0 flex-col leading-tight">
-                    <span className="truncate text-sm font-medium">{name}</span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {contact.email}
+                  <Link
+                    href={`/crm/customers/${contact.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 hover:underline"
+                  >
+                    <ContactAvatar name={name} />
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="truncate text-sm font-medium">{name}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {contact.email}
+                      </span>
                     </span>
+                  </Link>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    <PlanDates contact={contact} className="text-foreground" />
                   </span>
-                </Link>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  <PlanDates contact={contact} className="text-foreground" />
-                </span>
-                <ReachedOutCheckbox
-                  contactId={contact.id}
-                  name={name}
-                  reachedOutAt={contact.reachedOutAt?.toISOString() ?? null}
-                />
-              </div>
-            )
-          })
+                  <ReachedOutCheckbox
+                    contactId={contact.id}
+                    name={name}
+                    reachedOutAt={contact.reachedOutAt?.toISOString() ?? null}
+                  />
+                </div>
+              )
+            })}
+          </div>
         )}
         {list.total > list.rows.length ? (
           <Link
@@ -209,21 +213,6 @@ export default async function DashboardPage() {
           value={data.overdueCount}
           href="/crm/cases?overdue=1"
           tone="urgent"
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ContactsCard
-          title="New this week"
-          empty="Nobody started paying in the last 7 days."
-          list={data.newThisWeek}
-          href={customersUrl(NEW_THIS_WEEK_FILTERS)}
-        />
-        <ContactsCard
-          title="Churned this week"
-          empty="Nobody canceled in the last 7 days. 🎉"
-          list={data.churnedThisWeek}
-          href={customersUrl(CHURNED_THIS_WEEK_FILTERS)}
         />
       </div>
 
@@ -338,6 +327,21 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ContactsCard
+          title="New this week"
+          empty="Nobody started paying in the last 7 days."
+          list={data.newThisWeek}
+          href={customersUrl(NEW_THIS_WEEK_FILTERS)}
+        />
+        <ContactsCard
+          title="Churned this week"
+          empty="Nobody canceled in the last 7 days. 🎉"
+          list={data.churnedThisWeek}
+          href={customersUrl(CHURNED_THIS_WEEK_FILTERS)}
+        />
       </div>
 
       <p className="text-muted-foreground text-xs">

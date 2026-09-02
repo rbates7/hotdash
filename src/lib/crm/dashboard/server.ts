@@ -5,8 +5,10 @@ import { listContacts } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
 
-/** How many names the Overview's new / churned lists show before "View all". */
-export const OVERVIEW_LIST_LIMIT = 25
+/** How many people the Overview's new / churned lists load. Seven show at
+ * a time and the rest scroll inside the card; past this many, "View all"
+ * takes you to the same list on Customers. */
+export const OVERVIEW_LIST_LIMIT = 100
 
 /** The Customers filters behind each Overview list, so "View all" lands on
  * exactly the rows the list was cut from and its pager total matches. */
