@@ -12,7 +12,11 @@ import { syncGmail } from "@/lib/crm/gmail/sync"
 import { DEFAULT_SYNC_WINDOW } from "@/lib/crm/gmail/window"
 import { createStripeApi } from "@/lib/crm/stripe/client"
 import { syncStripe } from "@/lib/crm/stripe/sync"
-import { createSupabaseSource, syncSupabase } from "@/lib/crm/supabase/adapter"
+import {
+  createContactsPolicyFromEnv,
+  createSupabaseSource,
+  syncSupabase,
+} from "@/lib/crm/supabase/adapter"
 
 // Placeholder implementations replaced in the Stripe/Supabase phase.
 type SourceResult = {
@@ -41,7 +45,9 @@ async function runSupabase(db: Db): Promise<SourceResult> {
   const source = createSupabaseSource()
   if (!source) return { status: "skipped", message: "Not configured" }
   try {
-    const stats = await syncSupabase(db, source)
+    const stats = await syncSupabase(db, source, {
+      createContacts: createContactsPolicyFromEnv(),
+    })
     // A query that returns nothing is almost never right against a live app
     // database. The usual cause is row-level security: a fresh role with no
     // policy sees zero rows and no error, so without this the run reports a

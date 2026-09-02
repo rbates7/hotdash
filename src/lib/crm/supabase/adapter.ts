@@ -2,6 +2,7 @@ import postgres from "postgres"
 
 import { normalizeEmail } from "@/lib/crm/contacts/matching"
 import {
+  createContact,
   deleteOrphanOrganizations,
   enrichContactName,
   findContactByEmail,
@@ -67,9 +68,32 @@ function extrasFrom(row: SupabaseProfileRow) {
 
 export type SupabaseSyncStats = {
   rowsSeen: number
+  contactsCreated: number
   contactsEnriched: number
   usageUpdated: number
   organizationsRemoved: number
+}
+
+/**
+ * Which Chlk profiles become CRM contacts when they are not already there.
+ *
+ *   team  everyone on a staff account (the default). Accounts then list all
+ *         of their people, and a staff member's first email opens a case on
+ *         their team instead of landing in triage as a stranger.
+ *   all   every profile with an email — thousands of individual signups
+ *         included. Customers defaults to paying people, so they stay out of
+ *         the way, and anyone who writes in is already known.
+ *   none  fill in existing contacts only; never add one.
+ */
+export type CreateContactsPolicy = "team" | "all" | "none"
+
+export type SupabaseSyncOptions = {
+  createContacts?: CreateContactsPolicy
+}
+
+export function createContactsPolicyFromEnv(): CreateContactsPolicy {
+  const value = process.env.SUPABASE_CREATE_CONTACTS?.trim().toLowerCase()
+  return value === "all" || value === "none" ? value : "team"
 }
 
 const PAGE_SIZE = 500
@@ -78,10 +102,13 @@ const PAGE_SIZE = 500
 // belong in the CRM, so this never creates contacts.
 export async function syncSupabase(
   db: Db,
-  source: SupabaseSource
+  source: SupabaseSource,
+  options: SupabaseSyncOptions = {}
 ): Promise<SupabaseSyncStats> {
+  const policy = options.createContacts ?? "team"
   const stats: SupabaseSyncStats = {
     rowsSeen: 0,
+    contactsCreated: 0,
     contactsEnriched: 0,
     usageUpdated: 0,
     organizationsRemoved: 0,
@@ -93,8 +120,23 @@ export async function syncSupabase(
     for (const row of rows) {
       stats.rowsSeen += 1
       if (!row.email) continue
-      const contact = findContactByEmail(db, normalizeEmail(row.email))
-      if (!contact) continue
+      const email = normalizeEmail(row.email)
+      let contact = findContactByEmail(db, email)
+      if (!contact) {
+        // org_name is the team signal from the mapping: set only for people
+        // on a staff account, never from the school name they typed in.
+        const onTeam = Boolean(row.org_name)
+        const create = policy === "all" || (policy === "team" && onTeam)
+        if (!create) continue
+        contact = createContact(db, {
+          email,
+          firstName: row.first_name ?? null,
+          lastName: row.last_name ?? null,
+          nameSource: "supabase",
+          source: "supabase",
+        })
+        stats.contactsCreated += 1
+      }
       const enriched = enrichContactName(db, contact, {
         firstName: row.first_name ?? null,
         lastName: row.last_name ?? null,

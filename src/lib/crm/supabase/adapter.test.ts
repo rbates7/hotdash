@@ -37,7 +37,7 @@ describe("syncSupabase", () => {
     })
   })
 
-  it("enriches existing contacts with names and organizations, never creates", async () => {
+  it("enriches existing contacts; a stranger with no team is not created by default", async () => {
     const stats = await syncSupabase(
       db,
       fakeSource([
@@ -59,6 +59,7 @@ describe("syncSupabase", () => {
 
     expect(stats).toEqual({
       rowsSeen: 3,
+      contactsCreated: 0,
       contactsEnriched: 1,
       usageUpdated: 0,
       organizationsRemoved: 0,
@@ -111,6 +112,59 @@ describe("syncSupabase", () => {
       .where(eq(organizations.id, contact.organizationId!))
       .get()!
     expect(org.name).toBe("Some Org")
+  })
+
+  it("creates a contact for a stranger who is on a team, linked to that team", async () => {
+    // A Texas Tech coach who has never emailed and is not the Stripe payer
+    // had no CRM contact at all, so the sync could not even see them.
+    const stats = await syncSupabase(
+      db,
+      fakeSource([
+        {
+          email: "coach@texastech.edu",
+          first_name: "Tess",
+          last_name: "Raider",
+          org_name: "Texas Tech",
+          staff_role: "member",
+        },
+      ])
+    )
+    expect(stats.contactsCreated).toBe(1)
+    const created = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, "coach@texastech.edu"))
+      .get()!
+    expect(created.source).toBe("supabase")
+    expect(created.firstName).toBe("Tess")
+    const org = db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, created.organizationId!))
+      .get()!
+    expect(org.name).toBe("Texas Tech")
+    expect(created.organizationSource).toBe("supabase")
+  })
+
+  it("createContacts: all takes every profile with an email", async () => {
+    const stats = await syncSupabase(
+      db,
+      fakeSource([{ email: "solo@nowhere.io", first_name: "Solo", org_name: null }]),
+      { createContacts: "all" }
+    )
+    expect(stats.contactsCreated).toBe(1)
+  })
+
+  it("createContacts: none never adds anyone, team or not", async () => {
+    const stats = await syncSupabase(
+      db,
+      fakeSource([{ email: "coach@texastech.edu", org_name: "Texas Tech" }]),
+      { createContacts: "none" }
+    )
+    expect(stats.contactsCreated).toBe(0)
+    expect(
+      db.select().from(contacts).where(eq(contacts.email, "coach@texastech.edu")).get()
+    ).toBeUndefined()
   })
 
   it("moves a contact when its own earlier link turns out to be wrong", async () => {

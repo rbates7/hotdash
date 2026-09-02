@@ -195,3 +195,10 @@ organization.
 Links the sync makes it may also change or remove when the upstream answer
 changes; a link made by hand on a customer's profile is never touched by a
 sync. Accounts nobody is on are removed at the end of each run.
+
+**Who gets added.** By default the sync creates a contact for anyone on a
+staff account who is not in the CRM yet — otherwise an account set up by hand
+shows none of its people, and a staff member's first email lands in triage as
+a stranger. `SUPABASE_CREATE_CONTACTS=all` adds every profile with an email
+(Customers defaults to paying people, so they stay out of the way);
+`none` fills in existing contacts only.

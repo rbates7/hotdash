@@ -117,7 +117,7 @@ export function createContact(
     stripeCustomerId?: string | null
     plan?: string | null
     planStatus?: string | null
-    source: "gmail" | "stripe" | "manual"
+    source: "gmail" | "stripe" | "supabase" | "manual"
   }
 ): Contact {
   const now = new Date()

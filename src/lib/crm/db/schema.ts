@@ -51,7 +51,9 @@ export const contacts = sqliteTable(
     appProfile: text("app_profile", { mode: "json" }).$type<
       Record<string, string | number | boolean | null>
     >(),
-    source: text("source", { enum: ["gmail", "stripe", "manual"] }).notNull(),
+    source: text("source", {
+      enum: ["gmail", "stripe", "supabase", "manual"],
+    }).notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
