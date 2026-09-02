@@ -18,6 +18,7 @@
     "crm:doctor": "tsx scripts/crm-doctor.ts",
     "crm:repair-forms": "tsx scripts/crm-repair-forms.ts",
     "crm:plans": "tsx scripts/crm-plans.ts",
+    "crm:subscriptions": "tsx scripts/crm-subscriptions.ts",
     "crm:schema": "tsx scripts/crm-schema.ts",
     "crm:restart": "bash scripts/crm-restart.sh",
     "crm:stop": "bash scripts/crm-stop.sh",

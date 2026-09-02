@@ -30,6 +30,10 @@ const DAY = 86_400_000
 const now = Date.now()
 const at = (ms: number) => new Date(now - ms)
 const pick = <T,>(list: readonly T[], i: number) => list[i % list.length]!
+// Schools that solo coaches type into their profile. Every fifth individual
+// names one, so each school gathers a dozen or so coaches — enough for the
+// Prospective view to have real groups to sort and filter.
+const SCHOOLS = Array.from({ length: 40 }, (_, i) => `${pick(LAST, i * 3)} ${i % 3 === 0 ? "High" : i % 3 === 1 ? "Prep" : "Academy"}`)
 
 const file = process.env.DATABASE_PATH ?? "./data/crm.db"
 const { db, sqlite } = createDb(file)
@@ -55,6 +59,8 @@ const contactRows = Array.from({ length: CUSTOMERS }, (_, i) => {
   const isStaff = i < staffCount
   const first = pick(FIRST, i)
   const last = pick(LAST, i * 7 + 3)
+  const planStatus = pick(STATUSES, i)
+  const started = (i % 700) * DAY
   return {
     id: `c_${i}`,
     email: `${first.toLowerCase()}.${last.toLowerCase()}${i}@example.com`,
@@ -64,7 +70,13 @@ const contactRows = Array.from({ length: CUSTOMERS }, (_, i) => {
     organizationId: isStaff ? `org_${i % ORGS}` : null,
     stripeCustomerId: `cus_scale_${i}`,
     plan: pick(PLANS, i),
-    planStatus: pick(STATUSES, i),
+    planStatus,
+    // A trial starts paying in the future; a canceled plan ended recently
+    // enough for some of them to land in "Churned this week".
+    planStartedAt:
+      planStatus === "trialing" ? new Date(now + (i % 14) * DAY) : at(started),
+    planEndedAt: planStatus === "canceled" ? at((i % 30) * DAY) : null,
+    affiliation: !isStaff && i % 5 === 0 ? pick(SCHOOLS, i / 5) : null,
     appUserId: `chlk_${20000 + i}`,
     signupAt: at((i % 700) * DAY),
     lastActiveAt: at((i % 40) * DAY),

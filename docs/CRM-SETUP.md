@@ -257,6 +257,22 @@ sits in the same queue as email and counts as needing a reply. It reads
    Until then only Sync now runs it, so a wrong guess cannot paint Settings
    red every quarter hour.
 
+### Apple subscriptions
+
+The CRM learns who is paying from Stripe, so a coach who bought through the
+App Store looks like they never paid and is hidden by the Active view.
+`pnpm crm:subscriptions` prints how big that gap is — counts only, never a
+row of customer data — after this in the Supabase SQL editor:
+
+```sql
+grant select on chlk.subscriptions, chlk.plans to crm_reader;
+create policy crm_reader_read on chlk.subscriptions for select to crm_reader using (true);
+create policy crm_reader_read on chlk.plans         for select to crm_reader using (true);
+```
+
+Nothing changes in the CRM until a later round decides how Apple
+subscriptions should count.
+
 **Who gets added.** By default the sync creates a contact for anyone on a
 staff account who is not in the CRM yet — otherwise an account set up by hand
 shows none of its people, and a staff member's first email lands in triage as
