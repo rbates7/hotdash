@@ -183,8 +183,9 @@ pnpm crm:restart
   canceled people flips the view to Everyone.
 - **Accounts** — staff accounts, or *Prospective*: schools where two or more
   coaches with no staff account typed the same name. Click one to see who.
-- **Cases** — click a case and it opens beside the list, so the next one is
-  a click away: ↑ / ↓ in the panel (or k / j) step through the list in its
+- **Cases** — status and priority are pickers in each row, so a case can be
+  moved without opening it. Click a case and it opens beside the list, so
+  the next one is a click away: ↑ / ↓ in the panel (or k / j) step through the list in its
   current order, Esc closes, "Full page" pops it out. Closing a case from
   the panel moves you on to the next. Tick rows and "Close selected", or
   close one from its row. Nothing is deleted; a closed case reopens from

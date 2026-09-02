@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
+import { BADGE_TRIGGER_CLASSES } from "@/components/crm/case-status-select"
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { CasePriority } from "@/lib/crm/db/schema"
+import { cn } from "@/lib/utils"
 
 const PRIORITIES: { value: CasePriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -20,12 +22,23 @@ const PRIORITIES: { value: CasePriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ]
 
+const PRIORITY_TRIGGER: Record<CasePriority, string> = {
+  low: "bg-muted text-muted-foreground hover:bg-muted/80 dark:bg-muted dark:hover:bg-muted/80",
+  normal: "bg-muted text-foreground hover:bg-muted/80 dark:bg-muted dark:hover:bg-muted/80",
+  high: "bg-warning/15 text-warning hover:bg-warning/25 dark:bg-warning/15 dark:hover:bg-warning/25",
+  urgent:
+    "bg-destructive/15 text-destructive hover:bg-destructive/25 dark:bg-destructive/15 dark:hover:bg-destructive/25",
+}
+
 export function CasePrioritySelect({
   caseId,
   priority,
+  variant = "default",
 }: {
   caseId: string
   priority: CasePriority
+  /** "badge" looks like the badge it replaces, for a list row. */
+  variant?: "default" | "badge"
 }) {
   const router = useRouter()
   const [isBusy, setIsBusy] = React.useState(false)
@@ -58,10 +71,17 @@ export function CasePrioritySelect({
       onValueChange={(value) => handleChange(value as CasePriority)}
       disabled={isBusy}
     >
-      <SelectTrigger size="sm" aria-label="Priority">
+      <SelectTrigger
+        size="sm"
+        aria-label="Priority"
+        className={cn(
+          variant === "badge" && BADGE_TRIGGER_CLASSES,
+          variant === "badge" && PRIORITY_TRIGGER[priority]
+        )}
+      >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent align="start">
         {PRIORITIES.map((item) => (
           <SelectItem key={item.value} value={item.value}>
             {item.label}

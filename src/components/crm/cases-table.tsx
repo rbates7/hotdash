@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 import { CircleCheckIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
+import { CasePrioritySelect } from "@/components/crm/case-priority-select"
+import { CaseStatusSelect } from "@/components/crm/case-status-select"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import { SortableHeader } from "@/components/crm/sortable-header"
 import { Button } from "@/components/ui/button"
@@ -66,9 +67,10 @@ async function closeCases(ids: string[]) {
 }
 
 /**
- * The Cases list. Tick rows to close several at once, or close one from
- * its row. Closing is the CRM's "cancel": the case keeps its history and
- * can be reopened from its page — nothing is ever deleted.
+ * The Cases list. Status and priority are pickers in the row, so a case can
+ * be moved without opening it. Tick rows to close several at once, or
+ * close one from its row. Closing is the CRM's "cancel": the case keeps its
+ * history and can be reopened from its page — nothing is ever deleted.
  *
  * A case opens beside the list (`?open=<id>` on the current query) rather
  * than on its own page, so the next one is a click away; with one open the
@@ -276,11 +278,19 @@ export function CasesTable({
                   </span>
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={row.status} />
+                  <CaseStatusSelect
+                    caseId={row.id}
+                    status={row.status}
+                    variant="badge"
+                  />
                 </TableCell>
                 {compact ? null : (
                   <TableCell>
-                    <PriorityBadge priority={row.priority} />
+                    <CasePrioritySelect
+                      caseId={row.id}
+                      priority={row.priority}
+                      variant="badge"
+                    />
                   </TableCell>
                 )}
                 <TableCell
