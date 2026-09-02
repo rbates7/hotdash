@@ -20,12 +20,16 @@ export const chlkMapping = {
   // Written against the real Chlk schema (schema `chlk`, discovered with
   // `pnpm crm:schema`).
   //
-  // "Team" means being on a staff account, and that is recorded in
-  // staff_seat_codes: a purchaser buys seats, staff redeem them. The school
-  // name someone typed into their profile is *not* a team — it is kept as
-  // `affiliation` for context and never creates an account. An account is
-  // named after the purchaser's organization when Chlk has one, else after
-  // the purchaser themselves.
+  // "Team" means being on a staff account. Chlk records that two ways:
+  //   - staff_seat_codes: a purchaser buys seats, staff redeem them;
+  //   - profiles.organization_id: a row in chlk.organizations, which are
+  //     created deliberately (invoiced accounts set up by hand — Texas Tech,
+  //     Clemson) rather than per signup.
+  // The school name someone typed into their profile is *not* a team — it is
+  // kept as `affiliation` for context and never creates an account. A seat
+  // account is named after the purchaser's organization when there is one,
+  // else after the purchaser; an organization-linked account after the
+  // organization.
   query: /* sql */ `
     with seat_members as (
       select redeemed_by_user_id as user_id,
@@ -49,19 +53,25 @@ export const chlkMapping = {
       p.email                                  as email,
       p.first_name                             as first_name,
       p.last_name                              as last_name,
-      case when m.user_id is not null then
-        coalesce(
-          porg.name,
-          morg.name,
-          nullif(trim(coalesce(pp.first_name, '') || ' ' || coalesce(pp.last_name, '')), '') || ' staff',
-          'Staff account ' || left(m.purchaser_user_id::text, 8)
-        )
+      case
+        when m.user_id is not null then
+          coalesce(
+            porg.name,
+            morg.name,
+            nullif(trim(coalesce(pp.first_name, '') || ' ' || coalesce(pp.last_name, '')), '') || ' staff',
+            'Staff account ' || left(m.purchaser_user_id::text, 8)
+          )
+        when p.organization_id is not null then
+          morg.name
       end                                      as org_name,
       p.id                                     as app_user_id,
       p.created_at                             as signup_at,
       p.role                                   as role,
       p.organization                           as affiliation,
-      m.staff_role                             as staff_role
+      coalesce(
+        m.staff_role,
+        case when p.organization_id is not null then 'member' end
+      )                                        as staff_role
     from chlk.profiles p
     left join membership m on m.user_id = p.id
     left join chlk.profiles pp on pp.id = m.purchaser_user_id

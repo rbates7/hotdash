@@ -182,11 +182,15 @@ team account that is most of them, so Stripe alone cannot say who they are.
 6. Sync from **CRM → Settings**. Manually edited names always win; Stripe
    and Supabase fill in the rest.
 
-**What makes someone a "Team".** Being on a staff account — a seat in
-`chlk.staff_seat_codes`, as purchaser or redeemer — not the school name they
-typed into their profile. That text is kept on the profile as *School / team
-(as entered)* and never creates an account. An account is named after the
-purchaser's organization when Chlk has one, otherwise after the purchaser.
+**What makes someone a "Team".** Being on a staff account, which Chlk
+records two ways: a seat in `chlk.staff_seat_codes` (as purchaser or
+redeemer), or a profile attached to a row in `chlk.organizations` — those
+rows are created deliberately for invoiced accounts, not per signup. The
+school name someone typed into their profile is neither; it is kept on the
+profile as *School / team (as entered)* and never creates an account. A seat
+account is named after the purchaser's organization when there is one,
+otherwise after the purchaser; an organization-linked account after the
+organization.
 
 Links the sync makes it may also change or remove when the upstream answer
 changes; a link made by hand on a customer's profile is never touched by a
