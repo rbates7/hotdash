@@ -63,7 +63,10 @@ export default async function CustomerProfilePage({
       ? listTeammates(db, contact.organizationId, contact.id)
       : []
 
-  const openCases = contact.cases.filter((c) => c.status !== "closed")
+  // Open means the ball is with you; waiting on the customer is not open.
+  const openCases = contact.cases.filter(
+    (c) => c.status === "new" || c.status === "open"
+  )
   const emailCount =
     contact.cases.reduce((n, c) => n + c.messages.length, 0) +
     contact.sentOutsideCases.length

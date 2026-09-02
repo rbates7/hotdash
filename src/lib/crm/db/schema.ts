@@ -97,6 +97,9 @@ export const contactEmails = sqliteTable(
 )
 
 export const CASE_STATUSES = ["new", "open", "waiting", "closed"] as const
+/** The statuses that count as "open": the ball is with you. A case waiting
+ * on the customer is theirs to move and is not open, nor is a closed one. */
+export const OPEN_CASE_STATUSES = ["new", "open"] as const
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 
 export const CASE_PRIORITIES = ["low", "normal", "high", "urgent"] as const

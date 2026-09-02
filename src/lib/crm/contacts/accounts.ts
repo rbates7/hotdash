@@ -137,7 +137,7 @@ function staffAccounts(db: Db, filters: AccountListFilters): AccountsQuery {
   const caseStats = db
     .select({
       organizationId: contacts.organizationId,
-      openCases: sql<number>`sum(case when ${cases.status} != 'closed' then 1 else 0 end)`.as(
+      openCases: sql<number>`sum(case when ${cases.status} in ('new', 'open') then 1 else 0 end)`.as(
         "open_cases"
       ),
       lastActivityAt: sql<number>`max(${cases.lastActivityAt})`.as(
@@ -260,7 +260,7 @@ function prospectiveAccounts(
   const caseStats = db
     .select({
       key: key.as("case_key"),
-      openCases: sql<number>`sum(case when ${cases.status} != 'closed' then 1 else 0 end)`.as(
+      openCases: sql<number>`sum(case when ${cases.status} in ('new', 'open') then 1 else 0 end)`.as(
         "open_cases"
       ),
       lastActivityAt: sql<number>`max(${cases.lastActivityAt})`.as(

@@ -175,9 +175,8 @@ export default async function DashboardPage() {
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-muted-foreground text-body">
-        {data.contactCount} contacts ·{" "}
-        {data.counts.new + data.counts.open + data.counts.waiting} open
-        conversations
+        {data.contactCount} contacts · {data.counts.new + data.counts.open}{" "}
+        open conversations · {data.counts.waiting} waiting on customers
       </p>
 
       {triageCount > 0 ? (

@@ -175,6 +175,9 @@ pnpm crm:restart
   over three days), then who started paying this week and who left, each
   with a "reached out" tick that remembers when you ticked it. "View all"
   opens the same list on Customers.
+- **"Open"** anywhere a count or filter says it — a customer's open cases,
+  an account's, "Has open case" — means New or Open: the ball is with you.
+  Waiting on customer is theirs to move and is not counted; closed is not.
 - **Customers** — every column sorts; filters for plan, status, when paying
   started or ended, open cases, and the school someone typed in. Asking for
   canceled people flips the view to Everyone.

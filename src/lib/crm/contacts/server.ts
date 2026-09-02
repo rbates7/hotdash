@@ -32,6 +32,7 @@ import {
   contacts,
   emailMessages,
   notes,
+  OPEN_CASE_STATUSES,
   organizations,
   type Contact,
   type NameSource,
@@ -404,7 +405,7 @@ function customerConditions(db: Db, filters: CustomerListFilters) {
     const withOpenCase = db
       .select({ id: cases.contactId })
       .from(cases)
-      .where(ne(cases.status, "closed"))
+      .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
     conditions.push(inArray(contacts.id, withOpenCase))
   }
   if (filters.affiliation) {
@@ -490,7 +491,7 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
       count: sql<number>`count(*)`.as("open_count"),
     })
     .from(cases)
-    .where(sql`${cases.status} != 'closed'`)
+    .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
     .groupBy(cases.contactId)
     .as("open_counts")
 
@@ -702,7 +703,7 @@ export async function getOrganizationWithStaff(db: Db, organizationId: string) {
       count: sql<number>`count(*)`.as("open_count"),
     })
     .from(cases)
-    .where(sql`${cases.status} != 'closed'`)
+    .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
     .groupBy(cases.contactId)
     .as("open_counts")
 
@@ -732,7 +733,7 @@ export async function getOrganizationWithStaff(db: Db, organizationId: string) {
   const totals = db
     .select({
       total: sql<number>`count(*)`,
-      open: sql<number>`sum(case when ${cases.status} != 'closed' then 1 else 0 end)`,
+      open: sql<number>`sum(case when ${cases.status} in ('new', 'open') then 1 else 0 end)`,
     })
     .from(cases)
     .innerJoin(contacts, eq(cases.contactId, contacts.id))
@@ -762,7 +763,7 @@ export function listTeammates(
       count: sql<number>`count(*)`.as("open_count"),
     })
     .from(cases)
-    .where(sql`${cases.status} != 'closed'`)
+    .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
     .groupBy(cases.contactId)
     .as("open_counts")
 

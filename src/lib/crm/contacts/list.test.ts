@@ -272,6 +272,20 @@ describe("listContacts sorting and filtering", () => {
     expect((await listContacts(db, { standing: "active", hasOpenCase: true })).total).toBe(0)
   })
 
+  it("a case waiting on the customer is not an open case", async () => {
+    db.update(cases)
+      .set({ status: "waiting" })
+      .where(eq(cases.gmailThreadId, "t-adam"))
+      .run()
+    const { rows, total } = await listContacts(db, { standing: "all", hasOpenCase: true })
+    expect(rows).toHaveLength(0)
+    expect(total).toBe(0)
+    const adam = (await listContacts(db, { standing: "all" })).rows.find(
+      (row) => row.contact.email === "adam@westhigh.edu"
+    )!
+    expect(adam.openCases).toBe(0)
+  })
+
   it("affiliation matches ignoring case and outer spaces", async () => {
     const { rows, counts } = await listContacts(db, {
       standing: "all",

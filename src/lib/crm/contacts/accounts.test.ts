@@ -138,6 +138,13 @@ describe("listAccounts", () => {
     expect((await listAccounts(db, { view: "prospective", hasOpenCase: true })).total).toBe(1)
   })
 
+  it("does not count a case waiting on the customer as open", async () => {
+    db.update(cases).set({ status: "waiting" }).where(eq(cases.gmailThreadId, "t-ttu-1")).run()
+    const { rows } = await listAccounts(db)
+    expect(rows.find((row) => row.name === "Texas Tech")!.openCases).toBe(0)
+    expect((await listAccounts(db, { hasOpenCase: true })).total).toBe(0)
+  })
+
   it("searches by name in either view", async () => {
     expect(namesOf((await listAccounts(db, { q: "tex" })).rows)).toEqual(["Texas Tech"])
     expect(
