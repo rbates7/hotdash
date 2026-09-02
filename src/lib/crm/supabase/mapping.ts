@@ -103,36 +103,35 @@ export type SupabaseProfileRow = {
 } & Record<string, unknown>
 
 /**
- * In-app feedback: what a coach typed into the feedback form inside Chlk.
- * Each row becomes a case (see src/lib/crm/feedback/sync.ts).
+ * In-app feedback: what a coach typed into the feedback form inside Chlk,
+ * and the chance-to-recommend score they gave with it. Each row becomes a
+ * case (see src/lib/crm/feedback/sync.ts).
  *
- * The column names below are UNCONFIRMED guesses. Before the first run:
- *   1. grant select on chlk.feedback to crm_reader, plus a read policy
- *      (docs/CRM-SETUP.md, "In-app feedback");
- *   2. `pnpm crm:schema` to see the real columns;
- *   3. fix the names here. A wrong name fails loudly on the Settings page
- *      (the query is a compile-time constant), never silently.
+ * Columns confirmed against the live table (pnpm crm:schema, 2026-09-02):
+ * chlk.feedback has id, email, feedback, chance_to_recommend, created_at.
+ * The sender's email is on the row itself; the profile join only supplies
+ * a name, so a sender with no profile still becomes a contact.
  *
- *   id          a stable id for the row; it keys the case and the message
- *   email       the sender, through their profile
- *   first_name, last_name   for a sender the CRM has not met yet
- *   message     what they wrote (required — empty rows are skipped)
- *   category    optional: bug, idea… becomes the subject's prefix
+ *   id          keys the case and the message, so a re-run changes nothing
+ *   email       the sender
+ *   first_name, last_name   from their profile, when the emails match
+ *   message     what they wrote — may be empty when they only gave a score
+ *   score       chance_to_recommend, shown as given until its scale is known
  *   created_at  when they sent it
  */
 export const feedbackMapping = {
   query: /* sql */ `
     select
       f.id::text                               as id,
-      p.email                                  as email,
+      f.email                                  as email,
       p.first_name                             as first_name,
       p.last_name                              as last_name,
-      f.message                                as message,
-      f.category                               as category,
+      f.feedback                               as message,
+      f.chance_to_recommend                    as score,
       f.created_at                             as created_at
     from chlk.feedback f
-    join chlk.profiles p on p.id = f.user_id
-    where p.email is not null and p.email <> ''
+    left join chlk.profiles p on lower(p.email) = lower(f.email)
+    where f.email is not null and f.email <> ''
   `,
 }
 
@@ -142,6 +141,6 @@ export type SupabaseFeedbackRow = {
   first_name?: string | null
   last_name?: string | null
   message: string | null
-  category?: string | null
+  score?: number | string | null
   created_at: string | number | Date | null
 } & Record<string, unknown>

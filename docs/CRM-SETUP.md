@@ -233,9 +233,12 @@ sync. Accounts nobody is on are removed at the end of each run.
 
 ### In-app feedback
 
-Feedback sent from the form inside the Chlk app can become cases, so it
-sits in the same queue as email and counts as needing a reply. It reads
-`chlk.feedback` over the same `SUPABASE_DB_URL`.
+Feedback sent from the form inside the Chlk app becomes cases — the words
+and the chance-to-recommend score — so it sits in the same queue as email
+and counts as needing a reply. It reads `chlk.feedback` over the same
+`SUPABASE_DB_URL` and runs on the schedule with the rest (every 15 minutes,
+`SYNC_FEEDBACK_INTERVAL_SEC`; `SUPABASE_FEEDBACK=0` leaves it to Sync now
+only).
 
 1. Let the read-only role see the table, in the Supabase SQL editor:
 
@@ -244,18 +247,15 @@ sits in the same queue as email and counts as needing a reply. It reads
    create policy crm_reader_read on chlk.feedback for select to crm_reader using (true);
    ```
 
-2. `pnpm crm:schema` and find `chlk.feedback` in the printout. The query in
-   `feedbackMapping` (`src/lib/crm/supabase/mapping.ts`) was written against
-   guessed column names — `id`, `user_id`, `message`, `category`,
-   `created_at` — so fix any that differ. A wrong name shows up as a red
-   run on Settings, never as silently missing feedback.
-3. **CRM → Settings → In-app feedback → Sync now**, or `pnpm crm:sync
-   feedback`. Each row becomes one case with an "App" badge; running it
-   again changes nothing.
-4. Once that works, put `SUPABASE_FEEDBACK=1` in `.env.local` and restart so
-   it runs on the schedule (every 15 minutes, `SYNC_FEEDBACK_INTERVAL_SEC`).
-   Until then only Sync now runs it, so a wrong guess cannot paint Settings
-   red every quarter hour.
+2. **CRM → Settings → In-app feedback → Sync now**, or `pnpm crm:sync
+   feedback`. Each submission becomes one case with an "App" badge, titled
+   "Rated 8 · " and the first words they wrote, or just "Rated 8" when they
+   left only a score. Running it again changes nothing. "Query returned no
+   rows" means the policy above is missing.
+
+The email on the form is matched to a contact, or a contact is created for
+it; the name comes from their Chlk profile when the emails match. The
+score is shown as given until its scale is confirmed.
 
 ### Apple subscriptions
 

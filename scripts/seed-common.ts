@@ -81,7 +81,7 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     { id: "case_10", n: 10, subject: "Trial ended but I was still uploading", status: "new", priority: "high", contactId: "contact_will", thread: "thread_dev_10", lastActivity: 40 * MIN, lastInbound: 40 * MIN, created: 40 * MIN },
     { id: "case_11", n: 11, subject: "Refund for last month", status: "waiting", priority: "normal", contactId: "contact_sam", thread: "thread_dev_11", lastActivity: 3 * DAY, lastOutbound: 3 * DAY, lastInbound: 4 * DAY, created: 5 * DAY },
     // Sent from the feedback form inside the app, not by email.
-    { id: "case_12", n: 12, subject: "Bug: The play editor crashes when I rotate the iPad mid-drag", status: "new", priority: "normal", contactId: "contact_ray", thread: "feedback:seed-1", lastActivity: 90 * MIN, lastInbound: 90 * MIN, created: 90 * MIN },
+    { id: "case_12", n: 12, subject: "Rated 3 · The play editor crashes when I rotate the iPad mid-drag", status: "new", priority: "normal", contactId: "contact_ray", thread: "feedback:seed-1", lastActivity: 90 * MIN, lastInbound: 90 * MIN, created: 90 * MIN },
   ]
 
   db.insert(cases)
@@ -185,9 +185,9 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
       fromName: "Ray Donnelly",
       toEmails: [],
       ccEmails: [],
-      subject: "Bug: The play editor crashes when I rotate the iPad mid-drag",
-      snippet: "The play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
-      bodyText: "The play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
+      subject: "Rated 3 · The play editor crashes when I rotate the iPad mid-drag",
+      snippet: "Chance to recommend: 3 The play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
+      bodyText: "Chance to recommend: 3\n\nThe play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
       bodyHtml: null,
       attachments: [],
       sentAt: at(90 * MIN),

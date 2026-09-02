@@ -69,7 +69,7 @@ export default async function SettingsPage({
     process.env.GMAIL_INITIAL_SYNC_WINDOW ?? DEFAULT_SYNC_WINDOW
   const stripeConfigured = Boolean(process.env.STRIPE_API_KEY)
   const supabaseConfigured = Boolean(process.env.SUPABASE_DB_URL)
-  const feedbackScheduled = process.env.SUPABASE_FEEDBACK === "1"
+  const feedbackScheduled = process.env.SUPABASE_FEEDBACK !== "0"
 
   const lastSyncedLabel = (source: SyncSource) => {
     const at = lastSyncedBySource.get(source)
@@ -188,10 +188,10 @@ export default async function SettingsPage({
             </CardTitle>
             <CardDescription>
               {supabaseConfigured
-                ? `Feedback sent from inside the Chlk app becomes a case. Reads chlk.feedback over SUPABASE_DB_URL. ${lastSyncedLabel("feedback")}${
+                ? `Feedback sent from inside the Chlk app becomes a case, score and all. Reads chlk.feedback over SUPABASE_DB_URL. ${lastSyncedLabel("feedback")}${
                     feedbackScheduled
                       ? ""
-                      : " Runs only when you press Sync now until SUPABASE_FEEDBACK=1 is set — confirm the column names first (docs/CRM-SETUP.md)."
+                      : " Automatic runs are off (SUPABASE_FEEDBACK=0); Sync now still works."
                   }`
                 : "Not configured — needs SUPABASE_DB_URL, then a read grant on chlk.feedback."}
             </CardDescription>

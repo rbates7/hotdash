@@ -35,13 +35,12 @@ function isConfigured(db: Db, source: SyncSource): boolean {
     case "supabase":
       return Boolean(process.env.SUPABASE_DB_URL)
     case "feedback":
-      // Opt-in, because the feedback query's column names have to be
-      // confirmed against the real table first; until then a scheduled
-      // run would just paint Settings red every quarter hour. "Sync now"
-      // on Settings works as soon as SUPABASE_DB_URL is set.
+      // Shares the Supabase connection and runs on the schedule with it;
+      // SUPABASE_FEEDBACK=0 leaves it to "Sync now" on Settings. A missing
+      // read policy is not red: zero rows reports success with a hint.
       return (
         Boolean(process.env.SUPABASE_DB_URL) &&
-        process.env.SUPABASE_FEEDBACK === "1"
+        process.env.SUPABASE_FEEDBACK !== "0"
       )
   }
 }

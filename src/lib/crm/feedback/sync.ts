@@ -50,7 +50,7 @@ export type FeedbackSyncStats = {
   rowsSeen: number
   casesCreated: number
   contactsCreated: number
-  /** Already stored, or missing an email or a message. */
+  /** Already stored, or missing an email, or neither words nor a score. */
   skipped: number
 }
 
@@ -60,29 +60,48 @@ function toDate(value: string | number | Date | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1)
+/** The chance-to-recommend number as the form recorded it, or null. Its
+ * scale is not confirmed yet, so it is shown as given ("Rated 8"); once
+ * it is, this is where a denominator and an unhappy flag belong. */
+export function feedbackScore(value: unknown): number | null {
+  if (value == null || value === "") return null
+  const score = Number(value)
+  return Number.isFinite(score) ? score : null
 }
 
-/** The case subject: the category when there is one, then the first words
- * of what they wrote — the same cut the contact form gets. */
+/** The case subject: the score when there is one, then the first words of
+ * what they wrote — the same cut the contact form gets. */
 export function feedbackSubject(
-  message: string,
-  category: string | null | undefined
+  message: string | null | undefined,
+  score: number | null
 ): string {
-  const body = subjectFromForm(message) ?? "In-app feedback"
-  const label = category?.trim().replace(/[_-]+/g, " ")
-  return label ? `${capitalize(label)}: ${body}` : body
+  const words = message?.trim() ? subjectFromForm(message) : null
+  if (score !== null && words) return `Rated ${score} · ${words}`
+  if (score !== null) return `Rated ${score}`
+  return words ?? "In-app feedback"
+}
+
+/** What is stored as the message: the score on its own line above the
+ * words, so the case page shows both. */
+export function feedbackBody(
+  message: string | null | undefined,
+  score: number | null
+): string {
+  const text = message?.trim() ?? ""
+  if (score === null) return text
+  if (!text) return `Gave a score of ${score} and no comment.`
+  return `Chance to recommend: ${score}\n\n${text}`
 }
 
 const PAGE_SIZE = 500
 
 /**
  * Feedback sent from inside the Chlk app becomes a case, so it sits in the
- * same queue as email and counts as needing a reply. Each row is stored as
- * one inbound message keyed by its feedback id, which makes the sync
- * idempotent and self-healing: a row already stored is skipped, and a case
- * that somehow lost its message gets it back.
+ * same queue as email and counts as needing a reply. A score with no words
+ * still opens one — Rashad wants to follow up with everyone. Each row is
+ * stored as one inbound message keyed by its feedback id, which makes the
+ * sync idempotent and self-healing: a row already stored is skipped, and a
+ * case that somehow lost its message gets it back.
  */
 export async function syncFeedback(
   db: Db,
@@ -96,7 +115,8 @@ export async function syncFeedback(
   }
   const store = rawClient(db).transaction((row: SupabaseFeedbackRow) => {
     const email = normalizeEmail(row.email!)
-    const message = row.message!.trim()
+    const score = feedbackScore(row.score)
+    const body = feedbackBody(row.message, score)
     const key = feedbackKey(String(row.id))
     const sentAt = toDate(row.created_at) ?? new Date()
 
@@ -118,7 +138,7 @@ export async function syncFeedback(
     if (!caseRow) {
       caseRow = createCaseForThread(db, {
         contactId: contact.id,
-        subject: feedbackSubject(message, row.category),
+        subject: feedbackSubject(row.message, score),
         gmailThreadId: key,
         createdAt: sentAt,
       })
@@ -138,8 +158,8 @@ export async function syncFeedback(
         toEmails: [],
         ccEmails: [],
         subject: caseRow.subject,
-        snippet: message.replace(/\s+/g, " ").slice(0, 120),
-        bodyText: message,
+        snippet: body.replace(/\s+/g, " ").slice(0, 120),
+        bodyText: body,
         bodyHtml: null,
         attachments: [],
         sentAt,
@@ -160,7 +180,9 @@ export async function syncFeedback(
     if (rows.length === 0) break
     for (const row of rows) {
       stats.rowsSeen += 1
-      if (row.id == null || !row.email || !row.message?.trim()) {
+      const hasWords = Boolean(row.message?.trim())
+      const hasScore = feedbackScore(row.score) !== null
+      if (row.id == null || !row.email || (!hasWords && !hasScore)) {
         stats.skipped += 1
         continue
       }
