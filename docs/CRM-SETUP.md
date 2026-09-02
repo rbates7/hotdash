@@ -138,3 +138,20 @@ While `pnpm dev` runs, an in-process scheduler polls Gmail every 2 min,
 Stripe every 15 min, Supabase hourly (`SYNC_*_INTERVAL_SEC` to change).
 Unconfigured sources are skipped silently. Pause it from CRM → Settings, or
 set `DISABLE_SYNC_SCHEDULER=1` and use the Refresh buttons.
+
+## Supabase enrichment
+
+Optional, and independent of everything above. It fills in names, teams and
+product usage for people who email you but are not the Stripe payer — on a
+team account that is most of them, so Stripe alone cannot say who they are.
+
+1. Supabase → Project Settings → Database → Connection string. Create a
+   **read-only** role for this; the CRM only ever selects.
+2. Put it in `.env.local` as `SUPABASE_DB_URL`.
+3. `pnpm crm:schema` prints the tables and columns that role can see —
+   column names only, never row data — and flags which tables carry an
+   email to match contacts against.
+4. Write that into `query` in `src/lib/crm/supabase/mapping.ts`, keeping the
+   output column aliases exactly as documented there.
+5. Sync from **CRM → Settings**. Manually edited names always win; Stripe
+   and Supabase fill in the rest.
