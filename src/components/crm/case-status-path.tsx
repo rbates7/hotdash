@@ -19,9 +19,12 @@ const STATUS_ORDER: { value: CaseStatus; label: string }[] = [
 export function CaseStatusPath({
   caseId,
   status,
+  afterCloseHref,
 }: {
   caseId: string
   status: CaseStatus
+  /** Where to go once the case is closed — beside the list, the next case. */
+  afterCloseHref?: string
 }) {
   const router = useRouter()
   const [isBusy, setIsBusy] = React.useState(false)
@@ -38,7 +41,11 @@ export function CaseStatusPath({
       })
       const payload = (await response.json()) as { error?: string }
       if (!response.ok) throw new Error(payload.error ?? "Failed.")
-      router.refresh()
+      if (next === "closed" && afterCloseHref) {
+        router.push(afterCloseHref, { scroll: false })
+      } else {
+        router.refresh()
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update status."

@@ -69,8 +69,25 @@ async function closeCases(ids: string[]) {
  * The Cases list. Tick rows to close several at once, or close one from
  * its row. Closing is the CRM's "cancel": the case keeps its history and
  * can be reopened from its page — nothing is ever deleted.
+ *
+ * A case opens beside the list (`?open=<id>` on the current query) rather
+ * than on its own page, so the next one is a click away; with one open the
+ * table drops to its essentials to make room.
  */
-export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
+export function CasesTable({
+  rows,
+  panelQuery,
+  openId = null,
+  compact = false,
+}: {
+  rows: CaseTableRow[]
+  /** The current list query, without `open`, to build each row's link. */
+  panelQuery: string
+  openId?: string | null
+  compact?: boolean
+}) {
+  const hrefFor = (id: string) =>
+    `/crm/cases?${panelQuery ? `${panelQuery}&` : ""}open=${encodeURIComponent(id)}`
   const router = useRouter()
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set())
   const [isBusy, setIsBusy] = React.useState(false)
@@ -173,32 +190,43 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                 Status
               </SortableHeader>
             </TableHead>
-            <TableHead>
-              <SortableHeader column="priority" defaultDirection="asc">
-                Priority
-              </SortableHeader>
-            </TableHead>
+            {compact ? null : (
+              <TableHead>
+                <SortableHeader column="priority" defaultDirection="asc">
+                  Priority
+                </SortableHeader>
+              </TableHead>
+            )}
             <TableHead>
               <SortableHeader column="age">Age</SortableHeader>
             </TableHead>
-            <TableHead className="text-right">
-              <SortableHeader column="activity" className="justify-end">
-                Last activity
-              </SortableHeader>
-            </TableHead>
-            <TableHead className="w-10">
-              <span className="sr-only">Close</span>
-            </TableHead>
+            {compact ? null : (
+              <>
+                <TableHead className="text-right">
+                  <SortableHeader column="activity" className="justify-end">
+                    Last activity
+                  </SortableHeader>
+                </TableHead>
+                <TableHead className="w-10">
+                  <span className="sr-only">Close</span>
+                </TableHead>
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => {
             const closed = row.status === "closed"
+            const open = row.id === openId
             return (
               <TableRow
                 key={row.id}
                 data-state={selected.has(row.id) ? "selected" : undefined}
-                className={cn(selected.has(row.id) && "bg-muted/40")}
+                data-open={open ? "" : undefined}
+                className={cn(
+                  selected.has(row.id) && "bg-muted/40",
+                  open && "bg-primary/10"
+                )}
               >
                 <TableCell>
                   {closed ? null : (
@@ -210,12 +238,15 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  <Link href={`/crm/cases/${row.id}`}>#{row.caseNumber}</Link>
+                  <Link href={hrefFor(row.id)} scroll={false}>
+                    #{row.caseNumber}
+                  </Link>
                 </TableCell>
-                <TableCell className="max-w-96">
+                <TableCell className={compact ? "max-w-52" : "max-w-96"}>
                   <span className="flex items-center gap-2">
                     <Link
-                      href={`/crm/cases/${row.id}`}
+                      href={hrefFor(row.id)}
+                      scroll={false}
                       className="min-w-0 truncate font-medium hover:underline"
                     >
                       {row.subject}
@@ -247,9 +278,11 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                 <TableCell>
                   <StatusBadge status={row.status} />
                 </TableCell>
-                <TableCell>
-                  <PriorityBadge priority={row.priority} />
-                </TableCell>
+                {compact ? null : (
+                  <TableCell>
+                    <PriorityBadge priority={row.priority} />
+                  </TableCell>
+                )}
                 <TableCell
                   className={cn(
                     "tabular-nums",
@@ -265,24 +298,28 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                 >
                   {row.age || "—"}
                 </TableCell>
-                <TableCell className="text-muted-foreground text-right">
-                  {row.lastActivity}
-                </TableCell>
-                <TableCell>
-                  {closed ? null : (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={isBusy}
-                      onClick={() => close([row.id])}
-                      aria-label={`Close case #${row.caseNumber}`}
-                      title="Close this case"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <CircleCheckIcon />
-                    </Button>
-                  )}
-                </TableCell>
+                {compact ? null : (
+                  <>
+                    <TableCell className="text-muted-foreground text-right">
+                      {row.lastActivity}
+                    </TableCell>
+                    <TableCell>
+                      {closed ? null : (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={isBusy}
+                          onClick={() => close([row.id])}
+                          aria-label={`Close case #${row.caseNumber}`}
+                          title="Close this case"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <CircleCheckIcon />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </>
+                )}
               </TableRow>
             )
           })}

@@ -283,7 +283,7 @@ function orderFor(sort: CaseSort | undefined, direction: SortDirection = "desc")
  * status: a case can be Open with your answer already sitting on it, and a
  * status someone set by hand says nothing about who spoke last.
  */
-function needsReplyCondition() {
+export function needsReplyCondition() {
   return and(
     isNotNull(cases.lastInboundAt),
     or(

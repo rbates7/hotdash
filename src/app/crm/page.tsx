@@ -224,7 +224,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Oldest untouched</CardTitle>
+            <CardTitle className="text-sm">Oldest waiting on you</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
             {data.oldestUntouched.length === 0 ? (
@@ -235,7 +235,9 @@ export default async function DashboardPage() {
               data.oldestUntouched.map((caseRow) => (
                 <Link
                   key={caseRow.id}
-                  href={`/crm/cases/${caseRow.id}`}
+                  // Opens beside the needs-my-reply list, so next / previous
+                  // walk the same queue.
+                  href={`/crm/cases?needsReply=1&sort=age&open=${caseRow.id}`}
                   className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted"
                 >
                   <span className="text-xs text-muted-foreground">

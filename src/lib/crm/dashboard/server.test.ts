@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
+import { createCaseForThread } from "@/lib/crm/cases/server"
 import { createContact } from "@/lib/crm/contacts/server"
 import { createDb, type Db } from "@/lib/crm/db/client"
-import { contacts, emailMessages, notes } from "@/lib/crm/db/schema"
+import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
 
 import { getDashboardData } from "./server"
 
@@ -120,5 +121,41 @@ describe("getDashboardData reached out from mail and calls", () => {
     const churned = byEmail(data.churnedThisWeek.rows)
     expect(churned["gone@x.io"]!.contactedAt).toBeNull()
     expect(churned["called@x.io"]!.contactedVia).toBe("call")
+  })
+})
+
+describe("getDashboardData oldest waiting on you", () => {
+  it("lists only cases where the customer spoke last, longest wait first", async () => {
+    const db = createDb(":memory:").db
+    const now = Date.now()
+    const contact = createContact(db, { email: "a@b.co", source: "gmail" })
+    const plant = (thread: string, inboundDaysAgo: number | null, outboundDaysAgo: number | null, status: "new" | "open" | "waiting" | "closed") => {
+      const row = createCaseForThread(db, {
+        contactId: contact.id,
+        subject: thread,
+        gmailThreadId: thread,
+        createdAt: new Date(now - 60 * DAY),
+      })
+      db.update(cases)
+        .set({
+          status,
+          lastInboundAt: inboundDaysAgo === null ? null : new Date(now - inboundDaysAgo * DAY),
+          lastOutboundAt: outboundDaysAgo === null ? null : new Date(now - outboundDaysAgo * DAY),
+        })
+        .where(eq(cases.id, row.id))
+        .run()
+      return row
+    }
+    plant("they-wrote-old", 20, 30, "open")
+    plant("they-wrote-new", 2, null, "new")
+    plant("you-replied", 10, 5, "open") // open, but the ball is with them
+    plant("waiting", 10, 5, "waiting")
+    plant("closed", 3, null, "closed")
+
+    const data = await getDashboardData(db)
+    expect(data.oldestUntouched.map((c) => c.subject)).toEqual([
+      "they-wrote-old",
+      "they-wrote-new",
+    ])
   })
 })

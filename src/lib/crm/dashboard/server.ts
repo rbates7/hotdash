@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, ne, or, sql } from "drizzle-orm"
 
-import { countOverdueCases } from "@/lib/crm/cases/server"
+import { countOverdueCases, needsReplyCondition } from "@/lib/crm/cases/server"
 import { listContacts } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
@@ -46,10 +46,13 @@ export async function getDashboardData(db: Db) {
     )
     .get()
 
+  // The cases that have waited longest for *you*: the customer spoke last
+  // and the case is not closed. One where you spoke last is waiting on
+  // them, whatever its status says, and does not belong here.
   const oldestUntouched = await db.query.cases.findMany({
-    where: inArray(cases.status, ["new", "open"]),
+    where: and(ne(cases.status, "closed"), needsReplyCondition()),
     with: { contact: true },
-    orderBy: [sql`${cases.lastActivityAt} asc nulls first`],
+    orderBy: [asc(cases.lastInboundAt)],
     limit: 5,
   })
 

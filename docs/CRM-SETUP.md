@@ -180,9 +180,12 @@ pnpm crm:restart
   canceled people flips the view to Everyone.
 - **Accounts** — staff accounts, or *Prospective*: schools where two or more
   coaches with no staff account typed the same name. Click one to see who.
-- **Cases** — tick rows and "Close selected", or close one from its row.
-  Nothing is deleted; a closed case reopens from its page. The Age column
-  turns red when a reply is overdue.
+- **Cases** — click a case and it opens beside the list, so the next one is
+  a click away: ↑ / ↓ in the panel (or k / j) step through the list in its
+  current order, Esc closes, "Full page" pops it out. Closing a case from
+  the panel moves you on to the next. Tick rows and "Close selected", or
+  close one from its row. Nothing is deleted; a closed case reopens from
+  its page. The Age column turns red when a reply is overdue.
 - **A customer's page** — notes and logged calls about the person, kept
   separately from any one case, and the emails you started that have no
   reply yet.
