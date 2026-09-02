@@ -5,14 +5,17 @@ import {
   asc,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
   like,
+  lte,
   ne,
   notInArray,
   or,
   sql,
+  type SQLWrapper,
 } from "drizzle-orm"
 
 import {
@@ -20,6 +23,7 @@ import {
   normalizeEmail,
   type CustomerType,
 } from "@/lib/crm/contacts/matching"
+import type { CustomerPlanStatus } from "@/lib/crm/contacts/plan-status"
 import { NotFoundError } from "@/lib/crm/core/errors"
 import type { Db } from "@/lib/crm/db/client"
 import {
@@ -31,6 +35,7 @@ import {
   type Contact,
   type NameSource,
 } from "@/lib/crm/db/schema"
+import { sinceWindow, type DayWindow, type SortDirection } from "@/lib/crm/list"
 
 export function findContactByEmail(db: Db, email: string) {
   const normalized = normalizeEmail(email)
@@ -289,12 +294,47 @@ export type CustomerListFilters = {
   type?: CustomerType
   /** "active" (the default view) hides churned and never-paid contacts. */
   standing?: CustomerStanding
+  /** The plan label, exactly as the Plan column shows it. */
+  plan?: string
+  /** Subscription status. "canceled" only has rows once standing is "all". */
+  status?: CustomerPlanStatus
+  /** Paying started within this window — and has started: a trial's start
+   * is in the future until it converts, and must not count as new yet. */
+  started?: DayWindow
+  /** The plan stopped within this window. */
+  ended?: DayWindow
+  /** Only people with a case that is not closed. */
+  hasOpenCase?: boolean
+  /** The school they typed in, matched ignoring case and outer spaces. */
+  affiliation?: string
+  sort?: CustomerSort
+  direction?: SortDirection
   limit?: number
   offset?: number
 }
 
 export const CUSTOMER_STANDINGS = ["active", "all"] as const
 export type CustomerStanding = (typeof CUSTOMER_STANDINGS)[number]
+
+export const CUSTOMER_SORTS = [
+  "name",
+  "account",
+  "plan",
+  "date",
+  "lastInbound",
+  "open",
+] as const
+export type CustomerSort = (typeof CUSTOMER_SORTS)[number]
+
+/** Where a column lands on its first click: names A–Z, dates newest first. */
+const DEFAULT_DIRECTIONS: Record<CustomerSort, SortDirection> = {
+  name: "asc",
+  account: "asc",
+  plan: "asc",
+  date: "desc",
+  lastInbound: "desc",
+  open: "desc",
+}
 
 // Subscription statuses that mean someone is currently paying you, or is
 // about to. past_due is deliberately included: they have not left, their card
@@ -305,7 +345,7 @@ export const CUSTOMERS_PER_PAGE = 50
 
 /** Shared WHERE for the customer list and its counts, so the pager totals
  * can never disagree with the rows on screen. */
-function customerConditions(filters: CustomerListFilters) {
+function customerConditions(db: Db, filters: CustomerListFilters) {
   const conditions = []
   if (filters.q) {
     const pattern = `%${filters.q.toLowerCase()}%`
@@ -328,7 +368,55 @@ function customerConditions(filters: CustomerListFilters) {
   if (filters.standing === "active") {
     conditions.push(inArray(contacts.planStatus, [...ACTIVE_PLAN_STATUSES]))
   }
+  if (filters.plan) conditions.push(eq(contacts.plan, filters.plan))
+  if (filters.status) conditions.push(eq(contacts.planStatus, filters.status))
+  const now = new Date()
+  if (filters.started) {
+    conditions.push(
+      gte(contacts.planStartedAt, sinceWindow(filters.started)),
+      lte(contacts.planStartedAt, now)
+    )
+  }
+  if (filters.ended) {
+    conditions.push(
+      gte(contacts.planEndedAt, sinceWindow(filters.ended)),
+      lte(contacts.planEndedAt, now)
+    )
+  }
+  if (filters.hasOpenCase) {
+    // A subquery, never a list of ids: thousands of customers must not
+    // become thousands of bound parameters.
+    const withOpenCase = db
+      .select({ id: cases.contactId })
+      .from(cases)
+      .where(ne(cases.status, "closed"))
+    conditions.push(inArray(contacts.id, withOpenCase))
+  }
+  if (filters.affiliation) {
+    conditions.push(
+      eq(
+        sql`lower(trim(${contacts.affiliation}))`,
+        filters.affiliation.trim().toLowerCase()
+      )
+    )
+  }
   return conditions
+}
+
+/** The same filters with one of them taken out, for the chip counts. */
+function without(
+  filters: CustomerListFilters,
+  key: keyof CustomerListFilters
+): CustomerListFilters {
+  const copy = { ...filters }
+  delete copy[key]
+  return copy
+}
+
+/** Rows with no value in the column go last whichever way it is sorted;
+ * SQLite would otherwise put them first on the way up. */
+function nullsLast(expr: SQLWrapper) {
+  return sql`case when ${expr} is null then 1 else 0 end`
 }
 
 /**
@@ -361,8 +449,36 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .groupBy(cases.contactId)
     .as("last_inbound")
 
-  const conditions = customerConditions(filters)
+  const conditions = customerConditions(db, filters)
   const where = conditions.length > 0 ? and(...conditions) : undefined
+
+  const sort = filters.sort ?? "name"
+  const dir = (filters.direction ?? DEFAULT_DIRECTIONS[sort]) === "asc" ? asc : desc
+  const tiebreak = asc(contacts.email)
+  const displayName = sql`nullif(trim(coalesce(${contacts.firstName}, '') || ' ' || coalesce(${contacts.lastName}, '')), '')`
+  // The date column shows one date per row — when paying started, or when
+  // it stopped for someone who left — so that is what it sorts by.
+  const planDate = sql`coalesce(${contacts.planEndedAt}, ${contacts.planStartedAt})`
+  const orderBy = (() => {
+    switch (sort) {
+      case "account":
+        return [
+          nullsLast(organizations.name),
+          dir(sql`lower(${organizations.name})`),
+          tiebreak,
+        ]
+      case "plan":
+        return [nullsLast(contacts.plan), dir(sql`lower(${contacts.plan})`), tiebreak]
+      case "date":
+        return [nullsLast(planDate), dir(planDate), tiebreak]
+      case "lastInbound":
+        return [nullsLast(lastInbound.at), dir(lastInbound.at), tiebreak]
+      case "open":
+        return [dir(sql`coalesce(${openCounts.count}, 0)`), tiebreak]
+      default:
+        return [nullsLast(displayName), dir(sql`lower(${displayName})`), tiebreak]
+    }
+  })()
 
   const rows = db
     .select({
@@ -376,11 +492,7 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
     .leftJoin(lastInbound, eq(lastInbound.contactId, contacts.id))
     .where(where)
-    .orderBy(
-      sql`case when ${contacts.firstName} is null or ${contacts.firstName} = '' then 1 else 0 end`,
-      asc(contacts.firstName),
-      asc(contacts.email)
-    )
+    .orderBy(...orderBy)
     .limit(limit)
     .offset(offset)
     .all()
@@ -392,15 +504,11 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .where(where)
     .get()
 
-  // Type counts respect the search term and the active/all toggle, but not
-  // the type filter — so the chips keep showing the whole book within the
-  // current view while one slice of it is selected. Ignoring standing here
-  // would advertise 3,000 individuals above a list of forty.
-  const searchOnly = customerConditions({
-    q: filters.q,
-    standing: filters.standing,
-  })
-  const searchWhere = searchOnly.length > 0 ? and(...searchOnly) : undefined
+  // Each row of chips is counted with every filter but its own, so a chip
+  // always says how many rows clicking it would show. Counting the whole
+  // book instead would advertise 3,000 individuals above a list of forty.
+  const typeOnly = customerConditions(db, without(filters, "type"))
+  const searchWhere = typeOnly.length > 0 ? and(...typeOnly) : undefined
   const byType = db
     .select({
       individual: sql<number>`sum(case when ${contacts.organizationId} is null then 1 else 0 end)`,
@@ -412,9 +520,7 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .where(searchWhere)
     .get()
 
-  // Standing counts ignore both the type filter and the standing toggle, so
-  // the two chips always show what each would give you.
-  const qOnly = customerConditions({ q: filters.q })
+  const standingOnly = customerConditions(db, without(filters, "standing"))
   const byStanding = db
     .select({
       active: sql<number>`sum(case when ${contacts.planStatus} in ('active','trialing','past_due') then 1 else 0 end)`,
@@ -422,7 +528,7 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     })
     .from(contacts)
     .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
-    .where(qOnly.length > 0 ? and(...qOnly) : undefined)
+    .where(standingOnly.length > 0 ? and(...standingOnly) : undefined)
     .get()
 
   return {
@@ -443,6 +549,38 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     limit,
     offset,
   }
+}
+
+/** Every plan label in the book, for the filter's menu. */
+export function listPlanLabels(db: Db): string[] {
+  return db
+    .selectDistinct({ plan: contacts.plan })
+    .from(contacts)
+    .where(isNotNull(contacts.plan))
+    .orderBy(asc(contacts.plan))
+    .all()
+    .map((row) => row.plan)
+    .filter((plan): plan is string => Boolean(plan))
+}
+
+/** The "reached out" tick on the Overview's new and churned lists: ticking
+ * records when, unticking forgets. */
+export function setContactReachedOut(
+  db: Db,
+  contactId: string,
+  reachedOut: boolean
+): Contact {
+  const contact = db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.id, contactId))
+    .get()
+  if (!contact) throw new NotFoundError("Contact not found.")
+  db.update(contacts)
+    .set({ reachedOutAt: reachedOut ? new Date() : null, updatedAt: new Date() })
+    .where(eq(contacts.id, contactId))
+    .run()
+  return db.select().from(contacts).where(eq(contacts.id, contactId)).get()!
 }
 
 export type AccountListFilters = { q?: string; limit?: number; offset?: number }

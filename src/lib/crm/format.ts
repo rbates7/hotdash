@@ -9,6 +9,11 @@ export function relativeTime(date: Date | null | undefined, now = Date.now()) {
   if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`
   if (diff < DAY) return `${Math.floor(diff / HOUR)}h ago`
   if (diff < 30 * DAY) return `${Math.floor(diff / DAY)}d ago`
+  return formatDate(date, now)
+}
+
+/** "Jun 3", or "Jun 3, 2025" once it is not this year. */
+export function formatDate(date: Date, now = Date.now()) {
   return date.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",

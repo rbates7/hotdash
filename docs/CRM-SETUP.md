@@ -151,6 +151,24 @@ The server no longer holds the terminal that started it, so one window is
 enough: run a command, get the prompt back. A restart replaces whatever was
 running before, including a server started some other way on the same port.
 
+Every restart first copies the database to `data/crm.db.bak`, because a
+build can carry a migration and some migrations rebuild a table. To take a
+copy by hand before something you might want to undo:
+
+```
+pnpm crm:backup                  # -> data/crm.db.bak
+pnpm crm:backup data/before.db   # -> wherever you say
+```
+
+To go back to a backup:
+
+```
+pnpm crm:stop
+cp data/crm.db.bak data/crm.db
+rm -f data/crm.db-wal data/crm.db-shm
+pnpm crm:restart
+```
+
 ## Supabase enrichment
 
 Optional, and independent of everything above. It fills in names, teams and

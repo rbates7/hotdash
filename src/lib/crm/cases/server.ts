@@ -28,6 +28,7 @@ import {
   type CasePriority,
   type CaseStatus,
 } from "@/lib/crm/db/schema"
+import { sinceWindow, type DayWindow, type SortDirection } from "@/lib/crm/list"
 
 export function nextCaseNumber(db: Db): number {
   const row = rawClient(db)
@@ -164,13 +165,9 @@ export function setCasePriority(
 }
 
 
-/** Windows offered by the date filter, in days back from now. */
-export const CASE_WINDOWS = {
-  "7d": 7,
-  "30d": 30,
-  "90d": 90,
-} as const
-export type CaseWindow = keyof typeof CASE_WINDOWS
+export { DAY_WINDOWS as CASE_WINDOWS } from "@/lib/crm/list"
+export type CaseWindow = DayWindow
+export type { SortDirection }
 
 export const CASE_AUDIENCES = ["customer", "unknown"] as const
 export type CaseAudience = (typeof CASE_AUDIENCES)[number]
@@ -184,7 +181,6 @@ export const CASE_SORTS = [
   "priority",
 ] as const
 export type CaseSort = (typeof CASE_SORTS)[number]
-export type SortDirection = "asc" | "desc"
 
 export type CaseListFilters = {
   status?: CaseStatus
@@ -288,10 +284,7 @@ export async function listCases(db: Db, filters: CaseListFilters = {}) {
   if (filters.needsReply) conditions.push(needsReplyCondition())
 
   if (filters.window) {
-    const since = new Date(
-      Date.now() - CASE_WINDOWS[filters.window] * 24 * 60 * 60 * 1000
-    )
-    conditions.push(gte(cases.lastActivityAt, since))
+    conditions.push(gte(cases.lastActivityAt, sinceWindow(filters.window)))
   }
 
   if (filters.audience) {

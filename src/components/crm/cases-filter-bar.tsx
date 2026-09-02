@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ReplyIcon, SearchIcon } from "lucide-react"
 
+import { useListUrl } from "@/components/crm/use-list-url"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -47,7 +48,6 @@ const PRIORITY_ITEMS = [
 
 export function CasesFilterBar() {
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const status = searchParams.get("status") ?? ""
   const priority = searchParams.get("priority") ?? "all"
@@ -56,20 +56,7 @@ export function CasesFilterBar() {
   const needsReply = searchParams.get("needsReply") === "1"
   const [q, setQ] = React.useState(searchParams.get("q") ?? "")
 
-  const buildUrl = React.useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams)
-      for (const [key, value] of Object.entries(updates)) {
-        if (value) params.set(key, value)
-        else params.delete(key)
-      }
-      // Any filter change starts again at page one.
-      params.delete("offset")
-      const qs = params.toString()
-      return qs ? `${pathname}?${qs}` : pathname
-    },
-    [pathname, searchParams]
-  )
+  const buildUrl = useListUrl()
 
   React.useEffect(() => {
     const current = searchParams.get("q") ?? ""
