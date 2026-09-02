@@ -1,6 +1,6 @@
-// FILL IN AT BUILD TIME — the Chlk production schema was unknown when this
-// was written. Point `query` at whatever holds user profiles, and keep the
-// aliased output columns named exactly as below.
+// The enrichment query: what the CRM reads from the Chlk database to fill in
+// who a contact is. Keep the aliased output columns named exactly as below;
+// `pnpm crm:schema` shows what the read-only role can see if the schema moves.
 //
 // Required: email. Everything else is optional — any column you leave out
 // of the query simply doesn't appear on the customer profile.
@@ -17,21 +17,29 @@
 // labelled row in the profile's Product usage card, so you can surface
 // Chlk-specific fields (team, role, seat count…) without code changes.
 export const chlkMapping = {
+  // Written against the real Chlk schema (schema `chlk`, discovered with
+  // `pnpm crm:schema`). profiles.id is the auth user id, which is where the
+  // last sign-in lives; both joins are LEFT so a profile with no org or no
+  // auth row still comes through with what it has.
   query: /* sql */ `
     select
-      email          as email,
-      first_name     as first_name,
-      last_name      as last_name,
-      org_name       as org_name,
-      id             as app_user_id,
-      created_at     as signup_at,
-      last_seen_at   as last_active_at
-    from public.users
+      p.email                                  as email,
+      p.first_name                             as first_name,
+      p.last_name                              as last_name,
+      coalesce(o.name, p.organization)         as org_name,
+      p.id                                     as app_user_id,
+      p.created_at                             as signup_at,
+      u.last_sign_in_at                        as last_active_at,
+      p.role                                   as role
+    from chlk.profiles p
+    left join chlk.organizations o on o.id = p.organization_id
+    left join auth.users u on u.id = p.id
+    where p.email is not null and p.email <> ''
   `,
   /** Extra column names from the query above, rendered as-is. */
-  extras: [] as string[],
+  extras: ["role"] as string[],
   /** Human labels for `extras`; falls back to a prettified column name. */
-  extraLabels: {} as Record<string, string>,
+  extraLabels: { role: "Role in Chlk" } as Record<string, string>,
 }
 
 export type SupabaseProfileRow = {
