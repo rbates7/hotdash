@@ -1,21 +1,9 @@
 import { cn } from "@/lib/utils"
 
-const AVATAR_TONES = [
-  "bg-chart-1/20 text-chart-1",
-  "bg-chart-2/20 text-chart-2",
-  "bg-chart-3/20 text-chart-3",
-  "bg-chart-4/20 text-chart-4",
-  "bg-chart-5/20 text-chart-5",
-]
-
-function toneFor(seed: string) {
-  let hash = 0
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0
-  }
-  return AVATAR_TONES[Math.abs(hash) % AVATAR_TONES.length]
-}
-
+// One tone for everyone. An earlier version hashed the name onto the chart
+// palette for variety, but that palette is a greyscale ramp — so some
+// avatars came out bright and others nearly vanished, which read as a
+// signal about the person when it was only a hash of their name.
 function initialsFor(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return "?"
@@ -32,8 +20,7 @@ function ContactAvatar({
     <span
       data-slot="avatar"
       className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-semibold uppercase select-none",
-        toneFor(name),
+        "bg-muted text-muted-foreground inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-semibold uppercase select-none",
         className
       )}
       {...props}
