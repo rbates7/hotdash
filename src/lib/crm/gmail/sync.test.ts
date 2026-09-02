@@ -210,6 +210,34 @@ describe("syncGmail", () => {
     expect(cursor?.cursor).toBe("2000")
   })
 
+  it("skips a message Gmail no longer has instead of dying on it every run", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER)
+
+    // History says two messages arrived; one was deleted before we asked.
+    api.add(inboundReplyDana)
+    api.historyBatches.push({
+      historyId: "1500",
+      ids: ["gone-for-good", inboundReplyDana.id!],
+    })
+    api.historyId = "1500"
+    const stats = await syncGmail(db, api, FOUNDER)
+    expect(stats.missing).toBe(1)
+    expect(stats.fetched).toBe(1)
+    expect(stats.stored).toBe(1)
+
+    // The cursor moved on, so the next run does not trip over it again.
+    const cursor = db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.source, "gmail"))
+      .get()
+    expect(cursor?.cursor).toBe("1500")
+    const again = await syncGmail(db, api, FOUNDER)
+    expect(again.missing).toBe(0)
+    expect(again.fetched).toBe(0)
+  })
+
   it("keeps what it stored when fetching fails part way through", async () => {
     // The 8-month backfill ran for 230 seconds, hit Gmail's rate limit, and
     // discarded every message it had fetched. Chunked storing means a failure

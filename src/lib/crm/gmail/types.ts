@@ -93,6 +93,19 @@ export class GmailApiDisabledError extends Error {
   }
 }
 
+/**
+ * Gmail's history said a message was added, but it is gone by the time we
+ * ask for it: deleted by hand, or purged from Spam or Trash. That is
+ * permanent, so the sync skips it rather than failing — a failed run leaves
+ * the cursor where it was, and every later run then died on the same id.
+ */
+export class MessageNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Gmail no longer has message ${id}.`)
+    this.name = "MessageNotFoundError"
+  }
+}
+
 export class ReconnectRequiredError extends Error {
   constructor() {
     super("Google authorization expired — reconnect Google in Settings.")
@@ -107,4 +120,6 @@ export type GmailSyncStats = {
   triaged: number
   skippedBulk: number
   backfilled: number
+  /** Listed by Gmail but gone before we could fetch them. */
+  missing: number
 }

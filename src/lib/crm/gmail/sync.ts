@@ -25,7 +25,7 @@ import type {
   GmailSyncStats,
   ParsedMessage,
 } from "./types"
-import { HistoryExpiredError } from "./types"
+import { HistoryExpiredError, MessageNotFoundError } from "./types"
 
 // Gmail allows 250 quota units per user per second and messages.get costs 5,
 // so this leaves room for the thread fetches a new case triggers alongside.
@@ -48,6 +48,7 @@ function emptyStats(): GmailSyncStats {
     triaged: 0,
     skippedBulk: 0,
     backfilled: 0,
+    missing: 0,
   }
 }
 
@@ -361,11 +362,25 @@ export async function syncGmail(
   // durable on its own, and the id filter above lets a re-run skip it.
   const chunkSize = options.fetchChunk ?? FETCH_CHUNK
   for (let i = 0; i < pending.length; i += chunkSize) {
-    const rawMessages = await mapWithConcurrency(
-      pending.slice(i, i + chunkSize),
-      concurrency,
-      (id) => api.getMessage(id)
-    )
+    const rawMessages = (
+      await mapWithConcurrency(
+        pending.slice(i, i + chunkSize),
+        concurrency,
+        async (id) => {
+          try {
+            return await api.getMessage(id)
+          } catch (error) {
+            // Deleted between Gmail listing it and us asking for it. Gone
+            // for good, so give up on the message, not on the run.
+            if (error instanceof MessageNotFoundError) {
+              stats.missing += 1
+              return null
+            }
+            throw error
+          }
+        }
+      )
+    ).filter((raw): raw is GmailRawMessage => raw !== null)
     stats.fetched += rawMessages.length
 
     const parsed = rawMessages

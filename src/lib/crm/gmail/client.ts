@@ -13,6 +13,7 @@ import type { GmailApi, GmailRawMessage } from "./types"
 import {
   GmailApiDisabledError,
   HistoryExpiredError,
+  MessageNotFoundError,
   ReconnectRequiredError,
 } from "./types"
 
@@ -343,10 +344,15 @@ export async function createGmailApi(
       }
     },
     async getMessage(id) {
-      const res = await translate(() =>
-        raw.users.messages.get({ userId: "me", id, format: "full" })
-      )
-      return res.data as GmailRawMessage
+      try {
+        const res = await translate(() =>
+          raw.users.messages.get({ userId: "me", id, format: "full" })
+        )
+        return res.data as GmailRawMessage
+      } catch (error) {
+        if (statusOf(error) === 404) throw new MessageNotFoundError(id)
+        throw error
+      }
     },
     async listHistory({ startHistoryId, pageToken }) {
       try {

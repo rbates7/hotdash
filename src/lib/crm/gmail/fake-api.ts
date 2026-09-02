@@ -2,7 +2,7 @@
 // so it can hold behavior, not data).
 
 import type { GmailApi, GmailRawMessage } from "./types"
-import { HistoryExpiredError } from "./types"
+import { HistoryExpiredError, MessageNotFoundError } from "./types"
 
 export class FakeGmailApi implements GmailApi {
   private messages = new Map<string, GmailRawMessage>()
@@ -36,7 +36,7 @@ export class FakeGmailApi implements GmailApi {
 
   async getMessage(id: string) {
     const message = this.messages.get(id)
-    if (!message) throw new Error(`Unknown message ${id}`)
+    if (!message) throw new MessageNotFoundError(id)
     return message
   }
 
