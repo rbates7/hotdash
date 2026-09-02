@@ -214,6 +214,54 @@ function statusOf(error: unknown): number | undefined {
   return err?.response?.status ?? err?.status
 }
 
+function reasonsOf(error: unknown): string[] {
+  const err = error as {
+    errors?: { reason?: string }[]
+    response?: { data?: { error?: { errors?: { reason?: string }[] } } }
+  }
+  return [
+    ...(err?.errors ?? []),
+    ...(err?.response?.data?.error?.errors ?? []),
+  ].flatMap((e) => (e.reason ? [e.reason] : []))
+}
+
+const RATE_LIMIT_REASONS = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "quotaExceeded",
+])
+
+/**
+ * Gmail reports throttling as a 429, or as a 403 whose reason names a rate
+ * limit — the same status a disabled API and a missing scope use, so the
+ * reason has to be read rather than the status alone.
+ */
+export function isRateLimited(error: unknown): boolean {
+  if (statusOf(error) === 429) return true
+  if (statusOf(error) !== 403) return false
+  if (reasonsOf(error).some((reason) => RATE_LIMIT_REASONS.has(reason))) {
+    return true
+  }
+  const message = (error as { message?: string })?.message ?? ""
+  return /quota exceeded|rate limit/i.test(message)
+}
+
+/** Seconds Google asked us to wait, when it says so. */
+function retryAfterMs(error: unknown): number | null {
+  const headers = (error as { response?: { headers?: Record<string, string> } })
+    ?.response?.headers
+  const value = headers?.["retry-after"]
+  if (!value) return null
+  const seconds = Number(value)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null
+}
+
+const RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 20_000, 40_000]
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function createGmailApi(
   db: Db
 ): Promise<{ api: GmailApi; accountEmail: string }> {
@@ -251,18 +299,27 @@ export async function createGmailApi(
 
   const raw = gmail({ version: "v1", auth: client, retry: true } as never)
 
+  // Gmail's per-user quota is a moving window, so a backfill large enough to
+  // hit it only needs to wait — but gaxios' own three quick retries are not
+  // patient enough for one, and the failure then killed the whole run. Back
+  // off far enough to outlast the window.
   const translate = async <T>(fn: () => Promise<T>): Promise<T> => {
-    try {
-      return await fn()
-    } catch (error) {
-      if (isInvalidGrant(error)) {
-        markReconnectRequired(
-          db,
-          "Google authorization expired — reconnect from Settings."
-        )
-        throw new ReconnectRequiredError()
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn()
+      } catch (error) {
+        if (isInvalidGrant(error)) {
+          markReconnectRequired(
+            db,
+            "Google authorization expired — reconnect from Settings."
+          )
+          throw new ReconnectRequiredError()
+        }
+        const delay = RETRY_DELAYS_MS[attempt]
+        if (!isRateLimited(error) || delay === undefined) throw error
+        // Jitter keeps concurrent workers from retrying in lockstep.
+        await sleep(retryAfterMs(error) ?? delay + Math.random() * 500)
       }
-      throw error
     }
   }
 

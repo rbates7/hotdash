@@ -197,7 +197,10 @@ describe("syncGmail", () => {
     api.historyId = "2000"
     const stats = await syncGmail(db, api, FOUNDER)
 
-    expect(stats.fetched).toBe(2)
+    // The recovery lists both messages but only pays Gmail for the new one:
+    // re-downloading what is already stored is what made a large backfill
+    // too expensive to resume after it was rate limited.
+    expect(stats.fetched).toBe(1)
     expect(api.calls.listMessageIds).toBe(2)
     const cursor = db
       .select()
@@ -205,6 +208,31 @@ describe("syncGmail", () => {
       .where(eq(syncState.source, "gmail"))
       .get()
     expect(cursor?.cursor).toBe("2000")
+  })
+
+  it("keeps what it stored when fetching fails part way through", async () => {
+    // The 8-month backfill ran for 230 seconds, hit Gmail's rate limit, and
+    // discarded every message it had fetched. Chunked storing means a failure
+    // costs the current chunk, and the next run skips what already landed.
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana, unknownHuman])
+    const realGet = api.getMessage.bind(api)
+    let calls = 0
+    api.getMessage = async (id: string) => {
+      if (++calls > 1) throw new Error("Quota exceeded for quota metric")
+      return realGet(id)
+    }
+
+    await expect(
+      syncGmail(db, api, FOUNDER, { fetchConcurrency: 1, fetchChunk: 1 })
+    ).rejects.toThrow(/Quota exceeded/)
+
+    const stored = db.select().from(emailMessages).all()
+    expect(stored.length).toBeGreaterThan(0)
+
+    // A re-run does not pay for the message it already has.
+    api.getMessage = realGet
+    const stats = await syncGmail(db, api, FOUNDER, { fetchChunk: 1 })
+    expect(stats.fetched).toBe(1)
   })
 
   it("backfills the whole thread when a case is created mid-conversation", async () => {

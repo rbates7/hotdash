@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 
 import { cleanSubject } from "@/lib/crm/cases/rules"
 import {
@@ -27,10 +27,17 @@ import type {
 } from "./types"
 import { HistoryExpiredError } from "./types"
 
+// Gmail allows 250 quota units per user per second and messages.get costs 5,
+// so this leaves room for the thread fetches a new case triggers alongside.
+const DEFAULT_FETCH_CONCURRENCY = 4
+const FETCH_CHUNK = 100
+
 export type GmailSyncOptions = {
   founderAliases?: string[]
   initialWindow?: string
   fetchConcurrency?: number
+  /** Messages fetched and stored per pass; smaller loses less on a failure. */
+  fetchChunk?: number
 }
 
 function emptyStats(): GmailSyncStats {
@@ -62,6 +69,25 @@ async function mapWithConcurrency<T, R>(
   )
   await Promise.all(workers)
   return results
+}
+
+/**
+ * Which of these are already stored. Checked before fetching rather than
+ * after, so a backfill that stopped part way does not pay Gmail again for
+ * everything it already has — which is what makes a resumed run cheap enough
+ * to be worth resuming.
+ */
+function storedMessageIds(db: Db, ids: string[]): Set<string> {
+  const found = new Set<string>()
+  for (let i = 0; i < ids.length; i += 400) {
+    const rows = db
+      .select({ id: emailMessages.gmailMessageId })
+      .from(emailMessages)
+      .where(inArray(emailMessages.gmailMessageId, ids.slice(i, i + 400)))
+      .all()
+    for (const row of rows) found.add(row.id)
+  }
+  return found
 }
 
 function messageExists(db: Db, gmailMessageId: string) {
@@ -273,7 +299,9 @@ async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
     for (const id of page.ids) ids.add(id)
     pageToken = page.nextPageToken
   } while (pageToken)
-  return { ids: [...ids], newCursor: profile.historyId }
+  // messages.list returns newest first. Chunked processing makes that order
+  // observable, and a case reads better built forward from its first message.
+  return { ids: [...ids].reverse(), newCursor: profile.historyId }
 }
 
 /**
@@ -323,21 +351,32 @@ export async function syncGmail(
     ;({ ids, newCursor } = await collectFullSyncIds(api, initialWindow))
   }
 
-  const rawMessages = await mapWithConcurrency(
-    ids,
-    options.fetchConcurrency ?? 5,
-    (id) => api.getMessage(id)
-  )
-  stats.fetched = rawMessages.length
+  const alreadyStored = storedMessageIds(db, ids)
+  const pending = ids.filter((id) => !alreadyStored.has(id))
+  const concurrency = options.fetchConcurrency ?? DEFAULT_FETCH_CONCURRENCY
 
-  const parsed = rawMessages
-    .filter((raw) => !isExcludedByLabels(raw.labelIds))
-    .map((raw) => parseMessage(raw, founderAddresses))
-    .filter((m): m is ParsedMessage => m !== null)
-    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+  // Fetch and store in chunks rather than gathering every message first. A
+  // months-long backfill is tens of thousands of messages, and doing it in one
+  // pass meant a rate limit near the end discarded all of it. Each chunk is
+  // durable on its own, and the id filter above lets a re-run skip it.
+  const chunkSize = options.fetchChunk ?? FETCH_CHUNK
+  for (let i = 0; i < pending.length; i += chunkSize) {
+    const rawMessages = await mapWithConcurrency(
+      pending.slice(i, i + chunkSize),
+      concurrency,
+      (id) => api.getMessage(id)
+    )
+    stats.fetched += rawMessages.length
 
-  for (const message of parsed) {
-    await processParsedMessage(db, api, founderAddresses, message, stats)
+    const parsed = rawMessages
+      .filter((raw) => !isExcludedByLabels(raw.labelIds))
+      .map((raw) => parseMessage(raw, founderAddresses))
+      .filter((m): m is ParsedMessage => m !== null)
+      .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+
+    for (const message of parsed) {
+      await processParsedMessage(db, api, founderAddresses, message, stats)
+    }
   }
 
   const now = new Date()

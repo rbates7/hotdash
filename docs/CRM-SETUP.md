@@ -59,6 +59,12 @@ from known contacts into cases.
 > the result is reviewable, then widen and go again. The sync is idempotent,
 > so re-running never duplicates anything.
 >
+> A months-long backfill runs into Gmail's per-user rate limit. That is
+> expected and handled: the client backs off and waits the window out, and
+> messages are stored in chunks so a run that dies part way keeps what it
+> already had. Re-running skips everything already stored, so a backfill that
+> stopped is cheap to resume — just press **Backfill** again.
+>
 > Widening the window is **not** enough on its own: ordinary syncs resume from
 > a stored history cursor and never re-read the window. After changing it,
 > restart the server and use **Backfill** on the Settings page (or
