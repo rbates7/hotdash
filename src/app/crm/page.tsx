@@ -4,14 +4,21 @@ import { ArrowRightIcon, FlameIcon } from "lucide-react"
 
 import { StatusBadge } from "@/components/crm/case-badges"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
+import { PlanDates } from "@/components/crm/plan-dates"
+import { ReachedOutCheckbox } from "@/components/crm/reached-out-checkbox"
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
-import { getDashboardData } from "@/lib/crm/dashboard/server"
+import {
+  CHURNED_THIS_WEEK_FILTERS,
+  getDashboardData,
+  NEW_THIS_WEEK_FILTERS,
+} from "@/lib/crm/dashboard/server"
 import { getDb } from "@/lib/crm/db/client"
 import { relativeTime } from "@/lib/crm/format"
 import { countTriagePending } from "@/lib/crm/triage/server"
@@ -47,6 +54,106 @@ function StatCard({
         </CardContent>
       </Card>
     </Link>
+  )
+}
+
+function customersUrl(filters: Record<string, string>) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    params.set(key === "direction" ? "dir" : key, value)
+  }
+  return `/crm/customers?${params.toString()}`
+}
+
+/** The Overview's new / churned lists: who, when, and whether you have
+ * reached out. Cut at OVERVIEW_LIST_LIMIT; "View all" is the same list on
+ * the Customers page, filters and all. */
+function ContactsCard({
+  title,
+  empty,
+  list,
+  href,
+}: {
+  title: string
+  empty: string
+  list: {
+    rows: {
+      contact: {
+        id: string
+        email: string
+        firstName: string | null
+        lastName: string | null
+        planStatus: string | null
+        planStartedAt: Date | null
+        planEndedAt: Date | null
+        reachedOutAt: Date | null
+      }
+    }[]
+    total: number
+  }
+  href: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">
+          {title}
+          {list.total > 0 ? (
+            <span className="text-muted-foreground ml-1.5 font-normal tabular-nums">
+              {list.total}
+            </span>
+          ) : null}
+        </CardTitle>
+        <CardAction className="text-xs text-muted-foreground">
+          {list.rows.length > 0 ? "Reached out" : null}
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        {list.rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{empty}</p>
+        ) : (
+          list.rows.map(({ contact }) => {
+            const name = contactDisplayName(contact)
+            return (
+              <div
+                key={contact.id}
+                className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
+              >
+                <Link
+                  href={`/crm/customers/${contact.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 hover:underline"
+                >
+                  <ContactAvatar name={name} />
+                  <span className="flex min-w-0 flex-col leading-tight">
+                    <span className="truncate text-sm font-medium">{name}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {contact.email}
+                    </span>
+                  </span>
+                </Link>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  <PlanDates contact={contact} className="text-foreground" />
+                </span>
+                <ReachedOutCheckbox
+                  contactId={contact.id}
+                  name={name}
+                  reachedOutAt={contact.reachedOutAt?.toISOString() ?? null}
+                />
+              </div>
+            )
+          })
+        )}
+        {list.total > list.rows.length ? (
+          <Link
+            href={href}
+            className="mt-1 inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground"
+          >
+            View all ({list.total})
+            <ArrowRightIcon className="size-3.5" />
+          </Link>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -95,6 +202,21 @@ export default async function DashboardPage() {
           value={data.urgentOpen}
           href="/crm/cases?priority=urgent"
           tone="urgent"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ContactsCard
+          title="New this week"
+          empty="Nobody started paying in the last 7 days."
+          list={data.newThisWeek}
+          href={customersUrl(NEW_THIS_WEEK_FILTERS)}
+        />
+        <ContactsCard
+          title="Churned this week"
+          empty="Nobody canceled in the last 7 days. 🎉"
+          list={data.churnedThisWeek}
+          href={customersUrl(CHURNED_THIS_WEEK_FILTERS)}
         />
       </div>
 

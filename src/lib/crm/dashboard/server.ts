@@ -1,7 +1,27 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 
+import { listContacts } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
+
+/** How many names the Overview's new / churned lists show before "View all". */
+export const OVERVIEW_LIST_LIMIT = 25
+
+/** The Customers filters behind each Overview list, so "View all" lands on
+ * exactly the rows the list was cut from and its pager total matches. */
+export const NEW_THIS_WEEK_FILTERS = {
+  status: "active",
+  started: "7d",
+  sort: "date",
+  direction: "desc",
+} as const
+export const CHURNED_THIS_WEEK_FILTERS = {
+  standing: "all",
+  status: "canceled",
+  ended: "7d",
+  sort: "date",
+  direction: "desc",
+} as const
 
 export async function getDashboardData(db: Db) {
   const statusCounts = db
@@ -64,11 +84,29 @@ export async function getDashboardData(db: Db) {
     .from(contacts)
     .get()
 
+  // "New" is someone who started paying this week — a trial counts once it
+  // converts, dated by the day paying began. "Churned" is a plan that
+  // actually stopped this week; a cancellation scheduled for the end of
+  // the period is still paying and is not here yet.
+  const newThisWeek = await listContacts(db, {
+    ...NEW_THIS_WEEK_FILTERS,
+    limit: OVERVIEW_LIST_LIMIT,
+  })
+  const churnedThisWeek = await listContacts(db, {
+    ...CHURNED_THIS_WEEK_FILTERS,
+    limit: OVERVIEW_LIST_LIMIT,
+  })
+
   return {
     counts,
     urgentOpen: urgentOpen?.count ?? 0,
     oldestUntouched,
     activity,
     contactCount: contactCount?.count ?? 0,
+    newThisWeek: { rows: newThisWeek.rows, total: newThisWeek.total },
+    churnedThisWeek: {
+      rows: churnedThisWeek.rows,
+      total: churnedThisWeek.total,
+    },
   }
 }
