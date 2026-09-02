@@ -89,6 +89,9 @@ function ContactsCard({
         planEndedAt: Date | null
         reachedOutAt: Date | null
       }
+      /** An email you sent or a call you logged after the event, if any. */
+      contactedAt: Date | null
+      contactedVia: "email" | "call" | null
     }[]
     total: number
   }
@@ -116,7 +119,7 @@ function ContactsCard({
           // Seven rows tall (7 × 44px rows + 6 × 4px gaps); the rest scroll
           // inside the card so a busy week does not push the page down.
           <div className="-mx-2 flex max-h-[332px] flex-col gap-1 overflow-y-auto px-2">
-            {list.rows.map(({ contact }) => {
+            {list.rows.map(({ contact, contactedAt, contactedVia }) => {
               const name = contactDisplayName(contact)
               return (
                 <div
@@ -142,6 +145,8 @@ function ContactsCard({
                     contactId={contact.id}
                     name={name}
                     reachedOutAt={contact.reachedOutAt?.toISOString() ?? null}
+                    contactedAt={contactedAt?.toISOString() ?? null}
+                    contactedVia={contactedVia}
                   />
                 </div>
               )
@@ -296,8 +301,37 @@ export default async function DashboardPage() {
                 }
                 const message = item.message
                 const inbound = message.direction === "inbound"
+                if (!message.case) {
+                  // Mail you started; there is no case until they reply.
+                  const recipient = message.contact
+                    ? contactDisplayName(message.contact)
+                    : (message.toEmails[0] ?? "someone")
+                  return (
+                    <Link
+                      key={`msg-${message.id}`}
+                      href={
+                        message.contact
+                          ? `/crm/customers/${message.contact.id}`
+                          : "/crm/customers"
+                      }
+                      className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted"
+                    >
+                      <ContactAvatar name="You" />
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        <span className="font-medium">You</span>{" "}
+                        <span className="text-muted-foreground">
+                          emailed {recipient}
+                        </span>{" "}
+                        {message.subject ?? message.snippet}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {relativeTime(message.sentAt)}
+                      </span>
+                    </Link>
+                  )
+                }
                 const who = inbound
-                  ? contactDisplayName(message.case!.contact)
+                  ? contactDisplayName(message.case.contact)
                   : "You"
                 return (
                   <Link
@@ -314,7 +348,7 @@ export default async function DashboardPage() {
                           : inbound
                             ? "wrote on"
                             : "replied on"}{" "}
-                        #{message.case!.caseNumber}
+                        #{message.case.caseNumber}
                       </span>{" "}
                       {message.snippet}
                     </span>

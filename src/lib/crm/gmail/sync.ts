@@ -15,6 +15,7 @@ import {
   emailMessages,
   ignoredSenders,
   syncState,
+  type Case,
 } from "@/lib/crm/db/schema"
 
 import { isExcludedByLabels, parseMessage } from "./parse"
@@ -38,6 +39,10 @@ export type GmailSyncOptions = {
   fetchConcurrency?: number
   /** Messages fetched and stored per pass; smaller loses less on a failure. */
   fetchChunk?: number
+  /** Only mail you sent, over the initial window, without touching the
+   * history cursor: the one-off import of what you started before the
+   * sync was keeping it. */
+  sentOnly?: boolean
 }
 
 function emptyStats(): GmailSyncStats {
@@ -49,6 +54,7 @@ function emptyStats(): GmailSyncStats {
     skippedBulk: 0,
     backfilled: 0,
     missing: 0,
+    outreach: 0,
   }
 }
 
@@ -115,7 +121,8 @@ function storeMessage(
   db: Db,
   parsed: ParsedMessage,
   target:
-    | { kind: "case"; caseId: string }
+    | { kind: "case"; caseId: string; contactId: string }
+    | { kind: "contact"; contactId: string }
     | { kind: "triage" }
 ): boolean {
   const inserted = db
@@ -125,6 +132,7 @@ function storeMessage(
       gmailMessageId: parsed.gmailMessageId,
       gmailThreadId: parsed.gmailThreadId,
       caseId: target.kind === "case" ? target.caseId : null,
+      contactId: target.kind === "triage" ? null : target.contactId,
       triageState: target.kind === "triage" ? "pending" : null,
       direction: parsed.direction,
       fromEmail: parsed.fromEmail,
@@ -144,12 +152,22 @@ function storeMessage(
   return inserted.changes > 0
 }
 
-function attachToCase(db: Db, caseId: string, parsed: ParsedMessage) {
-  const stored = storeMessage(db, parsed, { kind: "case", caseId })
+function attachToCase(
+  db: Db,
+  target: Pick<Case, "id" | "contactId">,
+  parsed: ParsedMessage
+) {
+  const caseId = target.id
+  const stored = storeMessage(db, parsed, {
+    kind: "case",
+    caseId,
+    contactId: target.contactId,
+  })
   if (!stored) {
-    // Already stored — most often as a pending triage item that this thread
-    // is now claiming. Adopt it into the case rather than dropping it, or
-    // the conversation's opening message never reaches the timeline.
+    // Already stored — as a pending triage item this thread is now
+    // claiming, or as mail you started before they replied. Adopt it into
+    // the case rather than dropping it, or the conversation's opening
+    // message never reaches the timeline.
     const existing = db
       .select()
       .from(emailMessages)
@@ -157,10 +175,12 @@ function attachToCase(db: Db, caseId: string, parsed: ParsedMessage) {
       .get()
     if (!existing || existing.caseId === caseId) return false
     db.update(emailMessages)
-      .set({ caseId, triageState: null })
+      .set({ caseId, contactId: target.contactId, triageState: null })
       .where(eq(emailMessages.id, existing.id))
       .run()
   }
+  // Read the case fresh: each message moves its status, and the next one
+  // must transition from where the last one left it.
   const caseRow = db.select().from(cases).where(eq(cases.id, caseId)).get()
   if (caseRow) {
     applyMessageToCase(db, caseRow, {
@@ -171,6 +191,15 @@ function attachToCase(db: Db, caseId: string, parsed: ParsedMessage) {
     })
   }
   return true
+}
+
+/** The first person on To or Cc the CRM already knows. */
+function findRecipientContact(db: Db, parsed: ParsedMessage) {
+  for (const email of [...parsed.toEmails, ...parsed.ccEmails]) {
+    const contact = findContactByEmail(db, email)
+    if (contact) return contact
+  }
+  return undefined
 }
 
 // Creates the case for a thread and pulls in the WHOLE thread so history
@@ -212,7 +241,7 @@ export async function createCaseWithBackfill(
   for (const message of all) {
     if (seen.has(message.gmailMessageId)) continue
     seen.add(message.gmailMessageId)
-    const stored = attachToCase(db, caseRow.id, message)
+    const stored = attachToCase(db, caseRow, message)
     if (stored) {
       stats.stored += 1
       if (message.gmailMessageId !== seedMessage.gmailMessageId) {
@@ -234,13 +263,24 @@ export async function processParsedMessage(
 
   const existingCase = getCaseByThreadId(db, parsed.gmailThreadId)
   if (existingCase) {
-    if (attachToCase(db, existingCase.id, parsed)) stats.stored += 1
+    if (attachToCase(db, existingCase, parsed)) stats.stored += 1
     return
   }
 
   if (parsed.direction === "outbound") {
-    // Founder-initiated mail without a case isn't support traffic; if the
-    // recipient ever replies, thread backfill recovers this half.
+    // Mail you started. Not support traffic, so no case — but sent to
+    // someone the CRM knows it is outreach, which the Overview's "reached
+    // out" tick and the "Last emailed" column are built on, so it is kept
+    // with the person. If they reply, the case their reply opens adopts
+    // it. To a stranger, it is ignored.
+    const recipient = findRecipientContact(db, parsed)
+    if (
+      recipient &&
+      storeMessage(db, parsed, { kind: "contact", contactId: recipient.id })
+    ) {
+      stats.stored += 1
+      stats.outreach += 1
+    }
     return
   }
 
@@ -276,7 +316,11 @@ async function collectIncrementalIds(api: GmailApi, cursor: string) {
   return { ids: [...ids], newCursor }
 }
 
-async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
+async function collectFullSyncIds(
+  api: GmailApi,
+  initialWindow: string,
+  sentOnly = false
+) {
   // Capture the profile historyId BEFORE listing: anything that arrives
   // mid-backfill is replayed by the next incremental pass and deduped.
   const profile = await api.getProfile()
@@ -294,7 +338,7 @@ async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
   let pageToken: string | undefined
   do {
     const page = await api.listMessageIds({
-      q: `-in:chat ${windowQuery}`,
+      q: `${sentOnly ? "in:sent " : ""}-in:chat ${windowQuery}`,
       pageToken,
     })
     for (const id of page.ids) ids.add(id)
@@ -338,7 +382,12 @@ export async function syncGmail(
 
   let ids: string[]
   let newCursor: string | null
-  if (state?.cursor) {
+  if (options.sentOnly) {
+    // Your sent mail over the window, nothing else, and the cursor is left
+    // exactly as it was: this is an import, not a sync.
+    ;({ ids } = await collectFullSyncIds(api, initialWindow, true))
+    newCursor = null
+  } else if (state?.cursor) {
     try {
       ;({ ids, newCursor } = await collectIncrementalIds(api, state.cursor))
     } catch (error) {
@@ -393,6 +442,8 @@ export async function syncGmail(
       await processParsedMessage(db, api, founderAddresses, message, stats)
     }
   }
+
+  if (options.sentOnly) return stats
 
   const now = new Date()
   // Keep the previous cursor when Gmail returns no history id; overwriting

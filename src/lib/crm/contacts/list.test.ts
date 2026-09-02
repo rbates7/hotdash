@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { createCaseForThread } from "@/lib/crm/cases/server"
 import { NotFoundError } from "@/lib/crm/core/errors"
 import { createDb, type Db } from "@/lib/crm/db/client"
-import { cases, contacts, emailMessages } from "@/lib/crm/db/schema"
+import { cases, contacts, emailMessages, notes } from "@/lib/crm/db/schema"
 
 import {
   createContact,
@@ -303,5 +303,111 @@ describe("listContacts sorting and filtering", () => {
     expect(setContactReachedOut(db, zara.id, true).reachedOutAt).toBeInstanceOf(Date)
     expect(setContactReachedOut(db, zara.id, false).reachedOutAt).toBeNull()
     expect(() => setContactReachedOut(db, "nope", true)).toThrow(NotFoundError)
+  })
+})
+
+describe("listContacts last contacted", () => {
+  let db: Db
+  const emailsOf = (rows: { contact: { email: string } }[]) =>
+    rows.map((row) => row.contact.email)
+
+  beforeEach(() => {
+    db = createDb(":memory:").db
+    const now = Date.now()
+    const make = (email: string, firstName: string) =>
+      createContact(db, {
+        email,
+        firstName,
+        source: "stripe",
+        plan: "Monthly Webapp",
+        planStatus: "active",
+      })
+    const dana = make("dana@acme.com", "Dana")
+    const eve = make("eve@x.io", "Eve")
+    const fay = make("fay@x.io", "Fay")
+    const gus = make("gus@x.io", "Gus")
+    make("hal@x.io", "Hal")
+
+    const send = (id: string, contactId: string, caseId: string | null, thread: string, sentAt: Date) =>
+      db
+        .insert(emailMessages)
+        .values({
+          id,
+          gmailMessageId: `gm-${id}`,
+          gmailThreadId: thread,
+          caseId,
+          contactId,
+          direction: "outbound",
+          fromEmail: "info@chlkapp.com",
+          toEmails: ["x@y.z"],
+          ccEmails: [],
+          attachments: [],
+          sentAt,
+          createdAt: sentAt,
+        })
+        .run()
+
+    // Dana: you replied on her case yesterday.
+    const danaCase = createCaseForThread(db, {
+      contactId: dana.id,
+      subject: "Seats",
+      gmailThreadId: "t-dana",
+      createdAt: new Date(now - 2 * DAY),
+    })
+    send("m-dana", dana.id, danaCase.id, "t-dana", new Date(now - DAY))
+    // Eve: mail you started forty days ago, no case.
+    send("m-eve", eve.id, null, "t-eve", new Date(now - 40 * DAY))
+    // Fay: a call you logged three days ago.
+    db.insert(notes)
+      .values({
+        id: "n-fay",
+        caseId: null,
+        contactId: fay.id,
+        kind: "call",
+        body: "Talked through the staff plan",
+        createdAt: new Date(now - 3 * DAY),
+      })
+      .run()
+    // Gus: only the tick, ten days ago.
+    db.update(contacts)
+      .set({ reachedOutAt: new Date(now - 10 * DAY) })
+      .where(eq(contacts.id, gus.id))
+      .run()
+  })
+
+  it("knows when you last reached them, by email, call or tick", async () => {
+    const { rows } = await listContacts(db, { sort: "lastContact" })
+    expect(emailsOf(rows)).toEqual([
+      "dana@acme.com",
+      "fay@x.io",
+      "gus@x.io",
+      "eve@x.io",
+      "hal@x.io",
+    ])
+    expect(rows[0]!.lastOutboundAt).toBeInstanceOf(Date)
+    expect(rows[1]!.lastCallAt).toBeInstanceOf(Date)
+    expect(rows[2]!.lastContactedAt).toEqual(rows[2]!.contact.reachedOutAt)
+    expect(rows[4]!.lastContactedAt).toBeNull()
+
+    const asc = await listContacts(db, { sort: "lastContact", direction: "asc" })
+    expect(emailsOf(asc.rows)).toEqual([
+      "eve@x.io",
+      "gus@x.io",
+      "fay@x.io",
+      "dana@acme.com",
+      "hal@x.io",
+    ])
+  })
+
+  it("filters by never contacted, or contacted within a window", async () => {
+    expect(emailsOf((await listContacts(db, { contacted: "never" })).rows)).toEqual(["hal@x.io"])
+    expect(emailsOf((await listContacts(db, { contacted: "7d" })).rows)).toEqual([
+      "dana@acme.com",
+      "fay@x.io",
+    ])
+    const month = await listContacts(db, { contacted: "30d" })
+    expect(emailsOf(month.rows)).toEqual(["dana@acme.com", "fay@x.io", "gus@x.io"])
+    expect(month.total).toBe(3)
+    expect((await listContacts(db, { contacted: "90d" })).total).toBe(4)
   })
 })

@@ -107,7 +107,7 @@ export default async function SettingsPage({
               {google.connected
                 ? google.errorMessage
                   ? google.errorMessage
-                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")} Backfill reaches ${syncWindow}.`
+                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")} Backfill reaches ${syncWindow}; Import sent mail stores what you sent to known customers over the same span, for "reached out" and "Last contacted".`
                 : "Not connected. Email-to-case needs read access to your inbox."}
             </CardDescription>
           </CardHeader>
@@ -131,6 +131,12 @@ export default async function SettingsPage({
                   label="Backfill"
                   full
                   confirm={`Re-read your inbox from GMAIL_INITIAL_SYNC_WINDOW (currently ${syncWindow}). Existing cases are updated, not duplicated. This can take a while on a wide window.`}
+                />
+                <RefreshButton
+                  source="gmail"
+                  label="Import sent mail"
+                  sent
+                  confirm={`Read the mail you sent since ${syncWindow} and keep what went to known customers, so "reached out" and "Last contacted" know about it. Nothing is duplicated, and the ordinary sync is not affected.`}
                 />
                 <GoogleDisconnectButton />
               </>

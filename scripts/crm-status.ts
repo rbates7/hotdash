@@ -91,6 +91,13 @@ line("total", one("select count(*) n from cases").n)
 line("needing a reply", one("select count(*) n from cases where last_inbound_at is not null and (last_outbound_at is null or last_inbound_at > last_outbound_at)").n)
 line("overdue (3+ days, not closed)", one("select count(*) n from cases where status <> 'closed' and last_inbound_at is not null and (last_outbound_at is null or last_inbound_at > last_outbound_at) and last_inbound_at <= (strftime('%s','now') - 3*86400) * 1000").n)
 line("from in-app feedback", one("select count(*) n from cases where gmail_thread_id like 'feedback:%'").n)
+const hasMessageContact = rows("pragma table_info(email_messages)").some(
+  (c) => c.name === "contact_id"
+)
+if (hasMessageContact) {
+  line("emails you started (no case yet)", one("select count(*) n from email_messages where direction = 'outbound' and case_id is null").n)
+  line("people you have emailed", one("select count(distinct coalesce(m.contact_id, c.contact_id)) n from email_messages m left join cases c on c.id = m.case_id where m.direction = 'outbound'").n)
+}
 line("triage pending", one("select count(*) n from email_messages where case_id is null and triage_state = 'pending'").n)
 
 section("Sync")

@@ -64,13 +64,29 @@ export default async function CustomerProfilePage({
       : []
 
   const openCases = contact.cases.filter((c) => c.status !== "closed")
-  const emailCount = contact.cases.reduce((n, c) => n + c.messages.length, 0)
-  const lastInbound = contact.cases
-    .flatMap((c) => c.messages.filter((m) => m.direction === "inbound"))
-    .reduce<Date | null>(
-      (latest, m) => (!latest || m.sentAt > latest ? m.sentAt : latest),
+  const emailCount =
+    contact.cases.reduce((n, c) => n + c.messages.length, 0) +
+    contact.sentOutsideCases.length
+  const latest = (dates: (Date | null)[]) =>
+    dates.reduce<Date | null>(
+      (best, d) => (d && (!best || d > best) ? d : best),
       null
     )
+  const lastInbound = latest(
+    contact.cases
+      .flatMap((c) => c.messages.filter((m) => m.direction === "inbound"))
+      .map((m) => m.sentAt)
+  )
+  // When you last contacted them: an email you sent (on a case or not), a
+  // call you logged, or the reached-out tick.
+  const lastContacted = latest([
+    ...contact.cases
+      .flatMap((c) => c.messages.filter((m) => m.direction === "outbound"))
+      .map((m) => m.sentAt),
+    ...contact.sentOutsideCases.map((m) => m.sentAt),
+    ...contact.notes.filter((n) => n.kind === "call").map((n) => n.createdAt),
+    contact.reachedOutAt,
+  ])
 
   const hasUsage = Boolean(
     contact.appUserId || contact.signupAt || contact.appProfile
@@ -140,13 +156,17 @@ export default async function CustomerProfilePage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Open cases" value={String(openCases.length)} />
         <Stat label="Cases all time" value={String(contact.cases.length)} />
         <Stat label="Emails exchanged" value={String(emailCount)} />
         <Stat
           label="Last heard from them"
           value={lastInbound ? relativeTime(lastInbound) : "—"}
+        />
+        <Stat
+          label="Last contacted by you"
+          value={lastContacted ? relativeTime(lastContacted) : "never"}
         />
       </div>
 
@@ -155,6 +175,50 @@ export default async function CustomerProfilePage({
           <h3 className="text-body font-semibold">Notes and calls</h3>
           <ContactNoteComposer contactId={contact.id} />
           <ContactTimeline notes={contact.notes} />
+
+          {contact.sentOutsideCases.length > 0 ? (
+            <>
+              <h3 className="text-body mt-4 font-semibold">
+                Emails you started
+              </h3>
+              <p className="text-muted-foreground -mt-1 text-xs">
+                Sent from your inbox with no reply yet, so no case.
+              </p>
+              <ul className="flex flex-col gap-1.5">
+                {contact.sentOutsideCases.map((message) => (
+                  <li
+                    key={message.id}
+                    className="bg-card flex items-center gap-3 rounded-xl border px-3.5 py-2.5"
+                  >
+                    <ContactAvatar name="You" />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-body block truncate font-medium">
+                        {message.subject ?? "(no subject)"}
+                      </span>
+                      <span className="text-muted-foreground block truncate text-xs">
+                        {message.snippet}
+                      </span>
+                    </span>
+                    <span
+                      className="text-muted-foreground shrink-0 text-xs"
+                      title={formatDateTime(message.sentAt)}
+                    >
+                      {relativeTime(message.sentAt)}
+                    </span>
+                    <a
+                      href={`https://mail.google.com/mail/u/0/#all/${message.gmailThreadId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Open in Gmail"
+                    >
+                      <ExternalLinkIcon className="size-3.5" aria-hidden />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
 
           <h3 className="text-body mt-4 font-semibold">Cases and email</h3>
           <CustomerCaseList

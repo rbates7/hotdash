@@ -20,12 +20,16 @@ export async function POST(
     const { source } = paramsSchema.parse(await params)
     const db = getDb()
 
+    const query = new URL(request.url).searchParams
     // ?full=1 re-runs the backfill from GMAIL_INITIAL_SYNC_WINDOW. Ordinary
     // syncs resume from the stored history cursor, which means a widened
     // window is otherwise never read again after the first successful sync.
-    if (source === "gmail" && new URL(request.url).searchParams.has("full")) {
+    if (source === "gmail" && query.has("full")) {
       resetGmailCursor(db)
     }
+    // ?sent=1 imports only mail you sent over that window — the outreach
+    // from before the sync was keeping it — and leaves the cursor alone.
+    const options = { sentOnly: source === "gmail" && query.has("sent") }
     if (source === "all") {
       // Order matters, and it is not cosmetic: Gmail only opens a case when
       // the sender is already a known contact, so it must run *after* the
@@ -38,7 +42,7 @@ export async function POST(
       }
       return Response.json({ results })
     }
-    const result = await runSync(db, source, "manual")
+    const result = await runSync(db, source, "manual", options)
     return Response.json(result)
   } catch (error) {
     return jsonError(error, "Failed to run sync.")

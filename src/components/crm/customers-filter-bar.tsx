@@ -39,7 +39,23 @@ const ENDED_ITEMS = [
   { value: "90d", label: "Ended in last 90 days" },
 ]
 
-const FILTER_KEYS = ["plan", "status", "started", "ended", "open", "affiliation"]
+const CONTACTED_ITEMS = [
+  { value: "all", label: "Contacted or not" },
+  { value: "never", label: "Never contacted" },
+  { value: "7d", label: "Contacted in last 7 days" },
+  { value: "30d", label: "Contacted in last 30 days" },
+  { value: "90d", label: "Contacted in last 90 days" },
+]
+
+const FILTER_KEYS = [
+  "plan",
+  "status",
+  "started",
+  "ended",
+  "open",
+  "affiliation",
+  "contacted",
+]
 
 /**
  * The second row of controls on Customers. Everything lives in the URL, so
@@ -56,6 +72,7 @@ export function CustomersFilterBar({ plans }: { plans: string[] }) {
   const started = searchParams.get("started") ?? "all"
   const ended = searchParams.get("ended") ?? "all"
   const hasOpenCase = searchParams.get("open") === "1"
+  const contacted = searchParams.get("contacted") ?? "all"
   const affiliation = searchParams.get("affiliation")
   const anyActive = FILTER_KEYS.some((key) => searchParams.has(key))
 
@@ -147,6 +164,24 @@ export function CustomersFilterBar({ plans }: { plans: string[] }) {
         </SelectTrigger>
         <SelectContent>
           {ENDED_ITEMS.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={CONTACTED_ITEMS}
+        value={contacted}
+        onValueChange={(value) =>
+          go({ contacted: value === "all" ? "" : String(value) })
+        }
+      >
+        <SelectTrigger size="sm" aria-label="Last contacted filter">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {CONTACTED_ITEMS.map((item) => (
             <SelectItem key={item.value} value={item.value}>
               {item.label}
             </SelectItem>

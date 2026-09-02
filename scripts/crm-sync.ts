@@ -4,6 +4,7 @@
  *   pnpm crm:sync supabase
  *   pnpm crm:sync stripe
  *   pnpm crm:sync gmail
+ *   pnpm crm:sync gmail --sent   # import mail you sent (once), cursor untouched
  *   pnpm crm:sync feedback
  *   pnpm crm:sync all        # stripe, supabase, feedback, then gmail
  *
@@ -16,9 +17,14 @@ import { loadEnvLocal } from "./load-env"
 loadEnvLocal()
 
 const source = process.argv[2]
+const sentOnly = process.argv.slice(3).includes("--sent")
 const SOURCES = ["gmail", "stripe", "supabase", "feedback", "all"]
 if (!source || !SOURCES.includes(source)) {
-  console.error(`Usage: pnpm crm:sync <${SOURCES.join("|")}>`)
+  console.error(`Usage: pnpm crm:sync <${SOURCES.join("|")}> [--sent]`)
+  process.exit(2)
+}
+if (sentOnly && source !== "gmail") {
+  console.error("--sent only applies to gmail.")
   process.exit(2)
 }
 
@@ -28,7 +34,7 @@ const origin = `http://localhost:${port}`
 async function main() {
   let response: Response
   try {
-    response = await fetch(`${origin}/api/crm/sync/${source}`, {
+    response = await fetch(`${origin}/api/crm/sync/${source}${sentOnly ? "?sent=1" : ""}`, {
       method: "POST",
       // The CSRF check on /api/crm/* wants a same-origin Origin header.
       headers: { Origin: origin },

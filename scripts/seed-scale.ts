@@ -116,6 +116,7 @@ for (let i = 0; i < CUSTOMERS; i += 3) {
     gmailMessageId: `gm_scale_${caseNumber}`,
     gmailThreadId: `thread_scale_${caseNumber}`,
     caseId: id,
+    contactId: `c_${i}`,
     triageState: null,
     direction: "inbound" as const,
     fromEmail: contactRows[i]!.email,

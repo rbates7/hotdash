@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm"
 
 import { countOverdueCases } from "@/lib/crm/cases/server"
 import { listContacts } from "@/lib/crm/contacts/server"
@@ -53,9 +53,14 @@ export async function getDashboardData(db: Db) {
     limit: 5,
   })
 
+  // Messages on a case, plus mail you started to someone (no case yet).
+  // Triage rows have neither and stay out.
   const recentMessages = await db.query.emailMessages.findMany({
-    where: isNotNull(emailMessages.caseId),
-    with: { case: { with: { contact: true } } },
+    where: or(
+      isNotNull(emailMessages.caseId),
+      isNotNull(emailMessages.contactId)
+    ),
+    with: { case: { with: { contact: true } }, contact: true },
     orderBy: [desc(emailMessages.sentAt)],
     limit: 10,
   })
@@ -108,10 +113,43 @@ export async function getDashboardData(db: Db) {
     oldestUntouched,
     activity,
     contactCount: contactCount?.count ?? 0,
-    newThisWeek: { rows: newThisWeek.rows, total: newThisWeek.total },
+    newThisWeek: {
+      rows: withContactedAt(newThisWeek.rows, (c) => c.planStartedAt),
+      total: newThisWeek.total,
+    },
     churnedThisWeek: {
-      rows: churnedThisWeek.rows,
+      rows: withContactedAt(churnedThisWeek.rows, (c) => c.planEndedAt),
       total: churnedThisWeek.total,
     },
   }
+}
+
+export type ContactedVia = "email" | "call"
+
+/**
+ * "Reached out" fills itself from an email you sent or a call you logged
+ * on or after the event — paying started for someone new, the plan ending
+ * for someone who left. A reply from July does not count as reaching out
+ * after a September churn. The tick you set by hand is separate.
+ */
+function withContactedAt<
+  Row extends {
+    contact: { planStartedAt: Date | null; planEndedAt: Date | null }
+    lastOutboundAt: Date | null
+    lastCallAt: Date | null
+  },
+>(rows: Row[], eventDateOf: (contact: Row["contact"]) => Date | null) {
+  return rows.map((row) => {
+    const eventDate = eventDateOf(row.contact)
+    const after = (at: Date | null) =>
+      at && eventDate && at >= eventDate ? at : null
+    const emailed = after(row.lastOutboundAt)
+    const called = after(row.lastCallAt)
+    let contactedVia: ContactedVia | null = null
+    if (emailed && (!called || emailed >= called)) contactedVia = "email"
+    else if (called) contactedVia = "call"
+    const contactedAt =
+      contactedVia === "email" ? emailed : contactedVia === "call" ? called : null
+    return { ...row, contactedAt, contactedVia }
+  })
 }

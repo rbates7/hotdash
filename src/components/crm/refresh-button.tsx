@@ -19,12 +19,15 @@ export function RefreshButton({
   source,
   label = "Refresh",
   full = false,
+  sent = false,
   confirm,
 }: {
   source: "gmail" | "stripe" | "supabase" | "feedback" | "all"
   label?: string
   /** Re-read GMAIL_INITIAL_SYNC_WINDOW instead of resuming from the cursor. */
   full?: boolean
+  /** Import only mail you sent over that window; the cursor is untouched. */
+  sent?: boolean
   confirm?: string
 }) {
   const router = useRouter()
@@ -34,10 +37,10 @@ export function RefreshButton({
     if (confirm && !window.confirm(confirm)) return
     setIsRunning(true)
     try {
-      const response = await fetch(
-        `/api/crm/sync/${source}${full ? "?full=1" : ""}`,
-        { method: "POST" }
-      )
+      const query = full ? "?full=1" : sent ? "?sent=1" : ""
+      const response = await fetch(`/api/crm/sync/${source}${query}`, {
+        method: "POST",
+      })
       const payload = (await response.json()) as {
         error?: string
         status?: string

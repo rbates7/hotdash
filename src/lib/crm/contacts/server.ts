@@ -308,6 +308,9 @@ export type CustomerListFilters = {
   hasOpenCase?: boolean
   /** The school they typed in, matched ignoring case and outer spaces. */
   affiliation?: string
+  /** Whether and when you last contacted them — an email you sent, a call
+   * you logged, or the "reached out" tick: never, or within a window. */
+  contacted?: ContactedFilter
   sort?: CustomerSort
   direction?: SortDirection
   limit?: number
@@ -323,9 +326,12 @@ export const CUSTOMER_SORTS = [
   "plan",
   "date",
   "lastInbound",
+  "lastContact",
   "open",
 ] as const
 export type CustomerSort = (typeof CUSTOMER_SORTS)[number]
+
+export type ContactedFilter = "never" | DayWindow
 
 /** Where a column lands on its first click: names A–Z, dates newest first. */
 const DEFAULT_DIRECTIONS: Record<CustomerSort, SortDirection> = {
@@ -334,6 +340,7 @@ const DEFAULT_DIRECTIONS: Record<CustomerSort, SortDirection> = {
   plan: "asc",
   date: "desc",
   lastInbound: "desc",
+  lastContact: "desc",
   open: "desc",
 }
 
@@ -343,6 +350,13 @@ const DEFAULT_DIRECTIONS: Record<CustomerSort, SortDirection> = {
 export const ACTIVE_PLAN_STATUSES = ["active", "trialing", "past_due"] as const
 
 export const CUSTOMERS_PER_PAGE = 50
+
+/** Who each outbound message is with: the case's person for a reply, the
+ * recipient for mail you started. The join covers rows stored before
+ * messages carried a contact of their own. */
+function outboundContactId() {
+  return sql<string>`coalesce(${emailMessages.contactId}, ${cases.contactId})`
+}
 
 /** Shared WHERE for the customer list and its counts, so the pager totals
  * can never disagree with the rows on screen. */
@@ -401,6 +415,47 @@ function customerConditions(db: Db, filters: CustomerListFilters) {
       )
     )
   }
+  if (filters.contacted) {
+    const since =
+      filters.contacted === "never" ? null : sinceWindow(filters.contacted)
+    const who = outboundContactId()
+    const emailed = db
+      .select({ id: who })
+      .from(emailMessages)
+      .leftJoin(cases, eq(emailMessages.caseId, cases.id))
+      .where(
+        and(
+          eq(emailMessages.direction, "outbound"),
+          sql`${who} is not null`,
+          since ? gte(emailMessages.sentAt, since) : undefined
+        )
+      )
+    const called = db
+      .select({ id: notes.contactId })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.kind, "call"),
+          isNotNull(notes.contactId),
+          since ? gte(notes.createdAt, since) : undefined
+        )
+      )
+    if (since) {
+      conditions.push(
+        or(
+          inArray(contacts.id, emailed),
+          inArray(contacts.id, called),
+          gte(contacts.reachedOutAt, since)
+        )
+      )
+    } else {
+      conditions.push(
+        notInArray(contacts.id, emailed),
+        notInArray(contacts.id, called),
+        isNull(contacts.reachedOutAt)
+      )
+    }
+  }
   return conditions
 }
 
@@ -450,6 +505,33 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .groupBy(cases.contactId)
     .as("last_inbound")
 
+  // When you last wrote to them, a reply on a case or mail you started.
+  const lastOutbound = db
+    .select({
+      contactId: outboundContactId().as("outbound_contact_id"),
+      at: sql<number>`max(${emailMessages.sentAt})`.as("last_outbound_at"),
+    })
+    .from(emailMessages)
+    .leftJoin(cases, eq(emailMessages.caseId, cases.id))
+    .where(eq(emailMessages.direction, "outbound"))
+    .groupBy(outboundContactId())
+    .as("last_outbound")
+
+  // Calls you logged on the person.
+  const lastCall = db
+    .select({
+      contactId: notes.contactId,
+      at: sql<number>`max(${notes.createdAt})`.as("last_call_at"),
+    })
+    .from(notes)
+    .where(and(eq(notes.kind, "call"), isNotNull(notes.contactId)))
+    .groupBy(notes.contactId)
+    .as("last_call")
+
+  // "Last contacted": the latest of an email you sent, a call you logged,
+  // or the reached-out tick itself.
+  const lastContactedAt = sql<number | null>`nullif(max(coalesce(${lastOutbound.at}, 0), coalesce(${lastCall.at}, 0), coalesce(${contacts.reachedOutAt}, 0)), 0)`
+
   const conditions = customerConditions(db, filters)
   const where = conditions.length > 0 ? and(...conditions) : undefined
 
@@ -474,6 +556,8 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
         return [nullsLast(planDate), dir(planDate), tiebreak]
       case "lastInbound":
         return [nullsLast(lastInbound.at), dir(lastInbound.at), tiebreak]
+      case "lastContact":
+        return [nullsLast(lastContactedAt), dir(lastContactedAt), tiebreak]
       case "open":
         return [dir(sql`coalesce(${openCounts.count}, 0)`), tiebreak]
       default:
@@ -487,11 +571,16 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
       organization: organizations,
       openCases: sql<number>`coalesce(${openCounts.count}, 0)`,
       lastInboundAt: sql<number | null>`${lastInbound.at}`,
+      lastOutboundAt: sql<number | null>`${lastOutbound.at}`,
+      lastCallAt: sql<number | null>`${lastCall.at}`,
+      lastContactedAt,
     })
     .from(contacts)
     .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
     .leftJoin(openCounts, eq(openCounts.contactId, contacts.id))
     .leftJoin(lastInbound, eq(lastInbound.contactId, contacts.id))
+    .leftJoin(lastOutbound, eq(lastOutbound.contactId, contacts.id))
+    .leftJoin(lastCall, eq(lastCall.contactId, contacts.id))
     .where(where)
     .orderBy(...orderBy)
     .limit(limit)
@@ -536,6 +625,13 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     rows: rows.map((row) => ({
       ...row,
       lastInboundAt: row.lastInboundAt ? new Date(row.lastInboundAt) : null,
+      lastOutboundAt: row.lastOutboundAt
+        ? new Date(row.lastOutboundAt)
+        : null,
+      lastCallAt: row.lastCallAt ? new Date(row.lastCallAt) : null,
+      lastContactedAt: row.lastContactedAt
+        ? new Date(row.lastContactedAt)
+        : null,
     })),
     total: totalRow?.count ?? 0,
     standingCounts: {
@@ -701,5 +797,18 @@ export async function getContactWithCases(db: Db, contactId: string) {
     },
   })
   if (!contact) throw new NotFoundError("Contact not found.")
-  return contact
+  // Mail you started that they have not replied to, so it has no case.
+  const sentOutsideCases = db
+    .select()
+    .from(emailMessages)
+    .where(
+      and(
+        eq(emailMessages.contactId, contactId),
+        isNull(emailMessages.caseId),
+        eq(emailMessages.direction, "outbound")
+      )
+    )
+    .orderBy(desc(emailMessages.sentAt))
+    .all()
+  return { ...contact, sentOutsideCases }
 }

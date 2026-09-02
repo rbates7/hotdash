@@ -156,6 +156,7 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
         gmailMessageId: `gm_${m.id}`,
         gmailThreadId: m.thread,
         caseId: m.caseId,
+        contactId: caseSeeds.find((c) => c.id === m.caseId)?.contactId ?? null,
         triageState: m.triage ?? null,
         direction: m.dir,
         fromEmail: m.from,
@@ -173,6 +174,15 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     )
     .run()
 
+  // Mail the founder started: Tom's welcome the day after he began paying
+  // (fills his "reached out" tick), and a check-in to Ray with no reply.
+  db.insert(emailMessages)
+    .values([
+      { id: "msg_out_tom", gmailMessageId: "gm_msg_out_tom", gmailThreadId: "thread_dev_welcome_tom", caseId: null, contactId: "contact_tom", direction: "outbound", fromEmail: founder, fromName: "Rashad Bates", toEmails: ["tom.alvarez@gmail.com"], ccEmails: [], subject: "Welcome to Chlk", snippet: "Glad to have you on board. Anything I can help with this week?", bodyText: "Glad to have you on board. Anything I can help with this week?", bodyHtml: null, attachments: [], sentAt: at(4 * DAY), createdAt: at(4 * DAY) },
+      { id: "msg_out_ray", gmailMessageId: "gm_msg_out_ray", gmailThreadId: "thread_dev_checkin_ray", caseId: null, contactId: "contact_ray", direction: "outbound", fromEmail: founder, fromName: "Rashad Bates", toEmails: ["ray.donnelly@gmail.com"], ccEmails: [], subject: "How's the season going?", snippet: "Checking in — anything we could do better before playoffs?", bodyText: "Checking in — anything we could do better before playoffs?", bodyHtml: null, attachments: [], sentAt: at(12 * DAY), createdAt: at(12 * DAY) },
+    ])
+    .run()
+
   db.insert(emailMessages)
     .values({
       id: "msg_12_1",
@@ -180,6 +190,7 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
       gmailMessageId: "feedback:seed-1",
       gmailThreadId: "feedback:seed-1",
       caseId: "case_12",
+      contactId: "contact_ray",
       direction: "inbound",
       fromEmail: "ray.donnelly@gmail.com",
       fromName: "Ray Donnelly",
@@ -212,6 +223,6 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     organizations: 3,
     contacts: 12,
     cases: caseSeeds.length,
-    messages: msgs.length + 1,
+    messages: msgs.length + 3,
   }
 }

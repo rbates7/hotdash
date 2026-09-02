@@ -31,7 +31,7 @@ import {
 import { customerType, type CustomerType } from "@/lib/crm/contacts/matching"
 import { CUSTOMER_PLAN_STATUSES } from "@/lib/crm/contacts/plan-status"
 import { getDb } from "@/lib/crm/db/client"
-import { relativeTime } from "@/lib/crm/format"
+import { formatDateTime, relativeTime } from "@/lib/crm/format"
 import {
   parseDirection,
   parseOffset,
@@ -57,6 +57,7 @@ export default async function CustomersPage({
     ended?: string
     open?: string
     affiliation?: string
+    contacted?: string
     sort?: string
     dir?: string
     offset?: string
@@ -75,11 +76,20 @@ export default async function CustomersPage({
   const ended = parseWindow(params.ended)
   const hasOpenCase = params.open === "1"
   const affiliation = params.affiliation?.trim() || undefined
+  const contacted =
+    params.contacted === "never" ? "never" : parseWindow(params.contacted)
   const sort = parseOneOf(CUSTOMER_SORTS, params.sort)
   const direction = parseDirection(params.dir)
   const offset = parseOffset(params.offset)
   const filtered = Boolean(
-    query || plan || status || started || ended || hasOpenCase || affiliation
+    query ||
+      plan ||
+      status ||
+      started ||
+      ended ||
+      hasOpenCase ||
+      affiliation ||
+      contacted
   )
 
   const { rows, total, counts, standingCounts, limit } = await listContacts(
@@ -94,6 +104,7 @@ export default async function CustomersPage({
       ended,
       hasOpenCase,
       affiliation,
+      contacted,
       sort,
       direction,
       limit: CUSTOMERS_PER_PAGE,
@@ -155,6 +166,11 @@ export default async function CustomersPage({
                     Last wrote in
                   </SortableHeader>
                 </TableHead>
+                <TableHead>
+                  <SortableHeader column="lastContact">
+                    Last contacted
+                  </SortableHeader>
+                </TableHead>
                 <TableHead className="text-right">
                   <SortableHeader column="open" className="justify-end">
                     Open
@@ -164,7 +180,13 @@ export default async function CustomersPage({
             </TableHeader>
             <TableBody>
               {rows.map(
-                ({ contact, organization, openCases, lastInboundAt }) => {
+                ({
+                  contact,
+                  organization,
+                  openCases,
+                  lastInboundAt,
+                  lastContactedAt,
+                }) => {
                   const name = contactDisplayName(contact)
                   const isTeam = customerType(contact) === "team"
                   return (
@@ -208,6 +230,16 @@ export default async function CustomersPage({
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {relativeTime(lastInboundAt)}
+                      </TableCell>
+                      <TableCell
+                        className="text-muted-foreground"
+                        title={
+                          lastContactedAt
+                            ? `An email you sent, a call you logged, or your tick — last on ${formatDateTime(lastContactedAt)}`
+                            : "No email, call or tick from you yet"
+                        }
+                      >
+                        {relativeTime(lastContactedAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         {openCases > 0 ? (

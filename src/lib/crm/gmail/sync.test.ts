@@ -20,10 +20,13 @@ import {
   formSubmissionUnknown,
   inboundPlainDana,
   inboundReplyDana,
+  inboundReplyToWelcome,
   makeMessage,
   newsletter,
   noreplyReceipt,
   outboundReplyFounder,
+  outboundToStranger,
+  outboundWelcomeFounder,
   spamMessage,
   unknownHuman,
   unknownHumanFollowup,
@@ -236,6 +239,71 @@ describe("syncGmail", () => {
     const again = await syncGmail(db, api, FOUNDER)
     expect(again.missing).toBe(0)
     expect(again.fetched).toBe(0)
+  })
+
+  it("keeps mail you started to a known customer, and drops it to a stranger", async () => {
+    const api = new FakeGmailApi(FOUNDER, [outboundWelcomeFounder, outboundToStranger])
+    const stats = await syncGmail(db, api, FOUNDER)
+    expect(stats.outreach).toBe(1)
+    expect(stats.casesCreated).toBe(0)
+
+    const stored = db.select().from(emailMessages).all()
+    expect(stored).toHaveLength(1)
+    const dana = findContactByEmail(db, "dana@acme.com")!
+    expect(stored[0]!.gmailMessageId).toBe("m_welcome_1")
+    expect(stored[0]!.contactId).toBe(dana.id)
+    expect(stored[0]!.caseId).toBeNull()
+    expect(stored[0]!.direction).toBe("outbound")
+  })
+
+  it("adopts the mail you started into the case their reply opens", async () => {
+    const api = new FakeGmailApi(FOUNDER, [outboundWelcomeFounder])
+    await syncGmail(db, api, FOUNDER)
+
+    api.add(inboundReplyToWelcome)
+    api.historyBatches.push({ historyId: "1500", ids: [inboundReplyToWelcome.id!] })
+    api.historyId = "1500"
+    const stats = await syncGmail(db, api, FOUNDER)
+    expect(stats.casesCreated).toBe(1)
+
+    const [caseRow] = db.select().from(cases).all()
+    const onCase = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.caseId, caseRow!.id))
+      .all()
+    expect(onCase.map((m) => m.gmailMessageId).sort()).toEqual(["m_welcome_1", "m_welcome_2"])
+    // Adopted, not duplicated.
+    expect(db.select().from(emailMessages).all()).toHaveLength(2)
+    expect(onCase.every((m) => m.contactId === caseRow!.contactId)).toBe(true)
+    // Your welcome went out first, then they wrote: the ball is with you.
+    expect(caseRow!.lastOutboundAt).toEqual(new Date("2026-09-01T09:00:00Z"))
+    expect(caseRow!.status).toBe("open")
+  })
+
+  it("stamps every message on a case with the person it is with", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana, outboundReplyFounder])
+    await syncGmail(db, api, FOUNDER)
+    const dana = findContactByEmail(db, "dana@acme.com")!
+    const stored = db.select().from(emailMessages).all()
+    expect(stored).toHaveLength(2)
+    expect(stored.every((m) => m.contactId === dana.id)).toBe(true)
+  })
+
+  it("imports only what you sent when asked, and leaves the cursor alone", async () => {
+    const api = new FakeGmailApi(FOUNDER, [outboundWelcomeFounder])
+    const stats = await syncGmail(db, api, FOUNDER, { sentOnly: true, initialWindow: "7d" })
+    expect(api.lastQuery).toBe("in:sent -in:chat newer_than:7d")
+    expect(stats.outreach).toBe(1)
+    expect(db.select().from(syncState).all()).toHaveLength(0)
+
+    // The first ordinary run still does its own full pass, pays nothing
+    // for what the import stored, and only then starts keeping a cursor.
+    const again = await syncGmail(db, api, FOUNDER, { initialWindow: "7d" })
+    expect(again.fetched).toBe(0)
+    expect(
+      db.select().from(syncState).where(eq(syncState.source, "gmail")).get()?.cursor
+    ).toBe("1000")
   })
 
   it("keeps what it stored when fetching fails part way through", async () => {

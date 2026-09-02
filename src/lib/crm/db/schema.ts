@@ -150,6 +150,11 @@ export const emailMessages = sqliteTable(
     // caseId NULL + triageState "pending" is the triage queue; promotion is
     // an UPDATE that fills caseId and clears triageState.
     caseId: text("case_id").references(() => cases.id),
+    // The person this message is with: the case's contact for a message on
+    // a case, or the recipient of mail you started to someone the CRM
+    // knows, which has no case until they reply. "Last emailed" and the
+    // auto-filled "reached out" tick read from it.
+    contactId: text("contact_id").references(() => contacts.id),
     triageState: text("triage_state", { enum: ["pending", "ignored"] }),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
     fromEmail: text("from_email").notNull(),
@@ -172,6 +177,7 @@ export const emailMessages = sqliteTable(
     ),
     index("email_messages_gmail_thread_id_idx").on(table.gmailThreadId),
     index("email_messages_case_id_idx").on(table.caseId),
+    index("email_messages_contact_id_idx").on(table.contactId, table.sentAt),
     index("email_messages_triage_state_idx").on(
       table.triageState,
       table.sentAt
@@ -268,6 +274,7 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
   }),
   cases: many(cases),
   notes: many(notes),
+  messages: many(emailMessages),
 }))
 
 export const casesRelations = relations(cases, ({ one, many }) => ({
@@ -283,6 +290,10 @@ export const emailMessagesRelations = relations(emailMessages, ({ one }) => ({
   case: one(cases, {
     fields: [emailMessages.caseId],
     references: [cases.id],
+  }),
+  contact: one(contacts, {
+    fields: [emailMessages.contactId],
+    references: [contacts.id],
   }),
 }))
 

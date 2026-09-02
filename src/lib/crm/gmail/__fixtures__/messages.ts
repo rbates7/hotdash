@@ -265,3 +265,36 @@ export const formSubmissionUnknown = makeMessage({
   text: "Name: Marcus Hall\nEmail: marcus@northside.k12.us\nMessage: Do you have a team plan?",
   sentAt: "2026-08-28T16:00:00Z",
 })
+
+// Mail the founder started: a welcome to a known customer, one to a
+// stranger, and the customer's reply on the welcome thread.
+export const outboundWelcomeFounder = makeMessage({
+  id: "m_welcome_1",
+  threadId: "t_welcome",
+  from: `Rashad Bates <${FOUNDER}>`,
+  to: "Dana Whitfield <dana@acme.com>",
+  subject: "Welcome to Chlk",
+  text: "Glad to have you on board. Anything I can help with this week?",
+  labels: ["SENT"],
+  sentAt: "2026-09-01T09:00:00Z",
+})
+
+export const outboundToStranger = makeMessage({
+  id: "m_stranger_1",
+  threadId: "t_stranger",
+  from: `Rashad Bates <${FOUNDER}>`,
+  to: "someone@nowhere.example",
+  subject: "Quick hello",
+  text: "Saw your post about film review.",
+  labels: ["SENT"],
+  sentAt: "2026-09-01T09:30:00Z",
+})
+
+export const inboundReplyToWelcome = makeMessage({
+  id: "m_welcome_2",
+  threadId: "t_welcome",
+  from: "Dana Whitfield <dana@acme.com>",
+  subject: "Re: Welcome to Chlk",
+  text: "Thanks! One question about seats.",
+  sentAt: "2026-09-02T10:00:00Z",
+})

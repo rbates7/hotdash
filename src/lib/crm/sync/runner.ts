@@ -19,20 +19,29 @@ import {
   syncSupabase,
 } from "@/lib/crm/supabase/adapter"
 
-// Placeholder implementations replaced in the Stripe/Supabase phase.
 type SourceResult = {
   status: "success" | "skipped"
   message?: string
   stats?: Record<string, number>
 }
 
-async function runGmail(db: Db): Promise<SourceResult> {
+export type SyncOptions = {
+  /** Gmail only: import your sent mail over the window, cursor untouched. */
+  sentOnly?: boolean
+}
+
+async function runGmail(db: Db, options: SyncOptions): Promise<SourceResult> {
   const { api, accountEmail } = await createGmailApi(db)
   const stats = await syncGmail(db, api, accountEmail, {
     founderAliases: founderAliasesFromEnv(),
     initialWindow: process.env.GMAIL_INITIAL_SYNC_WINDOW ?? DEFAULT_SYNC_WINDOW,
+    sentOnly: options.sentOnly,
   })
-  return { status: "success", stats: { ...stats } }
+  return {
+    status: "success",
+    stats: { ...stats },
+    message: options.sentOnly ? "Sent mail only." : undefined,
+  }
 }
 
 async function runStripe(db: Db): Promise<SourceResult> {
@@ -86,7 +95,10 @@ async function runFeedback(db: Db): Promise<SourceResult> {
   }
 }
 
-const RUNNERS: Record<SyncSource, (db: Db) => Promise<SourceResult>> = {
+const RUNNERS: Record<
+  SyncSource,
+  (db: Db, options: SyncOptions) => Promise<SourceResult>
+> = {
   gmail: runGmail,
   stripe: runStripe,
   supabase: runSupabase,
@@ -129,7 +141,8 @@ export type RunResult = {
 export async function runSync(
   db: Db,
   source: SyncSource,
-  trigger: "interval" | "manual"
+  trigger: "interval" | "manual",
+  options: SyncOptions = {}
 ): Promise<RunResult> {
   // Overlap guard: in-process mutex plus a DB check that survives restarts.
   if (activeRuns.has(source)) {
@@ -167,7 +180,7 @@ export async function runSync(
   activeRuns.add(source)
 
   try {
-    const result = await RUNNERS[source](db)
+    const result = await RUNNERS[source](db, options)
     db.update(syncRuns)
       .set({
         status: result.status,

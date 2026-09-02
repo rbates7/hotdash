@@ -122,4 +122,6 @@ export type GmailSyncStats = {
   backfilled: number
   /** Listed by Gmail but gone before we could fetch them. */
   missing: number
+  /** Mail you started to someone the CRM knows, stored without a case. */
+  outreach: number
 }

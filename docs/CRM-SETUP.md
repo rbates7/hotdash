@@ -184,7 +184,27 @@ pnpm crm:restart
   Nothing is deleted; a closed case reopens from its page. The Age column
   turns red when a reply is overdue.
 - **A customer's page** — notes and logged calls about the person, kept
-  separately from any one case.
+  separately from any one case, and the emails you started that have no
+  reply yet.
+
+**Reached out.** Mail you send counts as reaching out: a reply on a case,
+or mail you start to someone the CRM knows (kept with the person, and
+adopted into a case if they reply). The Overview's tick fills itself from
+an email you sent or a call you logged on or after the event — paying
+started, or the plan ending — and locks, since the record exists; tick it
+yourself for a text or a chat. Customers has a "Last contacted" column
+(the latest of an email you sent, a call you logged, or your tick) and a
+"Never contacted" filter. Mail you started before the sync was keeping it
+is not there until you import it once:
+
+```
+pnpm crm:sync gmail --sent
+```
+
+(or CRM → Settings → Gmail → Import sent mail). It reads only your sent
+mail over `GMAIL_INITIAL_SYNC_WINDOW`, skips what is already stored, and
+leaves the ordinary sync alone. Mail sent as a second address from the
+same inbox counts once that address is in `FOUNDER_ALIASES`.
 
 ## Supabase enrichment
 
