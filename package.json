@@ -18,7 +18,10 @@
     "crm:doctor": "tsx scripts/crm-doctor.ts",
     "crm:repair-forms": "tsx scripts/crm-repair-forms.ts",
     "crm:plans": "tsx scripts/crm-plans.ts",
-    "crm:schema": "tsx scripts/crm-schema.ts"
+    "crm:schema": "tsx scripts/crm-schema.ts",
+    "crm:restart": "bash scripts/crm-restart.sh",
+    "crm:stop": "bash scripts/crm-stop.sh",
+    "crm:logs": "tail -n 60 -f data/server.log"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

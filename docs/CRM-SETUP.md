@@ -139,6 +139,18 @@ Stripe every 15 min, Supabase hourly (`SYNC_*_INTERVAL_SEC` to change).
 Unconfigured sources are skipped silently. Pause it from CRM → Settings, or
 set `DISABLE_SYNC_SCHEDULER=1` and use the Refresh buttons.
 
+## Running it day to day
+
+```
+pnpm crm:restart   # pull, rebuild, start in the background, hand the terminal back
+pnpm crm:logs      # follow the server log
+pnpm crm:stop      # stop it
+```
+
+The server no longer holds the terminal that started it, so one window is
+enough: run a command, get the prompt back. A restart replaces whatever was
+running before, including a server started some other way on the same port.
+
 ## Supabase enrichment
 
 Optional, and independent of everything above. It fills in names, teams and
