@@ -18,9 +18,10 @@
 // Chlk-specific fields (team, role, seat count…) without code changes.
 export const chlkMapping = {
   // Written against the real Chlk schema (schema `chlk`, discovered with
-  // `pnpm crm:schema`). profiles.id is the auth user id, which is where the
-  // last sign-in lives; both joins are LEFT so a profile with no org or no
-  // auth row still comes through with what it has.
+  // `pnpm crm:schema`). Reads only the app schema: Supabase guards `auth`
+  // more tightly, and the one thing it would have added — last sign-in —
+  // was not wanted. The org join is LEFT so a profile without one still
+  // comes through with what it has.
   query: /* sql */ `
     select
       p.email                                  as email,
@@ -29,11 +30,9 @@ export const chlkMapping = {
       coalesce(o.name, p.organization)         as org_name,
       p.id                                     as app_user_id,
       p.created_at                             as signup_at,
-      u.last_sign_in_at                        as last_active_at,
       p.role                                   as role
     from chlk.profiles p
     left join chlk.organizations o on o.id = p.organization_id
-    left join auth.users u on u.id = p.id
     where p.email is not null and p.email <> ''
   `,
   /** Extra column names from the query above, rendered as-is. */
