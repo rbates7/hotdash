@@ -11,28 +11,28 @@ stopped=0
 # pid we recorded leaves the real server alive and still answering.
 kill_tree() {
   local pid="$1"
-  for child in $(pgrep -P "$pid" 2>/dev/null); do
-    kill_tree "$child"
+  for child in $(pgrep -P "${pid}" 2>/dev/null); do
+    kill_tree "${child}"
   done
-  kill "$pid" 2>/dev/null || true
+  kill "${pid}" 2>/dev/null || true
 }
 
-if [ -f "$PIDFILE" ]; then
-  pid=$(cat "$PIDFILE")
-  if kill -0 "$pid" 2>/dev/null; then
-    kill_tree "$pid"
+if [ -f "${PIDFILE}" ]; then
+  pid=$(cat "${PIDFILE}")
+  if kill -0 "${pid}" 2>/dev/null; then
+    kill_tree "${pid}"
     stopped=1
   fi
-  rm -f "$PIDFILE"
+  rm -f "${PIDFILE}"
 fi
 
-if pids=$(lsof -ti tcp:"$PORT" 2>/dev/null) && [ -n "$pids" ]; then
-  kill $pids 2>/dev/null || true
+if pids=$(lsof -ti tcp:"${PORT}" 2>/dev/null) && [ -n "${pids}" ]; then
+  kill ${pids} 2>/dev/null || true
   stopped=1
 fi
 
-if [ "$stopped" = 1 ]; then
+if [ "${stopped}" = 1 ]; then
   echo "CRM stopped."
 else
-  echo "Nothing running on port $PORT."
+  echo "Nothing running on port ${PORT}."
 fi

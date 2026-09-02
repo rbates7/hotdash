@@ -22,53 +22,53 @@ mkdir -p data
 # pid we recorded leaves the real server alive and still answering.
 kill_tree() {
   local pid="$1"
-  for child in $(pgrep -P "$pid" 2>/dev/null); do
-    kill_tree "$child"
+  for child in $(pgrep -P "${pid}" 2>/dev/null); do
+    kill_tree "${child}"
   done
-  kill "$pid" 2>/dev/null || true
+  kill "${pid}" 2>/dev/null || true
 }
 
 git pull --ff-only
 
 # Stop whatever we started last time (by pid file), then anything else
 # holding the port. The pid file is the precise answer; lsof is the backstop.
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-  echo "Stopping the previous server (pid $(cat "$PIDFILE"))…"
-  kill_tree "$(cat "$PIDFILE")"
+if [ -f "${PIDFILE}" ] && kill -0 "$(cat "${PIDFILE}")" 2>/dev/null; then
+  echo "Stopping the previous server (pid $(cat "${PIDFILE}"))..."
+  kill_tree "$(cat "${PIDFILE}")"
   sleep 2
 fi
-if pids=$(lsof -ti tcp:"$PORT" 2>/dev/null) && [ -n "$pids" ]; then
-  echo "Stopping the server on port $PORT…"
-  kill $pids 2>/dev/null || true
+if pids=$(lsof -ti tcp:"${PORT}" 2>/dev/null) && [ -n "${pids}" ]; then
+  echo "Stopping the server on port ${PORT}..."
+  kill ${pids} 2>/dev/null || true
   sleep 2
 fi
-rm -f "$PIDFILE"
+rm -f "${PIDFILE}"
 
 rm -rf .next
 pnpm build
 
-: > "$LOG"
-nohup pnpm start >> "$LOG" 2>&1 < /dev/null &
-echo $! > "$PIDFILE"
+: > "${LOG}"
+nohup pnpm start >> "${LOG}" 2>&1 < /dev/null &
+echo $! > "${PIDFILE}"
 disown
 
 # Wait for it to answer rather than declaring victory on a launch.
 for _ in $(seq 1 30); do
-  if grep -q "Ready in" "$LOG" 2>/dev/null; then
+  if grep -q "Ready in" "${LOG}" 2>/dev/null; then
     echo
-    echo "CRM is running at http://localhost:$PORT/crm"
+    echo "CRM is running at http://localhost:${PORT}/crm"
     echo "Logs: pnpm crm:logs   Stop: pnpm crm:stop"
     exit 0
   fi
-  if grep -q "EADDRINUSE\|Failed to start" "$LOG" 2>/dev/null; then
+  if grep -q "EADDRINUSE\|Failed to start" "${LOG}" 2>/dev/null; then
     echo
     echo "The server did not start:"
-    tail -n 20 "$LOG"
+    tail -n 20 "${LOG}"
     exit 1
   fi
   sleep 1
 done
 
 echo
-echo "Still starting after 30s — check: pnpm crm:logs"
+echo "Still starting after 30s. Check: pnpm crm:logs"
 exit 1
