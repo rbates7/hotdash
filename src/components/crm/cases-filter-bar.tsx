@@ -3,8 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { SearchIcon } from "lucide-react"
+import { ReplyIcon, SearchIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -23,6 +24,19 @@ const STATUS_TABS = [
   { value: "closed", label: "Closed" },
 ]
 
+const WINDOW_ITEMS = [
+  { value: "all", label: "Any time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" },
+]
+
+const AUDIENCE_ITEMS = [
+  { value: "all", label: "Everyone" },
+  { value: "customer", label: "Customers" },
+  { value: "unknown", label: "Not a customer" },
+]
+
 const PRIORITY_ITEMS = [
   { value: "all", label: "Any priority" },
   { value: "low", label: "Low" },
@@ -37,6 +51,9 @@ export function CasesFilterBar() {
   const searchParams = useSearchParams()
   const status = searchParams.get("status") ?? ""
   const priority = searchParams.get("priority") ?? "all"
+  const window = searchParams.get("window") ?? "all"
+  const audience = searchParams.get("audience") ?? "all"
+  const needsReply = searchParams.get("needsReply") === "1"
   const [q, setQ] = React.useState(searchParams.get("q") ?? "")
 
   const buildUrl = React.useCallback(
@@ -81,6 +98,57 @@ export function CasesFilterBar() {
           </Link>
         ))}
       </nav>
+      <Button
+        variant={needsReply ? "default" : "outline"}
+        size="sm"
+        aria-pressed={needsReply}
+        onClick={() =>
+          router.replace(buildUrl({ needsReply: needsReply ? "" : "1" }))
+        }
+      >
+        <ReplyIcon />
+        Needs my reply
+      </Button>
+      <Select
+        items={WINDOW_ITEMS}
+        value={window}
+        onValueChange={(value) =>
+          router.replace(
+            buildUrl({ window: value === "all" ? "" : String(value) })
+          )
+        }
+      >
+        <SelectTrigger size="sm" aria-label="Date filter">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {WINDOW_ITEMS.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={AUDIENCE_ITEMS}
+        value={audience}
+        onValueChange={(value) =>
+          router.replace(
+            buildUrl({ audience: value === "all" ? "" : String(value) })
+          )
+        }
+      >
+        <SelectTrigger size="sm" aria-label="Customer filter">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {AUDIENCE_ITEMS.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select
         items={PRIORITY_ITEMS}
         value={priority}

@@ -3,6 +3,7 @@ import Link from "next/link"
 import { PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { CasesFilterBar } from "@/components/crm/cases-filter-bar"
 import { Pager } from "@/components/crm/pager"
+import { SortableHeader } from "@/components/crm/sortable-header"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
 import {
   Table,
@@ -12,7 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CASES_PER_PAGE, listCases } from "@/lib/crm/cases/server"
+import {
+  CASES_PER_PAGE,
+  CASE_AUDIENCES,
+  CASE_SORTS,
+  CASE_WINDOWS,
+  listCases,
+  type CaseAudience,
+  type CaseSort,
+  type CaseWindow,
+} from "@/lib/crm/cases/server"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import { getDb } from "@/lib/crm/db/client"
 import {
@@ -34,6 +44,11 @@ export default async function CasesPage({
     priority?: string
     q?: string
     offset?: string
+    needsReply?: string
+    window?: string
+    audience?: string
+    sort?: string
+    dir?: string
   }>
 }) {
   const params = await searchParams
@@ -44,6 +59,17 @@ export default async function CasesPage({
     ? (params.priority as CasePriority)
     : undefined
   const q = params.q?.trim() || undefined
+  const needsReply = params.needsReply === "1"
+  const window = (
+    params.window && params.window in CASE_WINDOWS ? params.window : undefined
+  ) as CaseWindow | undefined
+  const audience = CASE_AUDIENCES.includes(params.audience as CaseAudience)
+    ? (params.audience as CaseAudience)
+    : undefined
+  const sort = CASE_SORTS.includes(params.sort as CaseSort)
+    ? (params.sort as CaseSort)
+    : undefined
+  const direction = params.dir === "asc" ? "asc" : "desc"
 
   const parsedOffset = Number(params.offset)
   const offset =
@@ -54,6 +80,11 @@ export default async function CasesPage({
     status,
     priority,
     q,
+    needsReply,
+    window,
+    audience,
+    sort,
+    direction,
     limit: CASES_PER_PAGE,
     offset,
   })
@@ -68,19 +99,42 @@ export default async function CasesPage({
       <div className="rounded-xl border">
         {rows.length === 0 ? (
           <p className="text-muted-foreground text-body px-4 py-12 text-center">
-            No cases here. Email from known Chlk users becomes cases
-            automatically once Gmail is connected.
+            No cases match these filters.
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16">#</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead className="text-right">Last activity</TableHead>
+                <TableHead className="w-16">
+                  <SortableHeader column="number" defaultDirection="asc">
+                    #
+                  </SortableHeader>
+                </TableHead>
+                <TableHead>
+                  <SortableHeader column="subject" defaultDirection="asc">
+                    Subject
+                  </SortableHeader>
+                </TableHead>
+                <TableHead>
+                  <SortableHeader column="contact" defaultDirection="asc">
+                    Contact
+                  </SortableHeader>
+                </TableHead>
+                <TableHead>
+                  <SortableHeader column="status" defaultDirection="asc">
+                    Status
+                  </SortableHeader>
+                </TableHead>
+                <TableHead>
+                  <SortableHeader column="priority" defaultDirection="asc">
+                    Priority
+                  </SortableHeader>
+                </TableHead>
+                <TableHead className="text-right">
+                  <SortableHeader column="activity" className="justify-end">
+                    Last activity
+                  </SortableHeader>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

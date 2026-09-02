@@ -4,6 +4,7 @@ import Link from "next/link"
 import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactNewDialog } from "@/components/crm/contact-dialogs"
 import { ContactAvatar } from "@/components/crm/contact-avatar"
+import { CustomerStandingFilter } from "@/components/crm/customer-standing-filter"
 import { CustomerTypeFilter } from "@/components/crm/customer-type-filter"
 import { Pager } from "@/components/crm/pager"
 import { SearchInput } from "@/components/crm/search-input"
@@ -20,6 +21,7 @@ import {
   CUSTOMERS_PER_PAGE,
   contactDisplayName,
   listContacts,
+  type CustomerStanding,
 } from "@/lib/crm/contacts/server"
 import { customerType, type CustomerType } from "@/lib/crm/contacts/matching"
 import { getDb } from "@/lib/crm/db/client"
@@ -31,30 +33,44 @@ export const dynamic = "force-dynamic"
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; offset?: string }>
+  searchParams: Promise<{
+    q?: string
+    type?: string
+    offset?: string
+    standing?: string
+  }>
 }) {
-  const { q, type, offset: offsetParam } = await searchParams
+  const { q, type, standing, offset: offsetParam } = await searchParams
   const db = getDb()
   const query = q?.trim() || undefined
   const typeFilter: CustomerType | undefined =
     type === "individual" || type === "team" ? type : undefined
+  // Active is the default; ?standing=all opts out.
+  const standingFilter: CustomerStanding = standing === "all" ? "all" : "active"
   const parsedOffset = Number(offsetParam)
   const offset =
     Number.isFinite(parsedOffset) && parsedOffset > 0
       ? Math.floor(parsedOffset)
       : 0
 
-  const { rows, total, counts, limit } = await listContacts(db, {
-    q: query,
-    type: typeFilter,
-    limit: CUSTOMERS_PER_PAGE,
-    offset,
-  })
+  const { rows, total, counts, standingCounts, limit } = await listContacts(
+    db,
+    {
+      q: query,
+      type: typeFilter,
+      standing: standingFilter,
+      limit: CUSTOMERS_PER_PAGE,
+      offset,
+    }
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CustomerTypeFilter counts={counts} />
+        <div className="flex flex-wrap items-center gap-2">
+          <CustomerStandingFilter counts={standingCounts} />
+          <CustomerTypeFilter counts={counts} />
+        </div>
         <div className="flex items-center gap-2">
           <SearchInput placeholder="Search customers…" />
           <ContactNewDialog />

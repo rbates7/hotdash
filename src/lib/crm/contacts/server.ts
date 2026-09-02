@@ -1,6 +1,18 @@
 import { randomUUID } from "node:crypto"
 
-import { and, asc, desc, eq, isNotNull, isNull, like, ne, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import {
   canOverwriteName,
@@ -233,9 +245,19 @@ export function contactDisplayName(contact: {
 export type CustomerListFilters = {
   q?: string
   type?: CustomerType
+  /** "active" (the default view) hides churned and never-paid contacts. */
+  standing?: CustomerStanding
   limit?: number
   offset?: number
 }
+
+export const CUSTOMER_STANDINGS = ["active", "all"] as const
+export type CustomerStanding = (typeof CUSTOMER_STANDINGS)[number]
+
+// Subscription statuses that mean someone is currently paying you, or is
+// about to. past_due is deliberately included: they have not left, their card
+// failed, and they are the ones most worth answering quickly.
+export const ACTIVE_PLAN_STATUSES = ["active", "trialing", "past_due"] as const
 
 export const CUSTOMERS_PER_PAGE = 50
 
@@ -260,6 +282,9 @@ function customerConditions(filters: CustomerListFilters) {
     conditions.push(isNull(contacts.organizationId))
   } else if (filters.type === "team") {
     conditions.push(isNotNull(contacts.organizationId))
+  }
+  if (filters.standing === "active") {
+    conditions.push(inArray(contacts.planStatus, [...ACTIVE_PLAN_STATUSES]))
   }
   return conditions
 }
@@ -325,9 +350,14 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .where(where)
     .get()
 
-  // Type counts respect the search term but not the type filter, so the
-  // chips keep showing the whole book while one slice is selected.
-  const searchOnly = customerConditions({ q: filters.q })
+  // Type counts respect the search term and the active/all toggle, but not
+  // the type filter — so the chips keep showing the whole book within the
+  // current view while one slice of it is selected. Ignoring standing here
+  // would advertise 3,000 individuals above a list of forty.
+  const searchOnly = customerConditions({
+    q: filters.q,
+    standing: filters.standing,
+  })
   const searchWhere = searchOnly.length > 0 ? and(...searchOnly) : undefined
   const byType = db
     .select({
@@ -340,12 +370,29 @@ export async function listContacts(db: Db, filters: CustomerListFilters = {}) {
     .where(searchWhere)
     .get()
 
+  // Standing counts ignore both the type filter and the standing toggle, so
+  // the two chips always show what each would give you.
+  const qOnly = customerConditions({ q: filters.q })
+  const byStanding = db
+    .select({
+      active: sql<number>`sum(case when ${contacts.planStatus} in ('active','trialing','past_due') then 1 else 0 end)`,
+      all: sql<number>`count(*)`,
+    })
+    .from(contacts)
+    .leftJoin(organizations, eq(contacts.organizationId, organizations.id))
+    .where(qOnly.length > 0 ? and(...qOnly) : undefined)
+    .get()
+
   return {
     rows: rows.map((row) => ({
       ...row,
       lastInboundAt: row.lastInboundAt ? new Date(row.lastInboundAt) : null,
     })),
     total: totalRow?.count ?? 0,
+    standingCounts: {
+      active: byStanding?.active ?? 0,
+      all: byStanding?.all ?? 0,
+    },
     counts: {
       all: byType?.all ?? 0,
       individual: byType?.individual ?? 0,
