@@ -23,13 +23,33 @@ if (!url) {
 const sql = postgres(url, { max: 1, prepare: false })
 
 async function main() {
-  type Column = { table_schema: string; table_name: string; column_name: string; data_type: string }
+  type Column = {
+    table_schema: string
+    table_name: string
+    column_name: string
+    data_type: string
+  }
+  type Table = { schema: string; name: string; readable: boolean }
 
   // Columns worth spotting: these are what the mapping needs to fill in.
   const INTERESTING =
-    /^(id|uuid|email|.*_email|first_?name|last_?name|full_?name|display_?name|name|org.*|team.*|school.*|created_?at|inserted_?at|signup.*|last_?(seen|active|login).*|role|plan.*|seats?)$/i
+    /^(id|uuid|email|.*_email|first_?name|last_?name|full_?name|display_?name|name|org.*|team.*|school.*|created_?at|inserted_?at|signup.*|last_?(seen|active|login|sign_?in).*|role|plan.*|seats?|raw_user_meta_data)$/i
 
   try {
+    // Every table in the database, from the catalog — which is readable by
+    // any role — with whether *this* role may select from it. This is what
+    // shows where the app's data actually lives when a grant missed it.
+    const all = await sql<Table[]>`
+      select n.nspname as schema,
+             c.relname as name,
+             has_table_privilege(c.oid, 'SELECT') as readable
+      from pg_catalog.pg_class c
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+      where c.relkind in ('r', 'p', 'v', 'm')
+        and n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast', 'extensions', 'graphql', 'graphql_public', 'net', 'pgsodium', 'pgsodium_masks', 'realtime', 'supabase_functions', 'supabase_migrations', 'vault', 'cron', 'pgbouncer')
+      order by n.nspname, c.relname
+    `
+
     const columns = await sql<Column[]>`
       select table_schema, table_name, column_name, data_type
       from information_schema.columns
@@ -37,39 +57,55 @@ async function main() {
         and table_schema not like 'pg_%'
       order by table_schema, table_name, ordinal_position
     `
-
-    const tables = new Map<string, Column[]>()
+    const columnsFor = new Map<string, Column[]>()
     for (const column of columns) {
       const key = `${column.table_schema}.${column.table_name}`
-      tables.set(key, [...(tables.get(key) ?? []), column])
+      columnsFor.set(key, [...(columnsFor.get(key) ?? []), column])
     }
 
-    if (tables.size === 0) {
-      console.log("\nNo tables visible to this role.\n")
+    const bySchema = new Map<string, Table[]>()
+    for (const table of all) {
+      bySchema.set(table.schema, [...(bySchema.get(table.schema) ?? []), table])
     }
 
-    // Tables carrying an email column are the ones enrichment can join on.
+    console.log(`\n${all.length} table${all.length === 1 ? "" : "s"} across ${bySchema.size} schema${bySchema.size === 1 ? "" : "s"}\n`)
+
     const withEmail: string[] = []
-    console.log(`\n${tables.size} table${tables.size === 1 ? "" : "s"}\n`)
-    for (const [table, cols] of tables) {
-      const hasEmail = cols.some((c) => /email/i.test(c.column_name))
-      if (hasEmail) withEmail.push(table)
-      const notable = cols.filter((c) => INTERESTING.test(c.column_name))
-      console.log(`  ${table}${hasEmail ? "   ← has email" : ""}`)
-      console.log(
-        `    ${cols.length} columns${notable.length ? ": " + notable.map((c) => `${c.column_name} (${c.data_type})`).join(", ") : ""}`
-      )
+    const unreadable: string[] = []
+    for (const [schema, tables] of bySchema) {
+      console.log(`  ${schema}/`)
+      for (const table of tables) {
+        const key = `${schema}.${table.name}`
+        const cols = columnsFor.get(key) ?? []
+        if (!table.readable) {
+          unreadable.push(key)
+          console.log(`    ${table.name}   (no access yet)`)
+          continue
+        }
+        const hasEmail = cols.some((c) => /email/i.test(c.column_name))
+        if (hasEmail) withEmail.push(key)
+        const notable = cols.filter((c) => INTERESTING.test(c.column_name))
+        console.log(`    ${table.name}${hasEmail ? "   ← has email" : ""}`)
+        console.log(
+          `      ${cols.length} columns${notable.length ? ": " + notable.map((c) => `${c.column_name} (${c.data_type})`).join(", ") : ""}`
+        )
+      }
       console.log()
     }
 
     if (withEmail.length > 0) {
+      console.log(`Readable tables with an email column: ${withEmail.join(", ")}\n`)
+    }
+    if (unreadable.length > 0) {
+      const schemas = [...new Set(unreadable.map((t) => t.split(".")[0]))]
       console.log(
-        `Tables the CRM could match contacts against: ${withEmail.join(", ")}\n`
+        `${unreadable.length} table${unreadable.length === 1 ? "" : "s"} this role cannot read yet. To grant access, run in the Supabase SQL Editor:\n`
       )
-    } else {
-      console.log(
-        "No table exposes an email column to this role — enrichment needs one to match on.\n"
-      )
+      for (const schema of schemas) {
+        console.log(`  grant usage on schema ${schema} to crm_reader;`)
+        console.log(`  grant select on all tables in schema ${schema} to crm_reader;`)
+      }
+      console.log()
     }
   } finally {
     await sql.end()
