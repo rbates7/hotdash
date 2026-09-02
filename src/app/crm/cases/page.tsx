@@ -13,6 +13,7 @@ import {
 } from "@/lib/crm/cases/server"
 import { caseAgeMs, isOverdue } from "@/lib/crm/cases/age"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
+import { isFeedbackThread } from "@/lib/crm/feedback/keys"
 import { getDb } from "@/lib/crm/db/client"
 import {
   CASE_PRIORITIES,
@@ -93,6 +94,7 @@ export default async function CasesPage({
     lastActivity: relativeTime(row.lastActivityAt),
     age: row.status === "closed" ? "" : formatDuration(caseAgeMs(row)),
     overdue: isOverdue(row),
+    fromApp: isFeedbackThread(row.gmailThreadId),
   }))
 
   return (

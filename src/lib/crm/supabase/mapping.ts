@@ -101,3 +101,47 @@ export type SupabaseProfileRow = {
   last_active_at?: string | number | Date | null
   affiliation?: string | null
 } & Record<string, unknown>
+
+/**
+ * In-app feedback: what a coach typed into the feedback form inside Chlk.
+ * Each row becomes a case (see src/lib/crm/feedback/sync.ts).
+ *
+ * The column names below are UNCONFIRMED guesses. Before the first run:
+ *   1. grant select on chlk.feedback to crm_reader, plus a read policy
+ *      (docs/CRM-SETUP.md, "In-app feedback");
+ *   2. `pnpm crm:schema` to see the real columns;
+ *   3. fix the names here. A wrong name fails loudly on the Settings page
+ *      (the query is a compile-time constant), never silently.
+ *
+ *   id          a stable id for the row; it keys the case and the message
+ *   email       the sender, through their profile
+ *   first_name, last_name   for a sender the CRM has not met yet
+ *   message     what they wrote (required — empty rows are skipped)
+ *   category    optional: bug, idea… becomes the subject's prefix
+ *   created_at  when they sent it
+ */
+export const feedbackMapping = {
+  query: /* sql */ `
+    select
+      f.id::text                               as id,
+      p.email                                  as email,
+      p.first_name                             as first_name,
+      p.last_name                              as last_name,
+      f.message                                as message,
+      f.category                               as category,
+      f.created_at                             as created_at
+    from chlk.feedback f
+    join chlk.profiles p on p.id = f.user_id
+    where p.email is not null and p.email <> ''
+  `,
+}
+
+export type SupabaseFeedbackRow = {
+  id: string | number | null
+  email: string | null
+  first_name?: string | null
+  last_name?: string | null
+  message: string | null
+  category?: string | null
+  created_at: string | number | Date | null
+} & Record<string, unknown>

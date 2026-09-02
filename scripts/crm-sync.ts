@@ -4,7 +4,8 @@
  *   pnpm crm:sync supabase
  *   pnpm crm:sync stripe
  *   pnpm crm:sync gmail
- *   pnpm crm:sync all        # stripe, then supabase, then gmail
+ *   pnpm crm:sync feedback
+ *   pnpm crm:sync all        # stripe, supabase, feedback, then gmail
  *
  * Goes through the server rather than the database directly so the same
  * already-running guard, scheduler and run history apply as when the button
@@ -15,7 +16,7 @@ import { loadEnvLocal } from "./load-env"
 loadEnvLocal()
 
 const source = process.argv[2]
-const SOURCES = ["gmail", "stripe", "supabase", "all"]
+const SOURCES = ["gmail", "stripe", "supabase", "feedback", "all"]
 if (!source || !SOURCES.includes(source)) {
   console.error(`Usage: pnpm crm:sync <${SOURCES.join("|")}>`)
   process.exit(2)

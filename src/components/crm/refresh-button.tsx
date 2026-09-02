@@ -21,7 +21,7 @@ export function RefreshButton({
   full = false,
   confirm,
 }: {
-  source: "gmail" | "stripe" | "supabase" | "all"
+  source: "gmail" | "stripe" | "supabase" | "feedback" | "all"
   label?: string
   /** Re-read GMAIL_INITIAL_SYNC_WINDOW instead of resuming from the cursor. */
   full?: boolean

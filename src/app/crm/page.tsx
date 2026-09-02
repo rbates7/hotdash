@@ -320,8 +320,12 @@ export default async function DashboardPage() {
                     <span className="min-w-0 flex-1 truncate text-sm">
                       <span className="font-medium">{who}</span>{" "}
                       <span className="text-muted-foreground">
-                        {inbound ? "wrote on" : "replied on"} #
-                        {message.case!.caseNumber}
+                        {message.channel === "feedback"
+                          ? "sent feedback on"
+                          : inbound
+                            ? "wrote on"
+                            : "replied on"}{" "}
+                        #{message.case!.caseNumber}
                       </span>{" "}
                       {message.snippet}
                     </span>

@@ -80,6 +80,8 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     { id: "case_9", n: 9, subject: "Can I move my film library to a new account?", status: "open", priority: "normal", contactId: "contact_bea", thread: "thread_dev_9", lastActivity: 4 * HOUR, lastInbound: 4 * HOUR, created: 1 * DAY },
     { id: "case_10", n: 10, subject: "Trial ended but I was still uploading", status: "new", priority: "high", contactId: "contact_will", thread: "thread_dev_10", lastActivity: 40 * MIN, lastInbound: 40 * MIN, created: 40 * MIN },
     { id: "case_11", n: 11, subject: "Refund for last month", status: "waiting", priority: "normal", contactId: "contact_sam", thread: "thread_dev_11", lastActivity: 3 * DAY, lastOutbound: 3 * DAY, lastInbound: 4 * DAY, created: 5 * DAY },
+    // Sent from the feedback form inside the app, not by email.
+    { id: "case_12", n: 12, subject: "Bug: The play editor crashes when I rotate the iPad mid-drag", status: "new", priority: "normal", contactId: "contact_ray", thread: "feedback:seed-1", lastActivity: 90 * MIN, lastInbound: 90 * MIN, created: 90 * MIN },
   ]
 
   db.insert(cases)
@@ -171,6 +173,28 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     )
     .run()
 
+  db.insert(emailMessages)
+    .values({
+      id: "msg_12_1",
+      channel: "feedback",
+      gmailMessageId: "feedback:seed-1",
+      gmailThreadId: "feedback:seed-1",
+      caseId: "case_12",
+      direction: "inbound",
+      fromEmail: "ray.donnelly@gmail.com",
+      fromName: "Ray Donnelly",
+      toEmails: [],
+      ccEmails: [],
+      subject: "Bug: The play editor crashes when I rotate the iPad mid-drag",
+      snippet: "The play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
+      bodyText: "The play editor crashes when I rotate the iPad mid-drag. Happens every time, lost a whole install.",
+      bodyHtml: null,
+      attachments: [],
+      sentAt: at(90 * MIN),
+      createdAt: at(90 * MIN),
+    })
+    .run()
+
   db.insert(notes)
     .values([
       { id: "note_1", caseId: "case_1", kind: "user", body: "Reproduced on staging — invite POST 500s when the workspace has a pending invite for the same address.", createdAt: at(4 * HOUR) },
@@ -188,6 +212,6 @@ export function seed(db: Db, sqlite: Database.Database, now: number) {
     organizations: 3,
     contacts: 12,
     cases: caseSeeds.length,
-    messages: msgs.length,
+    messages: msgs.length + 1,
   }
 }

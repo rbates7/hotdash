@@ -169,6 +169,23 @@ rm -f data/crm.db-wal data/crm.db-shm
 pnpm crm:restart
 ```
 
+### What the pages do now
+
+- **Overview** — five tiles (the fifth is cases waiting on your reply for
+  over three days), then who started paying this week and who left, each
+  with a "reached out" tick that remembers when you ticked it. "View all"
+  opens the same list on Customers.
+- **Customers** — every column sorts; filters for plan, status, when paying
+  started or ended, open cases, and the school someone typed in. Asking for
+  canceled people flips the view to Everyone.
+- **Accounts** — staff accounts, or *Prospective*: schools where two or more
+  coaches with no staff account typed the same name. Click one to see who.
+- **Cases** — tick rows and "Close selected", or close one from its row.
+  Nothing is deleted; a closed case reopens from its page. The Age column
+  turns red when a reply is overdue.
+- **A customer's page** — notes and logged calls about the person, kept
+  separately from any one case.
+
 ## Supabase enrichment
 
 Optional, and independent of everything above. It fills in names, teams and
@@ -213,6 +230,32 @@ organization.
 Links the sync makes it may also change or remove when the upstream answer
 changes; a link made by hand on a customer's profile is never touched by a
 sync. Accounts nobody is on are removed at the end of each run.
+
+### In-app feedback
+
+Feedback sent from the form inside the Chlk app can become cases, so it
+sits in the same queue as email and counts as needing a reply. It reads
+`chlk.feedback` over the same `SUPABASE_DB_URL`.
+
+1. Let the read-only role see the table, in the Supabase SQL editor:
+
+   ```sql
+   grant select on chlk.feedback to crm_reader;
+   create policy crm_reader_read on chlk.feedback for select to crm_reader using (true);
+   ```
+
+2. `pnpm crm:schema` and find `chlk.feedback` in the printout. The query in
+   `feedbackMapping` (`src/lib/crm/supabase/mapping.ts`) was written against
+   guessed column names — `id`, `user_id`, `message`, `category`,
+   `created_at` — so fix any that differ. A wrong name shows up as a red
+   run on Settings, never as silently missing feedback.
+3. **CRM → Settings → In-app feedback → Sync now**, or `pnpm crm:sync
+   feedback`. Each row becomes one case with an "App" badge; running it
+   again changes nothing.
+4. Once that works, put `SUPABASE_FEEDBACK=1` in `.env.local` and restart so
+   it runs on the schedule (every 15 minutes, `SYNC_FEEDBACK_INTERVAL_SEC`).
+   Until then only Sync now runs it, so a wrong guess cannot paint Settings
+   red every quarter hour.
 
 **Who gets added.** By default the sync creates a contact for anyone on a
 staff account who is not in the CRM yet — otherwise an account set up by hand

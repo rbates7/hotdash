@@ -9,7 +9,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const paramsSchema = z.object({
-  source: z.enum(["gmail", "stripe", "supabase", "all"]),
+  source: z.enum(["gmail", "stripe", "supabase", "feedback", "all"]),
 })
 
 export async function POST(
@@ -33,7 +33,7 @@ export async function POST(
       // whole customer base lands in triage instead of becoming cases.
       // Sequential also keeps SQLite's single writer uncontended.
       const results = []
-      for (const source of ["stripe", "supabase", "gmail"] as const) {
+      for (const source of ["stripe", "supabase", "feedback", "gmail"] as const) {
         results.push({ source, ...(await runSync(db, source, "manual")) })
       }
       return Response.json({ results })

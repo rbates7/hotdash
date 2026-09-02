@@ -22,6 +22,7 @@ import {
 import { getDb } from "@/lib/crm/db/client"
 import { getGoogleConnection } from "@/lib/crm/gmail/client"
 import { DEFAULT_SYNC_WINDOW } from "@/lib/crm/gmail/window"
+import type { SyncSource } from "@/lib/crm/db/schema"
 import { isSyncPaused } from "@/lib/crm/settings/server"
 import { lastSuccessBySource, listRuns } from "@/lib/crm/sync/runner"
 import { cn } from "@/lib/utils"
@@ -68,8 +69,9 @@ export default async function SettingsPage({
     process.env.GMAIL_INITIAL_SYNC_WINDOW ?? DEFAULT_SYNC_WINDOW
   const stripeConfigured = Boolean(process.env.STRIPE_API_KEY)
   const supabaseConfigured = Boolean(process.env.SUPABASE_DB_URL)
+  const feedbackScheduled = process.env.SUPABASE_FEEDBACK === "1"
 
-  const lastSyncedLabel = (source: "gmail" | "stripe" | "supabase") => {
+  const lastSyncedLabel = (source: SyncSource) => {
     const at = lastSyncedBySource.get(source)
     return at ? `Last synced ${at.toLocaleString()}.` : "Never synced."
   }
@@ -170,6 +172,33 @@ export default async function SettingsPage({
           {supabaseConfigured ? (
             <CardContent>
               <RefreshButton source="supabase" label="Sync now" />
+            </CardContent>
+          ) : null}
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <StatusDot
+                tone={
+                  !supabaseConfigured ? "off" : feedbackScheduled ? "ok" : "warn"
+                }
+              />
+              In-app feedback
+            </CardTitle>
+            <CardDescription>
+              {supabaseConfigured
+                ? `Feedback sent from inside the Chlk app becomes a case. Reads chlk.feedback over SUPABASE_DB_URL. ${lastSyncedLabel("feedback")}${
+                    feedbackScheduled
+                      ? ""
+                      : " Runs only when you press Sync now until SUPABASE_FEEDBACK=1 is set — confirm the column names first (docs/CRM-SETUP.md)."
+                  }`
+                : "Not configured — needs SUPABASE_DB_URL, then a read grant on chlk.feedback."}
+            </CardDescription>
+          </CardHeader>
+          {supabaseConfigured ? (
+            <CardContent>
+              <RefreshButton source="feedback" label="Sync now" />
             </CardContent>
           ) : null}
         </Card>

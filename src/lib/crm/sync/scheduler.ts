@@ -35,8 +35,14 @@ function isConfigured(db: Db, source: SyncSource): boolean {
     case "supabase":
       return Boolean(process.env.SUPABASE_DB_URL)
     case "feedback":
-      // Switched on by the feedback step of this round.
-      return false
+      // Opt-in, because the feedback query's column names have to be
+      // confirmed against the real table first; until then a scheduled
+      // run would just paint Settings red every quarter hour. "Sync now"
+      // on Settings works as soon as SUPABASE_DB_URL is set.
+      return (
+        Boolean(process.env.SUPABASE_DB_URL) &&
+        process.env.SUPABASE_FEEDBACK === "1"
+      )
   }
 }
 
@@ -74,6 +80,8 @@ export function startScheduler() {
   console.log(
     `[sync-scheduler] started (gmail ${intervalFor("gmail") / 1000}s, stripe ${
       intervalFor("stripe") / 1000
-    }s, supabase ${intervalFor("supabase") / 1000}s)`
+    }s, supabase ${intervalFor("supabase") / 1000}s, feedback ${
+      intervalFor("feedback") / 1000
+    }s)`
   )
 }

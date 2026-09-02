@@ -23,6 +23,7 @@ import {
 import { getCaseWithTimeline } from "@/lib/crm/cases/server"
 import { contactDisplayName } from "@/lib/crm/contacts/server"
 import { NotFoundError } from "@/lib/crm/core/errors"
+import { isFeedbackThread } from "@/lib/crm/feedback/keys"
 import { getDb } from "@/lib/crm/db/client"
 import { sanitizeEmailHtml } from "@/lib/crm/gmail/parse"
 import type { EmailMessage, Note } from "@/lib/crm/db/schema"
@@ -52,6 +53,7 @@ export default async function CaseDetailPage({
   })
   const contact = caseRow.contact
   const contactName = contactDisplayName(contact)
+  const fromApp = isFeedbackThread(caseRow.gmailThreadId)
 
   const timeline: TimelineItem[] = [
     ...caseRow.messages.map((message) => ({
@@ -82,7 +84,12 @@ export default async function CaseDetailPage({
         </div>
         <div className="flex items-center gap-2">
           <CasePrioritySelect caseId={caseRow.id} priority={caseRow.priority} />
-          {caseRow.gmailThreadId ? (
+          {fromApp ? (
+            <Badge variant="outline" title="Sent from the feedback form inside the Chlk app">
+              In-app feedback
+            </Badge>
+          ) : null}
+          {caseRow.gmailThreadId && !fromApp ? (
             <a
               href={gmailThreadUrl(caseRow.gmailThreadId)}
               target="_blank"

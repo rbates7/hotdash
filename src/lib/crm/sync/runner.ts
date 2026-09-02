@@ -10,6 +10,7 @@ import {
 } from "@/lib/crm/gmail/client"
 import { syncGmail } from "@/lib/crm/gmail/sync"
 import { DEFAULT_SYNC_WINDOW } from "@/lib/crm/gmail/window"
+import { createFeedbackSource, syncFeedback } from "@/lib/crm/feedback/sync"
 import { createStripeApi } from "@/lib/crm/stripe/client"
 import { syncStripe } from "@/lib/crm/stripe/sync"
 import {
@@ -66,10 +67,23 @@ async function runSupabase(db: Db): Promise<SourceResult> {
   }
 }
 
-// In-app feedback shares the Supabase connection; the sync itself lands
-// with the feedback step of this round.
-async function runFeedback(): Promise<SourceResult> {
-  return { status: "skipped", message: "Not configured" }
+async function runFeedback(db: Db): Promise<SourceResult> {
+  const source = createFeedbackSource()
+  if (!source) return { status: "skipped", message: "Not configured" }
+  try {
+    const stats = await syncFeedback(db, source)
+    if (stats.rowsSeen === 0) {
+      return {
+        status: "success",
+        stats: { ...stats },
+        message:
+          "Query returned no rows. If chlk.feedback has data, crm_reader needs a read policy on it — see docs/CRM-SETUP.md.",
+      }
+    }
+    return { status: "success", stats: { ...stats } }
+  } finally {
+    await source.close()
+  }
 }
 
 const RUNNERS: Record<SyncSource, (db: Db) => Promise<SourceResult>> = {

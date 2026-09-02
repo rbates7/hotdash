@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import type { CasePriority, CaseStatus } from "@/lib/crm/db/schema"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +45,8 @@ export type CaseTableRow = {
   /** "3d", "5h"; empty for a closed case. */
   age: string
   overdue: boolean
+  /** Sent from inside the Chlk app rather than by email. */
+  fromApp: boolean
 }
 
 async function closeCases(ids: string[]) {
@@ -210,12 +213,23 @@ export function CasesTable({ rows }: { rows: CaseTableRow[] }) {
                   <Link href={`/crm/cases/${row.id}`}>#{row.caseNumber}</Link>
                 </TableCell>
                 <TableCell className="max-w-96">
-                  <Link
-                    href={`/crm/cases/${row.id}`}
-                    className="block truncate font-medium hover:underline"
-                  >
-                    {row.subject}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    <Link
+                      href={`/crm/cases/${row.id}`}
+                      className="min-w-0 truncate font-medium hover:underline"
+                    >
+                      {row.subject}
+                    </Link>
+                    {row.fromApp ? (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 font-normal"
+                        title="Sent from inside the Chlk app"
+                      >
+                        App
+                      </Badge>
+                    ) : null}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-2">

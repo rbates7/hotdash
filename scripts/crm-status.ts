@@ -69,6 +69,18 @@ if (hasOrgSource) {
   }
 }
 line("paying (active/trial/past_due)", one("select count(*) n from contacts where plan_status in ('active','trialing','past_due')").n)
+const hasPlanDates = rows("pragma table_info(contacts)").some(
+  (c) => c.name === "plan_started_at"
+)
+if (hasPlanDates) {
+  line("with a plan start date", one("select count(*) n from contacts where plan_started_at is not null").n)
+  line("started paying, last 7 days", one("select count(*) n from contacts where plan_status = 'active' and plan_started_at between (strftime('%s','now') - 7*86400) * 1000 and strftime('%s','now') * 1000").n)
+  line("churned, last 7 days", one("select count(*) n from contacts where plan_status = 'canceled' and plan_ended_at between (strftime('%s','now') - 7*86400) * 1000 and strftime('%s','now') * 1000").n)
+  line("typed in a school", one("select count(*) n from contacts where affiliation is not null").n)
+  line("prospect schools (2+ coaches)", one("select count(*) n from (select 1 from contacts where organization_id is null and affiliation is not null and trim(affiliation) <> '' group by lower(trim(affiliation)) having count(*) >= 2)").n)
+} else {
+  line("plan_started_at col", "MISSING — server is on an older build")
+}
 
 section("Accounts (organizations)")
 line("total", one("select count(*) n from organizations").n)
@@ -77,12 +89,14 @@ line("with nobody on them", one("select count(*) n from organizations o where no
 section("Cases")
 line("total", one("select count(*) n from cases").n)
 line("needing a reply", one("select count(*) n from cases where last_inbound_at is not null and (last_outbound_at is null or last_inbound_at > last_outbound_at)").n)
+line("overdue (3+ days, not closed)", one("select count(*) n from cases where status <> 'closed' and last_inbound_at is not null and (last_outbound_at is null or last_inbound_at > last_outbound_at) and last_inbound_at <= (strftime('%s','now') - 3*86400) * 1000").n)
+line("from in-app feedback", one("select count(*) n from cases where gmail_thread_id like 'feedback:%'").n)
 line("triage pending", one("select count(*) n from email_messages where case_id is null and triage_state = 'pending'").n)
 
 section("Sync")
 const paused = one("select value from settings where key = 'sync_paused'")
 line("automatic sync", paused.value === "1" || paused.value === "true" ? "PAUSED" : "on")
-for (const source of ["gmail", "stripe", "supabase"]) {
+for (const source of ["gmail", "stripe", "supabase", "feedback"]) {
   const last = rows(
     `select status, started_at, finished_at, message, stats from sync_runs where source = '${source}' order by started_at desc limit 1`
   )[0]
