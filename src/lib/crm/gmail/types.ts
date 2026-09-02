@@ -50,6 +50,8 @@ export type ParsedMessage = {
   attachments: ParsedAttachment[]
   sentAt: Date
   isBulk: boolean
+  /** A form host's notification of one submission — not a conversation. */
+  isFormSubmission: boolean
 }
 
 // Narrow surface the sync algorithm needs; the real implementation wraps

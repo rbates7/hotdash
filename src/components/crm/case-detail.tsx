@@ -143,6 +143,12 @@ function Timeline({ caseRow }: { caseRow: CaseWithTimeline }) {
 
 function HeaderActions({ caseRow }: { caseRow: CaseWithTimeline }) {
   const fromApp = isFeedbackThread(caseRow.gmailThreadId)
+  // The case's own id is a lookup key, and for a form submission or in-app
+  // feedback it is not a Gmail thread at all. The real thread is on the
+  // message.
+  const gmailThreadId =
+    caseRow.messages.find((message) => message.channel === "email")
+      ?.gmailThreadId ?? null
   return (
     <div className="flex items-center gap-2">
       <CasePrioritySelect caseId={caseRow.id} priority={caseRow.priority} />
@@ -154,9 +160,9 @@ function HeaderActions({ caseRow }: { caseRow: CaseWithTimeline }) {
           In-app feedback
         </Badge>
       ) : null}
-      {caseRow.gmailThreadId && !fromApp ? (
+      {gmailThreadId ? (
         <a
-          href={gmailThreadUrl(caseRow.gmailThreadId)}
+          href={gmailThreadUrl(gmailThreadId)}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-input px-2.5 text-[0.8rem] font-medium hover:bg-muted"

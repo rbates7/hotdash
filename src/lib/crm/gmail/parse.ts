@@ -91,7 +91,7 @@ const RELAY_SEGMENTS = new Set([
   "webform",
 ])
 
-function isRelaySender(fromEmail: string): boolean {
+export function isRelaySender(fromEmail: string): boolean {
   if (isBulkSender(fromEmail)) return true
   return localPart(fromEmail)
     .split(/[.\-_+]/)
@@ -344,6 +344,17 @@ export function parseMessage(
     direction === "inbound" ? resolveRelaySender(headers, from, scannable) : null
   const sender = relaySender ?? from
 
+  // One person filled in a form once. The next submission is a different
+  // person with a different question — but every submission carries the
+  // same subject from the same address, so Gmail files them in one thread,
+  // which is how twenty coaches ended up on one customer's case. Both
+  // halves of this test matter: a coach writing from forms@school.edu is
+  // still having a conversation.
+  const isFormSubmission =
+    direction === "inbound" &&
+    isRelaySender(from.email) &&
+    (relaySender !== null || parseFormFields(scannable).size >= 2)
+
   let counterparty: Address | null
   if (direction === "inbound") {
     counterparty = sender
@@ -388,6 +399,7 @@ export function parseMessage(
       direction === "inbound" &&
       !relaySender &&
       isBulk(headers, from.email, raw.labelIds ?? []),
+    isFormSubmission,
   }
 }
 

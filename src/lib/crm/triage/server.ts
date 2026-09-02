@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm"
 
 import { cleanSubject } from "@/lib/crm/cases/rules"
+import { FORM_CASE_PREFIX } from "@/lib/crm/gmail/sync"
 import {
   applyMessageToCase,
   createCaseForThread,
@@ -34,6 +35,13 @@ export type TriageThread = {
   messages: EmailMessage[]
 }
 
+/** One triage item: a thread as far as a single sender goes. Contact-form
+ * submissions all share one Gmail thread, so grouping by thread alone put
+ * twenty strangers behind one Promote button. */
+function groupKey(threadId: string, senderEmail: string) {
+  return `${threadId}\n${senderEmail}`
+}
+
 export function listTriageThreads(db: Db): TriageThread[] {
   const rows = db
     .select()
@@ -44,16 +52,17 @@ export function listTriageThreads(db: Db): TriageThread[] {
 
   const byThread = new Map<string, EmailMessage[]>()
   for (const row of rows) {
-    const list = byThread.get(row.gmailThreadId) ?? []
+    const key = groupKey(row.gmailThreadId, row.fromEmail)
+    const list = byThread.get(key) ?? []
     list.push(row)
-    byThread.set(row.gmailThreadId, list)
+    byThread.set(key, list)
   }
 
-  return [...byThread.entries()].map(([threadId, messages]) => {
+  return [...byThread.values()].map((messages) => {
     const latest = messages[0]!
     const earliest = messages[messages.length - 1]!
     return {
-      gmailThreadId: threadId,
+      gmailThreadId: latest.gmailThreadId,
       senderEmail: latest.fromEmail,
       senderName: latest.fromName,
       subject: earliest.subject,
@@ -74,34 +83,60 @@ export function countTriagePending(db: Db): number {
   return rows.length
 }
 
-function pendingInThread(db: Db, gmailThreadId: string) {
+function pendingInThread(
+  db: Db,
+  gmailThreadId: string,
+  senderEmail?: string
+) {
   return db
     .select()
     .from(emailMessages)
     .where(
       and(
         eq(emailMessages.gmailThreadId, gmailThreadId),
-        eq(emailMessages.triageState, "pending")
+        eq(emailMessages.triageState, "pending"),
+        senderEmail ? eq(emailMessages.fromEmail, senderEmail) : undefined
       )
     )
     .all()
 }
 
-// Converts one pending thread into a case for the given contact.
-function promoteThreadToCase(db: Db, contact: Contact, gmailThreadId: string) {
-  const pending = pendingInThread(db, gmailThreadId)
+// Converts one sender's pending messages in a thread into a case.
+function promoteThreadToCase(
+  db: Db,
+  contact: Contact,
+  gmailThreadId: string,
+  senderEmail: string
+) {
+  const pending = pendingInThread(db, gmailThreadId, senderEmail)
   if (pending.length === 0) return null
 
   const ordered = [...pending].sort(
     (a, b) => a.sentAt.getTime() - b.sentAt.getTime()
   )
   const earliest = ordered[0]!
+  // A thread carrying more than one sender is a form's queue, not a
+  // conversation, so each submission is keyed by itself. Counting every
+  // stored message, not just the pending ones, keeps that true however
+  // many have already been promoted.
+  const senders = new Set(
+    db
+      .select({ fromEmail: emailMessages.fromEmail })
+      .from(emailMessages)
+      .where(eq(emailMessages.gmailThreadId, gmailThreadId))
+      .all()
+      .map((row) => row.fromEmail)
+  )
+  const caseKey =
+    senders.size > 1
+      ? `${FORM_CASE_PREFIX}${earliest.gmailMessageId}`
+      : gmailThreadId
   const caseRow =
-    getCaseByThreadId(db, gmailThreadId) ??
+    getCaseByThreadId(db, caseKey) ??
     createCaseForThread(db, {
       contactId: contact.id,
       subject: cleanSubject(earliest.subject),
-      gmailThreadId,
+      gmailThreadId: caseKey,
       createdAt: earliest.sentAt,
     })
 
@@ -127,20 +162,28 @@ function promoteThreadToCase(db: Db, contact: Contact, gmailThreadId: string) {
 
 export type TriageResolution = {
   gmailThreadId: string
+  /** Which sender in that thread; a form's thread holds many. */
+  senderEmail?: string
   action: "promote" | "link" | "ignore"
   contactId?: string
   ignoreSenderAlways?: boolean
 }
 
 export function resolveTriage(db: Db, resolution: TriageResolution) {
-  const pending = pendingInThread(db, resolution.gmailThreadId)
-  if (pending.length === 0) {
+  const inThread = pendingInThread(db, resolution.gmailThreadId)
+  if (inThread.length === 0) {
     throw new NotFoundError("No pending messages in that thread.")
   }
-  // Match the sender the UI shows: threads are listed newest-first.
-  const senderEmail = [...pending].sort(
-    (a, b) => b.sentAt.getTime() - a.sentAt.getTime()
-  )[0]!.fromEmail
+  // The sender the card showed. Without one, fall back to the newest
+  // message, which is what the list used to offer.
+  const senderEmail =
+    resolution.senderEmail ??
+    [...inThread].sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())[0]!
+      .fromEmail
+  const pending = inThread.filter((m) => m.fromEmail === senderEmail)
+  if (pending.length === 0) {
+    throw new NotFoundError("No pending messages from that sender.")
+  }
 
   if (resolution.action === "ignore") {
     db.update(emailMessages)
@@ -148,6 +191,7 @@ export function resolveTriage(db: Db, resolution: TriageResolution) {
       .where(
         and(
           eq(emailMessages.gmailThreadId, resolution.gmailThreadId),
+          eq(emailMessages.fromEmail, senderEmail),
           eq(emailMessages.triageState, "pending")
         )
       )
@@ -198,7 +242,12 @@ export function resolveTriage(db: Db, resolution: TriageResolution) {
   // Linking by hand is how the CRM learns a customer's other addresses.
   addContactEmail(db, contact.id, senderEmail)
 
-  const caseRow = promoteThreadToCase(db, contact, resolution.gmailThreadId)
+  const caseRow = promoteThreadToCase(
+    db,
+    contact,
+    resolution.gmailThreadId,
+    senderEmail
+  )
 
   // Other pending threads from the same sender become cases too — the
   // sender is now a known contact.
@@ -214,7 +263,7 @@ export function resolveTriage(db: Db, resolution: TriageResolution) {
     .all()
   const otherThreads = [...new Set(otherPending.map((r) => r.threadId))]
   for (const threadId of otherThreads) {
-    promoteThreadToCase(db, contact, threadId)
+    promoteThreadToCase(db, contact, threadId, senderEmail)
   }
 
   return { caseId: caseRow?.id ?? null, contactId: contact.id }

@@ -33,6 +33,24 @@ import { HistoryExpiredError, MessageNotFoundError } from "./types"
 const DEFAULT_FETCH_CONCURRENCY = 4
 const FETCH_CHUNK = 100
 
+export const FORM_CASE_PREFIX = "form:"
+
+/**
+ * What a message's case is looked up and created under. A conversation is
+ * its Gmail thread; a form submission is only itself, so it gets a key of
+ * its own — the thread it shares with every other submission would put
+ * strangers on one case.
+ */
+export function caseKeyFor(parsed: {
+  gmailMessageId: string
+  gmailThreadId: string
+  isFormSubmission: boolean
+}): string {
+  return parsed.isFormSubmission
+    ? `${FORM_CASE_PREFIX}${parsed.gmailMessageId}`
+    : parsed.gmailThreadId
+}
+
 export type GmailSyncOptions = {
   founderAliases?: string[]
   initialWindow?: string
@@ -216,17 +234,21 @@ export async function createCaseWithBackfill(
   const caseRow = createCaseForThread(db, {
     contactId,
     subject: cleanSubject(seedMessage.subject),
-    gmailThreadId: seedMessage.gmailThreadId,
+    gmailThreadId: caseKeyFor(seedMessage),
     createdAt: seedMessage.sentAt,
   })
   stats.casesCreated += 1
 
   let threadMessages: GmailRawMessage[] = []
-  try {
-    threadMessages = (await api.getThread(seedMessage.gmailThreadId)).messages
-  } catch {
-    // Thread fetch is best-effort; the seed message alone still forms the case.
-    threadMessages = []
+  // A form submission's "thread" is every other submission through the same
+  // form. Pulling it in is what merged strangers onto one case.
+  if (!seedMessage.isFormSubmission) {
+    try {
+      threadMessages = (await api.getThread(seedMessage.gmailThreadId)).messages
+    } catch {
+      // Best-effort; the seed message alone still forms the case.
+      threadMessages = []
+    }
   }
 
   const parsedThread = threadMessages
@@ -261,7 +283,7 @@ export async function processParsedMessage(
 ) {
   if (messageExists(db, parsed.gmailMessageId)) return
 
-  const existingCase = getCaseByThreadId(db, parsed.gmailThreadId)
+  const existingCase = getCaseByThreadId(db, caseKeyFor(parsed))
   if (existingCase) {
     if (attachToCase(db, existingCase, parsed)) stats.stored += 1
     return

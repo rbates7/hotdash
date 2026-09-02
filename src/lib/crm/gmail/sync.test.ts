@@ -16,8 +16,11 @@ import {
 
 import {
   FOUNDER,
+  formSharedKnown,
+  formSharedStranger,
   formSubmissionKnown,
   formSubmissionUnknown,
+  humanFromFormsAddress,
   inboundPlainDana,
   inboundReplyDana,
   inboundReplyToWelcome,
@@ -31,6 +34,8 @@ import {
   unknownHuman,
   unknownHumanFollowup,
 } from "./__fixtures__/messages"
+import { listTriageThreads, resolveTriage } from "@/lib/crm/triage/server"
+
 import { FakeGmailApi } from "./fake-api"
 import { resetGmailCursor, syncGmail } from "./sync"
 
@@ -92,6 +97,91 @@ describe("syncGmail", () => {
       "marcus@northside.k12.us",
     ])
     expect(triaged[0]!.fromName).toBe("Marcus Hall")
+  })
+
+  it("gives each form submission its own case, though Gmail threads them", async () => {
+    // Squarespace sends every submission from one address with one subject,
+    // so Gmail files them together. Two different coaches are two cases.
+    const api = new FakeGmailApi(FOUNDER, [formSharedKnown, formSharedStranger])
+    const stats = await syncGmail(db, api, FOUNDER)
+
+    expect(stats.casesCreated).toBe(1) // Dana is known; Marcus waits in triage
+    expect(stats.triaged).toBe(1)
+    // The thread was never fetched: it holds other people's submissions.
+    expect(api.calls.getThread).toBe(0)
+
+    const [danaCase] = db.select().from(cases).all()
+    expect(danaCase!.contactId).toBe(findContactByEmail(db, "dana@acme.com")!.id)
+    expect(danaCase!.gmailThreadId).toBe("form:m_form_shared_1")
+    const onCase = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.caseId, danaCase!.id))
+      .all()
+    expect(onCase.map((m) => m.gmailMessageId)).toEqual(["m_form_shared_1"])
+
+    // Marcus is a separate triage item, not part of Dana's case.
+    const pending = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.triageState, "pending"))
+      .all()
+    expect(pending.map((m) => m.fromEmail)).toEqual(["marcus@northside.k12.us"])
+
+    // And a re-run adds nothing.
+    const again = await syncGmail(db, api, FOUNDER)
+    expect(again.casesCreated).toBe(0)
+    expect(db.select().from(cases).all()).toHaveLength(1)
+  })
+
+  it("promoting one submission leaves the others alone", async () => {
+    const api = new FakeGmailApi(FOUNDER, [formSharedKnown, formSharedStranger])
+    await syncGmail(db, api, FOUNDER)
+
+    const result = resolveTriage(db, {
+      gmailThreadId: "t_form_shared",
+      senderEmail: "marcus@northside.k12.us",
+      action: "promote",
+    })
+    const marcusCase = db
+      .select()
+      .from(cases)
+      .where(eq(cases.id, result.caseId!))
+      .get()!
+    expect(marcusCase.gmailThreadId).toBe("form:m_form_shared_2")
+    expect(marcusCase.contactId).toBe(
+      findContactByEmail(db, "marcus@northside.k12.us")!.id
+    )
+    const onCase = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.caseId, marcusCase.id))
+      .all()
+    expect(onCase.map((m) => m.gmailMessageId)).toEqual(["m_form_shared_2"])
+    expect(db.select().from(cases).all()).toHaveLength(2)
+  })
+
+  it("still threads a conversation with someone whose address says forms", async () => {
+    const api = new FakeGmailApi(FOUNDER, [
+      humanFromFormsAddress,
+      makeMessage({
+        id: "m_forms_human_2",
+        threadId: "t_forms_human",
+        from: "Coach Ellis <forms@northside.k12.us>",
+        subject: "Re: Roster upload",
+        text: "Still failing this morning.",
+        sentAt: "2026-08-29T11:00:00Z",
+      }),
+    ])
+    await syncGmail(db, api, FOUNDER)
+    const pending = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.triageState, "pending"))
+      .all()
+    // One triage item holding both messages, not two.
+    expect(pending).toHaveLength(2)
+    expect(listTriageThreads(db)).toHaveLength(1)
   })
 
   it("backfills from a relative window by default", async () => {

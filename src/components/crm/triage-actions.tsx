@@ -30,6 +30,7 @@ type ContactOption = {
 
 async function resolve(body: {
   gmailThreadId: string
+  senderEmail: string
   action: "promote" | "link" | "ignore"
   contactId?: string
   ignoreSenderAlways?: boolean
@@ -104,7 +105,7 @@ export function TriageActions({
         disabled={isBusy}
         onClick={() =>
           run(
-            () => resolve({ gmailThreadId, action: "promote" }),
+            () => resolve({ gmailThreadId, senderEmail, action: "promote" }),
             `${senderName ?? senderEmail} added as a contact — case created.`
           )
         }
@@ -125,7 +126,7 @@ export function TriageActions({
         disabled={isBusy}
         onClick={() =>
           run(
-            () => resolve({ gmailThreadId, action: "ignore" }),
+            () => resolve({ gmailThreadId, senderEmail, action: "ignore" }),
             "Thread dismissed."
           )
         }
@@ -148,6 +149,7 @@ export function TriageActions({
                 () =>
                   resolve({
                     gmailThreadId,
+                    senderEmail,
                     action: "ignore",
                     ignoreSenderAlways: true,
                   }),
@@ -190,6 +192,7 @@ export function TriageActions({
                       () =>
                         resolve({
                           gmailThreadId,
+                          senderEmail,
                           action: "link",
                           contactId: option.id,
                         }),

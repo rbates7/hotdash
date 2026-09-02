@@ -7,6 +7,9 @@ import {
   inboundHtml,
   inboundPlainDana,
   inboundWithAttachment,
+  formSubmissionKnown,
+  formSubmissionUnknown,
+  humanFromFormsAddress,
   missingFrom,
   newsletter,
   noreplyReceipt,
@@ -391,5 +394,21 @@ describe("scannableBody", () => {
 
   it("has nothing to offer when both are empty", () => {
     expect(scannableBody(null, null)).toBeNull()
+  })
+})
+
+describe("isFormSubmission", () => {
+  const founder = new Set([FOUNDER])
+
+  it("marks a form host's notification, so it is never threaded with the next one", () => {
+    expect(parseMessage(formSubmissionKnown, founder)!.isFormSubmission).toBe(true)
+    // No Reply-To, but the body is plainly a form.
+    expect(parseMessage(formSubmissionUnknown, founder)!.isFormSubmission).toBe(true)
+  })
+
+  it("leaves ordinary mail alone, including from an address that says forms", () => {
+    expect(parseMessage(inboundPlainDana, founder)!.isFormSubmission).toBe(false)
+    expect(parseMessage(humanFromFormsAddress, founder)!.isFormSubmission).toBe(false)
+    expect(parseMessage(newsletter, founder)!.isFormSubmission).toBe(false)
   })
 })

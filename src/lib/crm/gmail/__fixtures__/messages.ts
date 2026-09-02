@@ -266,6 +266,39 @@ export const formSubmissionUnknown = makeMessage({
   sentAt: "2026-08-28T16:00:00Z",
 })
 
+// Two submissions through the same form, which Gmail files in ONE thread
+// because the subject and sender never change: t_form_shared.
+export const formSharedKnown = makeMessage({
+  id: "m_form_shared_1",
+  threadId: "t_form_shared",
+  from: "Squarespace <form-submission@squarespace.info>",
+  extraHeaders: { "Reply-To": "Dana Whitfield <dana@acme.com>" },
+  subject: "Form Submission - Contact Form",
+  text: "Name: Dana Whitfield\nEmail: dana@acme.com\nMessage: Can I move a play between playbooks?",
+  sentAt: "2026-08-28T15:00:00Z",
+})
+
+export const formSharedStranger = makeMessage({
+  id: "m_form_shared_2",
+  threadId: "t_form_shared",
+  from: "Squarespace <form-submission@squarespace.info>",
+  extraHeaders: { "Reply-To": "Marcus Hall <marcus@northside.k12.us>" },
+  subject: "Form Submission - Contact Form",
+  text: "Name: Marcus Hall\nEmail: marcus@northside.k12.us\nMessage: Do you have a team plan?",
+  sentAt: "2026-08-28T16:00:00Z",
+})
+
+// A person whose own address happens to contain "forms": a conversation,
+// not a form host, because the body carries no form fields.
+export const humanFromFormsAddress = makeMessage({
+  id: "m_forms_human_1",
+  threadId: "t_forms_human",
+  from: "Coach Ellis <forms@northside.k12.us>",
+  subject: "Roster upload",
+  text: "Morning — the roster CSV keeps failing on upload. Any ideas?",
+  sentAt: "2026-08-29T09:00:00Z",
+})
+
 // Mail the founder started: a welcome to a known customer, one to a
 // stranger, and the customer's reply on the welcome thread.
 export const outboundWelcomeFounder = makeMessage({

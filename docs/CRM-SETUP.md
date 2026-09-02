@@ -194,6 +194,26 @@ pnpm crm:restart
   separately from any one case, and the emails you started that have no
   reply yet.
 
+**Contact forms.** Every submission through a form arrives from the same
+address with the same subject, so Gmail files them all in one thread. A
+submission is not a conversation — it is one person asking one thing — so
+each becomes its own case, keyed by the message rather than the thread, and
+the thread is never pulled in behind it. Triage lists one item per sender
+for the same reason. Cases merged before this (one customer's page holding
+twenty other coaches' submissions) are repaired from what is already
+stored:
+
+```
+pnpm crm:repair-forms          # report only, changes nothing
+pnpm crm:repair-forms --write  # apply
+```
+
+It splits a case whose messages come from more than one submitter, gives
+each submission its own case and contact, names each contact from their own
+submission, and leaves single-submitter cases alone — so a second run
+reports nothing. `pnpm crm:restart` backs the database up to
+`data/crm.db.bak` before every build if you want a way back.
+
 **Reached out.** Mail you send counts as reaching out: a reply on a case,
 or mail you start to someone the CRM knows (kept with the person, and
 adopted into a case if they reply). The Overview's tick fills itself from

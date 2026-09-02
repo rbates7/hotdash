@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic"
 
 const bodySchema = z.object({
   gmailThreadId: z.string().min(1),
+  senderEmail: z.string().min(1).max(320).optional(),
   action: z.enum(["promote", "link", "ignore"]),
   contactId: z.string().optional(),
   ignoreSenderAlways: z.boolean().optional(),
