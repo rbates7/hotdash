@@ -18,6 +18,8 @@
  *  - Re-points each moved message at the person who actually wrote it.
  *  - Fixes case subjects, which are otherwise the form's template.
  *  - Gives a contact the name from that person's own submission.
+ *  - Removes the form host itself from the customer list, once nothing of
+ *    its own is left on it.
  *
  * Manual, Stripe and Supabase names are never overwritten, and a case with
  * a single submitter is left alone — so a second run reports nothing.
@@ -35,7 +37,13 @@ import {
   findContactByEmail,
 } from "../src/lib/crm/contacts/server"
 import { createDb } from "../src/lib/crm/db/client"
-import { cases, contacts, emailMessages } from "../src/lib/crm/db/schema"
+import {
+  cases,
+  contactEmails,
+  contacts,
+  emailMessages,
+  notes,
+} from "../src/lib/crm/db/schema"
 import {
   isRelaySender,
   parseFormFields,
@@ -120,8 +128,10 @@ const stats = {
   newContacts: 0,
 }
 
-/** Cases sitting on a contact whose address is the form host itself. */
-const hostContactCases: number[] = []
+/** Cases this run moves off a form host onto the person who wrote them. In
+ * a report run they are still filed under the host, so the cleanup at the
+ * end has to discount them to see what would actually be left behind. */
+const relinkedOffHost = new Set<string>()
 
 for (const caseRow of db.select().from(cases).all()) {
   const messages = db
@@ -169,10 +179,6 @@ for (const caseRow of db.select().from(cases).all()) {
     .from(contacts)
     .where(eq(contacts.id, caseRow.contactId))
     .get()
-  if (caseContact && isRelaySender(caseContact.email)) {
-    hostContactCases.push(caseRow.caseNumber)
-  }
-
   // The case keeps the submitter it is already filed under, when that is one
   // of them; otherwise the earliest, and the case is relinked to them.
   const keeper =
@@ -303,6 +309,7 @@ for (const caseRow of db.select().from(cases).all()) {
     if (existing || host) {
       console.log(`#${caseRow.caseNumber} is ${keeper}'s, not ${caseContact.email}'s`)
       stats.relinked += 1
+      if (host) relinkedOffHost.add(caseRow.id)
       const contact = existing ?? contactFor(keeper, seed.form?.name ?? null)
       if (write && contact) {
         db.update(cases)
@@ -343,6 +350,58 @@ for (const caseRow of db.select().from(cases).all()) {
   }
 }
 
+// A form host is an address a website posts from, not a coach. Once its
+// submissions sit on the people who wrote them it has nothing of its own,
+// and leaving it in the customer list is how "form-submission@squarespace"
+// ends up looking like an account. It only goes when it is genuinely
+// empty: anything still attached is named instead and the contact stays.
+const hosts = { removed: 0, kept: 0 }
+for (const contact of db.select().from(contacts).all()) {
+  if (!isRelaySender(contact.email)) continue
+  const heldCases = db
+    .select()
+    .from(cases)
+    .where(eq(cases.contactId, contact.id))
+    .all()
+    .filter((row) => !relinkedOffHost.has(row.id))
+  const heldMessages = db
+    .select()
+    .from(emailMessages)
+    .where(eq(emailMessages.contactId, contact.id))
+    .all()
+    .filter((row) => row.caseId === null || !relinkedOffHost.has(row.caseId))
+  const heldNotes = db
+    .select()
+    .from(notes)
+    .where(eq(notes.contactId, contact.id))
+    .all()
+  const aliases = db
+    .select()
+    .from(contactEmails)
+    .where(eq(contactEmails.contactId, contact.id))
+    .all()
+  const held = [
+    heldCases.length > 0 &&
+      `${heldCases.length} case(s) #${heldCases.map((row) => row.caseNumber).join(", #")}`,
+    heldMessages.length > 0 && `${heldMessages.length} message(s)`,
+    heldNotes.length > 0 && `${heldNotes.length} note(s)`,
+    aliases.length > 0 && `${aliases.length} linked address(es)`,
+  ].filter((part): part is string => typeof part === "string")
+
+  if (held.length > 0) {
+    hosts.kept += 1
+    console.log(
+      `${contact.email} is a form host, not a customer — kept, it still holds ${held.join(", ")}`
+    )
+    continue
+  }
+  hosts.removed += 1
+  console.log(`${contact.email} is a form host, not a customer — removed`)
+  if (write) {
+    db.delete(contacts).where(eq(contacts.id, contact.id)).run()
+  }
+}
+
 console.log(`\nExamined ${stats.examined} case${stats.examined === 1 ? "" : "s"}.`)
 console.log(
   [
@@ -361,9 +420,10 @@ if (stats.reported > 0) {
     `${stats.reported} case(s) written by someone the CRM has never met, filed under a real customer — left alone.`
   )
 }
-if (hostContactCases.length > 0) {
+if (hosts.removed > 0 || hosts.kept > 0) {
   console.log(
-    `${hostContactCases.length} case(s) sit on the form host as if it were a customer: #${hostContactCases.join(", #")}`
+    `${hosts.removed} form host${hosts.removed === 1 ? "" : "s"} ${write ? "removed" : "would be removed"} from the customer list` +
+      (hosts.kept > 0 ? `, ${hosts.kept} kept` : "")
   )
 }
 if (!write) console.log("Nothing was changed. Re-run with --write to apply.")

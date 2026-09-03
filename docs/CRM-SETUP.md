@@ -211,7 +211,10 @@ pnpm crm:repair-forms --write  # apply
 It splits a case whose messages come from more than one submitter, gives
 each submission its own case and contact, names each contact from their own
 submission, and leaves single-submitter cases alone — so a second run
-reports nothing. `pnpm crm:restart` backs the database up to
+reports nothing. The form host itself (`form-submission@squarespace.info`
+and the like) is dropped from the customer list once its submissions sit on
+the people who wrote them; a host still holding a case, a message or a note
+of its own is named in the report and left alone. `pnpm crm:restart` backs the database up to
 `data/crm.db.bak` before every build if you want a way back.
 
 **Reached out.** Mail you send counts as reaching out: a reply on a case,
