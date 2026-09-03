@@ -183,6 +183,12 @@ pnpm crm:restart
   canceled people flips the view to Everyone.
 - **Accounts** — staff accounts, or *Prospective*: schools where two or more
   coaches with no staff account typed the same name. Click one to see who.
+  Below both sits **All schools**: every staff account and every school
+  anyone typed, down to the ones a single coach named — which the two-coach
+  floor keeps out of Prospective, and which appear nowhere else. It scrolls
+  in place rather than paging, follows the same search and filters, and
+  sorts on its own. A school with an account *and* coaches who are not on it
+  is two rows: the account exists, and those coaches are the reason to call.
 - **Cases** — status and priority are pickers in each row, so a case can be
   moved without opening it. Click a case and it opens beside the list, so
   the next one is a click away: ↑ / ↓ in the panel (or k / j) step through the list in its

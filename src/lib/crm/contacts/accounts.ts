@@ -30,6 +30,10 @@ import type { SortDirection } from "@/lib/crm/list"
 export const ACCOUNT_VIEWS = ["staff", "prospective"] as const
 export type AccountView = (typeof ACCOUNT_VIEWS)[number]
 
+/** What a row is, for the complete list where the two kinds sit together. */
+export const ACCOUNT_KINDS = ["staff", "prospective"] as const
+export type AccountKind = (typeof ACCOUNT_KINDS)[number]
+
 export const ACCOUNT_SORTS = ["name", "coaches", "activity", "open"] as const
 export type AccountSort = (typeof ACCOUNT_SORTS)[number]
 
@@ -37,6 +41,10 @@ export type AccountSort = (typeof ACCOUNT_SORTS)[number]
 export const PROSPECT_MIN_COACHES = 2
 
 export const ACCOUNTS_PER_PAGE = 50
+
+/** How many schools the complete list loads. Seven show at a time and the
+ * rest scroll in place; past this the heading says what is not shown. */
+export const ALL_ACCOUNTS_LIMIT = 500
 
 export type AccountListFilters = {
   q?: string
@@ -55,6 +63,7 @@ export type AccountListFilters = {
 /** One row of either view. Both shapes are the same so the page is one. */
 export type AccountRow = {
   id: string
+  kind: AccountKind
   /** Where the row goes: the account page, or Customers narrowed to the school. */
   href: string
   name: string
@@ -200,6 +209,7 @@ function staffAccounts(db: Db, filters: AccountListFilters): AccountsQuery {
         .all()
         .map((row) => ({
           id: row.organization.id,
+          kind: "staff" as const,
           href: `/crm/accounts/${row.organization.id}`,
           name: row.organization.name,
           domain: row.organization.domain,
@@ -233,7 +243,8 @@ function staffAccounts(db: Db, filters: AccountListFilters): AccountsQuery {
  */
 function prospectiveAccounts(
   db: Db,
-  filters: AccountListFilters
+  filters: AccountListFilters,
+  minCoaches: number = PROSPECT_MIN_COACHES
 ): AccountsQuery {
   const key = sql<string>`lower(trim(${contacts.affiliation}))`
   const typedIn = and(
@@ -254,7 +265,7 @@ function prospectiveAccounts(
     .from(contacts)
     .where(typedIn)
     .groupBy(key)
-    .having(sql`count(*) >= ${PROSPECT_MIN_COACHES}`)
+    .having(sql`count(*) >= ${minCoaches}`)
     .as("prospects")
 
   const caseStats = db
@@ -320,6 +331,7 @@ function prospectiveAccounts(
         .all()
         .map((row) => ({
           id: row.key,
+          kind: "prospective" as const,
           href: `/crm/customers?affiliation=${encodeURIComponent(row.name)}&standing=all&type=individual`,
           name: row.name,
           domain: null,
@@ -374,4 +386,64 @@ export async function listAccounts(db: Db, filters: AccountListFilters = {}) {
     limit,
     offset,
   }
+}
+
+/**
+ * The same ordering as `orderFor`, in JavaScript: nulls last on activity
+ * whichever way the column points, and the name as the tiebreak everywhere.
+ * The complete list merges two queries, so the final sort happens here.
+ */
+function compareAccounts(sort: AccountSort, direction: SortDirection) {
+  const sign = direction === "asc" ? 1 : -1
+  const byName = (a: AccountRow, b: AccountRow) =>
+    a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+  return (a: AccountRow, b: AccountRow) => {
+    switch (sort) {
+      case "coaches":
+        return sign * (a.staffCount - b.staffCount) || byName(a, b)
+      case "activity": {
+        const left = a.lastActivityAt?.getTime() ?? null
+        const right = b.lastActivityAt?.getTime() ?? null
+        if (left === null || right === null) {
+          return (
+            (left === null ? 1 : 0) - (right === null ? 1 : 0) || byName(a, b)
+          )
+        }
+        return sign * (left - right) || byName(a, b)
+      }
+      case "open":
+        return sign * (a.openCases - b.openCases) || byName(a, b)
+      default:
+        return sign * byName(a, b)
+    }
+  }
+}
+
+/**
+ * Every school in one list: the staff accounts and every school a coach
+ * typed in, down to the ones only one coach named — which the Prospective
+ * view's two-coach floor hides, and which therefore appear nowhere else.
+ *
+ * A school with a staff account AND coaches who typed it without being on
+ * that account is two rows, deliberately: the account exists, and those
+ * coaches are not on it. Folding them together would hide the gap that
+ * makes this list worth reading.
+ *
+ * Both halves are aggregated and ordered in SQL; only the merge of two
+ * already-sorted pages happens here.
+ */
+export function listAllAccounts(
+  db: Db,
+  filters: AccountListFilters = {},
+  sort: AccountSort = "coaches",
+  direction: SortDirection = DEFAULT_DIRECTIONS.coaches
+) {
+  const staff = staffAccounts(db, filters)
+  const schools = prospectiveAccounts(db, filters, 1)
+  const pageOf = (query: AccountsQuery) =>
+    query.rows(ALL_ACCOUNTS_LIMIT, 0, orderFor(sort, direction, query.columns))
+  const rows = [...pageOf(staff), ...pageOf(schools)]
+    .sort(compareAccounts(sort, direction))
+    .slice(0, ALL_ACCOUNTS_LIMIT)
+  return { rows, total: staff.total() + schools.total() }
 }

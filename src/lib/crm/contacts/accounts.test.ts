@@ -5,7 +5,7 @@ import { createCaseForThread } from "@/lib/crm/cases/server"
 import { createDb, type Db } from "@/lib/crm/db/client"
 import { cases, contacts } from "@/lib/crm/db/schema"
 
-import { countAccountViews, listAccounts } from "./accounts"
+import { countAccountViews, listAccounts, listAllAccounts } from "./accounts"
 import { createContact, findOrCreateOrganizationByName } from "./server"
 
 const DAY = 24 * 60 * 60 * 1000
@@ -52,6 +52,9 @@ describe("listAccounts", () => {
     typed("w3@x.io", "  Westside High ", "Yearly Webapp", "canceled")
     // Northgate Prep: one coach, so not a prospect.
     typed("n1@x.io", "Northgate Prep")
+    // A coach who typed the name of a school that has a staff account,
+    // without being on it: the account exists, this coach is not on it.
+    typed("t1@x.io", "Texas Tech")
 
     // Cases: one open at Westside, one open and one closed at Texas Tech.
     createCaseForThread(db, {
@@ -150,5 +153,81 @@ describe("listAccounts", () => {
     expect(
       namesOf((await listAccounts(db, { view: "prospective", q: "WEST" })).rows)
     ).toEqual(["Westside High"])
+  })
+
+  describe("listAllAccounts", () => {
+    it("shows every school, including one only a single coach typed", async () => {
+      const { rows, total } = listAllAccounts(db)
+      expect(total).toBe(5)
+      // Northgate Prep has one coach, so the Prospective view drops it and
+      // it appears nowhere else in the app. This list is where it lives.
+      expect(namesOf(rows)).toContain("Northgate Prep")
+      expect(
+        namesOf((await listAccounts(db, { view: "prospective" })).rows)
+      ).not.toContain("Northgate Prep")
+    })
+
+    it("carries each row's kind, and both kinds' links", () => {
+      const { rows } = listAllAccounts(db)
+      const clemson = rows.find((row) => row.name === "Clemson")!
+      expect(clemson.kind).toBe("staff")
+      expect(clemson.href).toMatch(/^\/crm\/accounts\//)
+      const northgate = rows.find((row) => row.name === "Northgate Prep")!
+      expect(northgate.kind).toBe("prospective")
+      expect(northgate.href).toBe(
+        "/crm/customers?affiliation=Northgate%20Prep&standing=all&type=individual"
+      )
+    })
+
+    it("is two rows for a school with an account and coaches who are not on it", () => {
+      const { rows } = listAllAccounts(db)
+      const both = rows.filter((row) => row.name === "Texas Tech")
+      expect(both.map((row) => row.kind).sort()).toEqual(["prospective", "staff"])
+      expect(both.find((row) => row.kind === "staff")!.staffCount).toBe(2)
+      expect(both.find((row) => row.kind === "prospective")!.staffCount).toBe(1)
+    })
+
+    it("orders across both kinds, biggest first, ties by name", () => {
+      expect(namesOf(listAllAccounts(db).rows)).toEqual([
+        "Westside High",
+        "Texas Tech",
+        "Clemson",
+        "Northgate Prep",
+        "Texas Tech",
+      ])
+      expect(namesOf(listAllAccounts(db, {}, "name", "asc").rows)).toEqual([
+        "Clemson",
+        "Northgate Prep",
+        "Texas Tech",
+        "Texas Tech",
+        "Westside High",
+      ])
+    })
+
+    it("keeps schools with no activity last whichever way the column points", () => {
+      const desc = listAllAccounts(db, {}, "activity", "desc")
+      expect(namesOf(desc.rows).slice(0, 2)).toEqual(["Westside High", "Texas Tech"])
+      const asc = listAllAccounts(db, {}, "activity", "asc")
+      expect(namesOf(asc.rows).slice(0, 2)).toEqual(["Texas Tech", "Westside High"])
+      // Either way the ones that never moved are at the bottom.
+      for (const list of [desc, asc]) {
+        expect(list.rows.slice(2).every((row) => row.lastActivityAt === null)).toBe(true)
+      }
+    })
+
+    it("narrows on the same search and filters as the list above", () => {
+      expect(namesOf(listAllAccounts(db, { q: "tex" }).rows)).toEqual([
+        "Texas Tech",
+        "Texas Tech",
+      ])
+      expect(listAllAccounts(db, { minCoaches: 2 }).total).toBe(2)
+      expect(namesOf(listAllAccounts(db, { hasOpenCase: true }).rows)).toEqual([
+        "Westside High",
+        "Texas Tech",
+      ])
+      expect(namesOf(listAllAccounts(db, { plan: "Monthly Webapp" }).rows)).toEqual([
+        "Westside High",
+      ])
+    })
   })
 })

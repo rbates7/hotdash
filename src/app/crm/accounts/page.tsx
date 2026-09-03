@@ -1,30 +1,20 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 
 import { AccountViewFilter } from "@/components/crm/account-view-filter"
 import { AccountsFilterBar } from "@/components/crm/accounts-filter-bar"
+import { AccountsTable } from "@/components/crm/accounts-table"
 import { Pager } from "@/components/crm/pager"
 import { SearchInput } from "@/components/crm/search-input"
-import { SortableHeader } from "@/components/crm/sortable-header"
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import {
   ACCOUNTS_PER_PAGE,
   ACCOUNT_SORTS,
   ACCOUNT_VIEWS,
   PROSPECT_MIN_COACHES,
   listAccounts,
+  listAllAccounts,
 } from "@/lib/crm/contacts/accounts"
 import { listPlanLabels } from "@/lib/crm/contacts/server"
 import { getDb } from "@/lib/crm/db/client"
-import { relativeTime } from "@/lib/crm/format"
 import { parseDirection, parseOffset, parseOneOf } from "@/lib/crm/list"
 
 export const metadata: Metadata = { title: "Accounts · CRM · Chlk" }
@@ -54,6 +44,8 @@ export default async function AccountsPage({
     sort?: string
     dir?: string
     offset?: string
+    allsort?: string
+    alldir?: string
   }>
 }) {
   const params = await searchParams
@@ -71,6 +63,10 @@ export default async function AccountsPage({
   const direction = parseDirection(params.dir)
   const offset = parseOffset(params.offset)
   const filtered = Boolean(q || plan || minCoaches || hasOpenCase)
+  // The complete list below carries its own ordering: it has no pager, so
+  // sorting it must not move the paged table above off page one.
+  const allSort = parseOneOf(ACCOUNT_SORTS, params.allsort) ?? "coaches"
+  const allDirection = parseDirection(params.alldir)
 
   const { rows, total, limit, viewCounts, view: shown } = await listAccounts(db, {
     q,
@@ -83,6 +79,14 @@ export default async function AccountsPage({
     limit: ACCOUNTS_PER_PAGE,
     offset,
   })
+  // Every school, under the same search and filters, but never the view or
+  // the page: this list is the whole picture or it is not worth having.
+  const all = listAllAccounts(
+    db,
+    { q, plan, minCoaches, hasOpenCase },
+    allSort,
+    allDirection
+  )
   const plans = listPlanLabels(db)
 
   return (
@@ -101,82 +105,43 @@ export default async function AccountsPage({
       </div>
 
       <div className="rounded-xl border">
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground text-body px-4 py-12 text-center">
-            {filtered ? "No accounts match these filters." : EMPTY[shown]}
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortableHeader column="name" defaultDirection="asc">
-                    {shown === "prospective" ? "School" : "Account"}
-                  </SortableHeader>
-                </TableHead>
-                <TableHead>
-                  <SortableHeader column="coaches">Coaches</SortableHeader>
-                </TableHead>
-                <TableHead>Plans</TableHead>
-                <TableHead>
-                  <SortableHeader column="activity">Last activity</SortableHeader>
-                </TableHead>
-                <TableHead className="text-right">
-                  <SortableHeader column="open" className="justify-end">
-                    Open
-                  </SortableHeader>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    <Link href={row.href} className="font-medium hover:underline">
-                      {row.name}
-                    </Link>
-                    {row.domain ? (
-                      <span className="text-muted-foreground block text-xs">
-                        {row.domain}
-                      </span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {row.staffCount}
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex flex-wrap gap-1">
-                      {row.plans.length === 0 ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        row.plans.map((plan) => (
-                          <Badge
-                            key={plan}
-                            variant="secondary"
-                            className="font-normal"
-                          >
-                            {plan}
-                          </Badge>
-                        ))
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {relativeTime(row.lastActivityAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {row.openCases > 0 ? (
-                      row.openCases
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        <AccountsTable
+          rows={rows}
+          nameLabel={shown === "prospective" ? "School" : "Account"}
+          empty={filtered ? "No accounts match these filters." : EMPTY[shown]}
+        />
       </div>
+
+      <section className="mt-3 flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-medium">All schools</h2>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {all.total > all.rows.length
+              ? `showing the first ${all.rows.length} of ${all.total}`
+              : `${all.total} ${all.total === 1 ? "school" : "schools"}`}
+          </span>
+        </div>
+        <p className="text-muted-foreground text-body">
+          Every staff account and every school a coach typed into their
+          profile, down to the ones only one coach named — which the list
+          above leaves out.
+        </p>
+        <div className="rounded-xl border">
+          <AccountsTable
+            rows={all.rows}
+            nameLabel="School"
+            empty={
+              filtered
+                ? "No schools match these filters."
+                : "No schools yet: nobody has a staff account, and nobody has typed one into their profile."
+            }
+            showKind
+            scroll
+            sortParam="allsort"
+            dirParam="alldir"
+          />
+        </div>
+      </section>
     </div>
   )
 }

@@ -16,19 +16,25 @@ export function SortableHeader({
   column,
   children,
   defaultDirection = "desc",
+  sortParam = "sort",
+  dirParam = "dir",
   className,
 }: {
   column: string
   children: React.ReactNode
   /** Where a first click lands; dates read best newest-first, names A–Z. */
   defaultDirection?: "asc" | "desc"
+  /** Which pair of query keys this header owns. A page with two tables on
+   * it gives the second its own, so sorting one leaves the other alone. */
+  sortParam?: string
+  dirParam?: string
   className?: string
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const active = searchParams.get("sort") === column
+  const active = searchParams.get(sortParam) === column
   const direction = active
-    ? ((searchParams.get("dir") as "asc" | "desc" | null) ?? defaultDirection)
+    ? ((searchParams.get(dirParam) as "asc" | "desc" | null) ?? defaultDirection)
     : null
 
   const next = active
@@ -38,9 +44,11 @@ export function SortableHeader({
     : defaultDirection
 
   const params = new URLSearchParams(searchParams)
-  params.set("sort", column)
-  params.set("dir", next)
-  params.delete("offset")
+  params.set(sortParam, column)
+  params.set(dirParam, next)
+  // Re-ordering the paged table starts it again at page one. A table with
+  // its own keys has no pager, so it leaves the other one where it is.
+  if (sortParam === "sort") params.delete("offset")
 
   const Icon = !active
     ? ChevronsUpDownIcon
