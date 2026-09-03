@@ -145,19 +145,48 @@ const EMAIL_IN_TEXT = /[^\s<>@]+@[^\s<>@]+\.[^\s<>@,;)]+/
 /**
  * The text of a message for field-scanning purposes. Many form hosts send
  * HTML only, so reading `bodyText` alone finds nothing at all on exactly the
- * messages this parsing exists for.
+ * messages this parsing exists for — and everything here reads what the
+ * sender just wrote, never the conversation quoted underneath it.
  */
 export function scannableBody(
   bodyText: string | null | undefined,
   bodyHtml: string | null | undefined
 ): string | null {
-  if (bodyText?.trim()) return bodyText
-  return bodyHtml ? htmlToText(bodyHtml) : null
+  if (bodyText?.trim()) return withoutQuotedText(bodyText)
+  return bodyHtml ? withoutQuotedText(htmlToText(bodyHtml)) : null
+}
+
+// "On Tue, Sep 1, 2026 at 06:37 Administrator CHLK <info@…> wrote:", and the
+// Outlook and older-client equivalents. Everything below one of these is the
+// message being answered.
+const ATTRIBUTION_LINE =
+  /^\s*(?:on\b.{0,200}\bwrote:|-{2,}\s*original message\s*-{2,}|_{5,}|from:\s.+)\s*$/i
+
+/**
+ * The part of a message its sender actually typed: quoted lines and the
+ * conversation below the attribution line go.
+ *
+ * Without this, a reply that quotes a contact-form notification looks like a
+ * fresh submission from whoever filled the form in — one submission quoted
+ * five times reads as five people — and a value that runs to the next label
+ * picks up the quote marks with it ("David Chen > >").
+ */
+export function withoutQuotedText(text: string): string {
+  const kept: string[] = []
+  for (const line of text.split(/\r?\n/)) {
+    if (ATTRIBUTION_LINE.test(line)) break
+    if (/^\s*>/.test(line)) continue
+    kept.push(line)
+  }
+  return kept.join("\n")
 }
 
 /** Enough of a text rendering to read form labels out of an HTML-only body. */
 export function htmlToText(html: string): string {
   return html
+    // A blockquote is how Gmail and the rest wrap the message being replied
+    // to; it is not what this sender wrote.
+    .replace(/<blockquote\b[^>]*>[\s\S]*?<\/blockquote>/gi, " ")
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])\b[^>]*>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
@@ -224,7 +253,12 @@ export function resolveRelaySender(
 export function subjectFromForm(bodyText: string | null): string | null {
   const fields = parseFormFields(bodyText)
   const message = fields.get("message") ?? fields.get("comment") ?? fields.get("comments")
-  const source = (message ?? bodyText ?? "").replace(/\s+/g, " ").trim()
+  const source = (message ?? bodyText ?? "")
+    // The host's own sign-off is on every submission, so it tells one from
+    // another about as well as the template subject does.
+    .replace(/\bSent\s+via\s+form\s+submission\s+from\b[\s\S]*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
   if (!source) return null
 
   const limit = 72

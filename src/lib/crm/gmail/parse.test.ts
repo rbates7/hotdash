@@ -7,6 +7,7 @@ import {
   inboundHtml,
   inboundPlainDana,
   inboundWithAttachment,
+  makeMessage,
   formSubmissionKnown,
   formSubmissionUnknown,
   humanFromFormsAddress,
@@ -410,5 +411,69 @@ describe("isFormSubmission", () => {
     expect(parseMessage(inboundPlainDana, founder)!.isFormSubmission).toBe(false)
     expect(parseMessage(humanFromFormsAddress, founder)!.isFormSubmission).toBe(false)
     expect(parseMessage(newsletter, founder)!.isFormSubmission).toBe(false)
+  })
+})
+
+describe("quoted text", () => {
+  const founder = new Set([FOUNDER])
+
+  it("reads only what the sender wrote, not the submission they quoted", () => {
+    // A coach replying on the form's thread. Their reply quotes the whole
+    // notification — which the repair once read as a second submission by
+    // the person named in the quote.
+    const reply = makeMessage({
+      id: "m_quoted_reply",
+      threadId: "t_form_shared",
+      from: "Tim Hulak <timhulak@gmail.com>",
+      subject: "Re: Form Submission - Contact Form",
+      text: [
+        "Any update on this?",
+        "",
+        "On Tue, Sep 1, 2026 at 06:37 Administrator CHLK <info@chlkapp.com> wrote:",
+        "> Name: Dana Whitfield",
+        "> Email: dana@acme.com",
+        "> Message: Can I move a play between playbooks?",
+      ].join("\n"),
+      sentAt: "2026-09-02T10:00:00Z",
+    })
+    const body = scannableBody(parseMessage(reply, founder)!.bodyText, null)
+    expect(body).toBe("Any update on this?\n")
+    expect(parseFormFields(body).size).toBe(0)
+    expect(parseMessage(reply, founder)!.isFormSubmission).toBe(false)
+  })
+
+  it("never lets a value run into the next line's quote marks", () => {
+    // "Name: David Chen" followed by "> Email:" used to yield "David Chen >".
+    const quoted = "> Name: David Chen\n> Email: dchen@athletics.ucla.edu\n> Message: Hi"
+    expect(parseFormFields(scannableBody(quoted, null)).size).toBe(0)
+    const clean = "Name: David Chen\nEmail: dchen@athletics.ucla.edu\nMessage: Hi"
+    const fields = parseFormFields(scannableBody(clean, null))
+    expect(fields.get("name")).toBe("David Chen")
+    expect(fields.get("email")).toBe("dchen@athletics.ucla.edu")
+  })
+
+  it("drops the blockquote an HTML reply wraps the old message in", () => {
+    const html =
+      "<div>Thanks!</div><blockquote class=\"gmail_quote\"><p>Name: Dana Whitfield</p><p>Email: dana@acme.com</p></blockquote>"
+    const body = scannableBody(null, html)!
+    expect(body).toContain("Thanks!")
+    expect(body).not.toContain("Dana Whitfield")
+    expect(parseFormFields(body).size).toBe(0)
+  })
+
+  it("still reads a real submission, plain text or HTML only", () => {
+    expect(
+      parseFormFields(scannableBody(null, "<p>Name: Marcus Hall</p><p>Email: marcus@northside.k12.us</p>")).get("name")
+    ).toBe("Marcus Hall")
+    expect(parseMessage(formSubmissionKnown, founder)!.isFormSubmission).toBe(true)
+  })
+})
+
+describe("subjectFromForm sign-off", () => {
+  it("drops the host's own footer, which is on every submission", () => {
+    expect(
+      subjectFromForm("Name: Dana\nMessage: Can I upload to hudl?\n\nSent via form submission from CHLK")
+    ).toBe("Can I upload to hudl?")
+    expect(subjectFromForm("Sent via form submission from CHLK")).toBeNull()
   })
 })

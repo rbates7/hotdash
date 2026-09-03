@@ -37,6 +37,7 @@ import {
 import { createDb } from "../src/lib/crm/db/client"
 import { cases, contacts, emailMessages } from "../src/lib/crm/db/schema"
 import {
+  isRelaySender,
   parseFormFields,
   scannableBody,
   subjectFromForm,
@@ -58,14 +59,52 @@ function splitName(full: string) {
   }
 }
 
-/** Who really sent this message, read from the form fields in its body. */
-function submissionIn(message: { bodyText: string | null; bodyHtml: string | null }) {
+/** A name a person would actually have. Anything carrying quote marks or an
+ * address came out of a quoted reply and is not to be written anywhere. */
+function looksLikeName(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > 60) return false
+  if (/[>@<|]/.test(trimmed)) return false
+  return trimmed.split(/\s+/).length <= 4
+}
+
+/**
+ * Who really sent this message. Only a notification the form host delivered
+ * counts: a reply quoting one is not a submission, however much of the form
+ * it repeats.
+ */
+function submissionIn(message: {
+  fromEmail: string
+  bodyText: string | null
+  bodyHtml: string | null
+}) {
+  if (!isRelaySender(message.fromEmail)) return null
+  // scannableBody drops quoted lines, so this is what the host sent.
   const body = scannableBody(message.bodyText, message.bodyHtml)
   if (!body) return null
   const fields = parseFormFields(body)
   const email = fields.get("email")?.match(EMAIL_IN_TEXT)?.[0]
   if (!email) return null
-  return { email: normalizeEmail(email), name: fields.get("name") ?? null, body }
+  const name = fields.get("name")
+  return {
+    email: normalizeEmail(email),
+    name: name && looksLikeName(name) ? name.trim() : null,
+    body,
+  }
+}
+
+/** The contact for a submitter, created when the CRM has never seen them. */
+function contactFor(email: string, name: string | null) {
+  const existing = findContactByEmail(db, email)
+  if (existing) return existing
+  stats.newContacts += 1
+  if (!write) return null
+  return createContact(db, {
+    email,
+    ...(name ? splitName(name) : {}),
+    nameSource: name ? "gmail" : null,
+    source: "gmail",
+  })
 }
 
 const stats = {
@@ -74,11 +113,15 @@ const stats = {
   created: 0,
   moved: 0,
   relinked: 0,
+  reported: 0,
   subjects: 0,
   names: 0,
   senders: 0,
   newContacts: 0,
 }
+
+/** Cases sitting on a contact whose address is the form host itself. */
+const hostContactCases: number[] = []
 
 for (const caseRow of db.select().from(cases).all()) {
   const messages = db
@@ -90,78 +133,140 @@ for (const caseRow of db.select().from(cases).all()) {
   if (messages.length === 0) continue
   stats.examined += 1
 
-  // Submissions only: a reply you sent on the case is not one.
-  const submissions = []
+  type Entry = {
+    message: (typeof messages)[number]
+    owner: string
+    form: { email: string; name: string | null; body: string } | null
+  }
+
+  // Who each inbound message is from. A form host's notification names the
+  // submitter inside; anything else already carries its own sender, which
+  // covers cases merged after relay resolution shipped.
+  const entries: Entry[] = []
   for (const message of messages) {
+    if (message.direction !== "inbound") continue
     const form = submissionIn(message)
-    if (form) submissions.push({ message, form })
+    if (form) {
+      entries.push({ message, owner: form.email, form })
+    } else if (!isRelaySender(message.fromEmail)) {
+      entries.push({ message, owner: message.fromEmail, form: null })
+    }
   }
-  const seed = submissions[0]
-  if (!seed) continue
+  if (entries.length === 0) continue
 
-  /** The contact for a submitter, created when the CRM has never seen them. */
-  function contactFor(email: string, name: string | null) {
-    const existing = findContactByEmail(db, email)
-    if (existing) return existing
-    stats.newContacts += 1
-    if (!write) return null
-    return createContact(db, {
-      email,
-      ...(name ? splitName(name) : {}),
-      nameSource: name ? "gmail" : null,
-      source: "gmail",
-    })
+  const owners = [...new Set(entries.map((entry) => entry.owner))]
+  const caseContact = db
+    .select()
+    .from(contacts)
+    .where(eq(contacts.id, caseRow.contactId))
+    .get()
+  if (caseContact && isRelaySender(caseContact.email)) {
+    hostContactCases.push(caseRow.caseNumber)
   }
 
-  // Everyone on this case who is not its earliest submitter.
-  const others = submissions
-    .slice(1)
-    .filter((entry) => entry.form.email !== seed.form.email)
+  // The case keeps the submitter it is already filed under, when that is one
+  // of them; otherwise the earliest, and the case is relinked to them.
+  const keeper =
+    (caseContact && owners.find((owner) => owner === caseContact.email)) ??
+    owners[0]!
+  const keeperEntries = entries.filter((entry) => entry.owner === keeper)
+  const seed = keeperEntries[0]!
 
-  if (others.length > 0) {
+  const subjectFor = (entry: Entry) =>
+    (entry.form ? subjectFromForm(entry.form.body) : null) ??
+    entry.message.subject ??
+    "Form submission"
+
+  if (owners.length > 1) {
     stats.mixed += 1
     console.log(
-      `#${caseRow.caseNumber} "${caseRow.subject}" — ${others.length + 1} submitters`
+      `#${caseRow.caseNumber} "${caseRow.subject}" — ${owners.length} submitters`
     )
-    for (const entry of others) {
-      const subject =
-        subjectFromForm(entry.form.body) ??
-        entry.message.subject ??
-        "Form submission"
-      console.log(`    → ${entry.form.email}: "${subject}"`)
-      stats.created += 1
-      stats.moved += 1
-      const contact = contactFor(entry.form.email, entry.form.name)
-      if (!write || !contact) continue
-      const newCase = createCaseForThread(db, {
-        contactId: contact.id,
-        subject,
-        gmailThreadId: `${FORM_CASE_PREFIX}${entry.message.gmailMessageId}`,
-        createdAt: entry.message.sentAt,
-      })
+  }
+
+  for (const owner of owners) {
+    if (owner === keeper) continue
+    const mine = entries.filter((entry) => entry.owner === owner)
+    const first = mine[0]!
+    const name = mine.find((entry) => entry.form?.name)?.form?.name ?? null
+    const subject = subjectFor(first)
+    console.log(`    → ${owner}: "${subject}"`)
+    stats.created += 1
+
+    // A reply of yours goes with the submission it answers, which its
+    // recipient names.
+    const replies = messages.filter(
+      (message) =>
+        message.direction === "outbound" && message.toEmails.includes(owner)
+    )
+    const moving = [...mine.map((entry) => entry.message), ...replies].sort(
+      (a, b) => a.sentAt.getTime() - b.sentAt.getTime()
+    )
+    stats.moved += moving.length
+
+    const contact = contactFor(owner, name)
+    if (!write || !contact) continue
+    const newCase = createCaseForThread(db, {
+      contactId: contact.id,
+      subject,
+      gmailThreadId: `${FORM_CASE_PREFIX}${first.message.gmailMessageId}`,
+      createdAt: first.message.sentAt,
+    })
+    for (const message of moving) {
+      const entry = mine.find((candidate) => candidate.message.id === message.id)
       db.update(emailMessages)
         .set({
           caseId: newCase.id,
           contactId: contact.id,
-          fromEmail: entry.form.email,
-          fromName: entry.form.name,
+          ...(entry?.form
+            ? { fromEmail: entry.form.email, fromName: entry.form.name }
+            : {}),
         })
-        .where(eq(emailMessages.id, entry.message.id))
+        .where(eq(emailMessages.id, message.id))
         .run()
-      applyMessageToCase(db, newCase, {
-        direction: entry.message.direction,
-        sentAt: entry.message.sentAt,
-        fromName: entry.form.name,
-        fromEmail: entry.form.email,
+      const current = db.select().from(cases).where(eq(cases.id, newCase.id)).get()!
+      applyMessageToCase(db, current, {
+        direction: message.direction,
+        sentAt: message.sentAt,
+        fromName: entry?.form?.name ?? message.fromName,
+        fromEmail: entry?.form?.email ?? message.fromEmail,
       })
     }
   }
 
-  // Whatever is left on the case is the seed submitter's; name the sender
-  // on those messages too, or they stay attributed to the form host.
-  for (const entry of submissions) {
+  // Messages that left took their dates with them: what is left decides
+  // when this case last moved, and so whether it is waiting on a reply.
+  if (owners.length > 1 && write) {
+    const left = db
+      .select()
+      .from(emailMessages)
+      .where(eq(emailMessages.caseId, caseRow.id))
+      .all()
+    const newest = (direction: "inbound" | "outbound") =>
+      left
+        .filter((message) => message.direction === direction)
+        .reduce<Date | null>(
+          (best, message) =>
+            !best || message.sentAt > best ? message.sentAt : best,
+          null
+        )
+    const lastInboundAt = newest("inbound")
+    const lastOutboundAt = newest("outbound")
+    const lastActivityAt =
+      [lastInboundAt, lastOutboundAt]
+        .filter((date): date is Date => date !== null)
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? caseRow.createdAt
+    db.update(cases)
+      .set({ lastInboundAt, lastOutboundAt, lastActivityAt })
+      .where(eq(cases.id, caseRow.id))
+      .run()
+  }
+
+  // What stays is the keeper's: name the sender on their own messages, or
+  // they read as having come from the form host.
+  for (const entry of keeperEntries) {
+    if (!entry.form) continue
     if (entry.message.fromEmail === entry.form.email) continue
-    if (others.includes(entry)) continue
     stats.senders += 1
     if (write) {
       db.update(emailMessages)
@@ -171,8 +276,7 @@ for (const caseRow of db.select().from(cases).all()) {
     }
   }
 
-  // The case that stays: its subject, and the person it is really about.
-  const derived = subjectFromForm(seed.form.body)
+  const derived = seed.form ? subjectFromForm(seed.form.body) : null
   if (derived && derived !== caseRow.subject) {
     stats.subjects += 1
     if (write) {
@@ -180,35 +284,39 @@ for (const caseRow of db.select().from(cases).all()) {
     }
   }
 
-  // Compare by address, not by id: in report mode the right contact may
-  // not exist yet, and the report has to say so anyway.
-  const onCase = db
-    .select()
-    .from(contacts)
-    .where(eq(contacts.id, caseRow.contactId))
-    .get()
-  if (onCase && onCase.email !== seed.form.email) {
-    console.log(
-      `#${caseRow.caseNumber} is ${seed.form.email}'s, not ${onCase.email}'s`
-    )
-    stats.relinked += 1
-    const seedContact = contactFor(seed.form.email, seed.form.name)
-    if (write && seedContact) {
-      db.update(cases)
-        .set({ contactId: seedContact.id })
-        .where(eq(cases.id, caseRow.id))
-        .run()
-      db.update(emailMessages)
-        .set({ contactId: seedContact.id })
-        .where(eq(emailMessages.caseId, caseRow.id))
-        .run()
+  // Relink only when the case is filed under someone who never wrote on it.
+  // A contact is never created just to move a case: a submitter the CRM has
+  // never met, on a case that already belongs to a real person, is reported
+  // and left alone — that is a coach mistyping their own address.
+  if (caseContact && caseContact.email !== keeper) {
+    const existing = findContactByEmail(db, keeper)
+    const host = isRelaySender(caseContact.email)
+    if (existing || host) {
+      console.log(`#${caseRow.caseNumber} is ${keeper}'s, not ${caseContact.email}'s`)
+      stats.relinked += 1
+      const contact = existing ?? contactFor(keeper, seed.form?.name ?? null)
+      if (write && contact) {
+        db.update(cases)
+          .set({ contactId: contact.id })
+          .where(eq(cases.id, caseRow.id))
+          .run()
+        db.update(emailMessages)
+          .set({ contactId: contact.id })
+          .where(eq(emailMessages.caseId, caseRow.id))
+          .run()
+      }
+    } else {
+      console.log(
+        `#${caseRow.caseNumber} was written by ${keeper} but is filed under ${caseContact.email} — left alone`
+      )
+      stats.reported += 1
     }
   }
 
   // A name from this person's own submission — never from someone else's,
   // which is how a customer ended up wearing another coach's name.
-  for (const entry of submissions) {
-    if (!entry.form.name) continue
+  for (const entry of entries) {
+    if (!entry.form?.name) continue
     const contact = findContactByEmail(db, entry.form.email)
     if (!contact) continue
     if (contact.nameSource && contact.nameSource !== "gmail") continue
@@ -239,4 +347,14 @@ console.log(
     `${stats.names} name${stats.names === 1 ? "" : "s"}`,
   ].join(", ") + (write ? " — applied." : " would change.")
 )
+if (stats.reported > 0) {
+  console.log(
+    `${stats.reported} case(s) written by someone the CRM has never met, filed under a real customer — left alone.`
+  )
+}
+if (hostContactCases.length > 0) {
+  console.log(
+    `${hostContactCases.length} case(s) sit on the form host as if it were a customer: #${hostContactCases.join(", #")}`
+  )
+}
 if (!write) console.log("Nothing was changed. Re-run with --write to apply.")
