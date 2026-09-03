@@ -140,21 +140,30 @@ for (const caseRow of db.select().from(cases).all()) {
   }
 
   // Who each inbound message is from. A form host's notification names the
-  // submitter inside; anything else already carries its own sender, which
-  // covers cases merged after relay resolution shipped.
-  const entries: Entry[] = []
+  // submitter inside; anything else came straight from a person.
+  const submissions: Entry[] = []
+  const direct: Entry[] = []
   for (const message of messages) {
     if (message.direction !== "inbound") continue
     const form = submissionIn(message)
-    if (form) {
-      entries.push({ message, owner: form.email, form })
-    } else if (!isRelaySender(message.fromEmail)) {
-      entries.push({ message, owner: message.fromEmail, form: null })
+    if (form) submissions.push({ message, owner: form.email, form })
+    else if (!isRelaySender(message.fromEmail)) {
+      direct.push({ message, owner: message.fromEmail, form: null })
     }
   }
-  if (entries.length === 0) continue
+  // Only a case built out of form notifications is a merged queue. An
+  // ordinary thread with two people on it — a coach writing from a second
+  // address, a colleague replying — is a conversation, and splitting it
+  // would turn a reply into a case of its own.
+  if (submissions.length === 0) continue
 
-  const owners = [...new Set(entries.map((entry) => entry.owner))]
+  const owners = [...new Set(submissions.map((entry) => entry.owner))]
+  // A direct message from someone who submitted the form goes with their
+  // submission. Anyone else is replying on the thread and stays put.
+  const entries = [
+    ...submissions,
+    ...direct.filter((entry) => owners.includes(entry.owner)),
+  ].sort((a, b) => a.message.sentAt.getTime() - b.message.sentAt.getTime())
   const caseContact = db
     .select()
     .from(contacts)
