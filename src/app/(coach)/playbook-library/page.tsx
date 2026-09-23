@@ -11,7 +11,10 @@ import { folders, libraryFilters, unorganizedPlays } from "@/lib/chlk/fixtures"
 
 export const metadata: Metadata = { title: "Chlk — Playbook Library" }
 
-/** Figma 202:1008 / 202:1009 — Landscape Dashboard / PLAYBOOK LIBRARY. */
+/**
+ * Playbook Library. Figma frame 202:1008 is empty; this mock follows the loose
+ * design group 202:1009 that sits on top of it (filters, folders, plays).
+ */
 export default function PlaybookLibraryPage() {
   return (
     <DashboardSection title="Playbook Library" contentGap="mt-[27px]">

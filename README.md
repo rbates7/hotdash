@@ -17,12 +17,14 @@ on mock, in-memory data — no auth, no API, and nothing here is deployed.
 
 | Route | Figma frame | Lower band |
 |---|---|---|
-| `/` | `119:320` Landscape Dashboard / RECENTS | Recents grid |
-| `/playbook` | `202:1008` (content group `202:1009`) | Filters, Folders, Unorganized Plays |
-| `/one-play-a-day` | `202:1085` (shell only in Figma) | Mock featured play + concept |
+| `/` (alias `/recents`) | `119:320` Landscape Dashboard / RECENTS — full design | Recents grid |
+| `/playbook-library` | `202:1008` is empty; content mocked after loose group `202:1009` | Filters, Folders, Unorganized Plays |
+| `/one-play-a-day` | `202:1085` is empty | Mock featured play + concept |
+| `/tutorials` | no frame | Simple placeholder |
 
-"Tutorials" is listed in the sidebar (it is a live feature) but has no frame in
-the handoff, so the item is inert. "Templates (coming soon)" is omitted.
+The Recents frame is the visual source of truth for the shell (sidebar +
+COACHING TOOLBOX hero + grid); the other routes reuse it and swap only the
+lower band and the active sidebar item. "Templates (coming soon)" is omitted.
 
 Coach shell code lives in `src/app/(coach)`, `src/components/chlk` and
 `src/lib/chlk` (nav + fixtures); exported Figma assets are in `public/chlk`.
@@ -53,7 +55,7 @@ dashboard is at http://localhost:3000/home.
 ```
 src/
 ├── app/
-│   ├── (coach)/    Chlk coach dashboard preview — `/`, /playbook, /one-play-a-day
+│   ├── (coach)/    Chlk coach dashboard preview — `/`, /recents, /playbook-library, /tutorials, /one-play-a-day
 │   ├── (founder)/  founder shell layout + one route per sidebar item
 │   └── layout.tsx  root: fonts + globals only
 ├── components/   app-sidebar, theme-provider, theme-toggle

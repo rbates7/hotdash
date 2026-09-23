@@ -83,7 +83,7 @@ export function CoachSidebar() {
 
       {/* Primary: Recents */}
       <nav aria-label="Coach" className="mt-[18px]">
-        <NavLink item={coachNavItems[0]} active={isActiveCoachRoute(pathname, "/")} />
+        <NavLink item={coachNavItems[0]} active={isActiveCoachRoute(pathname, coachNavItems[0])} />
 
         <div className="my-[18px] mb-3">
           <Divider />
@@ -91,8 +91,8 @@ export function CoachSidebar() {
 
         <ul className="flex flex-col gap-1.5">
           {coachNavItems.slice(1).map((item) => (
-            <li key={item.label}>
-              <NavLink item={item} active={isActiveCoachRoute(pathname, item.href)} />
+            <li key={item.href}>
+              <NavLink item={item} active={isActiveCoachRoute(pathname, item)} />
             </li>
           ))}
         </ul>
@@ -131,15 +131,6 @@ function NavLink({
       {item.label}
     </>
   )
-
-  if (!item.href) {
-    // Listed as a live feature, but no frame in this handoff — stays inert.
-    return (
-      <button type="button" className={className} aria-disabled="true">
-        {content}
-      </button>
-    )
-  }
 
   return (
     <Link href={item.href} aria-current={active ? "page" : undefined} className={className}>

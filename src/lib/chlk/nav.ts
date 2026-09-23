@@ -1,10 +1,8 @@
 export type CoachNavItem = {
   label: string
-  /**
-   * Route for this item. Omitted when the feature is listed in the sidebar
-   * but has no frame in the handoff (Tutorials) — the item renders inert.
-   */
-  href?: string
+  href: string
+  /** Other paths that should light this item up (e.g. `/recents` for `/`). */
+  aliases?: string[]
   /** Static icon exported from the Figma file, served from /public/chlk. */
   icon: string
   /** Intrinsic icon size in px, as drawn in Figma (never stretched). */
@@ -19,17 +17,19 @@ export const coachNavItems: CoachNavItem[] = [
   {
     label: "Recents",
     href: "/",
+    aliases: ["/recents"],
     icon: "/chlk/clock-ring.svg",
     iconSize: { width: 9, height: 9 },
   },
   {
     label: "Playbook Library",
-    href: "/playbook",
+    href: "/playbook-library",
     icon: "/chlk/playbook.svg",
     iconSize: { width: 11, height: 9 },
   },
   {
     label: "Tutorials",
+    href: "/tutorials",
     icon: "/chlk/tutorials.svg",
     iconSize: { width: 11, height: 9 },
   },
@@ -41,8 +41,8 @@ export const coachNavItems: CoachNavItem[] = [
   },
 ]
 
-export function isActiveCoachRoute(pathname: string, href: string | undefined) {
-  if (!href) return false
-  if (href === "/") return pathname === "/"
-  return pathname === href || pathname.startsWith(`${href}/`)
+export function isActiveCoachRoute(pathname: string, item: CoachNavItem) {
+  const matches = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`)
+  return matches(item.href) || (item.aliases ?? []).some(matches)
 }
