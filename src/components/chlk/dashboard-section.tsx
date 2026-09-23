@@ -5,10 +5,13 @@
 export function DashboardSection({
   title,
   action,
+  contentGap = "mt-[21px]",
   children,
 }: {
   title: string
   action?: React.ReactNode
+  /** Space between the section label and its content (Figma varies per frame). */
+  contentGap?: string
   children: React.ReactNode
 }) {
   return (
@@ -22,7 +25,7 @@ export function DashboardSection({
         </h2>
         {action}
       </div>
-      <div className="mt-[21px]">{children}</div>
+      <div className={contentGap}>{children}</div>
     </section>
   )
 }

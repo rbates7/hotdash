@@ -15,12 +15,14 @@ The 13 routes it links to are intentional stubs; each gets its own build phase.
 Dashboard (Figma: *Chlk Dashboard → Landscape Dashboard / RECENTS*). It runs
 on mock, in-memory data — no auth, no API, and nothing here is deployed.
 
-| Route | Lower band |
-|---|---|
-| `/` | Recents grid |
-| `/playbook` | Playbook Library |
-| `/tutorials` | Tutorials |
-| `/one-play-a-day` | One Play a Day |
+| Route | Figma frame | Lower band |
+|---|---|---|
+| `/` | `119:320` Landscape Dashboard / RECENTS | Recents grid |
+| `/playbook` | `202:1008` (content group `202:1009`) | Filters, Folders, Unorganized Plays |
+| `/one-play-a-day` | `202:1085` (shell only in Figma) | Mock featured play + concept |
+
+"Tutorials" is listed in the sidebar (it is a live feature) but has no frame in
+the handoff, so the item is inert. "Templates (coming soon)" is omitted.
 
 Coach shell code lives in `src/app/(coach)`, `src/components/chlk` and
 `src/lib/chlk` (nav + fixtures); exported Figma assets are in `public/chlk`.
@@ -51,11 +53,11 @@ dashboard is at http://localhost:3000/home.
 ```
 src/
 ├── app/
-│   ├── (coach)/    Chlk coach dashboard preview — `/`, /playbook, /tutorials, /one-play-a-day
+│   ├── (coach)/    Chlk coach dashboard preview — `/`, /playbook, /one-play-a-day
 │   ├── (founder)/  founder shell layout + one route per sidebar item
 │   └── layout.tsx  root: fonts + globals only
 ├── components/   app-sidebar, theme-provider, theme-toggle
-│   ├── chlk/     coach sidebar, coaching toolbox, play card, section
+│   ├── chlk/     coach sidebar, coaching toolbox, play cards, playbook library, section
 │   └── ui/       shadcn primitives (vendored)
 ├── hooks/        use-mobile
 └── lib/          nav.ts (founder sidebar source of truth), chlk/ (coach nav + fixtures), utils.ts

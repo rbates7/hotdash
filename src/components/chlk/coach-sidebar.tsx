@@ -91,7 +91,7 @@ export function CoachSidebar() {
 
         <ul className="flex flex-col gap-1.5">
           {coachNavItems.slice(1).map((item) => (
-            <li key={item.href}>
+            <li key={item.label}>
               <NavLink item={item} active={isActiveCoachRoute(pathname, item.href)} />
             </li>
           ))}
@@ -108,19 +108,16 @@ function NavLink({
   item: (typeof coachNavItems)[number]
   active: boolean
 }) {
-  return (
-    <Link
-      href={item.href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex h-[23px] items-center rounded-[4px] pl-2 text-[10px] leading-[normal] text-white transition-colors",
-        active
-          ? "bg-[rgba(43,118,186,0.5)] font-semibold"
-          : "font-normal hover:bg-white/5",
-      )}
-    >
+  const className = cn(
+    "flex h-[23px] w-full items-center rounded-[4px] pl-2 text-[10px] leading-[normal] text-white transition-colors",
+    active ? "bg-[rgba(43,118,186,0.5)] font-semibold" : "font-normal hover:bg-white/5",
+  )
+  const content = (
+    <>
       <span className="flex w-[19px] shrink-0 items-center">
-        {item.href === "/" ? <ClockIcon /> : (
+        {item.href === "/" ? (
+          <ClockIcon />
+        ) : (
           <img
             alt=""
             src={item.icon}
@@ -132,6 +129,21 @@ function NavLink({
         )}
       </span>
       {item.label}
+    </>
+  )
+
+  if (!item.href) {
+    // Listed as a live feature, but no frame in this handoff — stays inert.
+    return (
+      <button type="button" className={className} aria-disabled="true">
+        {content}
+      </button>
+    )
+  }
+
+  return (
+    <Link href={item.href} aria-current={active ? "page" : undefined} className={className}>
+      {content}
     </Link>
   )
 }

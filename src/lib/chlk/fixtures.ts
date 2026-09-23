@@ -73,39 +73,51 @@ export const recentPlays: PlayCardData[] = [
   { id: "r12", title: "2025 Saints - Yion", meta: "Yesterday", thumbnail: THUMB_B },
 ]
 
-export type PlaybookData = {
+/* ---------------------------------------------------------------------------
+ * Playbook Library (Figma 202:1009 — lower band is a raster mock, rebuilt in
+ * code): filter chips, folder rows, and unorganized plays.
+ * ------------------------------------------------------------------------- */
+
+export const libraryFilters = ["Scheme", "Personnel", "Modified", "Shared"] as const
+
+export type FolderData = {
   id: string
   name: string
   playCount: number
   updated: string
-  thumbnail: string
 }
 
-export const playbooks: PlaybookData[] = [
-  { id: "p1", name: "2025 Saints - Yion", playCount: 24, updated: "Yesterday", thumbnail: THUMB_B },
-  { id: "p2", name: "Red Zone Install", playCount: 12, updated: "3 days ago", thumbnail: THUMB_A },
-  { id: "p3", name: "Two-Minute Drill", playCount: 8, updated: "Last week", thumbnail: THUMB_C },
-  { id: "p4", name: "Cheeto", playCount: 5, updated: "Last week", thumbnail: THUMB_B },
-  { id: "p5", name: "Spring Ball Concepts", playCount: 31, updated: "2 weeks ago", thumbnail: THUMB_A },
-  { id: "p6", name: "Air Raid Base", playCount: 16, updated: "Last month", thumbnail: THUMB_C },
-  { id: "p7", name: "Screens + RPOs", playCount: 9, updated: "Last month", thumbnail: THUMB_A },
-  { id: "p8", name: "Goal Line", playCount: 6, updated: "Aug 2025", thumbnail: THUMB_B },
+export const folders: FolderData[] = [
+  { id: "f1", name: "Run Game", playCount: 18, updated: "2 days ago" },
+  { id: "f2", name: "Quick Game", playCount: 12, updated: "5 days ago" },
+  { id: "f3", name: "Dropback", playCount: 15, updated: "Yesterday" },
+  { id: "f4", name: "Screens", playCount: 8, updated: "1 week ago" },
+  { id: "f5", name: "3rd Down", playCount: 10, updated: "3 days ago" },
+  { id: "f6", name: "Red Zone", playCount: 14, updated: "Yesterday" },
+  { id: "f7", name: "2-Minute", playCount: 6, updated: "2 weeks ago" },
+  { id: "f8", name: "2025 Saints Install", playCount: 24, updated: "Yesterday" },
 ]
 
-export type TutorialData = {
+/** Route shapes drawn by the simplified library thumbnail. */
+export type DiagramVariant = "crossers" | "verticals" | "quick"
+
+export type LibraryPlayData = {
   id: string
   title: string
-  duration: string
-  thumbnail: string
+  meta: string
+  /** Concept tags printed at the top of the diagram, left and right of the LOS. */
+  labels: [string, string]
+  diagram: DiagramVariant
+  shared?: boolean
 }
 
-export const tutorials: TutorialData[] = [
-  { id: "t1", title: "Diagram your first play", duration: "3:42", thumbnail: THUMB_A },
-  { id: "t2", title: "Telestrator basics", duration: "5:10", thumbnail: THUMB_B },
-  { id: "t3", title: "Sync a diagram to film", duration: "4:05", thumbnail: THUMB_C },
-  { id: "t4", title: "Export with media", duration: "2:36", thumbnail: THUMB_A },
-  { id: "t5", title: "Organize a playbook", duration: "3:18", thumbnail: THUMB_B },
-  { id: "t6", title: "Share with your staff", duration: "1:58", thumbnail: THUMB_C },
+export const unorganizedPlays: LibraryPlayData[] = [
+  { id: "u1", title: "Mesh", meta: "2 hrs ago", labels: ["Shallow Trail", "Glance"], diagram: "crossers" },
+  { id: "u2", title: "4-Verts", meta: "8 hrs ago", labels: ["Low Trail", "Glance S"], diagram: "verticals" },
+  { id: "u3", title: "Y Cross", meta: "Yesterday", labels: ["Shallow Trail", "Glance"], diagram: "crossers", shared: true },
+  { id: "u4", title: "Cheeto", meta: "2 days ago", labels: ["Low Trail", "Glance"], diagram: "verticals" },
+  { id: "u5", title: "Quick Out", meta: "3 days ago", labels: ["Quick Out", "Stick"], diagram: "quick" },
+  { id: "u6", title: "Dig Seam", meta: "Last week", labels: ["Dig Seam", "Shallow"], diagram: "quick" },
 ]
 
 export const onePlayADay = {

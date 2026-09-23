@@ -6,6 +6,11 @@ import { onePlayADay } from "@/lib/chlk/fixtures"
 
 export const metadata: Metadata = { title: "Chlk — One Play a Day" }
 
+/**
+ * Figma 202:1085 / 202:1086 — Landscape Dashboard / ONE PLAY A DAY. The frame
+ * is shell-only (empty lower band), so the featured play and concept panel
+ * below are mock placeholders in the same visual language.
+ */
 export default function OnePlayADayPage() {
   const { date, play, concept, summary, coachingPoints, streak } = onePlayADay
 
