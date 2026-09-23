@@ -37,8 +37,8 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000 — the Chlk coach dashboard (Recents). The founder
-dashboard is at http://localhost:3000/home.
+Open http://localhost:3001 — the Chlk coach dashboard (Recents). The founder
+dashboard is at http://localhost:3001/home.
 
 ## Scripts
 
