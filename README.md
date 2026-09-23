@@ -9,6 +9,23 @@ Chlk founder dashboard — a Next.js App Router dashboard built with shadcn/ui
 icon rail, light/dark toggle, pinned footer, and active-state highlighting.
 The 13 routes it links to are intentional stubs; each gets its own build phase.
 
+## Chlk coach dashboard preview (local only)
+
+`/` renders a **local-only, non-production** preview of the coach-facing Chlk
+Dashboard (Figma: *Chlk Dashboard → Landscape Dashboard / RECENTS*). It runs
+on mock, in-memory data — no auth, no API, and nothing here is deployed.
+
+| Route | Lower band |
+|---|---|
+| `/` | Recents grid |
+| `/playbook` | Playbook Library |
+| `/tutorials` | Tutorials |
+| `/one-play-a-day` | One Play a Day |
+
+Coach shell code lives in `src/app/(coach)`, `src/components/chlk` and
+`src/lib/chlk` (nav + fixtures); exported Figma assets are in `public/chlk`.
+The founder dashboard is unchanged and still reachable at `/home`.
+
 ## Getting started
 
 ```bash
@@ -16,7 +33,8 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000 — it redirects to `/home`.
+Open http://localhost:3000 — the Chlk coach dashboard (Recents). The founder
+dashboard is at http://localhost:3000/home.
 
 ## Scripts
 
@@ -32,12 +50,17 @@ Open http://localhost:3000 — it redirects to `/home`.
 
 ```
 src/
-├── app/          route per sidebar item, plus layout + globals
+├── app/
+│   ├── (coach)/    Chlk coach dashboard preview — `/`, /playbook, /tutorials, /one-play-a-day
+│   ├── (founder)/  founder shell layout + one route per sidebar item
+│   └── layout.tsx  root: fonts + globals only
 ├── components/   app-sidebar, theme-provider, theme-toggle
+│   ├── chlk/     coach sidebar, coaching toolbox, play card, section
 │   └── ui/       shadcn primitives (vendored)
 ├── hooks/        use-mobile
-└── lib/          nav.ts (sidebar source of truth), utils.ts
+└── lib/          nav.ts (founder sidebar source of truth), chlk/ (coach nav + fixtures), utils.ts
 ```
 
-`src/lib/nav.ts` is the single source of truth for sidebar order, labels,
-routes and icons.
+`src/lib/nav.ts` is the single source of truth for the founder sidebar order,
+labels, routes and icons; `src/lib/chlk/nav.ts` plays the same role for the
+coach sidebar.

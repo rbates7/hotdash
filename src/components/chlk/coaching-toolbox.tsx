@@ -11,7 +11,7 @@ export function CoachingToolbox() {
     >
       <h1
         id="coaching-toolbox-heading"
-        className="text-[14px] font-bold leading-normal tracking-[3px] text-white"
+        className="text-[14px] font-bold leading-[normal] tracking-[3px] text-white"
       >
         COACHING TOOLBOX
       </h1>
@@ -48,13 +48,13 @@ function ToolboxCard({ card }: { card: ToolboxCardData }) {
             className="absolute inset-0 block size-full max-w-none"
           />
         ) : null}
-        <p className="absolute bottom-[14px] left-[23px] text-[24px] font-bold leading-normal text-white">
+        <p className="absolute bottom-[14px] left-[23px] text-[24px] font-bold leading-[normal] text-white">
           {line1}
           <br />
           {line2}
         </p>
       </div>
-      <div className="flex h-[37px] items-center bg-[#f9f5ec] px-[23px] text-[10px] font-semibold uppercase leading-normal tracking-[1px] text-[#3f3f3f]">
+      <div className="flex h-[37px] items-center bg-[#f9f5ec] px-[23px] text-[10px] font-semibold uppercase leading-[normal] tracking-[1px] text-[#3f3f3f]">
         {card.tool}
       </div>
     </button>

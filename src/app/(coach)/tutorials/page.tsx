@@ -11,7 +11,7 @@ export default function TutorialsPage() {
     <DashboardSection
       title="Tutorials"
       action={
-        <span className="text-[9px] leading-normal text-white/60">
+        <span className="text-[9px] leading-[normal] text-white/60">
           Short walkthroughs of every tool in the toolbox
         </span>
       }

@@ -11,7 +11,7 @@ export default function PlaybookLibraryPage() {
     <DashboardSection
       title="Playbook Library"
       action={
-        <span className="text-[9px] leading-normal text-white/60">
+        <span className="text-[9px] leading-[normal] text-white/60">
           {playbooks.length} playbooks ·{" "}
           {playbooks.reduce((sum, p) => sum + p.playCount, 0)} plays
         </span>

@@ -13,7 +13,7 @@ export default function OnePlayADayPage() {
     <DashboardSection
       title="One Play a Day"
       action={
-        <span className="text-[9px] leading-normal text-white/60">
+        <span className="text-[9px] leading-[normal] text-white/60">
           {date} · {streak}-day streak
         </span>
       }
@@ -21,7 +21,7 @@ export default function OnePlayADayPage() {
       <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-[21px]">
         <PlayCard play={play} />
         <div className="flex flex-col gap-3 rounded-[13px] bg-[#222222] p-5">
-          <p className="text-[10px] font-semibold uppercase leading-normal tracking-[1px] text-[#9cccfc]">
+          <p className="text-[10px] font-semibold uppercase leading-[normal] tracking-[1px] text-[#9cccfc]">
             Today&apos;s concept
           </p>
           <h3 className="text-[18px] font-bold leading-tight text-white">{concept}</h3>

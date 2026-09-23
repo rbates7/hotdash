@@ -17,7 +17,7 @@ export function DashboardSection({
       className="flex-1 bg-[#151515] px-[23px] pb-6 pt-[17px] text-white"
     >
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold leading-normal underline decoration-solid underline-offset-[3px]">
+        <h2 className="text-[11px] font-semibold leading-[normal] underline decoration-solid underline-offset-[3px]">
           {title}
         </h2>
         {action}

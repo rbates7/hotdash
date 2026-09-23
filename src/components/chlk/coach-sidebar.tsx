@@ -42,7 +42,7 @@ export function CoachSidebar() {
               CC
             </span>
           </span>
-          <span className="text-[10px] font-bold leading-normal">Coach Casey</span>
+          <span className="text-[10px] font-bold leading-[normal]">Coach Casey</span>
           <img
             alt=""
             src="/chlk/chevron.svg"
@@ -77,7 +77,7 @@ export function CoachSidebar() {
         <input
           type="search"
           placeholder="Search"
-          className="h-full w-full rounded-[4px] border-[0.35px] border-[#d9d9d9] bg-[#3f3f3f] pl-[23px] pr-2 text-[10px] leading-normal text-white outline-none placeholder:text-[#abaaaa] focus-visible:border-[#2b76ba]"
+          className="h-full w-full rounded-[4px] border-[0.35px] border-[#d9d9d9] bg-[#3f3f3f] pl-[23px] pr-2 text-[10px] leading-[normal] text-white outline-none placeholder:text-[#abaaaa] focus-visible:border-[#2b76ba]"
         />
       </label>
 
@@ -113,7 +113,7 @@ function NavLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-[23px] items-center rounded-[4px] pl-2 text-[10px] leading-normal text-white transition-colors",
+        "flex h-[23px] items-center rounded-[4px] pl-2 text-[10px] leading-[normal] text-white transition-colors",
         active
           ? "bg-[rgba(43,118,186,0.5)] font-semibold"
           : "font-normal hover:bg-white/5",
