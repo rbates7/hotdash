@@ -10,6 +10,7 @@ import {
   buildSprints,
   RASHAD,
 } from "@/lib/issues-fixture"
+import { createStorage, type PersistenceStore } from "@/lib/persistence"
 
 export type State = {
   issues: Issue[]
@@ -43,6 +44,7 @@ export type Action =
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
   | { type: "hydrate"; state: State | null }
+  | { type: "save-result"; ok: boolean }
   /** Regenerates the seed relative to `at`, so its dates are fresh again. */
   | { type: "reset"; at: string }
 
@@ -168,6 +170,9 @@ export function reducer(state: State, action: Action): State {
       // stays so the saved sprint is measured against today.
       return action.state ? { ...action.state, now: state.now } : state
 
+    case "save-result":
+      return state
+
     case "reset":
       return initialState(new Date(action.at))
   }
@@ -184,21 +189,36 @@ const USER_EDITS = new Set<Action["type"]>([
 ])
 
 /**
- * Reducer state plus persistence bookkeeping: whether localStorage has been
- * consulted yet, and whether this browser holds edits worth saving.
+ * Reducer state plus persistence bookkeeping (see `PersistenceStatus`):
+ * whether localStorage has been consulted, whether this browser holds
+ * edits worth saving, whether the key holds a copy, and whether the last
+ * write failed.
  */
-type Shell = { data: State; hydrated: boolean; dirty: boolean }
+type Shell = {
+  data: State
+  hydrated: boolean
+  dirty: boolean
+  saved: boolean
+  saveFailed: boolean
+}
 
 function shellReducer(shell: Shell, action: Action): Shell {
-  return {
-    data: reducer(shell.data, action),
-    hydrated: shell.hydrated || action.type === "hydrate",
-    dirty:
-      action.type === "reset"
-        ? false
-        : action.type === "hydrate"
-          ? action.state !== null
-          : shell.dirty || USER_EDITS.has(action.type),
+  const data = reducer(shell.data, action)
+  switch (action.type) {
+    case "hydrate":
+      return {
+        data,
+        hydrated: true,
+        dirty: action.state !== null,
+        saved: action.state !== null,
+        saveFailed: false,
+      }
+    case "save-result":
+      return { ...shell, data, saved: action.ok ? true : shell.saved, saveFailed: !action.ok }
+    case "reset":
+      return { data, hydrated: shell.hydrated, dirty: false, saved: false, saveFailed: false }
+    default:
+      return { ...shell, data, dirty: shell.dirty || USER_EDITS.has(action.type) }
   }
 }
 
@@ -299,34 +319,32 @@ export function isState(value: unknown): value is State {
   )
 }
 
+export const issuesStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: ["hotdash.agent-workplace.v1"],
+  validate: isState,
+})
+
+/** Read the saved copy; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
-  try {
-    const raw = storage?.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isState(parsed) ? parsed : null
-  } catch {
-    return null
-  }
+  return issuesStorage.load(storage).state
 }
 
-export function saveState(storage: Storage | undefined, state: State) {
-  try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // Quota or private mode: edits still work for the session.
-  }
+/** The saved copy, or a fresh seed dated from `now` when there is none. */
+export function loadStateOrSeed(storage: Storage | undefined, now: Date): State {
+  return loadState(storage) ?? initialState(now)
+}
+
+export function saveState(storage: Storage | undefined, state: State): boolean {
+  return issuesStorage.save(storage, state)
 }
 
 export function clearState(storage: Storage | undefined) {
-  try {
-    storage?.removeItem(STORAGE_KEY)
-  } catch {
-    // Nothing to do; the next load falls back to the seed anyway.
-  }
+  issuesStorage.clear(storage)
 }
 
-type Store = Omit<State, "now"> & {
+type Store = Omit<State, "now"> &
+  PersistenceStore & {
   actors: typeof seedActors
   /**
    * `State.now` as a Date: the server's request instant, or the moment of
@@ -334,8 +352,6 @@ type Store = Omit<State, "now"> & {
    * client clock would hydrate mismatched against the server's HTML.
    */
   now: Date
-  /** True once localStorage has been read; edits made after this are saved. */
-  persisted: boolean
   createIssue: (input: NewIssueInput) => void
   patchIssue: (key: string, patch: Partial<Issue>) => void
   addComment: (key: string, body: string) => void
@@ -355,11 +371,14 @@ export function IssuesProvider({
   nowMs: number
   children: React.ReactNode
 }) {
-  const [{ data: state, hydrated: persisted, dirty }, dispatch] = React.useReducer(
-    shellReducer,
-    undefined,
-    () => ({ data: initialState(new Date(nowMs)), hydrated: false, dirty: false })
-  )
+  const [{ data: state, hydrated: persisted, dirty, saved, saveFailed }, dispatch] =
+    React.useReducer(shellReducer, undefined, () => ({
+      data: initialState(new Date(nowMs)),
+      hydrated: false,
+      dirty: false,
+      saved: false,
+      saveFailed: false,
+    }))
 
   // Server and first client paint both use the seed; the saved copy is
   // applied after mount so the HTML never mismatches.
@@ -367,11 +386,19 @@ export function IssuesProvider({
     dispatch({ type: "hydrate", state: loadState(window.localStorage) })
   }, [])
 
+  // Another tab wrote or cleared the key: take its copy rather than
+  // overwriting it with ours on the next edit.
+  React.useEffect(
+    () => issuesStorage.subscribe((result) => dispatch({ type: "hydrate", state: result.state })),
+    []
+  )
+
   // Write only once there is something of the founder's to keep (see the
-  // persistence policy above); a Reset clears the copy instead.
+  // persistence policy above); a Reset clears the copy instead. The result
+  // feeds the note: "Saved" only when the write succeeded.
   React.useEffect(() => {
     if (!persisted) return
-    if (dirty) saveState(window.localStorage, state)
+    if (dirty) dispatch({ type: "save-result", ok: saveState(window.localStorage, state) })
     else clearState(window.localStorage)
   }, [persisted, dirty, state])
 
@@ -384,6 +411,9 @@ export function IssuesProvider({
       actors: seedActors,
       now,
       persisted,
+      edited: dirty,
+      saved,
+      saveFailed,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
       patchIssue: (key, patch) =>
         dispatch({ type: "patch-issue", key, patch, at: at() }),
@@ -397,7 +427,7 @@ export function IssuesProvider({
       // save left over from an older session comes back fresh.
       resetDemoData: () => dispatch({ type: "reset", at: at() }),
     }
-  }, [state, persisted, now])
+  }, [state, persisted, dirty, saved, saveFailed, now])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>

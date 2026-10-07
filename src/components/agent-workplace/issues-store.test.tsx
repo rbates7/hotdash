@@ -10,11 +10,14 @@ import {
   STORAGE_KEY,
   initialState,
   isState,
+  issuesStorage,
   loadState,
+  loadStateOrSeed,
   reducer,
   saveState,
   useIssues,
 } from "@/components/agent-workplace/issues-store"
+import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const AT = "2026-08-27T15:00:00.000Z"
 
@@ -138,12 +141,13 @@ describe("localStorage round trip", () => {
 })
 
 function Probe() {
-  const { issues, sprints, now, persisted, patchIssue, resetDemoData } = useIssues()
+  const { issues, sprints, now, persisted, edited, saved, saveFailed, patchIssue, resetDemoData } = useIssues()
   const issue = issues.find((i) => i.key === "CHLK-404")!
   const sprint = activeSprint(sprints)
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
+      <span data-testid="status">{`edited=${edited} saved=${saved} failed=${saveFailed}`}</span>
       <span data-testid="priority">{issue.priority}</span>
       <span data-testid="project">{issue.project ?? "none"}</span>
       <span data-testid="now">{now.toISOString()}</span>
@@ -349,3 +353,53 @@ describe("saved items are validated one by one (L2)", () => {
   })
 })
 
+
+describe("shared persistence policy (Workplace)", () => {
+  it("exposes edited / saved / saveFailed: nothing saved until the first edit", async () => {
+    mount()
+    await hydrated()
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
+  })
+
+  it("reports a failed save and never claims Saved", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(quotaExceededStorage().setItem)
+    try {
+      mount()
+      await hydrated()
+      act(() => screen.getByRole("button", { name: "edit" }).click())
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+      expect(screen.getByTestId("priority")).toHaveTextContent("low") // the edit still works this session
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("parks a copy that fails validation under <key>.rejected and loads the seed", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const raw = JSON.stringify({ issues: "nope" })
+    window.localStorage.setItem(STORAGE_KEY, raw)
+    expect(loadState(window.localStorage)).toBeNull()
+    expect(window.localStorage.getItem(issuesStorage.rejectedKey)).toBe(raw)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(loadStateOrSeed(window.localStorage, FIXED_NOW)).toEqual(initialState(FIXED_NOW))
+  })
+
+  it("re-hydrates when another tab writes the key, keeping this page's clock", async () => {
+    mount()
+    await hydrated()
+    const theirs = reducer(initialState(new Date(FIXED_NOW_MS - DAY)), {
+      type: "patch-issue",
+      key: "CHLK-404",
+      patch: { priority: "low" },
+      at: AT,
+    })
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
+    act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
+    expect(screen.getByTestId("priority")).toHaveTextContent("low")
+    expect(screen.getByTestId("now")).toHaveTextContent(FIXED_NOW.toISOString())
+    expect(screen.getByTestId("status")).toHaveTextContent("saved=true")
+  })
+})

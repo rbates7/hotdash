@@ -3,14 +3,31 @@
 import * as React from "react"
 
 import {
+  addDays,
+  daysBetween,
+  isIsoDay,
+  now,
+  todayIn,
+  type IsoDay,
+} from "@/lib/clock"
+import { SEED_EXPENSE_IDS, seedExpenses } from "@/lib/kpis"
+import {
   DEFAULT_METRIC_IDS,
   METRIC_IDS,
   type ChartType,
   type Expense,
   type MetricId,
 } from "@/lib/metrics"
-import { addDays, daysBetween, type IsoDay } from "@/lib/metrics/clock"
-import { seedExpenses } from "@/lib/metrics-fixture"
+import {
+  createStorage,
+  dedupe,
+  isBoolean,
+  isFiniteNumber,
+  isString,
+  type LoadResult,
+  type PersistenceStore,
+  type Storage,
+} from "@/lib/persistence"
 
 export type State = {
   /** Cards on the Overview board, in display order. */
@@ -36,7 +53,8 @@ export type Action =
   | { type: "set-chart"; id: MetricId; chart: ChartType }
   | { type: "add-expense"; input: NewExpenseInput }
   | { type: "remove-expense"; id: string }
-  | { type: "hydrate"; state: State | null; today: IsoDay }
+  | { type: "hydrate"; result: LoadResult<State>; today: IsoDay }
+  | { type: "save-result"; ok: boolean }
   | { type: "reset"; today: IsoDay }
 
 export function reducer(state: State, action: Action): State {
@@ -55,7 +73,8 @@ export function reducer(state: State, action: Action): State {
       const expense: Expense = {
         id: `exp-${state.nextExpenseId}`,
         category: action.input.category.trim(),
-        amount: Math.round(action.input.amount),
+        // Whole dollars, at least one: the form enforces it, the store guarantees it.
+        amount: Math.max(1, Math.round(action.input.amount)),
         date: action.input.date,
         recurring: action.input.recurring,
       }
@@ -75,46 +94,81 @@ export function reducer(state: State, action: Action): State {
       }
 
     case "hydrate":
-      return action.state ? shiftSeed(action.state, action.today) : state
+      return action.result.state ? shiftSeed(action.result.state, action.today) : state
+
+    case "save-result":
+      return state
 
     case "reset":
       return initialState(action.today)
   }
 }
 
-/** Ids the seed uses; anything else was entered by the user. */
-const SEED_IDS = new Set(seedExpenses("2026-01-01").map((e) => e.id))
-
 /**
  * Bring a saved seed up to date: its rows move forward by the days since
- * `seededAt`, capped at today. Rows the user added are left alone.
+ * `seededAt`, capped at today. Rows the user added are left alone. A copy
+ * that defeats the arithmetic falls back to a fresh seed rather than
+ * crashing the page — the raw copy has already been parked by `load`.
  */
 export function shiftSeed(state: State, today: IsoDay): State {
-  const delta = daysBetween(state.seededAt, today)
-  if (delta <= 0) return state
-  return {
-    ...state,
-    seededAt: today,
-    expenses: state.expenses.map((e) => {
-      if (!SEED_IDS.has(e.id)) return e
-      const shifted = addDays(e.date, delta)
-      return { ...e, date: shifted > today ? today : shifted }
-    }),
+  try {
+    const delta = daysBetween(state.seededAt, today)
+    if (!Number.isFinite(delta)) return initialState(today)
+    if (delta <= 0) return state
+    return {
+      ...state,
+      seededAt: today,
+      expenses: state.expenses.map((e) => {
+        if (!SEED_EXPENSE_IDS.has(e.id)) return e
+        const shifted = addDays(e.date, delta)
+        return { ...e, date: shifted > today ? today : shifted }
+      }),
+    }
+  } catch {
+    return initialState(today)
   }
 }
 
+/** Actions that are the user's own edits, as opposed to plumbing. */
+const USER_EDITS = new Set<Action["type"]>([
+  "add-metric",
+  "remove-metric",
+  "set-chart",
+  "add-expense",
+  "remove-expense",
+])
+
 /**
- * Reducer state plus two flags: whether localStorage has been consulted,
- * and whether the user has changed anything since. Only the latter earns a
- * write — loading the page must not pin today's seed into storage.
+ * Reducer state plus persistence bookkeeping: whether localStorage has
+ * been consulted, whether the user changed anything, whether the key holds
+ * a copy, and whether the last write failed.
  */
-type Shell = { data: State; hydrated: boolean; edited: boolean }
+type Shell = {
+  data: State
+  hydrated: boolean
+  edited: boolean
+  saved: boolean
+  saveFailed: boolean
+}
 
 function shellReducer(shell: Shell, action: Action): Shell {
-  return {
-    data: reducer(shell.data, action),
-    hydrated: shell.hydrated || action.type === "hydrate",
-    edited: shell.edited || action.type !== "hydrate",
+  const data = reducer(shell.data, action)
+  switch (action.type) {
+    case "hydrate":
+      return {
+        data,
+        hydrated: true,
+        // A copy from another tab or session is theirs; nothing new of ours.
+        edited: shell.edited,
+        saved: action.result.status === "saved",
+        saveFailed: false,
+      }
+    case "save-result":
+      return { ...shell, data, saved: action.ok ? true : shell.saved, saveFailed: !action.ok }
+    case "reset":
+      return { data, hydrated: shell.hydrated, edited: false, saved: false, saveFailed: false }
+    default:
+      return { ...shell, data, edited: shell.edited || USER_EDITS.has(action.type) }
   }
 }
 
@@ -138,115 +192,149 @@ export function initialState(today: IsoDay): State {
 
 /**
  * Board layout, chart choices and expense rows are saved to this browser's
- * localStorage so a reload keeps them — but only once the user has edited
- * something; the untouched seed is never written. Bump the version whenever
- * the seed or the shape changes so stale saves are discarded instead of
- * half-applied (v1 froze the seed on load and had no `seededAt`). Stand-in
- * until real Stripe/Supabase wiring; no server copy.
+ * localStorage, under the shared policy in `@/lib/persistence`: only after
+ * a real edit, validated whole on load, with Reset clearing the key. Bump
+ * the version whenever the seed or the shape changes (v1 froze the seed on
+ * load and had no `seededAt`).
  */
 export const STORAGE_KEY = "hotdash.metrics.v2"
-/** Dropped on load so an old save cannot linger beside the new one. */
 export const LEGACY_STORAGE_KEYS = ["hotdash.metrics.v1"] as const
 
 function isMetricId(value: unknown): value is MetricId {
-  return typeof value === "string" && (METRIC_IDS as readonly string[]).includes(value)
+  return isString(value) && (METRIC_IDS as readonly string[]).includes(value)
+}
+
+function isChartType(value: unknown): value is ChartType {
+  return value === "bar" || value === "line"
 }
 
 function isExpense(value: unknown): value is Expense {
   if (!value || typeof value !== "object") return false
   const v = value as Record<string, unknown>
   return (
-    typeof v.id === "string" &&
-    typeof v.category === "string" &&
-    typeof v.amount === "number" &&
-    typeof v.date === "string" &&
-    typeof v.recurring === "boolean"
+    isString(v.id) &&
+    isString(v.category) &&
+    isFiniteNumber(v.amount) &&
+    v.amount >= 0 &&
+    isIsoDay(v.date) &&
+    isBoolean(v.recurring)
   )
 }
 
-function isState(value: unknown): value is State {
+/** The highest numeric suffix among exp-n ids; 0 when there are none. */
+function highestExpenseId(expenses: readonly Expense[]) {
+  return expenses.reduce((max, e) => {
+    const m = /^exp-(\d+)$/.exec(e.id)
+    const n = m ? Number(m[1]) : 0
+    return n > max ? n : max
+  }, 0)
+}
+
+/**
+ * Every field is checked, not just the envelope: duplicate cards, an unknown
+ * chart type, a date like 2026-13-45 or an id counter that would collide
+ * all drop the copy for the seed rather than rendering half a page.
+ */
+export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object") return false
   const v = value as Record<string, unknown>
-  return (
-    Array.isArray(v.visible) &&
-    v.visible.every(isMetricId) &&
-    typeof v.charts === "object" &&
-    v.charts !== null &&
-    Array.isArray(v.expenses) &&
-    v.expenses.every(isExpense) &&
-    typeof v.nextExpenseId === "number" &&
-    typeof v.seededAt === "string" &&
-    /^\d{4}-\d{2}-\d{2}$/.test(v.seededAt)
-  )
+  if (!Array.isArray(v.visible) || !v.visible.every(isMetricId)) return false
+  if (dedupe(v.visible).length !== v.visible.length) return false
+  if (!v.charts || typeof v.charts !== "object" || Array.isArray(v.charts)) return false
+  for (const [id, chart] of Object.entries(v.charts as Record<string, unknown>)) {
+    if (!isMetricId(id) || !isChartType(chart)) return false
+  }
+  if (!Array.isArray(v.expenses) || !v.expenses.every(isExpense)) return false
+  if (dedupe(v.expenses.map((e) => e.id)).length !== v.expenses.length) return false
+  if (!isFiniteNumber(v.nextExpenseId) || !Number.isInteger(v.nextExpenseId)) return false
+  if (v.nextExpenseId <= highestExpenseId(v.expenses)) return false
+  if (!isIsoDay(v.seededAt)) return false
+  return true
 }
 
+export const metricsStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: LEGACY_STORAGE_KEYS,
+  validate: isState,
+})
+
+/** Read the saved copy; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
-  try {
-    for (const key of LEGACY_STORAGE_KEYS) storage?.removeItem(key)
-    const raw = storage?.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isState(parsed) ? parsed : null
-  } catch {
-    return null
-  }
+  return metricsStorage.load(storage).state
 }
 
-export function saveState(storage: Storage | undefined, state: State) {
-  try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // Quota or private mode: edits still work for the session.
-  }
+/** The saved copy brought up to `today`, or a fresh seed when there is none. */
+export function loadStateOrSeed(storage: Storage | undefined, today: IsoDay): State {
+  const saved = loadState(storage)
+  return saved ? shiftSeed(saved, today) : initialState(today)
 }
 
-type Store = State & {
-  /**
-   * Today's calendar day (America/Chicago), read once per request on the
-   * server and passed in, so SSR and hydration agree and nothing in the
-   * tree reads the machine clock.
-   */
-  today: IsoDay
-  /**
-   * True once localStorage has been read and writes are flowing. Until then
-   * the state is the seed and must not be shown as if it were the user's.
-   */
-  persisted: boolean
-  addMetric: (id: MetricId) => void
-  removeMetric: (id: MetricId) => void
-  setChart: (id: MetricId, chart: ChartType) => void
-  addExpense: (input: NewExpenseInput) => void
-  removeExpense: (id: string) => void
-  resetDemoData: () => void
+export function saveState(storage: Storage | undefined, state: State): boolean {
+  return metricsStorage.save(storage, state)
 }
+
+export function clearState(storage: Storage | undefined) {
+  metricsStorage.clear(storage)
+}
+
+type Store = State &
+  PersistenceStore & {
+    /**
+     * Today's calendar day (America/Chicago), read once per request on the
+     * server and passed in, so SSR and hydration agree and nothing in the
+     * tree reads the machine clock.
+     */
+    today: IsoDay
+    addMetric: (id: MetricId) => void
+    removeMetric: (id: MetricId) => void
+    setChart: (id: MetricId, chart: ChartType) => void
+    addExpense: (input: NewExpenseInput) => void
+    removeExpense: (id: string) => void
+  }
 
 const MetricsContext = React.createContext<Store | null>(null)
 
 export function MetricsProvider({
-  today,
+  today: requestToday,
   children,
 }: {
   today: IsoDay
   children: React.ReactNode
 }) {
-  const [{ data: state, hydrated: persisted, edited }, dispatch] = React.useReducer(
-    shellReducer,
-    today,
-    (day) => ({ data: initialState(day), hydrated: false, edited: false })
-  )
+  // Reset regenerates from the moment of the click, so after a Reset the
+  // page's "today" is that day, not the request's.
+  const [today, setToday] = React.useState(requestToday)
+
+  const [{ data: state, hydrated: persisted, edited, saved, saveFailed }, dispatch] =
+    React.useReducer(shellReducer, requestToday, (day) => ({
+      data: initialState(day),
+      hydrated: false,
+      edited: false,
+      saved: false,
+      saveFailed: false,
+    }))
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — it runs before the browser paints, so
   // the first frame a user sees is already their data, never the seed.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", state: loadState(window.localStorage), today })
+    dispatch({ type: "hydrate", result: metricsStorage.load(window.localStorage), today })
   }, [today])
+
+  // Another tab wrote or cleared the key: take its copy rather than
+  // overwriting it with ours on the next edit.
+  React.useEffect(
+    () => metricsStorage.subscribe((result) => dispatch({ type: "hydrate", result, today })),
+    [today]
+  )
 
   // Write only after a real edit. A visit that changes nothing leaves
   // storage untouched, so the seed keeps tracking today on later visits.
+  // The result feeds the note: "Saved" only when the write succeeded.
   React.useEffect(() => {
-    if (persisted && edited) saveState(window.localStorage, state)
+    if (!persisted || !edited) return
+    dispatch({ type: "save-result", ok: saveState(window.localStorage, state) })
   }, [persisted, edited, state])
 
   const value = React.useMemo<Store>(
@@ -254,15 +342,24 @@ export function MetricsProvider({
       ...state,
       today,
       persisted,
+      edited,
+      saved,
+      saveFailed,
       addMetric: (id) => dispatch({ type: "add-metric", id }),
       removeMetric: (id) => dispatch({ type: "remove-metric", id }),
       setChart: (id, chart) => dispatch({ type: "set-chart", id, chart }),
       addExpense: (input) => dispatch({ type: "add-expense", input }),
       removeExpense: (id) => dispatch({ type: "remove-expense", id }),
-      // Reset regenerates the seed relative to today, not to when it was drawn.
-      resetDemoData: () => dispatch({ type: "reset", today }),
+      resetDemoData: () => {
+        // Clear first, then regenerate from now: the browser returns to the
+        // never-edited state and the seed is dated from this moment.
+        clearState(window.localStorage)
+        const day = todayIn(now())
+        setToday(day)
+        dispatch({ type: "reset", today: day })
+      },
     }),
-    [state, persisted, today]
+    [state, today, persisted, edited, saved, saveFailed]
   )
 
   return (
