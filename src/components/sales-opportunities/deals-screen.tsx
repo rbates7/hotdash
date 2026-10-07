@@ -27,7 +27,6 @@ import {
   type Stage,
 } from "@/lib/sales-opportunities"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CELL, HEAD, SortableHead, TableCard } from "@/components/table-bits"
+import { CELL, HEAD, Pill, SortableHead, TableCard } from "@/components/table-bits"
 import { SampleDataTag } from "@/components/sample-data"
 import {
   AddDealDialog,
@@ -57,22 +56,26 @@ import { useDeals } from "@/components/sales-opportunities/deals-store"
 
 /* ----------------------------------------------------------------- stage */
 
-const STAGE_BADGE: Record<Stage, string> = {
-  talking: "border-border bg-transparent text-muted-foreground",
-  proposal: "bg-muted text-foreground",
-  verbal: "bg-info/10 text-info dark:bg-info/20",
-  "closed-won": "bg-success/10 text-success-text dark:bg-success/20",
-  "closed-lost": "bg-destructive/10 text-danger-text dark:bg-destructive/20",
+type PillTone = "plan" | "annual" | "muted" | "good"
+
+/**
+ * Shared `Pill` tones only — table-bits has no `lost`. Closed-lost maps to
+ * `muted` (an existing text-safe tone) and the danger colour is applied
+ * locally so we do not edit the shared primitive.
+ */
+function stagePillTone(stage: Stage): PillTone {
+  const tone = STAGE_CONFIG[stage].tone
+  return tone === "lost" ? "muted" : tone
 }
 
 export function StageBadge({ stage, className }: { stage: Stage; className?: string }) {
   return (
-    <Badge
-      variant="secondary"
-      className={cn("h-[22px] px-2 font-semibold tracking-tight", STAGE_BADGE[stage], className)}
+    <Pill
+      tone={stagePillTone(stage)}
+      className={cn(STAGE_CONFIG[stage].tone === "lost" && "bg-destructive/10 text-danger-text", className)}
     >
       {STAGE_CONFIG[stage].label}
-    </Badge>
+    </Pill>
   )
 }
 

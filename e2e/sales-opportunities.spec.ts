@@ -299,14 +299,35 @@ test.describe("Sales Opportunities", () => {
       // Status text on the shared tokens: the overdue line and the overdue count.
       await expectReadable(row(page, /Pruitt/).locator('[data-overdue="true"]'), `${theme}/overdue line`, expect)
       await expectReadable(deals(page).getByText("2 overdue"), `${theme}/overdue count`, expect)
-      // The closed seed rows too, and their Won / Lost pills.
       await filter(page, "All").click()
       await expect(table(page).getByTestId("sample-data-tag")).toHaveCount(8)
       for (const tag of await table(page).getByTestId("sample-data-tag").all()) {
         await expectReadable(tag, `${theme}/row tag (all)`, expect)
       }
-      await expectReadable(row(page, /Castellano/).getByRole("button", { name: "Stage: Closed-won" }), `${theme}/won pill`, expect)
-      await expectReadable(row(page, /Fitch/).getByRole("button", { name: "Stage: Closed-lost" }), `${theme}/lost pill`, expect)
+      // Every stage pill, so a dropped tone cannot hide behind the grey fallback.
+      const stagePill = (who: RegExp, name: string) =>
+        row(page, who).getByRole("button", { name: `Stage: ${name}` })
+      const stages = [
+        [/Treadwell/, "Talking"],
+        [/Whitaker/, "Proposal"],
+        [/Pruitt/, "Verbal"],
+        [/Castellano/, "Closed-won"],
+        [/Fitch/, "Closed-lost"],
+      ] as const
+      for (const [who, name] of stages) {
+        await expectReadable(stagePill(who, name), `${theme}/${name} pill`, expect)
+      }
+      const paint = (who: RegExp, name: string) =>
+        stagePill(who, name)
+          .locator("span")
+          .first()
+          .evaluate((el) => {
+            const s = getComputedStyle(el)
+            return `${s.color}|${s.backgroundColor}`
+          })
+      const proposal = await paint(/Whitaker/, "Proposal")
+      expect(await paint(/Castellano/, "Closed-won"), `${theme}: Won must not match Proposal`).not.toBe(proposal)
+      expect(await paint(/Pruitt/, "Verbal"), `${theme}: Verbal must not match Proposal`).not.toBe(proposal)
       await filter(page, "Open").click()
     }
     // Negative control: the probe must catch sabotaged text, in both themes.
