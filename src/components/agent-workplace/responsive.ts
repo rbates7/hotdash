@@ -12,7 +12,10 @@ export const WORKPLACE_HEADER =
   "flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4"
 
 export const WORKPLACE_HEADER_META =
-  "flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1"
+  "flex w-full min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 xl:w-auto"
+
+export const WORKPLACE_DUMMY =
+  "text-muted-foreground border-surface-border bg-surface shrink-0 rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] whitespace-nowrap uppercase"
 
 /** Passed to PersistenceNote so Reset is 44px on phone/tablet. */
 export const WORKPLACE_RESET = "max-xl:h-11! max-xl:px-2.5!"
@@ -35,9 +38,17 @@ export const WORKPLACE_BOARD_TOOLBAR =
 export const WORKPLACE_BOARD_META =
   "flex min-w-0 flex-wrap items-center gap-2.5"
 
-/** Phone: one column. Tablet: 240px columns that scroll sideways. Desktop: 5-col grid. */
+/**
+ * Scrollport. `w-0 min-w-full` takes the parent's width without feeding the
+ * 5×240px track back into the page's intrinsic min-width (which is what
+ * made tablet 820 scroll the document). Desktop drops the trick.
+ */
 export const WORKPLACE_BOARD =
-  "flex flex-col items-start gap-2 md:flex-row md:overflow-x-auto md:gap-3 xl:grid xl:grid-cols-5 xl:overflow-visible"
+  "w-0 min-w-full overflow-x-auto overflow-y-hidden [contain:paint] xl:w-auto xl:min-w-0 xl:overflow-visible xl:[contain:none]"
+
+/** Phone: one column. Tablet: 240px columns that scroll sideways. Desktop: 5-col grid. */
+export const WORKPLACE_BOARD_TRACK =
+  "flex flex-col items-start gap-2 md:w-max md:flex-row md:gap-3 xl:grid xl:w-full xl:grid-cols-5"
 
 export const WORKPLACE_BOARD_COLUMN =
   "flex min-w-0 flex-col gap-2 md:w-[240px] md:shrink-0 xl:w-auto xl:min-w-0"

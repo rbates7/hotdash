@@ -6,7 +6,13 @@ const VIEWPORTS = [
 ] as const
 
 async function pageOverflowX(page: Page) {
-  return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  return page.evaluate(() => {
+    const prev = window.scrollX
+    window.scrollTo(1_000_000, window.scrollY)
+    const scrolled = window.scrollX
+    window.scrollTo(prev, window.scrollY)
+    return scrolled
+  })
 }
 
 async function expectTapTarget(locator: ReturnType<Page["getByRole"]>, label: string) {

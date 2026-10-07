@@ -5,7 +5,8 @@ import { expect, test, type Page } from "@playwright/test"
 
 /**
  * Review stills for Agent Workplace at the four target widths, both themes.
- * Opt-in: `SCREENSHOTS=1 pnpm test:e2e e2e/responsive-agent-workplace-screens.spec.ts`
+ * Opt-in against a production build so the Next.js dev “N” badge is absent:
+ * `pnpm build && CI=true SCREENSHOTS=1 playwright test e2e/responsive-agent-workplace-screens.spec.ts`
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 

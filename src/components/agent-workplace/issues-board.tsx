@@ -25,6 +25,7 @@ import { useIssues } from "@/components/agent-workplace/issues-store"
 import {
   WORKPLACE_BOARD,
   WORKPLACE_BOARD_COLUMN,
+  WORKPLACE_BOARD_TRACK,
   WORKPLACE_BOARD_META,
   WORKPLACE_BOARD_TOOLBAR,
   WORKPLACE_FILTER,
@@ -119,7 +120,7 @@ export function IssuesBoard({
   ) as Record<IssueStatus, number>
 
   return (
-    <div className="flex min-w-0 flex-col gap-3.5">
+    <div className="flex min-w-0 flex-col gap-3.5 overflow-x-hidden">
       <div className={WORKPLACE_BOARD_TOOLBAR}>
         <FilterChips value={filter} onChange={setFilter} />
 
@@ -155,37 +156,39 @@ export function IssuesBoard({
       />
 
       <div className={WORKPLACE_BOARD}>
-        {STATUS_ORDER.map((status) => {
-          const config = STATUS_CONFIG[status]
-          const columnIssues = issuesByStatus(visible, status)
-          return (
-            <section
-              key={status}
-              aria-label={config.label}
-              className={cn(
-                WORKPLACE_BOARD_COLUMN,
-                status !== statusView && "max-md:hidden"
-              )}
-            >
-              <header className="flex min-h-6 items-center justify-between gap-2 px-0.5 pb-0.5 max-md:hidden md:flex">
-                <h3 className="text-caption font-semibold tracking-tight">
-                  {config.label}
-                </h3>
-                <span className="text-micro text-muted-foreground bg-muted grid h-5 min-w-5 place-items-center rounded-full px-1.5 font-semibold tabular-nums">
-                  {columnIssues.length}
-                </span>
-              </header>
-              {columnIssues.map((issue) => (
-                <IssueCard
-                  key={issue.key}
-                  issue={issue}
-                  actors={actors}
-                  onOpen={onOpenIssue}
-                />
-              ))}
-            </section>
-          )
-        })}
+        <div className={WORKPLACE_BOARD_TRACK}>
+          {STATUS_ORDER.map((status) => {
+            const config = STATUS_CONFIG[status]
+            const columnIssues = issuesByStatus(visible, status)
+            return (
+              <section
+                key={status}
+                aria-label={config.label}
+                className={cn(
+                  WORKPLACE_BOARD_COLUMN,
+                  status !== statusView && "max-md:hidden"
+                )}
+              >
+                <header className="flex min-h-6 items-center justify-between gap-2 px-0.5 pb-0.5 max-md:hidden md:flex">
+                  <h3 className="text-caption font-semibold tracking-tight">
+                    {config.label}
+                  </h3>
+                  <span className="text-micro text-muted-foreground bg-muted grid h-5 min-w-5 place-items-center rounded-full px-1.5 font-semibold tabular-nums">
+                    {columnIssues.length}
+                  </span>
+                </header>
+                {columnIssues.map((issue) => (
+                  <IssueCard
+                    key={issue.key}
+                    issue={issue}
+                    actors={actors}
+                    onOpen={onOpenIssue}
+                  />
+                ))}
+              </section>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

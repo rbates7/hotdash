@@ -78,7 +78,7 @@ export function WorkplaceTabs() {
     <Tabs
       value={tab}
       onValueChange={(value) => setParam({ tab: String(value), issue: null })}
-      className="min-w-0 gap-4"
+      className="min-w-0 gap-4 overflow-x-clip"
     >
       <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
         {WORKPLACE_TABS.map((t) => (
