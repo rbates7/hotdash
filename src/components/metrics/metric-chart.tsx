@@ -12,12 +12,12 @@ const WIDTH = 120
 const HEIGHT = 52
 
 /**
- * The current month reads in ink; the five before it in a quiet grey that
- * steps with the theme (the mock's `--chart-dot`).
+ * The current 28-day window reads in ink; the five before it in a quiet
+ * grey that steps with the theme (the mock's `--chart-dot`).
  */
 const CHART_CONFIG = {
-  current: { label: "This month", color: "var(--foreground)" },
-  past: { label: "Previous months", theme: { light: "#D4D4D8", dark: "#3F3F46" } },
+  current: { label: "This 28-day window", color: "var(--foreground)" },
+  past: { label: "Previous 28-day windows", theme: { light: "#D4D4D8", dark: "#3F3F46" } },
 } satisfies ChartConfig
 
 /**

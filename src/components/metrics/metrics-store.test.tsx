@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_METRIC_IDS } from "@/lib/metrics"
 import { MOCK_DAY, seedExpenses } from "@/lib/kpis"
 import type { LoadResult } from "@/lib/persistence"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
   LEGACY_STORAGE_KEYS,
   MetricsProvider,
@@ -14,17 +15,23 @@ import {
   loadState,
   loadStateOrSeed,
   metricsStorage,
+  parseState,
   reducer,
   saveState,
   shellReducer,
+  shellToday,
   shiftSeed,
   useMetrics,
 } from "@/components/metrics/metrics-store"
 import { initialShell } from "@/lib/persistence"
 
+/** Noon Central on a day, as ms. */
+const noon = (day: string) => Date.parse(`${day}T18:00:00.000Z`)
+const TODAY_MS = noon(MOCK_DAY)
+
 /** Drive the shell (hydrate/reset live there, not in the board reducer) and return its data. */
-const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1]) =>
-  shellReducer({ ...initialShell(state), persisted: true }, action).data
+const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1], nowMs = TODAY_MS) =>
+  shellReducer({ ...initialShell(state, nowMs), persisted: true }, action).data
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const TODAY = MOCK_DAY
@@ -32,7 +39,7 @@ const VERCEL = { category: " Vercel ", amount: 159.6, date: "2026-08-20", recurr
 type State = ReturnType<typeof initialState>
 const hydrate = (state: State | null, today = TODAY) => {
   const result: LoadResult<State> = state ? { state, status: "saved" } : { state: null, status: "empty" }
-  return { type: "hydrate" as const, result, today }
+  return { type: "hydrate" as const, result, nowMs: noon(today) }
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -48,7 +55,7 @@ describe("reducer", () => {
   })
 
   it("a no-op edit returns the very same shell, so nothing is written for it", () => {
-    const shell = { ...initialShell(initialState(TODAY)), persisted: true }
+    const shell = { ...initialShell(initialState(TODAY), TODAY_MS), persisted: true }
     expect(shellReducer(shell, { type: "add-metric", id: "mrr" })).toBe(shell) // already visible
     expect(shellReducer(shell, { type: "remove-expense", id: "nope" })).toBe(shell)
     const edited = shellReducer(shell, { type: "remove-metric", id: "mrr" })
@@ -94,7 +101,7 @@ describe("reducer", () => {
 
   it("reset regenerates the seed relative to the day it is pressed", () => {
     let s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
-    s = viaShell(s, { type: "reset", today: "2026-10-07" })
+    s = viaShell(s, { type: "reset", nowMs: noon("2026-10-07") })
     expect(s).toEqual(initialState("2026-10-07"))
     expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-10-07")
   })
@@ -108,28 +115,50 @@ describe("reducer", () => {
 describe("seed ageing on load", () => {
   it("moves seed rows forward by the days since they were seeded, capped at today", () => {
     const saved = reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL })
-    const loaded = shiftSeed(saved, "2026-08-28")
+    const { state: loaded, today } = shiftSeed(saved, "2026-08-28")
+    expect(today).toBe("2026-08-28")
     expect(loaded.seededAt).toBe("2026-08-28")
     expect(loaded.expenses.find((e) => e.id === "exp-1")!.date).toBe("2026-08-25")
     expect(loaded.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-08-28")
     expect(loaded.expenses.find((e) => e.category === "Vercel")!.date).toBe("2026-08-20")
   })
 
-  it("leaves a same-day or future-dated save alone", () => {
+  it("leaves a same-day save alone", () => {
     const saved = initialState("2026-08-21")
-    expect(shiftSeed(saved, "2026-08-21")).toBe(saved)
-    expect(shiftSeed(saved, "2026-08-20")).toBe(saved)
+    expect(shiftSeed(saved, "2026-08-21")).toEqual({ state: saved, today: "2026-08-21" })
+  })
+
+  it("a copy seeded after this tab's day means this tab is stale: the copy wins and the day moves forward", () => {
+    // The repro: tab A opened 7 Oct at 23:30; tab B saved on 8 Oct. Reading
+    // B's copy as if it were "tomorrow" would push every seed row out of A's
+    // period and show $6,262 (−22.2%) instead of $8,240.
+    const theirs = initialState("2026-10-08")
+    const { state, today } = shiftSeed(theirs, "2026-10-07")
+    expect(state).toBe(theirs)
+    expect(today).toBe("2026-10-08")
   })
 
   it("falls back to a fresh seed when the saved copy defeats the arithmetic", () => {
     const broken = { ...initialState(TODAY), seededAt: "garbage" }
-    expect(shiftSeed(broken, "2026-10-07")).toEqual(initialState("2026-10-07"))
+    expect(shiftSeed(broken, "2026-10-07").state).toEqual(initialState("2026-10-07"))
     const worse = { ...initialState(TODAY), expenses: null as unknown as [] }
-    expect(shiftSeed(worse, "2026-10-07")).toEqual(initialState("2026-10-07"))
+    expect(shiftSeed(worse, "2026-10-07").state).toEqual(initialState("2026-10-07"))
+  })
+
+  it("through the shell: a stale tab adopting a next-day copy moves its clock and keeps the full $8,240", () => {
+    const stale = { ...initialShell(initialState("2026-10-07"), LATE_EVENING_CT_MS), persisted: true }
+    expect(shellToday(stale)).toBe("2026-10-07")
+    const theirs = initialState("2026-10-08")
+    const shell = shellReducer(stale, { type: "hydrate", result: { state: theirs, status: "saved" }, nowMs: LATE_EVENING_CT_MS })
+    expect(shellToday(shell)).toBe("2026-10-08")
+    expect(shell.data.expenses.every((e) => e.date <= "2026-10-08")).toBe(true)
+    const inPeriod = shell.data.expenses.filter((e) => e.date >= "2026-09-11" && e.date <= "2026-10-08")
+    expect(inPeriod.reduce((sum, e) => sum + e.amount, 0)).toBe(8_240)
   })
 
   it("the hydrate action applies the shift", () => {
-    const s = viaShell(initialState("2026-09-01"), hydrate(initialState("2026-08-21"), "2026-09-01"))
+    // The shell's own clock says 1 Sep; the shift is measured from it.
+    const s = viaShell(initialState("2026-09-01"), hydrate(initialState("2026-08-21"), "2026-09-01"), noon("2026-09-01"))
     expect(s.seededAt).toBe("2026-09-01")
     expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-09-01")
   })
@@ -167,14 +196,26 @@ describe("isState rejects a bad saved copy", () => {
     expect(isState(reducer(good, { type: "add-expense", input: VERCEL }))).toBe(true)
   })
 
-  it("a rejected copy is parked under <key>.rejected and the page gets the seed", () => {
+  it("parse rebuilds the copy from known keys only", () => {
+    const parsed = parseState({
+      ...good,
+      mystery: 42,
+      expenses: good.expenses.map((e) => ({ ...e, note: "dropped" })),
+    })!
+    expect(parsed).not.toHaveProperty("mystery")
+    expect(parsed.expenses[0]).not.toHaveProperty("note")
+    expect(parsed).toEqual(good)
+  })
+
+  it("a rejected copy gives the page the seed without writing; the first real save parks it", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ ...good, visible: ["mrr", "mrr"] })
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
-    expect(metricsStorage.rejected(window.localStorage)[0].raw).toBe(raw)
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
     expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+    saveState(window.localStorage, initialState(TODAY))
+    expect(metricsStorage.rejected(window.localStorage)[0].raw).toBe(raw)
   })
 })
 
@@ -225,9 +266,9 @@ function Probe() {
   )
 }
 
-const mount = (today = TODAY) =>
+const mount = (today = TODAY, nowMs = noon(today)) =>
   render(
-    <MetricsProvider today={today}>
+    <MetricsProvider nowMs={nowMs}>
       <Probe />
     </MetricsProvider>
   )
@@ -248,9 +289,10 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
   })
 
-  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-seeds around the request's day", () => {
-    // A client clock that disagrees with the request must not leak into the
-    // reset: the page re-seeds around the day it was served with.
+  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-seeds from now()", () => {
+    // The request was served on MOCK_DAY; by the time Reset is clicked the
+    // clock says 7 Oct. Reset reads now() (the shared helper), so the seed
+    // is dated 7 Oct and the store's clock moves with it.
     vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
     const first = mount()
     act(() => screen.getByRole("button", { name: "edit" }).click())
@@ -266,11 +308,37 @@ describe("MetricsProvider persistence", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("today")).toHaveTextContent(TODAY)
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
-    expect(screen.getByTestId("dates")).toHaveTextContent(TODAY)
+    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("dates")).not.toHaveTextContent(TODAY)
+    vi.useRealTimers()
+  })
+
+  it("opened at 23:30 CT, Reset the next day: the seed and the header period both move to the new day", () => {
+    // Served 7 Oct at 23:30 Central (already 8 Oct in UTC).
+    const first = mount("2026-10-07", LATE_EVENING_CT_MS)
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    // Next day, the founder presses Reset.
+    vi.useFakeTimers({ now: new Date(LATE_EVENING_CT.getTime() + 12 * 3_600_000), toFake: ["Date"] })
+    act(() => screen.getByRole("button", { name: "reset" }).click())
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
+    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-08")
     expect(screen.getByTestId("dates")).not.toHaveTextContent("2026-10-07")
     vi.useRealTimers()
+    first.unmount()
+  })
+
+  it("a stale tab (opened at 23:30) adopts a fresh tab's next-day copy and keeps the full card, not $6,262", () => {
+    mount("2026-10-07", LATE_EVENING_CT_MS)
+    const fresh = initialState("2026-10-08")
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
+    act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(fresh)))
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
+    const dates = screen.getByTestId("dates").textContent!.split(",")
+    expect(dates.every((d) => d <= "2026-10-08")).toBe(true)
+    expect(dates).toContain("2026-10-08")
   })
 
   it("on a later day, a saved seed reads relative to that day; user rows do not move; nothing is written back", () => {
@@ -317,10 +385,10 @@ describe("MetricsProvider persistence", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     render(
       <>
-        <MetricsProvider today={TODAY}>
+        <MetricsProvider nowMs={TODAY_MS}>
           <div data-tab="a"><Probe /></div>
         </MetricsProvider>
-        <MetricsProvider today={TODAY}>
+        <MetricsProvider nowMs={TODAY_MS}>
           <div data-tab="b"><Probe /></div>
         </MetricsProvider>
       </>

@@ -41,6 +41,10 @@ describe("PersistenceNote", () => {
     const reset = screen.getByRole("button", { name: "Reset" })
     expect(reset).toHaveAttribute("aria-disabled", "true")
     expect(reset).toHaveAccessibleDescription(RESET_DISABLED_HINT)
+    // No native `disabled` (it stays focusable), so the look comes from aria-disabled variants.
+    for (const c of ["aria-disabled:opacity-50", "aria-disabled:cursor-not-allowed", "aria-disabled:hover:bg-transparent"]) {
+      expect(reset.className.split(" ")).toContain(c)
+    }
     // Keyboard users can still land on it and hear the hint.
     await user.tab()
     expect(reset).toHaveFocus()

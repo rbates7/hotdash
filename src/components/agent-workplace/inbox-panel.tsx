@@ -1,6 +1,7 @@
 "use client"
 
-import { formatAge, openInboxItems } from "@/lib/inbox"
+import { openInboxItems } from "@/lib/inbox"
+import { formatRelative } from "@/lib/clock"
 import { buildInbox } from "@/lib/workplace-fixture"
 import { cn } from "@/lib/utils"
 import { useIssues } from "@/components/agent-workplace/issues-store"
@@ -68,7 +69,7 @@ export function InboxPanel({
                     </span>
                   </span>
                   <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
-                    {formatAge(item.at, now)}
+                    {formatRelative(Date.parse(item.at), now.getTime(), { style: "compact" })}
                   </span>
                 </Row>
               </li>

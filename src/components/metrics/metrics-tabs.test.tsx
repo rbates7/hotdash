@@ -35,7 +35,7 @@ function renderTabs(search = "", today = TODAY) {
   navigation.params = new URLSearchParams(search)
   navigation.push.mockReset()
   return render(
-    <MetricsProvider today={today}>
+    <MetricsProvider nowMs={Date.parse(`${today}T18:00:00.000Z`)}>
       <MetricsTabs />
     </MetricsProvider>
   )
@@ -89,7 +89,7 @@ describe("MetricsTabs", () => {
       observer.observe(document.body, { childList: true, subtree: true })
       navigation.params = new URLSearchParams()
       render(
-        <MetricsProvider today={TODAY}>
+        <MetricsProvider nowMs={Date.parse(`${TODAY}T18:00:00.000Z`)}>
           <MetricsTabs />
         </MetricsProvider>
       )
