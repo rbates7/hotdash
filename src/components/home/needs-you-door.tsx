@@ -3,15 +3,30 @@ import { InboxIcon } from "lucide-react"
 
 import type { NeedsYou } from "@/lib/home"
 import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
 
 const INBOX_HREF = "/agent-workplace?tab=inbox"
+
+/** Deep link to one ticket in the Workplace Inbox. */
+export function inboxIssueHref(issueKey?: string) {
+  return issueKey
+    ? `${INBOX_HREF}&issue=${encodeURIComponent(issueKey)}`
+    : INBOX_HREF
+}
 
 /**
  * "Needs you" lives in the Inbox door: the few rows still waiting on the
  * founder, each opening its ticket in the Workplace Inbox.
  */
-export function NeedsYouDoor({ needs }: { needs: NeedsYou }) {
+export function NeedsYouDoor({
+  needs,
+  loading = false,
+}: {
+  needs: NeedsYou
+  /** True until the browser's saved board has been read; shows placeholders. */
+  loading?: boolean
+}) {
   const { items, waiting, overflow } = needs
 
   return (
@@ -19,10 +34,23 @@ export function NeedsYouDoor({ needs }: { needs: NeedsYou }) {
       name="Inbox"
       href={INBOX_HREF}
       icon={InboxIcon}
-      count={waiting > 0 ? `${waiting} waiting` : undefined}
+      count={!loading && waiting > 0 ? `${waiting} waiting` : undefined}
       caption="Needs you lives here."
     >
-      {items.length > 0 ? (
+      {loading ? (
+        <div aria-busy="true" aria-label="Loading what needs you" className="flex flex-col gap-2">
+          <Skeleton className="h-3 w-16" />
+          {[0, 1, 2].map((n) => (
+            <div key={n} className="flex items-start gap-2.5 px-0 py-2">
+              <Skeleton className="mt-[5px] size-2 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-3/5" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : items.length > 0 ? (
         <div className="flex flex-1 flex-col gap-2">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             Needs you
@@ -31,11 +59,7 @@ export function NeedsYouDoor({ needs }: { needs: NeedsYou }) {
             {items.map((item) => (
               <li key={item.id}>
                 <Link
-                  href={
-                    item.issueKey
-                      ? `${INBOX_HREF}&issue=${item.issueKey}`
-                      : INBOX_HREF
-                  }
+                  href={inboxIssueHref(item.issueKey)}
                   className="hover:bg-surface-selected focus-visible:ring-ring/50 flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
                 >
                   <span

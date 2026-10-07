@@ -4,6 +4,7 @@ import type { BoardPreview } from "@/lib/home"
 import { STATUS_CONFIG } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
 
 /**
@@ -11,24 +12,43 @@ import { Door, DoorEmpty } from "@/components/home/door"
  * counts, who is busy and how far the sprint has come, read from the same
  * store the board uses so the two can never disagree.
  */
-export function DevBoardDoor({ preview }: { preview: BoardPreview | null }) {
+export function DevBoardDoor({
+  preview,
+  loading = false,
+}: {
+  preview: BoardPreview | null
+  /** True until the browser's saved board has been read; shows placeholders. */
+  loading?: boolean
+}) {
   return (
     <Door
       name="Agent Workplace"
       href="/agent-workplace"
       icon={BotIcon}
       count={
-        preview && preview.working > 0
+        !loading && preview && preview.working > 0
           ? `${preview.working} ${preview.working === 1 ? "agent" : "agents"} working`
           : undefined
       }
       caption={
-        preview
-          ? `${preview.sprint.name} · ${describeDays(preview.daysLeft)}`
-          : "Sprints are planned from the Backlog tab."
+        loading
+          ? undefined
+          : preview
+            ? `${preview.sprint.name} · ${describeDays(preview.daysLeft)}`
+            : "Sprints are planned from the Backlog tab."
       }
     >
-      {preview ? (
+      {loading ? (
+        <div aria-busy="true" aria-label="Loading the board" className="flex flex-col gap-4">
+          <Skeleton className="h-3 w-28" />
+          <div className="grid grid-cols-5 gap-1.5">
+            {[0, 1, 2, 3, 4].map((n) => (
+              <Skeleton key={n} className="h-[66px] rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="h-1 w-full" />
+        </div>
+      ) : preview ? (
         <div className="flex flex-1 flex-col gap-4">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             Dev board · {preview.sprint.name}

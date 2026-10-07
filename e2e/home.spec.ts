@@ -24,6 +24,9 @@ test.describe("Home", () => {
     await expect(kpis.getByText("$26,190")).toBeVisible()
     await expect(kpis.getByText("3.8%")).toBeVisible()
 
+    // Home reads the Workplace's browser-saved board and says so.
+    await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
+
     // Doors.
     const doors = page.getByRole("group", { name: "Doors" })
     await expect(doors.getByRole("region")).toHaveCount(3)

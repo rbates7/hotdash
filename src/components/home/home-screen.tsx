@@ -4,6 +4,7 @@ import { boardPreview, needsYou } from "@/lib/home"
 import { kpis, mrrTrend, numberOne } from "@/lib/home-fixture"
 import { inbox } from "@/lib/workplace-fixture"
 import { useIssues } from "@/components/agent-workplace/issues-store"
+import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
@@ -16,9 +17,12 @@ import { NumberOneStrip } from "@/components/home/number-one-strip"
  * the Workplace store so Home always matches the board.
  */
 export function HomeScreen({ pulse }: { pulse: string }) {
-  const { issues, sprints, actors, now } = useIssues()
+  const { issues, sprints, actors, now, persisted } = useIssues()
   const needs = needsYou(inbox, issues)
   const board = boardPreview(issues, sprints, actors, now)
+  // Until the browser's saved board is read, the two store-backed doors show
+  // placeholders rather than flashing the seed and then swapping.
+  const loading = !persisted
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -29,9 +33,14 @@ export function HomeScreen({ pulse }: { pulse: string }) {
             {pulse}
           </p>
         </div>
-        <span className="text-muted-foreground border-surface-border bg-surface mt-1 shrink-0 rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-          Dummy / design mock
-        </span>
+        <div className="mt-1 flex shrink-0 items-center gap-2.5">
+          {/* Home reads the Workplace's browser-saved board, so it says so
+              the same way the Workplace does. */}
+          <PersistenceNote />
+          <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
+            Dummy / design mock
+          </span>
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4">
@@ -43,8 +52,8 @@ export function HomeScreen({ pulse }: { pulse: string }) {
           className="grid min-h-[200px] flex-1 grid-cols-1 gap-4 lg:grid-cols-3"
         >
           <MetricsDoor trend={mrrTrend} />
-          <DevBoardDoor preview={board} />
-          <NeedsYouDoor needs={needs} />
+          <DevBoardDoor preview={board} loading={loading} />
+          <NeedsYouDoor needs={needs} loading={loading} />
         </div>
       </div>
     </div>

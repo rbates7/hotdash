@@ -1,4 +1,5 @@
 import * as React from "react"
+import { renderToStaticMarkup } from "react-dom/server"
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
@@ -8,8 +9,10 @@ import {
   initialState,
   type State,
 } from "@/components/agent-workplace/issues-store"
+import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { HomeScreen } from "@/components/home/home-screen"
 import { KpiCard } from "@/components/home/kpi-strip"
+import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 
 function renderHome(pulse = "Wednesday pulse") {
@@ -165,6 +168,69 @@ describe("HomeScreen", () => {
     expect(await within(door).findByText("Nothing needs you")).toBeInTheDocument()
     expect(within(door).queryByText(/waiting/)).not.toBeInTheDocument()
     expect(within(door).queryByRole("list", { name: "Needs you" })).not.toBeInTheDocument()
+  })
+})
+
+describe("HomeScreen before the saved board is read", () => {
+  it("server HTML shows placeholders, not the seed, and says edits are loading", () => {
+    const html = renderToStaticMarkup(
+      <IssuesProvider>
+        <HomeScreen pulse="Thursday pulse" />
+      </IssuesProvider>
+    )
+    expect(html).toContain('aria-busy="true"')
+    expect(html).toContain("Loading saved edits…")
+    expect(html).not.toContain("agents working")
+    expect(html).not.toContain("2 waiting")
+    expect(html).not.toContain("Agent blocked")
+    // The parts that do not depend on the browser copy render straight away.
+    expect(html).toContain("Call Aledo before Friday")
+    expect(html).toContain("$26,190")
+  })
+
+  it("swaps to the data and the persistence note once mounted", async () => {
+    renderHome()
+    expect(await screen.findByTestId("persistence-note")).toHaveTextContent(
+      "Saved in this browser"
+    )
+    expect(screen.queryByLabelText(/Loading/)).not.toBeInTheDocument()
+    expect(screen.getByText("3 agents working")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeInTheDocument()
+  })
+})
+
+describe("door loading states", () => {
+  it("DevBoardDoor hides the count and caption while loading", () => {
+    render(<DevBoardDoor preview={null} loading />)
+    expect(screen.getByLabelText("Loading the board")).toHaveAttribute("aria-busy", "true")
+    expect(screen.queryByText("No sprint is running")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Backlog tab/)).not.toBeInTheDocument()
+  })
+
+  it("NeedsYouDoor hides the rows and the waiting pill while loading", () => {
+    render(
+      <NeedsYouDoor
+        loading
+        needs={{
+          items: [{ id: "x", title: "Row", snippet: "", when: "1m", unread: true }],
+          waiting: 1,
+          overflow: 0,
+        }}
+      />
+    )
+    expect(screen.getByLabelText("Loading what needs you")).toHaveAttribute("aria-busy", "true")
+    expect(screen.queryByText("1 waiting")).not.toBeInTheDocument()
+    expect(screen.queryByText("Row")).not.toBeInTheDocument()
+  })
+})
+
+describe("inboxIssueHref", () => {
+  it("encodes the ticket key and falls back to the Inbox", () => {
+    expect(inboxIssueHref("CHLK-408")).toBe("/agent-workplace?tab=inbox&issue=CHLK-408")
+    expect(inboxIssueHref("CHLK 4&8#")).toBe(
+      "/agent-workplace?tab=inbox&issue=CHLK%204%268%23"
+    )
+    expect(inboxIssueHref(undefined)).toBe("/agent-workplace?tab=inbox")
   })
 })
 
