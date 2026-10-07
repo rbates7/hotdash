@@ -38,8 +38,8 @@ describe("Home and Metrics read the same numbers", () => {
     const [subs, cash] = truthStrip({ today })
     const subsCard = snapshotFor("subscribers", { today })
 
-    // Home keeps the founder-dashboard-screens.md wording; the number is the card's.
-    expect(subs.label).toBe("Paying coaches")
+    // Home and Metrics share the Subscribers label; the number is the card's.
+    expect(subs.label).toBe("Subscribers")
     expect(subsCard.label).toBe("Subscribers")
     expect(subs.value).toBe(formatMetricValue(subsCard.value, subsCard.unit))
     expect(subs.delta).toBe(`${trendFor(subsCard.value, subsCard.previous, "abs").text} ${VS_PREVIOUS_WINDOW}`)

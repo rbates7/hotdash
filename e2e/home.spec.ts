@@ -31,8 +31,9 @@ test.describe("Home", () => {
     // numbers (shared KPI fixture) — each stamped as sample.
     const kpis = page.getByRole("region", { name: "KPI strip" })
     await expect(kpis.getByRole("heading", { name: "Truth strip" })).toBeVisible()
-    // Label per founder-dashboard-screens.md; the number is the Metrics Subscribers card's.
-    await expect(kpis.getByRole("article")).toHaveText([/Paying coaches/, /Cash this week/])
+    // One Subscribers article in the strip (the Metrics Subscribers number).
+    await expect(kpis.getByRole("article", { name: "Subscribers" })).toHaveCount(1)
+    await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/])
     await expect(kpis.getByText("186")).toBeVisible()
     await expect(kpis.getByText(/\+3 vs previous 28 days/)).toBeVisible()
     // A real trailing-7-day figure from the shared daily revenue spread.
