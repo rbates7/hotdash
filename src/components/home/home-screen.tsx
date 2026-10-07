@@ -14,6 +14,7 @@ import { NeedsYouDoor } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 import {
   HOME_DOORS,
+  HOME_DUMMY,
   HOME_HEADER,
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
@@ -40,7 +41,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
       <header className={HOME_HEADER}>
-        <div className="min-w-0">
+        <div className="min-w-0 max-md:w-full">
           <h1 className="text-display-sm font-semibold tracking-tight">Home</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
             {pulse}
@@ -50,9 +51,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
           {/* Home reads the Workplace's browser-saved board, so it says so
               the same way the Workplace does. */}
           <PersistenceNote store={store} resetClassName={HOME_RESET} />
-          <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-            Dummy / design mock
-          </span>
+          <span className={HOME_DUMMY}>Dummy / design mock</span>
         </div>
       </header>
 

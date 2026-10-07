@@ -65,7 +65,7 @@ export function PersistenceNote({
   return (
     <span
       className={cn(
-        "text-micro inline-flex items-center gap-1.5",
+        "text-micro inline-flex max-w-full shrink-0 flex-wrap items-center gap-1.5",
         store.saveFailed ? "text-danger-text" : "text-muted-foreground"
       )}
     >

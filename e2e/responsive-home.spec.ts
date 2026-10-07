@@ -17,6 +17,13 @@ async function expectTapTarget(locator: ReturnType<Page["getByRole"]>, label: st
   expect(box!.width, `${label}: width`).toBeGreaterThanOrEqual(44)
 }
 
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+}
+
 for (const vp of VIEWPORTS) {
   test.describe(`responsive Home (${vp.name})`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } })
@@ -48,6 +55,21 @@ for (const vp of VIEWPORTS) {
       await expectTapTarget(page.getByRole("link", { name: /Agent blocked/ }), "Needs-you row")
 
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+
+      const title = page.getByRole("heading", { level: 1, name: "Home" })
+      const note = page.getByTestId("persistence-note")
+      const dummy = page.getByText("Dummy / design mock", { exact: true })
+      await expect(dummy).toBeVisible()
+      const titleBox = await title.boundingBox()
+      const noteBox = await note.boundingBox()
+      const dummyBox = await dummy.boundingBox()
+      expect(titleBox, "Home title painted").toBeTruthy()
+      expect(noteBox, "persistence note painted").toBeTruthy()
+      expect(dummyBox, "dummy stamp painted").toBeTruthy()
+      expect(boxesOverlap(titleBox!, noteBox!), "note overlaps Home title").toBe(false)
+      expect(boxesOverlap(titleBox!, dummyBox!), "dummy stamp overlaps Home title").toBe(false)
+      expect(noteBox!.y, "note sits under the title").toBeGreaterThan(titleBox!.y + titleBox!.height - 1)
+      expect(dummyBox!.width, "dummy stamp is not ellipsized").toBeGreaterThan(100)
 
       await page.getByRole("link", { name: /Agent blocked/ }).click()
       await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox&issue=CHLK-412$/)

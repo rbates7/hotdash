@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   HOME_BOARD_COLUMNS,
   HOME_DOORS,
+  HOME_DUMMY,
   HOME_HEADER,
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
@@ -14,9 +15,14 @@ import {
 describe("Home responsive layout", () => {
   it("stacks the header on phone and restores the desktop row at xl", () => {
     expect(HOME_HEADER).toContain("flex-col")
+    expect(HOME_HEADER).toContain("max-md:w-full")
     expect(HOME_HEADER).toContain("xl:flex-row")
     expect(HOME_HEADER).toContain("xl:justify-between")
     expect(HOME_HEADER_META).toContain("flex-wrap")
+    expect(HOME_HEADER_META).toContain("w-full")
+    expect(HOME_DUMMY).toContain("shrink-0")
+    expect(HOME_DUMMY).toContain("whitespace-nowrap")
+    expect(HOME_DUMMY).not.toContain("truncate")
     expect(HOME_RESET).toBe("max-xl:h-11! max-xl:px-2.5!")
   })
 

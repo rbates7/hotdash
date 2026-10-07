@@ -7,8 +7,9 @@ import { resetDemoData } from "./support/persistence"
 
 /**
  * Review stills for Home at the four target widths, both themes.
- * Opt-in: `SCREENSHOTS=1 pnpm test:e2e e2e/responsive-home-screens.spec.ts`
- * (or `pnpm screens:responsive-home`).
+ * Opt-in against a production build so the Next.js dev “N” badge is absent:
+ * `pnpm build && CI=true SCREENSHOTS=1 playwright test e2e/responsive-home-screens.spec.ts`
+ * (or `pnpm screens:responsive-home` after a build).
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
