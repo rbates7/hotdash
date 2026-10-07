@@ -109,6 +109,15 @@ describe("Upcoming and Done this year are decided on Central calendar days", () 
     expect(isUpcomingIn({ date: addDays(TODAY, 10), status: "done" }, TODAY, 30)).toBe(false)
     expect(isUpcomingIn({ date: addDays(TODAY, 45), status: "planned" }, TODAY, 30)).toBe(false)
   })
+
+  it("today+30 counts as upcoming; today+31 and yesterday do not, on the Central day of LATE_EVENING_CT", () => {
+    const today = todayIn(LATE_EVENING_CT)
+    expect(today).toBe("2026-10-07")
+    expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
+    expect(isUpcomingIn({ date: addDays(today, 30), status: "planned" }, today, 30)).toBe(true)
+    expect(isUpcomingIn({ date: addDays(today, 31), status: "planned" }, today, 30)).toBe(false)
+    expect(isUpcomingIn({ date: addDays(today, -1), status: "planned" }, today, 30)).toBe(false)
+  })
 })
 
 describe("isInitiative / strip / normalize", () => {

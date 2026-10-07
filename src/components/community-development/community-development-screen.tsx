@@ -199,7 +199,7 @@ function FilterBar({
             key={f}
             value={f}
             size="sm"
-            className="text-label px-3 first:rounded-l-lg last:rounded-r-lg"
+            className="text-label px-3 first:rounded-l-lg last:rounded-r-lg aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
           >
             {TYPE_FILTER_LABEL[f]}
           </ToggleGroupItem>
@@ -221,7 +221,7 @@ function FilterBar({
             key={f}
             value={f}
             size="sm"
-            className="text-label px-3 first:rounded-l-lg last:rounded-r-lg"
+            className="text-label px-3 first:rounded-l-lg last:rounded-r-lg aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
           >
             {STATUS_FILTER_LABEL[f]}
           </ToggleGroupItem>
@@ -396,12 +396,12 @@ export function CommunityDevelopmentScreen() {
                           className="group/row hover:bg-transparent"
                           data-initiative={row.id}
                         >
-                          <TableCell className={CELL}>
+                          <TableCell className={cn(CELL, "min-w-0 whitespace-normal!")}>
                             <div className="flex flex-col gap-0.5">
                               <span className="flex flex-wrap items-center gap-1.5">
                                 <Button
                                   variant="link"
-                                  className="text-label text-foreground h-auto p-0 font-semibold tracking-tight"
+                                  className="text-label text-foreground h-auto whitespace-normal p-0 text-left font-semibold tracking-tight"
                                   onClick={() => setViewing({ initiative: row, open: true })}
                                 >
                                   {row.name}
@@ -413,7 +413,9 @@ export function CommunityDevelopmentScreen() {
                           <TableCell className={CELL}>
                             <TypePill type={row.type} />
                           </TableCell>
-                          <TableCell className={CELL}>{row.partner || "—"}</TableCell>
+                          <TableCell className={cn(CELL, "min-w-0 whitespace-normal!")}>
+                            {row.partner || "—"}
+                          </TableCell>
                           <TableCell className={cn(CELL, "whitespace-nowrap")}>
                             <div className="flex flex-col gap-0.5">
                               <span>{when.primary}</span>
@@ -433,8 +435,16 @@ export function CommunityDevelopmentScreen() {
                             <StatusPill status={row.status} />
                           </TableCell>
                           <TableCell className={CELL}>{row.owner}</TableCell>
-                          <TableCell className={cn(CELL, !row.impact && "text-muted-foreground")}>
-                            {row.impact || "—"}
+                          <TableCell
+                            className={cn(
+                              CELL,
+                              "max-w-[11rem] min-w-0 whitespace-normal!",
+                              !row.impact && "text-muted-foreground"
+                            )}
+                          >
+                            <span className="line-clamp-2" title={row.impact || undefined}>
+                              {row.impact || "—"}
+                            </span>
                           </TableCell>
                           <TableCell className={cn(CELL, "py-2 pr-3 pl-0 text-right")}>
                             <RowMenu

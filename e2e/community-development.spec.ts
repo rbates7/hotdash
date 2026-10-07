@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
@@ -34,6 +34,61 @@ async function fresh(page: Page) {
   await expect(note(page)).toHaveText(NOTE.unsaved)
   await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   await expect(bodyRows(page)).toHaveCount(8)
+}
+
+/**
+ * WCAG contrast between the painted backgrounds of two controls (pressed
+ * vs unpressed). Copied locally from the Clinics spec so e2e/support stays
+ * untouched. Composites translucent fills onto the nearest opaque ancestor
+ * so outline toggles are measured honestly.
+ */
+async function backgroundContrast(a: Locator, b: Locator) {
+  return a.evaluate((elA, elB) => {
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, bb, alpha] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b: bb, a: alpha / 255 }
+    }
+    const over = (top: { r: number; g: number; b: number; a: number }, under: { r: number; g: number; b: number }) => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const painted = (el: Element) => {
+      const layers: ReturnType<typeof parse>[] = []
+      let node: Element | null = el
+      while (node) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+        node = node.parentElement
+      }
+      let backdrop = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      return backdrop
+    }
+    const [l1, l2] = [lum(painted(elA)), lum(painted(elB as Element))].sort((x, y) => y - x)
+    return (l1 + 0.05) / (l2 + 0.05)
+  }, await b.elementHandle())
+}
+
+async function expectPressedContrast(group: Locator, label: string) {
+  const pressed = group.getByRole("button", { pressed: true })
+  const unpressed = group.getByRole("button", { pressed: false }).first()
+  await expect(pressed).toBeVisible()
+  const ratio = await backgroundContrast(pressed, unpressed)
+  expect(ratio, `${label} pressed vs unpressed ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
+  await expectReadable(pressed, `${label} pressed`, expect)
 }
 
 test.describe("Community Development", () => {
@@ -107,13 +162,121 @@ test.describe("Community Development", () => {
         await expect(tag).toHaveText("Sample data")
         await expectReadable(tag, `${theme}/row tag`, expect)
       }
-      for (const pill of await table(page).getByTestId("status-pill").all()) {
+      const statusPills = table(page).getByTestId("status-pill")
+      await expect(statusPills).toHaveCount(8)
+      for (const pill of await statusPills.all()) {
         await expectReadable(pill, `${theme}/status`, expect)
       }
-      for (const pill of await table(page).getByTestId("type-pill").all()) {
+      const typePills = table(page).getByTestId("type-pill")
+      await expect(typePills).toHaveCount(8)
+      for (const pill of await typePills.all()) {
         await expectReadable(pill, `${theme}/type`, expect)
       }
       await expectReadable(table(page), `${theme}/table`, expect)
+    }
+    await setTheme(page, "light")
+  })
+
+  test("filter chips and dialog Type/Status pressed options read at ≥ 3:1 vs unpressed, light and dark", async ({
+    page,
+  }) => {
+    await fresh(page)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectPressedContrast(page.getByRole("group", { name: "Filter by type" }), `${theme}/type filter`)
+      await expectPressedContrast(page.getByRole("group", { name: "Filter by status" }), `${theme}/status filter`)
+      await addButton(page).click()
+      const add = dialog(page, "Add initiative")
+      await expect(add).toBeVisible()
+      await expectPressedContrast(add.getByRole("group", { name: "Type", exact: true }), `${theme}/Type`)
+      await expectPressedContrast(add.getByRole("group", { name: "Status", exact: true }), `${theme}/Status`)
+      await page.keyboard.press("Escape")
+      await expect(add).toBeHidden()
+    }
+    await setTheme(page, "light")
+  })
+
+  test("Add initiative and a row menu work from the keyboard", async ({ page }) => {
+    await fresh(page)
+    await header(page).getByRole("heading", { level: 1, name: "Community Development" }).click()
+    const seen: string[] = []
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press("Tab")
+      const label = await page.evaluate(() => {
+        const el = document.activeElement
+        return el ? `${el.tagName.toLowerCase()}:${el.getAttribute("aria-label") ?? el.textContent?.trim()}` : "none"
+      })
+      seen.push(label)
+      if (label === "button:Add initiative") break
+    }
+    expect(seen.at(-1), seen.join(" | ")).toBe("button:Add initiative")
+    await page.keyboard.press("Enter")
+    const add = dialog(page, "Add initiative")
+    await expect(add.getByLabel("Name")).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(add).toBeHidden()
+    await expect(addButton(page)).toBeFocused()
+
+    const trigger = table(page).getByRole("button", {
+      name: "Actions for Equipment drive for Yates High School",
+      exact: true,
+    })
+    await trigger.focus()
+    await page.keyboard.press("Enter")
+    const menu = page.getByRole("menu")
+    await expect(menu).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(menu).toBeHidden()
+    await expect(trigger).toBeFocused()
+  })
+
+  test("Add/Edit dialog, detail sheet, delete confirm, and empty state are readable in light and dark", async ({
+    page,
+  }) => {
+    await fresh(page)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+
+      await addButton(page).click()
+      const add = dialog(page, "Add initiative")
+      await expect(add).toBeVisible()
+      await expectReadable(add, `${theme}/add dialog`, expect)
+      await page.keyboard.press("Escape")
+      await expect(add).toBeHidden()
+
+      let menu = await openMenu(page, "Equipment drive for Yates High School")
+      await menu.getByRole("menuitem", { name: "Edit", exact: true }).click()
+      const edit = dialog(page, "Edit initiative")
+      await expect(edit).toBeVisible()
+      await expectReadable(edit, `${theme}/edit dialog`, expect)
+      await page.keyboard.press("Escape")
+      await expect(edit).toBeHidden()
+
+      await row(page, /Equipment drive for Yates High School/)
+        .getByRole("button", { name: "Equipment drive for Yates High School", exact: true })
+        .click()
+      const detail = page.getByRole("dialog", { name: /Equipment drive for Yates High School/ })
+      await expect(detail).toBeVisible()
+      await expectReadable(detail, `${theme}/detail sheet`, expect)
+      await page.keyboard.press("Escape")
+      await expect(detail).toBeHidden()
+
+      menu = await openMenu(page, "Equipment drive for Yates High School")
+      await menu.getByRole("menuitem", { name: "Delete", exact: true }).click()
+      const confirm = dialog(page, "Delete this initiative?")
+      await expect(confirm).toBeVisible()
+      await expectReadable(confirm, `${theme}/delete confirm`, expect)
+      await confirm.getByRole("button", { name: "Keep it", exact: true }).click()
+      await expect(confirm).toBeHidden()
+    }
+
+    await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 9 })), STORAGE_KEY)
+    await page.reload()
+    const empty = page.getByRole("status", { name: "No initiatives", exact: true })
+    await expect(empty).toBeVisible()
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectReadable(empty, `${theme}/empty state`, expect)
     }
     await setTheme(page, "light")
   })
@@ -287,5 +450,23 @@ test.describe("Community Development", () => {
     expect(parked[0].raw).toBe(junk)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"active"')
     await context.close()
+  })
+})
+
+test.describe("Community Development at 1440", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("the giving table fits at 1440 without clipping the actions column", async ({ page }) => {
+    await fresh(page)
+    const size = await table(page).evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }))
+    expect(size.scrollWidth, `table overflow ${size.scrollWidth} > ${size.clientWidth}`).toBeLessThanOrEqual(
+      size.clientWidth + 1
+    )
+    await expect(
+      table(page).getByRole("button", { name: "Actions for Equipment drive for Yates High School", exact: true })
+    ).toBeInViewport()
   })
 })
