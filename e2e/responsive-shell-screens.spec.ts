@@ -40,11 +40,9 @@ for (const theme of ["light", "dark"] as const) {
       await page.goto("/home")
       await page.evaluate(() => localStorage.setItem("theme", "light"))
       await page.reload()
-      if (size === "phone" || size === "tablet-portrait") {
+      await setTheme(page, theme)
+      if (size === "phone") {
         await openFounderNav(page)
-        await setTheme(page, theme)
-      } else {
-        await setTheme(page, theme)
       }
       await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
       await shoot(page, `shell-${size}-${theme}`)

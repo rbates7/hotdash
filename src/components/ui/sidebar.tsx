@@ -6,7 +6,7 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +39,16 @@ type SidebarContextProps = {
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
+  isTablet: boolean
   toggleSidebar: () => void
+}
+
+type SidebarSurface = "rail" | "sheet"
+
+const SidebarSurfaceContext = React.createContext<SidebarSurface>("rail")
+
+function useSidebarSurface() {
+  return React.useContext(SidebarSurfaceContext)
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -67,6 +76,7 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
 }) {
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.
@@ -88,10 +98,12 @@ function SidebarProvider({
     [setOpenProp, open]
   )
 
-  // Helper to toggle the sidebar.
+  // Phone and tablet expand open the overlay sheet. Desktop toggles the rail.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+    return isMobile || isTablet
+      ? setOpenMobile((open) => !open)
+      : setOpen((open) => !open)
+  }, [isMobile, isTablet, setOpen, setOpenMobile])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -102,12 +114,19 @@ function SidebarProvider({
       ) {
         event.preventDefault()
         toggleSidebar()
+        return
+      }
+      // Overlay drawers are opened from a control *outside* the dialog, so
+      // Base UI may not see Escape. Close them ourselves.
+      if (event.key === "Escape" && (isMobile || isTablet) && openMobile) {
+        event.preventDefault()
+        setOpenMobile(false)
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [toggleSidebar])
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [toggleSidebar, isMobile, isTablet, openMobile])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
@@ -119,11 +138,21 @@ function SidebarProvider({
       open,
       setOpen,
       isMobile,
+      isTablet,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      isTablet,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+    ]
   )
 
   return (
@@ -162,7 +191,7 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, isTablet, state, openMobile, setOpenMobile } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -179,76 +208,109 @@ function Sidebar({
     )
   }
 
+  const drawer = (isMobile || isTablet) && (
+    <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+      <SheetContent
+        dir={dir}
+        id="founder-nav-drawer"
+        data-sidebar="sidebar"
+        data-slot="sidebar"
+        data-mobile="true"
+        showCloseButton={false}
+        className={cn(
+          "w-(--sidebar-width) p-0 text-sidebar-foreground",
+          isMobile && "bg-sidebar",
+          // Tablet overlay is a 256 floating card over the icon rail (6:660).
+          isTablet && "border-0 bg-transparent p-2 shadow-none sm:max-w-64"
+        )}
+        style={
+          {
+            "--sidebar-width": isTablet ? SIDEBAR_WIDTH : SIDEBAR_WIDTH_MOBILE,
+          } as React.CSSProperties
+        }
+        side={side}
+        finalFocus={() =>
+          document.querySelector<HTMLElement>(
+            "[data-slot='sidebar-trigger'], [data-slot='sidebar-collapse']"
+          )
+        }
+      >
+        <SheetHeader className="sr-only">
+          <SheetTitle>Menu</SheetTitle>
+          <SheetDescription>Founder dashboard sections</SheetDescription>
+        </SheetHeader>
+        <SidebarSurfaceContext.Provider value="sheet">
+          <div
+            className={cn(
+              "flex h-full w-full flex-col",
+              isTablet && "cn-sidebar-inner overflow-hidden"
+            )}
+          >
+            {children}
+          </div>
+        </SidebarSurfaceContext.Provider>
+      </SheetContent>
+    </Sheet>
+  )
+
   if (isMobile) {
-    return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          dir={dir}
-          id="founder-nav-drawer"
-          data-sidebar="sidebar"
-          data-slot="sidebar"
-          data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
-    )
+    return drawer
   }
 
+  // Tablet portrait stays on the icon rail; expand is the overlay above.
+  const railState = isTablet ? "collapsed" : state
+  const railCollapsible = isTablet || state === "collapsed" ? collapsible : ""
+
   return (
-    <div
-      className="group peer hidden text-sidebar-foreground lg:block"
-      data-state={state}
-      data-collapsible={state === "collapsed" ? collapsible : ""}
-      data-variant={variant}
-      data-side={side}
-      data-slot="sidebar"
-    >
-      {/* This is what handles the sidebar gap on desktop */}
+    <>
+      {drawer}
       <div
-        data-slot="sidebar-gap"
-        className={cn(
-          "cn-sidebar-gap relative w-(--sidebar-width) bg-transparent",
-          "group-data-[collapsible=offcanvas]:w-0",
-          "group-data-[side=right]:rotate-180",
-          variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
-        )}
-      />
-      <div
-        data-slot="sidebar-container"
+        className="group peer hidden text-sidebar-foreground md:block"
+        data-state={railState}
+        data-collapsible={railCollapsible}
+        data-variant={variant}
         data-side={side}
-        className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
-          // Adjust the padding for floating and inset variants.
-          variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
-          className
-        )}
-        {...props}
+        data-slot="sidebar"
       >
+        {/* This is what handles the sidebar gap on desktop */}
         <div
-          data-sidebar="sidebar"
-          data-slot="sidebar-inner"
-          className="cn-sidebar-inner flex size-full flex-col"
+          data-slot="sidebar-gap"
+          className={cn(
+            "cn-sidebar-gap relative w-(--sidebar-width) bg-transparent",
+            "group-data-[collapsible=offcanvas]:w-0",
+            "group-data-[side=right]:rotate-180",
+            variant === "floating" || variant === "inset"
+              ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
+              : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
+            isTablet && "w-[76px]!"
+          )}
+        />
+        <div
+          data-slot="sidebar-container"
+          data-side={side}
+          className={cn(
+            "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+            // Adjust the padding for floating and inset variants.
+            variant === "floating" || variant === "inset"
+              ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
+              : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            isTablet && "w-[76px]!",
+            className
+          )}
+          {...props}
         >
-          {children}
+          <SidebarSurfaceContext.Provider value="rail">
+            <div
+              data-sidebar="sidebar"
+              data-slot="sidebar-inner"
+              className="cn-sidebar-inner flex size-full flex-col"
+            >
+              {children}
+            </div>
+          </SidebarSurfaceContext.Provider>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -512,7 +574,7 @@ function SidebarMenuButton({
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { isMobile, state } = useSidebar()
+  const { isMobile, isTablet, state } = useSidebar()
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -546,7 +608,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
+        hidden={isMobile || !(isTablet || state === "collapsed")}
         {...tooltip}
       />
     </Tooltip>
@@ -720,4 +782,5 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
+  useSidebarSurface,
 }

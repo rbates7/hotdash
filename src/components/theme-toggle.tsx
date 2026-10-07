@@ -7,7 +7,7 @@ import { useMounted } from "@/hooks/use-mounted"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useSidebar } from "@/components/ui/sidebar"
+import { useSidebar, useSidebarSurface } from "@/components/ui/sidebar"
 
 // Nova's `.cn-toggle` sets `aria-pressed:bg-muted`, which renders the
 // selected half *darker* than the unselected one; `!` overrides it.
@@ -18,30 +18,45 @@ const PRESSED =
   "aria-pressed:bg-sidebar! dark:aria-pressed:bg-accent! aria-pressed:shadow-sm"
 
 /**
- * Light/Dark switch pinned in the sidebar footer. Renders as a segmented
- * control while the sidebar is expanded and as a single icon button once it
- * collapses to the icon rail.
+ * Light/Dark switch. Icon on the phone top bar and collapsed rails;
+ * segmented Light/Dark in the expanded rail and overlay drawers.
  */
-export function ThemeToggle() {
+export function ThemeToggle({
+  appearance = "auto",
+  className,
+}: {
+  appearance?: "auto" | "icon" | "segmented"
+  className?: string
+}) {
   const { theme, setTheme } = useTheme()
-  const { state, isMobile } = useSidebar()
-  // `theme` is undefined until next-themes reads storage on the client, so
-  // hold a same-shape placeholder until then to avoid a hydration mismatch.
+  const { state, isMobile, isTablet } = useSidebar()
+  const surface = useSidebarSurface()
   const mounted = useMounted()
 
-  const collapsed = state === "collapsed" && !isMobile
+  const collapsedRail =
+    appearance === "icon" ||
+    (appearance === "auto" &&
+      surface === "rail" &&
+      (isTablet || state === "collapsed") &&
+      !isMobile)
 
   if (!mounted) {
-    return <div aria-hidden className={cn("h-8", collapsed ? "w-8" : "w-full")} />
+    return (
+      <div
+        aria-hidden
+        className={cn("h-8", collapsedRail ? "w-8" : "w-full", className)}
+      />
+    )
   }
 
-  if (collapsed) {
+  if (collapsedRail) {
     const nextTheme = theme === "dark" ? "light" : "dark"
+    const touch = isTablet || appearance === "icon"
     return (
       <Button
         variant="ghost"
         size="icon-sm"
-        className="size-8"
+        className={cn(touch ? "size-11" : "size-8", className)}
         onClick={() => setTheme(nextTheme)}
       >
         {theme === "dark" ? <MoonIcon /> : <SunIcon />}
@@ -55,7 +70,7 @@ export function ThemeToggle() {
       aria-label="Theme"
       variant="outline"
       spacing={0}
-      className="bg-muted w-full"
+      className={cn("bg-muted w-full", (isMobile || isTablet) && "h-11", className)}
       value={[theme === "light" ? "light" : "dark"]}
       onValueChange={(value) => {
         // Single-select group: ignore the empty array when the pressed item

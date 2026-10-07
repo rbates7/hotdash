@@ -50,7 +50,7 @@ export default async function RootLayout({
                 w-full, which beside a sibling rail resolves wider than the space
                 actually left — min-w-0 lets it shrink so wide content scrolls
                 inside the page instead of off the edge. */}
-            <SidebarInset className="min-w-0 p-4 lg:p-6">
+            <SidebarInset className="min-w-0 p-4 md:p-6">
               <AppHeader />
               {children}
             </SidebarInset>

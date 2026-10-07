@@ -2,8 +2,10 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { COMPACT_QUERY } from "@/hooks/use-mobile"
+import { FOUNDER_NAME, FOUNDER_ROLE } from "@/components/founder-identity"
+import { PHONE_QUERY } from "@/hooks/use-mobile"
 import { APP_HEADER_NAME, CLOSE_MENU_NAME, OPEN_MENU_NAME, AppHeader } from "@/components/app-header"
+import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider } from "@/components/ui/sidebar"
 
 const nativeMatchMedia = window.matchMedia
@@ -12,9 +14,9 @@ afterEach(() => {
   window.matchMedia = nativeMatchMedia
 })
 
-function mockCompact(matches: boolean) {
+function mockPhone(matches: boolean) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: query === COMPACT_QUERY ? matches : false,
+    matches: query === PHONE_QUERY ? matches : false,
     media: query,
     onchange: null,
     addListener: vi.fn(),
@@ -27,24 +29,27 @@ function mockCompact(matches: boolean) {
 
 function renderHeader() {
   return render(
-    <SidebarProvider>
-      <AppHeader />
-    </SidebarProvider>
+    <ThemeProvider>
+      <SidebarProvider>
+        <AppHeader />
+      </SidebarProvider>
+    </ThemeProvider>
   )
 }
 
 describe("AppHeader", () => {
-  it("shows the menu button and the current section label", () => {
-    mockCompact(true)
+  it("shows the menu button and founder identity, not the page title", () => {
+    mockPhone(true)
     renderHeader()
-    expect(screen.getByRole("banner", { name: APP_HEADER_NAME })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: APP_HEADER_NAME })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: OPEN_MENU_NAME })).toHaveAttribute("aria-expanded", "false")
-    // setup.ts pins usePathname at /agent-workplace
-    expect(screen.getByText("Agent Workplace")).toBeInTheDocument()
+    expect(screen.getByText(FOUNDER_ROLE)).toBeInTheDocument()
+    expect(screen.getByText(FOUNDER_NAME)).toBeInTheDocument()
+    expect(screen.queryByText("Agent Workplace")).not.toBeInTheDocument()
   })
 
-  it("toggles aria-expanded when the menu is opened on a compact viewport", async () => {
-    mockCompact(true)
+  it("toggles aria-expanded when the menu is opened on a phone viewport", async () => {
+    mockPhone(true)
     const user = userEvent.setup()
     renderHeader()
     const button = screen.getByRole("button", { name: OPEN_MENU_NAME })

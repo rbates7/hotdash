@@ -1,7 +1,15 @@
 import { renderHook } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { COMPACT_MAX_WIDTH, COMPACT_QUERY, useIsMobile } from "@/hooks/use-mobile"
+import {
+  PHONE_MAX_WIDTH,
+  PHONE_QUERY,
+  TABLET_MAX_WIDTH,
+  TABLET_MIN_WIDTH,
+  TABLET_QUERY,
+  useIsMobile,
+  useIsTablet,
+} from "@/hooks/use-mobile"
 
 const nativeMatchMedia = window.matchMedia
 
@@ -9,9 +17,14 @@ afterEach(() => {
   window.matchMedia = nativeMatchMedia
 })
 
-function mockMatchMedia(width: number) {
+function mockViewport(width: number) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: query === COMPACT_QUERY && width <= COMPACT_MAX_WIDTH,
+    matches:
+      query === PHONE_QUERY
+        ? width <= PHONE_MAX_WIDTH
+        : query === TABLET_QUERY
+          ? width >= TABLET_MIN_WIDTH && width <= TABLET_MAX_WIDTH
+          : false,
     media: query,
     onchange: null,
     addListener: vi.fn(),
@@ -22,18 +35,22 @@ function mockMatchMedia(width: number) {
   }))
 }
 
-describe("useIsMobile", () => {
-  it("is compact on phone and tablet portrait, not on tablet landscape or desktop", () => {
-    mockMatchMedia(390)
+describe("viewport hooks", () => {
+  it("treats 390 as phone, 820 as tablet, 1180+ as desktop rail", () => {
+    mockViewport(390)
     expect(renderHook(() => useIsMobile()).result.current).toBe(true)
+    expect(renderHook(() => useIsTablet()).result.current).toBe(false)
 
-    mockMatchMedia(820)
-    expect(renderHook(() => useIsMobile()).result.current).toBe(true)
-
-    mockMatchMedia(1180)
+    mockViewport(820)
     expect(renderHook(() => useIsMobile()).result.current).toBe(false)
+    expect(renderHook(() => useIsTablet()).result.current).toBe(true)
 
-    mockMatchMedia(1440)
+    mockViewport(1180)
     expect(renderHook(() => useIsMobile()).result.current).toBe(false)
+    expect(renderHook(() => useIsTablet()).result.current).toBe(false)
+
+    mockViewport(1440)
+    expect(renderHook(() => useIsMobile()).result.current).toBe(false)
+    expect(renderHook(() => useIsTablet()).result.current).toBe(false)
   })
 })

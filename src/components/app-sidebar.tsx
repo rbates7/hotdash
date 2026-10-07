@@ -8,10 +8,12 @@ import {
   ChevronRightIcon,
   CircleQuestionMarkIcon,
   LogOutIcon,
+  XIcon,
 } from "lucide-react"
 
 import { isActiveRoute, navItems } from "@/lib/nav"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { cn } from "@/lib/utils"
+import { FounderIdentity } from "@/components/founder-identity"
 import { Button } from "@/components/ui/button"
 import {
   Sidebar,
@@ -25,61 +27,85 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
   useSidebar,
+  useSidebarSurface,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 
+export const CLOSE_DRAWER_NAME = "Close"
+export const EXPAND_SIDEBAR_NAME = "Expand sidebar"
+export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
+
 /**
- * Round chevron straddling the sidebar's right edge. Replaces the stock
- * `SidebarTrigger`, whose panel icon and inline placement don't match the
- * design.
+ * Round chevron straddling the sidebar's right edge. The visible control is
+ * still 24px (desktop token); the hit area is 44×44 on tablet (Deke 6:493).
  */
 function CollapseToggle() {
-  const { state, toggleSidebar } = useSidebar()
-  const collapsed = state === "collapsed"
+  const { state, isTablet, toggleSidebar } = useSidebar()
+  const surface = useSidebarSurface()
+  const collapsed =
+    surface === "rail" && (isTablet || state === "collapsed")
 
   return (
     <Button
+      data-slot="sidebar-collapse"
       variant="outline"
       size="icon-xs"
       onClick={toggleSidebar}
-      className="bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm"
+      className={cn(
+        "bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm",
+        isTablet &&
+          "top-1.5 -right-5 size-11 border-0 bg-transparent shadow-none hover:bg-transparent"
+      )}
     >
-      {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-      <span className="sr-only">
-        {collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      <span
+        className={cn(
+          isTablet &&
+            "bg-sidebar text-muted-foreground flex size-6 items-center justify-center rounded-full border shadow-sm"
+        )}
+      >
+        {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
       </span>
+      <span className="sr-only">
+        {collapsed ? EXPAND_SIDEBAR_NAME : COLLAPSE_SIDEBAR_NAME}
+      </span>
+    </Button>
+  )
+}
+
+function DrawerClose() {
+  const { setOpenMobile } = useSidebar()
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-11 shrink-0"
+      onClick={() => setOpenMobile(false)}
+    >
+      <XIcon aria-hidden />
+      <span className="sr-only">{CLOSE_DRAWER_NAME}</span>
     </Button>
   )
 }
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, isTablet, setOpenMobile } = useSidebar()
 
-  // Compact: the rail is a sheet. Close it after a route change so the
-  // next screen is not sitting under an open drawer.
+  // Overlay drawers (phone sheet + tablet expand) close after a route change
+  // so the next screen is not sitting under an open drawer.
   React.useEffect(() => {
-    if (isMobile) setOpenMobile(false)
-  }, [pathname, isMobile, setOpenMobile])
+    if (isMobile || isTablet) setOpenMobile(false)
+  }, [pathname, isMobile, isTablet, setOpenMobile])
 
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader className="relative">
-        <div className="flex items-center gap-2 p-1">
-          <Avatar className="size-8 shrink-0">
-            {/* `!` beats Nova's `.cn-avatar-fallback` muted default. */}
-            <AvatarFallback className="bg-brand! text-brand-foreground! text-xs font-semibold">
-              RB
-            </AvatarFallback>
-          </Avatar>
-          <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-muted-foreground text-[0.625rem] font-medium tracking-widest uppercase">
-              Founder
-            </span>
-            <span className="truncate text-sm font-semibold">Rashad Bates</span>
-          </div>
+        <div className="flex items-center gap-1">
+          <FounderIdentity />
+          {isMobile ? <DrawerClose /> : <CollapseToggle />}
         </div>
-        {!isMobile && <CollapseToggle />}
       </SidebarHeader>
 
       <SidebarSeparator />
@@ -98,6 +124,10 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={active}
                       tooltip={item.label}
+                      className={cn(
+                        (isMobile || isTablet) && "h-11!",
+                        "md:max-lg:group-data-[collapsible=icon]:size-11!"
+                      )}
                       render={
                         item.external ? (
                           <a
@@ -135,7 +165,13 @@ export function AppSidebar() {
         </section>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Help">
+            <SidebarMenuButton
+              tooltip="Help"
+              className={cn(
+                (isMobile || isTablet) && "h-11!",
+                "md:max-lg:group-data-[collapsible=icon]:size-11!"
+              )}
+            >
               <CircleQuestionMarkIcon />
               <span>Help</span>
             </SidebarMenuButton>
@@ -143,7 +179,11 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Logout"
-              className="text-destructive hover:text-destructive [&_svg]:text-destructive"
+              className={cn(
+                "text-destructive hover:text-destructive [&_svg]:text-destructive",
+                (isMobile || isTablet) && "h-11!",
+                "md:max-lg:group-data-[collapsible=icon]:size-11!"
+              )}
             >
               <LogOutIcon />
               <span>Logout</span>

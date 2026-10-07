@@ -2,7 +2,7 @@
 
 Audit of current `develop` (`a8a0c70`) at phone **390×844** (sanity **360×740**), tablet portrait **820×1180**, tablet landscape **1180×820**. Light mode unless noted. Desktop **1440×900** was not in the capture set; it is the existing design target and must stay pixel-equivalent.
 
-Figma re-check before the shell PR (2026-10-07, Figma MCP, file `ZB2YTXYhNL26UX6xjvwpFF`, Rashad Bates’s team): still **one page** (`0:1` Page 1). Frames are coach iPad landscape only — Recents / Playbook Library / One Play a Day at **1024×768**. No phone (390) or tablet (820 / 1180) frames for the founder shell or nav. No new pages. **Pending Deke design** — this shell uses the existing desktop tokens (menu button + drawer), not invented compact styling.
+**Deke source of truth** (2026-10-07, Figma MCP, file `mEEFvPkzpt9woPbW5wATec`): phone + tablet shell frames are done. The shell PR matches those frames — not a generic drawer. Key nodes: desktop expanded `5:3`, desktop collapsed `5:194` (1440 unchanged), phone closed `6:3`, phone drawer `6:70` / dark `6:284`, tablet 820 icon rail `6:493`, tablet 820 overlay `6:660`, tablet landscape 1180 `5:363`, phone top bar `7:440`, tablet rail set `7:1905`, row collapse `7:46` / `7:47`.
 
 ## Worst problems first
 
@@ -149,10 +149,11 @@ Same failures as 390, tighter: more header clip, Feature Request columns become 
 
 ## What the shell PR should fix (this branch only)
 
-- Visible **menu button + slide-out drawer** on phone and tablet portrait (`max-width: 1023px`).
-- Compact **app header** that fits (menu + current section). No new chrome at 1440.
-- Keyboard: button exposes expand/collapse; Escape / overlay close; focus return; existing Cmd/Ctrl+B still works; drawer closes on navigate.
-- **One** shared responsive table helper (scroll-inside-container, optional stack) for later screen PRs — do not restyle every table here.
+- Phone (<768): Deke **56px top bar** (menu 44 + founder identity + theme icon) and **288 overlay sheet** with close X 44 (`7:440`, `6:3`, `6:70`).
+- Tablet portrait (768–1023 / 820): **76px icon rail**; chevron opens a **256 floating overlay** (`6:493`, `6:660`). No phone top bar.
+- Tablet landscape 1180 + desktop 1440: existing rail. 1440 stays as it is today (`5:3`, `5:194`).
+- 44px touch targets on phone/tablet chrome. Keyboard: Escape / overlay close; focus return; Cmd/Ctrl+B; drawer closes on navigate.
+- Shared **ResponsiveTable** + **RowCollapse** helper (Deke `7:46` / `7:47`) for later screen PRs — do not restyle every table here.
 - Leave My Desk files untouched. No live data.
 
 ## Screenshot index
