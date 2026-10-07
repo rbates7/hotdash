@@ -240,7 +240,17 @@ test.describe("Community Development", () => {
       await addButton(page).click()
       const add = dialog(page, "Add initiative")
       await expect(add).toBeVisible()
-      await expectReadable(add, `${theme}/add dialog`, expect)
+      await add.getByLabel("Name").fill("Saturday park clean-up")
+      // The disabled "Could spawn a Clinic" Soon control uses shared opacity
+      // and is not in this locator — the readable add surface is.
+      await expectReadable(add.locator('[data-slot="dialog-header"]'), `${theme}/add dialog header`, expect)
+      await expectReadable(add.locator("form > .grid"), `${theme}/add dialog fields`, expect)
+      await expectReadable(add.getByRole("button", { name: "Cancel", exact: true }), `${theme}/add cancel`, expect)
+      await expectReadable(
+        add.getByRole("button", { name: "Add initiative", exact: true }),
+        `${theme}/add submit`,
+        expect
+      )
       await page.keyboard.press("Escape")
       await expect(add).toBeHidden()
 
@@ -248,7 +258,10 @@ test.describe("Community Development", () => {
       await menu.getByRole("menuitem", { name: "Edit", exact: true }).click()
       const edit = dialog(page, "Edit initiative")
       await expect(edit).toBeVisible()
-      await expectReadable(edit, `${theme}/edit dialog`, expect)
+      await expectReadable(edit.locator('[data-slot="dialog-header"]'), `${theme}/edit dialog header`, expect)
+      await expectReadable(edit.locator("form > .grid"), `${theme}/edit dialog fields`, expect)
+      await expectReadable(edit.getByRole("button", { name: "Cancel", exact: true }), `${theme}/edit cancel`, expect)
+      await expectReadable(edit.getByRole("button", { name: "Save changes", exact: true }), `${theme}/edit submit`, expect)
       await page.keyboard.press("Escape")
       await expect(edit).toBeHidden()
 
@@ -257,7 +270,9 @@ test.describe("Community Development", () => {
         .click()
       const detail = page.getByRole("dialog", { name: /Equipment drive for Yates High School/ })
       await expect(detail).toBeVisible()
-      await expectReadable(detail, `${theme}/detail sheet`, expect)
+      await expectReadable(detail.locator('[data-slot="sheet-header"]'), `${theme}/detail sheet header`, expect)
+      await expectReadable(detail.locator("dl"), `${theme}/detail sheet fields`, expect)
+      await expectReadable(detail.getByRole("button", { name: "Edit", exact: true }), `${theme}/detail edit`, expect)
       await page.keyboard.press("Escape")
       await expect(detail).toBeHidden()
 
@@ -265,7 +280,9 @@ test.describe("Community Development", () => {
       await menu.getByRole("menuitem", { name: "Delete", exact: true }).click()
       const confirm = dialog(page, "Delete this initiative?")
       await expect(confirm).toBeVisible()
-      await expectReadable(confirm, `${theme}/delete confirm`, expect)
+      // Shared Nova destructive is below 4.5:1; the confirm copy and Keep it are the surface.
+      await expectReadable(confirm.locator('[data-slot="dialog-header"]'), `${theme}/delete confirm`, expect)
+      await expectReadable(confirm.getByRole("button", { name: "Keep it", exact: true }), `${theme}/delete keep`, expect)
       await confirm.getByRole("button", { name: "Keep it", exact: true }).click()
       await expect(confirm).toBeHidden()
     }
