@@ -123,6 +123,7 @@ describe("Bugs screen", () => {
       labels: ["bug"],
       status: "todo",
     })
+    state.nextKey = 1000
     saveState(window.localStorage, state)
 
     renderBugs()
