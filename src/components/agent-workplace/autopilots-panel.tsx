@@ -1,5 +1,6 @@
 "use client"
 
+import { nextRunLabel } from "@/lib/autopilots"
 import { autopilots, type Autopilot } from "@/lib/workplace-fixture"
 import { cn } from "@/lib/utils"
 import {
@@ -10,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useIssues } from "@/components/agent-workplace/issues-store"
 
 function RunPill({ state }: { state: Autopilot["lastRun"] }) {
   return (
@@ -30,6 +32,7 @@ const HEAD = "text-micro text-muted-foreground h-auto px-[18px] py-3 font-medium
 const CELL = "text-label px-[18px] py-4 whitespace-normal"
 
 export function AutopilotsPanel() {
+  const { now } = useIssues()
   return (
     <div className="flex flex-col gap-3">
       <p className="text-caption text-muted-foreground -mt-1 tracking-tight">
@@ -54,8 +57,8 @@ export function AutopilotsPanel() {
                     {ap.note}
                   </p>
                 </TableCell>
-                <TableCell className={CELL}>{ap.schedule}</TableCell>
-                <TableCell className={CELL}>{ap.nextRun}</TableCell>
+                <TableCell className={CELL}>{ap.scheduleLabel}</TableCell>
+                <TableCell className={CELL}>{nextRunLabel(ap.schedule, now)}</TableCell>
                 <TableCell className={CELL}>
                   <RunPill state={ap.lastRun} />
                 </TableCell>

@@ -8,14 +8,14 @@ export const metadata = {
 }
 
 export default function HomePage() {
-  // Same clock as the board's "days left" and the inbox's "18m", so the
-  // page never contradicts itself. The route is dynamic (the layout reads a
-  // cookie), so swapping the clock to real time later needs no other change.
-  const pulse = pulseLabel(now())
+  // One instant per request (the route is dynamic: the layout reads a
+  // cookie). The lede, the board's "days left" and the inbox's "18m" are all
+  // measured from it, and the client hydrates against the same value.
+  const at = now()
 
   return (
-    <IssuesProvider>
-      <HomeScreen pulse={pulse} />
+    <IssuesProvider nowMs={at.getTime()}>
+      <HomeScreen pulse={pulseLabel(at)} />
     </IssuesProvider>
   )
 }

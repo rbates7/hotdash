@@ -3,13 +3,14 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
+import { FIXED_NOW_MS } from "@/test/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { TicketView } from "@/components/agent-workplace/ticket-view"
 
 function renderTicket(key = "CHLK-404") {
   const onClose = vi.fn()
   render(
-    <IssuesProvider>
+    <IssuesProvider nowMs={FIXED_NOW_MS}>
       <TicketView issueKey={key} onClose={onClose} />
     </IssuesProvider>
   )

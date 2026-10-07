@@ -2,7 +2,7 @@
 
 import { boardPreview, needsYou } from "@/lib/home"
 import { kpiStripTitle, kpis, mrrTrend, numberOne } from "@/lib/home-fixture"
-import { inbox } from "@/lib/workplace-fixture"
+import { buildInbox } from "@/lib/workplace-fixture"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
@@ -18,7 +18,7 @@ import { NumberOneStrip } from "@/components/home/number-one-strip"
  */
 export function HomeScreen({ pulse }: { pulse: string }) {
   const { issues, sprints, actors, now, persisted } = useIssues()
-  const needs = needsYou(inbox, issues)
+  const needs = needsYou(buildInbox(now), issues)
   const board = boardPreview(issues, sprints, actors, now)
   // Until the browser's saved board is read, the two store-backed doors show
   // placeholders rather than flashing the seed and then swapping.
@@ -53,7 +53,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
         >
           <MetricsDoor trend={mrrTrend} />
           <DevBoardDoor preview={board} loading={loading} />
-          <NeedsYouDoor needs={needs} loading={loading} />
+          <NeedsYouDoor needs={needs} now={now} loading={loading} />
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
+import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import {
   IssuesProvider,
   STORAGE_KEY,
@@ -18,7 +19,7 @@ import { NumberOneStrip } from "@/components/home/number-one-strip"
 
 function renderHome(pulse = "Wednesday pulse") {
   return render(
-    <IssuesProvider>
+    <IssuesProvider nowMs={FIXED_NOW_MS}>
       <HomeScreen pulse={pulse} />
     </IssuesProvider>
   )
@@ -26,7 +27,7 @@ function renderHome(pulse = "Wednesday pulse") {
 
 /** Pre-seed the browser copy the store hydrates from after mount. */
 function seedStore(mutate: (state: State) => State) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mutate(initialState())))
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mutate(initialState(FIXED_NOW))))
 }
 
 describe("HomeScreen", () => {
@@ -193,7 +194,7 @@ describe("HomeScreen", () => {
 describe("HomeScreen before the saved board is read", () => {
   it("server HTML shows placeholders, not the seed, and says edits are loading", () => {
     const html = renderToStaticMarkup(
-      <IssuesProvider>
+      <IssuesProvider nowMs={FIXED_NOW_MS}>
         <HomeScreen pulse="Thursday pulse" />
       </IssuesProvider>
     )
@@ -231,8 +232,9 @@ describe("door loading states", () => {
     render(
       <NeedsYouDoor
         loading
+        now={FIXED_NOW}
         needs={{
-          items: [{ id: "x", title: "Row", snippet: "", when: "1m", unread: true }],
+          items: [{ id: "x", title: "Row", snippet: "", at: FIXED_NOW.toISOString(), unread: true }],
           waiting: 1,
           overflow: 0,
         }}

@@ -2,6 +2,7 @@ import * as React from "react"
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
+import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import {
   IssuesProvider,
   STORAGE_KEY,
@@ -11,7 +12,7 @@ import { InboxPanel } from "@/components/agent-workplace/inbox-panel"
 
 function renderInbox() {
   return render(
-    <IssuesProvider>
+    <IssuesProvider nowMs={FIXED_NOW_MS}>
       <InboxPanel onOpenIssue={vi.fn()} />
     </IssuesProvider>
   )
@@ -25,7 +26,7 @@ describe("InboxPanel", () => {
   })
 
   it("drops a row once its ticket is done on the board", async () => {
-    const seed = initialState()
+    const seed = initialState(FIXED_NOW)
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -42,7 +43,7 @@ describe("InboxPanel", () => {
   })
 
   it("keeps the ticketless digest even when every ticket is done", async () => {
-    const seed = initialState()
+    const seed = initialState(FIXED_NOW)
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({

@@ -1,16 +1,20 @@
 /**
- * The one clock for the dashboard while it runs on dummy data.
+ * The one clock for the dashboard.
  *
- * Every relative figure — "18m ago", "9 days left", the weekday in the Home
- * lede — is measured from this instant, and the fixtures are generated
- * against it, so the sprint can never read "9 days left" on a page that
- * thinks it is a month later. It is frozen rather than `Date.now()` so the
- * server and the client render the same HTML.
+ * `now()` is real time. Pages read it once per request and hand the instant
+ * down to the store (`IssuesProvider nowMs`), so the server render and the
+ * client hydration measure every relative figure — "18m", "9 days left",
+ * the weekday in the Home lede — from the same instant, and the dummy
+ * fixtures are generated against it (see `buildIssues`, `buildSprints`,
+ * `buildInbox`). Nothing is frozen: a sprint seeded "9 days out" is nine
+ * days out from today, whatever today is.
  *
- * When real data lands, `now()` becomes `new Date()` and nothing else moves.
+ * Tests pin time with `vi.useFakeTimers()` / `vi.setSystemTime()` or pass a
+ * fixed `Date` straight to the builders.
  */
-export const DEMO_NOW = new Date("2026-08-27T14:00:00.000Z")
-
 export function now(): Date {
-  return DEMO_NOW
+  return new Date()
 }
+
+/** Where the founder is. Display-side weekday and clock labels use it. */
+export const CENTRAL = "America/Chicago"

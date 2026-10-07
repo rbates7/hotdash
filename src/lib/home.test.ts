@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   NEEDS_YOU_CAP,
@@ -9,7 +9,7 @@ import {
   pulseLabel,
   sparklinePoints,
 } from "@/lib/home"
-import { now } from "@/lib/clock"
+import { CENTRAL, now } from "@/lib/clock"
 import {
   ACTIVE_KPI_SET,
   KPI_SETS,
@@ -18,9 +18,15 @@ import {
   kpis,
 } from "@/lib/home-fixture"
 import { activeSprint, daysUntil } from "@/lib/issues"
-import { NOW, actors, issues, sprints } from "@/lib/issues-fixture"
-import { inbox } from "@/lib/workplace-fixture"
+import { actors, buildIssues, buildSprints } from "@/lib/issues-fixture"
+import { buildInbox } from "@/lib/workplace-fixture"
 import type { InboxItem } from "@/lib/workplace-fixture"
+import { FIXED_NOW } from "@/test/clock"
+
+const NOW = FIXED_NOW
+const issues = buildIssues(NOW)
+const sprints = buildSprints(NOW)
+const inbox = buildInbox(NOW)
 
 describe("kpiTone", () => {
   it("reads growth as good and shrinkage as bad by default", () => {
@@ -46,21 +52,55 @@ describe("pulseLabel", () => {
     expect(pulseLabel(new Date("2026-10-08T03:00:00Z"), "UTC")).toBe("Thursday pulse")
   })
 
-  it("reads the same clock the board and inbox are measured from", () => {
-    expect(now().getTime()).toBe(NOW.getTime())
-    expect(pulseLabel(now())).toBe("Thursday pulse")
-  })
 })
 
-describe("one clock", () => {
-  it("keeps the sprint countdown and the lede on the same day", () => {
-    const sprint = activeSprint(sprints)!
-    const preview = boardPreview(issues, sprints, actors, now())!
-    expect(preview.daysLeft).toBe(daysUntil(sprint.endDate, NOW))
-    expect(preview.daysLeft).toBe(9)
-    // The sprint still has days left as seen from the clock the page uses —
-    // it is not already a month overdue because Home looked at a wall clock.
-    expect(Date.parse(sprint.endDate)).toBeGreaterThan(now().getTime())
+describe("one real clock", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // A Wednesday night in Chicago (Thursday in UTC) and a Sunday in January.
+  const instants = ["2026-10-08T03:00:00Z", "2027-01-17T18:30:00Z"]
+
+  it("now() is the wall clock, not a frozen instant", () => {
+    const before = Date.now()
+    const t = now().getTime()
+    expect(t).toBeGreaterThanOrEqual(before)
+    expect(t).toBeLessThanOrEqual(Date.now())
+
+    vi.useFakeTimers({ now: new Date(instants[0]) })
+    expect(now().toISOString()).toBe("2026-10-08T03:00:00.000Z")
+  })
+
+  it("the lede weekday is now() in America/Chicago", () => {
+    for (const iso of instants) {
+      vi.useFakeTimers({ now: new Date(iso) })
+      const expected = now().toLocaleDateString("en-US", { weekday: "long", timeZone: CENTRAL })
+      expect(pulseLabel(now())).toBe(`${expected} pulse`)
+    }
+    vi.useFakeTimers({ now: new Date(instants[0]) })
+    expect(pulseLabel(now())).toBe("Wednesday pulse")
+  })
+
+  it("the sprint countdown equals daysUntil(sprint.end, now()) on any day", () => {
+    for (const iso of instants) {
+      vi.useFakeTimers({ now: new Date(iso) })
+      const at = now()
+      const freshSprints = buildSprints(at)
+      const sprint = activeSprint(freshSprints)!
+      const preview = boardPreview(buildIssues(at), freshSprints, actors, at)!
+      expect(preview.daysLeft).toBe(daysUntil(sprint.endDate, at))
+      expect(preview.daysLeft).toBe(9)
+      expect(Date.parse(sprint.endDate)).toBeGreaterThan(at.getTime())
+    }
+  })
+
+  it("a seed from an older day reads as overdue against today, not as fresh", () => {
+    vi.useFakeTimers({ now: new Date(instants[1]) })
+    const stale = buildSprints(new Date(instants[0]))
+    const preview = boardPreview(buildIssues(now()), stale, actors, now())!
+    expect(preview.daysLeft).toBe(daysUntil(activeSprint(stale)!.endDate, now()))
+    expect(preview.daysLeft).toBeLessThan(0)
   })
 })
 
@@ -103,7 +143,7 @@ describe("needsYou", () => {
       id: `row-${n}`,
       title: `Row ${n}`,
       snippet: "",
-      when: "1m",
+      at: NOW.toISOString(),
       unread: n % 2 === 0,
     }))
     const result = needsYou(many, issues)

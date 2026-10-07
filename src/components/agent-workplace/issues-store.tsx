@@ -4,10 +4,9 @@ import * as React from "react"
 
 import type { Issue, IssuePriority, IssueStatus, Sprint } from "@/lib/issues"
 import {
-  NOW,
   actors as seedActors,
-  issues as seedIssues,
-  sprints as seedSprints,
+  buildIssues,
+  buildSprints,
   RASHAD,
 } from "@/lib/issues-fixture"
 
@@ -37,7 +36,8 @@ export type Action =
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
   | { type: "hydrate"; state: State | null }
-  | { type: "reset" }
+  /** Regenerates the seed relative to `at`, so its dates are fresh again. */
+  | { type: "reset"; at: string }
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
@@ -160,7 +160,7 @@ export function reducer(state: State, action: Action): State {
       return action.state ?? state
 
     case "reset":
-      return initialState()
+      return initialState(new Date(action.at))
   }
 }
 
@@ -174,12 +174,18 @@ function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-export function initialState(): State {
-  const highest = seedIssues.reduce((max, i) => {
+/**
+ * The demo seed, dated relative to `now`: the active sprint started five
+ * days before it and ends nine days after, comments and activity are hours
+ * before it, and so on. Build it from the instant the page was requested.
+ */
+export function initialState(now: Date): State {
+  const issues = buildIssues(now)
+  const highest = issues.reduce((max, i) => {
     const n = Number(i.key.split("-")[1])
     return Number.isFinite(n) && n > max ? n : max
   }, 0)
-  return { issues: seedIssues, sprints: seedSprints, nextKey: highest + 1 }
+  return { issues, sprints: buildSprints(now), nextKey: highest + 1 }
 }
 
 /* ------------------------------------------------------------ persistence */
@@ -223,7 +229,11 @@ export function saveState(storage: Storage | undefined, state: State) {
 
 type Store = State & {
   actors: typeof seedActors
-  /** Fixed clock. A live one would hydrate mismatched against the server. */
+  /**
+   * The instant the page was requested, from the server. Every relative
+   * figure is measured from it; using a live clock on the client would
+   * hydrate mismatched against the server's HTML.
+   */
   now: Date
   /** True once localStorage has been read and writes are flowing. */
   persisted: boolean
@@ -238,11 +248,19 @@ type Store = State & {
 
 const IssuesContext = React.createContext<Store | null>(null)
 
-export function IssuesProvider({ children }: { children: React.ReactNode }) {
+export function IssuesProvider({
+  nowMs,
+  children,
+}: {
+  /** `now().getTime()` from the server component rendering this page. */
+  nowMs: number
+  children: React.ReactNode
+}) {
+  const now = React.useMemo(() => new Date(nowMs), [nowMs])
   const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
     shellReducer,
     undefined,
-    () => ({ data: initialState(), hydrated: false })
+    () => ({ data: initialState(now), hydrated: false })
   )
 
   // Server and first client paint both use the seed; the saved copy is
@@ -260,7 +278,7 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
     return {
       ...state,
       actors: seedActors,
-      now: NOW,
+      now,
       persisted,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
       patchIssue: (key, patch) =>
@@ -271,9 +289,11 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
-      resetDemoData: () => dispatch({ type: "reset" }),
+      // Reset re-dates the seed from right now, not from the page load, so a
+      // save left over from an older session comes back fresh.
+      resetDemoData: () => dispatch({ type: "reset", at: at() }),
     }
-  }, [state, persisted])
+  }, [state, persisted, now])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>

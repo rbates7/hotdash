@@ -1,7 +1,7 @@
 "use client"
 
-import { openInboxItems } from "@/lib/inbox"
-import { inbox } from "@/lib/workplace-fixture"
+import { formatAge, openInboxItems } from "@/lib/inbox"
+import { buildInbox } from "@/lib/workplace-fixture"
 import { cn } from "@/lib/utils"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 
@@ -10,10 +10,10 @@ export function InboxPanel({
 }: {
   onOpenIssue: (key: string) => void
 }) {
-  const { issues } = useIssues()
+  const { issues, now } = useIssues()
   // Same selector Home's "Needs you" uses, so a ticket closed on the board
   // leaves both at once.
-  const rows = openInboxItems(inbox, issues)
+  const rows = openInboxItems(buildInbox(now), issues)
 
   return (
     <div className="flex flex-col gap-3">
@@ -68,7 +68,7 @@ export function InboxPanel({
                   </span>
                 </span>
                 <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
-                  {item.when}
+                  {formatAge(item.at, now)}
                 </span>
               </Row>
             </li>

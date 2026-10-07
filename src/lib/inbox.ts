@@ -22,3 +22,18 @@ export function openInboxItems(inbox: InboxItem[], issues: Issue[]): InboxItem[]
 export function pendingInboxItems(inbox: InboxItem[], issues: Issue[]): InboxItem[] {
   return openInboxItems(inbox, issues).filter((item) => !item.dismissed)
 }
+
+/**
+ * Compact age for an Inbox row, as the mock writes it: "18m", "2h",
+ * "Yesterday", then "3d". Measured from the page's instant, never a wall
+ * clock, so the server and client agree.
+ */
+export function formatAge(at: string, now: Date) {
+  const mins = Math.round((now.getTime() - Date.parse(at)) / 60_000)
+  if (mins < 1) return "now"
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  return days === 1 ? "Yesterday" : `${days}d`
+}

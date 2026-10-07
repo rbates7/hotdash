@@ -2,7 +2,9 @@ import * as React from "react"
 import { act, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { issues as seedIssues } from "@/lib/issues-fixture"
+import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
+import { activeSprint, daysUntil } from "@/lib/issues"
+import { buildIssues } from "@/lib/issues-fixture"
 import {
   IssuesProvider,
   STORAGE_KEY,
@@ -17,7 +19,7 @@ const AT = "2026-08-27T15:00:00.000Z"
 
 describe("reducer", () => {
   it("edits priority and project on an issue", () => {
-    let state = initialState()
+    let state = initialState(FIXED_NOW)
     state = reducer(state, {
       type: "patch-issue",
       key: "CHLK-404",
@@ -31,7 +33,7 @@ describe("reducer", () => {
   })
 
   it("clears a project back to none", () => {
-    let state = initialState()
+    let state = initialState(FIXED_NOW)
     state = reducer(state, {
       type: "patch-issue",
       key: "CHLK-404",
@@ -48,7 +50,7 @@ describe("reducer", () => {
   })
 
   it("keys a created issue after the highest seed and keeps its project", () => {
-    const state = reducer(initialState(), {
+    const state = reducer(initialState(FIXED_NOW), {
       type: "create-issue",
       at: AT,
       input: {
@@ -66,26 +68,57 @@ describe("reducer", () => {
   })
 
   it("refuses to start a second active sprint", () => {
-    const state = reducer(initialState(), { type: "start-sprint", id: "sprint-5" })
+    const state = reducer(initialState(FIXED_NOW), { type: "start-sprint", id: "sprint-5" })
     expect(state.sprints.filter((s) => s.status === "active")).toHaveLength(1)
     expect(state.sprints.find((s) => s.id === "sprint-5")!.status).toBe("planned")
   })
 
   it("reset restores the seed", () => {
-    let state = reducer(initialState(), {
+    let state = reducer(initialState(FIXED_NOW), {
       type: "patch-issue",
       key: "CHLK-404",
       patch: { priority: "low" },
       at: AT,
     })
-    state = reducer(state, { type: "reset" })
-    expect(state.issues).toEqual(seedIssues)
+    state = reducer(state, { type: "reset", at: FIXED_NOW.toISOString() })
+    expect(state.issues).toEqual(buildIssues(FIXED_NOW))
+  })
+
+  it("reset re-dates a stale save relative to the moment of the reset", () => {
+    // A board saved six weeks ago: its sprint has long since run out.
+    const sixWeeksAgo = new Date(FIXED_NOW.getTime() - 42 * 86_400_000)
+    const stale = initialState(sixWeeksAgo)
+    expect(daysUntil(activeSprint(stale.sprints)!.endDate, FIXED_NOW)).toBe(9 - 42)
+
+    const fresh = reducer(stale, { type: "reset", at: FIXED_NOW.toISOString() })
+    const sprint = activeSprint(fresh.sprints)!
+    expect(daysUntil(sprint.endDate, FIXED_NOW)).toBe(9)
+    expect(fresh).toEqual(initialState(FIXED_NOW))
+  })
+})
+
+describe("initialState is relative to the given instant", () => {
+  it("dates the active sprint five days back and nine days out", () => {
+    for (const at of [FIXED_NOW, new Date("2027-01-15T03:00:00Z")]) {
+      const sprint = activeSprint(initialState(at).sprints)!
+      expect(daysUntil(sprint.endDate, at)).toBe(9)
+      expect(Date.parse(sprint.startDate)).toBe(at.getTime() - 5 * 86_400_000)
+      expect(Date.parse(sprint.endDate)).toBe(at.getTime() + 9 * 86_400_000)
+    }
+  })
+
+  it("keeps every issue timestamp at or before the instant", () => {
+    const state = initialState(FIXED_NOW)
+    for (const issue of state.issues) {
+      expect(Date.parse(issue.createdAt)).toBeLessThanOrEqual(FIXED_NOW.getTime())
+      expect(Date.parse(issue.updatedAt)).toBeLessThanOrEqual(FIXED_NOW.getTime())
+    }
   })
 })
 
 describe("localStorage round trip", () => {
   it("saves and loads the same state", () => {
-    const state = reducer(initialState(), {
+    const state = reducer(initialState(FIXED_NOW), {
       type: "patch-issue",
       key: "CHLK-404",
       patch: { priority: "urgent" },
@@ -124,7 +157,7 @@ function Probe() {
 describe("IssuesProvider persistence", () => {
   it("persists edits and rehydrates them after a remount (reload)", async () => {
     const first = render(
-      <IssuesProvider>
+      <IssuesProvider nowMs={FIXED_NOW_MS}>
         <Probe />
       </IssuesProvider>
     )
@@ -139,7 +172,7 @@ describe("IssuesProvider persistence", () => {
     // Simulate a reload: tear the tree down and mount a fresh provider.
     first.unmount()
     render(
-      <IssuesProvider>
+      <IssuesProvider nowMs={FIXED_NOW_MS}>
         <Probe />
       </IssuesProvider>
     )
@@ -150,7 +183,7 @@ describe("IssuesProvider persistence", () => {
 
   it("falls back to the seed when nothing is saved", async () => {
     render(
-      <IssuesProvider>
+      <IssuesProvider nowMs={FIXED_NOW_MS}>
         <Probe />
       </IssuesProvider>
     )

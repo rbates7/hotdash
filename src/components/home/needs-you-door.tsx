@@ -2,6 +2,7 @@ import Link from "next/link"
 import { InboxIcon } from "lucide-react"
 
 import type { NeedsYou } from "@/lib/home"
+import { formatAge } from "@/lib/inbox"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
@@ -21,9 +22,12 @@ export function inboxIssueHref(issueKey?: string) {
  */
 export function NeedsYouDoor({
   needs,
+  now,
   loading = false,
 }: {
   needs: NeedsYou
+  /** The page's instant; row ages are measured from it. */
+  now: Date
   /** True until the browser's saved board has been read; shows placeholders. */
   loading?: boolean
 }) {
@@ -81,7 +85,7 @@ export function NeedsYouDoor({
                     </span>
                   </span>
                   <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
-                    {item.when}
+                    {formatAge(item.at, now)}
                   </span>
                 </Link>
               </li>
