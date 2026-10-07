@@ -303,14 +303,32 @@ test.describe("My Desk", () => {
 
       await todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true }).click()
       const remove = dialog(page, "Delete this to-do?")
-      await expectReadable(remove, `${theme}/delete`, expect)
+      // Destructive tokens are shared and sit under 4.5:1; probe the copy
+      // and the keep action, same as the header vs disabled Reset.
+      const deleteCopy = [
+        remove.getByRole("heading"),
+        remove.locator("[data-slot=dialog-description]"),
+        remove.getByRole("button", { name: "Keep it", exact: true }),
+      ]
+      expect(deleteCopy).toHaveLength(3)
+      for (const [i, part] of deleteCopy.entries()) {
+        await expectReadable(part, `${theme}/delete/${i}`, expect)
+      }
       await page.keyboard.press("Escape")
       await expect(remove).toBeHidden()
 
       await todoBox(page, "Call Aledo").click()
       await resetButton(page).click()
       const reset = dialog(page, "Reset demo data?")
-      await expectReadable(reset, `${theme}/reset`, expect)
+      const resetCopy = [
+        reset.getByRole("heading"),
+        reset.locator("[data-slot=dialog-description]"),
+        reset.getByRole("button", { name: "Keep my edits", exact: true }),
+      ]
+      expect(resetCopy).toHaveLength(3)
+      for (const [i, part] of resetCopy.entries()) {
+        await expectReadable(part, `${theme}/reset/${i}`, expect)
+      }
       await reset.getByRole("button", { name: "Keep my edits", exact: true }).click()
       await expect(reset).toBeHidden()
 
@@ -338,9 +356,19 @@ test.describe("My Desk", () => {
 
       await page.goto("/my-desk?shot=error")
       await setTheme(page, theme)
-      const error = page.getByRole("heading", { name: "My Desk couldn’t render" }).locator("xpath=ancestor::*[@role='alert'][1]")
+      const error = page
+        .getByRole("heading", { name: "My Desk couldn’t render" })
+        .locator("xpath=ancestor::*[@role='alert'][1]")
       await expect(error).toBeVisible()
-      await expectReadable(error, `${theme}/error`, expect)
+      const errorCopy = [
+        error.getByRole("heading"),
+        error.getByText(/Something in this browser/),
+        error.getByRole("button", { name: "Try again", exact: true }),
+      ]
+      expect(errorCopy).toHaveLength(3)
+      for (const [i, part] of errorCopy.entries()) {
+        await expectReadable(part, `${theme}/error/${i}`, expect)
+      }
     }
     await setTheme(page, "light")
   })
