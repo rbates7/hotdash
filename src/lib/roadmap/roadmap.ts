@@ -3,6 +3,8 @@
  * order. Three columns — Now / Next / Later — and a position within each.
  * A bet can spawn Agent Workplace tickets; tickets never live here.
  */
+import { isIsoInstant } from "@/lib/persistence"
+
 export type RoadmapColumn = "now" | "next" | "later"
 
 export const COLUMN_ORDER: readonly RoadmapColumn[] = ["now", "next", "later"]
@@ -108,13 +110,6 @@ const ID_PATTERN = /^rm-(\d+)$/
 export function idNumber(id: string): number {
   const match = ID_PATTERN.exec(id)
   return match ? Number(match[1]) : -1
-}
-
-/** Strict ISO instant: parses, and prints back to exactly the same string. */
-export function isIsoInstant(value: unknown): value is string {
-  if (typeof value !== "string") return false
-  const ms = Date.parse(value)
-  return Number.isFinite(ms) && new Date(ms).toISOString() === value
 }
 
 function isText(value: unknown, max: number, { required }: { required: boolean }): value is string {

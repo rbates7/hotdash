@@ -3,9 +3,9 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
 import { SPAWN_TICKET_LABEL, SPAWN_TICKET_TITLE } from "@/components/product-roadmap/item-dialog"
-import { SAVE_FAILED_TEXT } from "@/components/product-roadmap/persistence-note"
 import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
 import { SOURCE_CHIP_TITLE, TICKETS_TITLE } from "@/components/product-roadmap/roadmap-card"
 import { RoadmapProvider, STORAGE_KEY } from "@/components/product-roadmap/roadmap-store"
@@ -27,7 +27,7 @@ const column = (name: string) => screen.getByRole("region", { name })
 const cardsIn = (name: string) => within(column(name)).queryAllByRole("article")
 const titlesIn = (name: string) => cardsIn(name).map((c) => c.getAttribute("aria-label"))
 const card = (title: string) => screen.getByRole("article", { name: title })
-const note = () => screen.getByTestId("persistence-note")
+const note = () => screen.getByRole("status", { name: PERSISTENCE_NOTE_NAME })
 
 describe("board", () => {
   it("renders Now / Next / Later with counts and the seed in order", () => {
@@ -120,14 +120,14 @@ describe("board", () => {
   it("reorders within a column with up/down and persists", async () => {
     const user = userEvent.setup()
     render(<Screen />)
-    expect(note()).toHaveTextContent("Edits save in this browser")
+    expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     await user.click(within(card("iPad forced updates")).getByRole("button", { name: "Move up" }))
     expect(titlesIn("Now")).toEqual(["Flag Football 2026", "iPad forced updates", "Play share links"])
     await user.click(within(card("iPad forced updates")).getByRole("button", { name: "Move up" }))
     expect(titlesIn("Now")).toEqual(["iPad forced updates", "Flag Football 2026", "Play share links"])
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Move down" }))
     expect(titlesIn("Now")).toEqual(["iPad forced updates", "Play share links", "Flag Football 2026"])
-    expect(note()).toHaveTextContent("Saved in this browser")
+    expect(note()).toHaveTextContent(PERSISTENCE_COPY.saved)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("iPad forced updates")
     // Moving is not rewriting: still sample data.
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
@@ -288,38 +288,40 @@ describe("board", () => {
     render(<Screen />)
     const reset = screen.getByRole("button", { name: "Reset" })
     expect(reset).toBeDisabled()
-    expect(note()).toHaveTextContent("Edits save in this browser")
+    expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
 
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Move to Next" }))
     expect(reset).toBeEnabled()
-    expect(note()).toHaveTextContent("Saved in this browser")
+    expect(note()).toHaveTextContent(PERSISTENCE_COPY.saved)
     await user.click(reset)
-    const dialog = await screen.findByRole("dialog", { name: "Reset the roadmap?" })
-    expect(dialog).toHaveTextContent("There is no undo")
+    const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
+    expect(dialog).toHaveTextContent("no server copy")
     await user.click(within(dialog).getByRole("button", { name: "Keep my edits" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(titlesIn("Next")).toContain("Flag Football 2026")
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
 
     await user.click(reset)
-    await user.click(within(await screen.findByRole("dialog", { name: "Reset the roadmap?" })).getByRole("button", { name: "Confirm reset" }))
+    await user.click(within(await screen.findByRole("dialog", { name: "Reset demo data?" })).getByRole("button", { name: "Reset" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(titlesIn("Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates"])
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
-    expect(note()).toHaveTextContent("Edits save in this browser")
+    expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
   })
 
   it("the note says when a save did not land", async () => {
     const user = userEvent.setup()
+    vi.spyOn(console, "warn").mockImplementation(() => {})
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError")
     })
     render(<Screen />)
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Move down" }))
-    expect(note()).toHaveTextContent(SAVE_FAILED_TEXT)
-    expect(note()).toHaveAttribute("role", "alert")
+    const alert = screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })
+    expect(alert).toHaveTextContent(PERSISTENCE_COPY.failed)
+    expect(screen.queryByRole("status", { name: PERSISTENCE_NOTE_NAME })).toBeNull()
     expect(titlesIn("Now")[1]).toBe("Flag Football 2026") // the edit still shows for the session
   })
 })

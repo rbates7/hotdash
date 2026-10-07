@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { isIsoInstant } from "@/lib/persistence"
 import { buildSeed, seedState } from "@/lib/roadmap/fixture"
 import {
   COLUMN_ORDER,
@@ -7,7 +8,6 @@ import {
   idNumber,
   inColumn,
   isColumn,
-  isIsoInstant,
   isOwner,
   normalizeColumn,
   parseItem,
@@ -65,7 +65,7 @@ describe("ordering", () => {
   })
 })
 
-describe("isIsoInstant", () => {
+describe("isIsoInstant (shared guard, used by parseItem)", () => {
   it("accepts only strings that round-trip exactly", () => {
     expect(isIsoInstant("2026-10-07T15:00:00.000Z")).toBe(true)
     expect(isIsoInstant("2026-10-07T15:00:00Z")).toBe(false) // parses, but prints differently

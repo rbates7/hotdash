@@ -9,16 +9,18 @@ import {
   RoadmapProvider,
   STORAGE_KEY,
   clearState,
-  initialShell,
+  initialRoadmapShell,
+  isRoadmapState,
   loadState,
-  parseRaw,
-  quarantineRejected,
+  normalizeLoad,
   reducer,
+  roadmapStorage,
   saveState,
   shellReducer,
   useRoadmap,
-  type Action,
+  type Edit,
 } from "@/components/product-roadmap/roadmap-store"
+import { fireStorageEvent } from "@/test/storage"
 
 const NOW = Date.parse("2026-10-07T15:00:00.000Z")
 const AT = "2026-10-07T15:00:00.000Z"
@@ -32,11 +34,11 @@ afterEach(() => {
 
 describe("reducer", () => {
   it("adds a bet at the bottom of the chosen column, owned by Rashad by default, not sample data", () => {
-    const state = reducer(
-      seedState(NOW),
-      { type: "add", input: { title: "  Practice plan templates ", why: " Reusable weekly plans. ", window: " Q1 2027 " }, at: AT },
-      NOW
-    )
+    const state = reducer(seedState(NOW), {
+      type: "add",
+      input: { title: "  Practice plan templates ", why: " Reusable weekly plans. ", window: " Q1 2027 " },
+      at: AT,
+    })
     expect(state.items).toHaveLength(9)
     const added = state.items.at(-1)!
     expect(added).toMatchObject({
@@ -57,39 +59,41 @@ describe("reducer", () => {
   })
 
   it("adds into Now when asked, after the existing cards, and refuses an empty title", () => {
-    let state = reducer(seedState(NOW), { type: "add", input: { title: "Mine", owner: "Mace", column: "now" }, at: AT }, NOW)
+    let state = reducer(seedState(NOW), { type: "add", input: { title: "Mine", owner: "Mace", column: "now" }, at: AT })
     expect(titlesIn(state, "now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates", "Mine"])
     expect(state.items.at(-1)!.owner).toBe("Mace")
     const before = state
-    state = reducer(state, { type: "add", input: { title: "   " }, at: AT }, NOW)
+    state = reducer(state, { type: "add", input: { title: "   " }, at: AT })
     expect(state).toBe(before)
   })
 
   it("caps text at the input limits so a saved copy always validates", () => {
-    const state = reducer(
-      seedState(NOW),
-      { type: "add", input: { title: "t".repeat(200), why: "w".repeat(200), window: "x".repeat(50) }, at: AT },
-      NOW
-    )
+    const state = reducer(seedState(NOW), {
+      type: "add",
+      input: { title: "t".repeat(200), why: "w".repeat(200), window: "x".repeat(50) },
+      at: AT,
+    })
     const added = state.items.at(-1)!
     expect(added.title).toHaveLength(80)
     expect(added.why).toHaveLength(160)
     expect(added.window).toHaveLength(24)
+    expect(isRoadmapState(JSON.parse(JSON.stringify(state)))).toBe(true)
   })
 
   it("edits title, why, owner and window; rewriting the words drops the sample tag", () => {
-    const state = reducer(
-      seedState(NOW),
-      { type: "patch", id: "rm-1", patch: { title: "Flag 2026", why: "Flag.", owner: "Mace", window: "Q1 2027" }, at: AT },
-      NOW
-    )
+    const state = reducer(seedState(NOW), {
+      type: "patch",
+      id: "rm-1",
+      patch: { title: "Flag 2026", why: "Flag.", owner: "Mace", window: "Q1 2027" },
+      at: AT,
+    })
     const i = state.items.find((x) => x.id === "rm-1")!
     expect(i).toMatchObject({ title: "Flag 2026", why: "Flag.", owner: "Mace", window: "Q1 2027", updatedAt: AT })
     expect(i.sample).toBeUndefined()
   })
 
   it("re-owning a bet keeps the sample tag; it is still our words", () => {
-    const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { owner: "Mace" }, at: AT }, NOW)
+    const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { owner: "Mace" }, at: AT })
     const i = state.items.find((x) => x.id === "rm-1")!
     expect(i.owner).toBe("Mace")
     expect(i.sample).toBe(true)
@@ -99,24 +103,25 @@ describe("reducer", () => {
   it("a no-op patch returns the same state and does not bump updatedAt", () => {
     const before = seedState(NOW)
     const seed = before.items[0]
-    const same = reducer(
-      before,
-      { type: "patch", id: "rm-1", patch: { title: ` ${seed.title} `, why: seed.why, owner: seed.owner, window: seed.window }, at: AT },
-      NOW
-    )
+    const same = reducer(before, {
+      type: "patch",
+      id: "rm-1",
+      patch: { title: ` ${seed.title} `, why: seed.why, owner: seed.owner, window: seed.window },
+      at: AT,
+    })
     expect(same).toBe(before)
     expect(same.items[0].updatedAt).toBe(seed.updatedAt)
-    expect(reducer(before, { type: "patch", id: "rm-1", patch: {}, at: AT }, NOW)).toBe(before)
-    expect(reducer(before, { type: "patch", id: "rm-99", patch: { title: "x" }, at: AT }, NOW)).toBe(before)
+    expect(reducer(before, { type: "patch", id: "rm-1", patch: {}, at: AT })).toBe(before)
+    expect(reducer(before, { type: "patch", id: "rm-99", patch: { title: "x" }, at: AT })).toBe(before)
   })
 
   it("never blanks a title through a patch", () => {
-    const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { title: "  " }, at: AT }, NOW)
+    const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { title: "  " }, at: AT })
     expect(state.items[0].title).toBe("Flag Football 2026")
   })
 
   it("moves a bet to the bottom of another column and closes the gap it left", () => {
-    const state = reducer(seedState(NOW), { type: "move", id: "rm-1", column: "next", at: AT }, NOW)
+    const state = reducer(seedState(NOW), { type: "move", id: "rm-1", column: "next", at: AT })
     expect(titlesIn(state, "now")).toEqual(["Play share links", "iPad forced updates"])
     expect(inColumn(state.items, "now").map((i) => i.order)).toEqual([0, 1])
     expect(titlesIn(state, "next")).toEqual(["Web import from a link", "Staff seats", "CSV web import", "Flag Football 2026"])
@@ -126,12 +131,12 @@ describe("reducer", () => {
 
   it("moving to the column it is already in is a no-op", () => {
     const before = seedState(NOW)
-    expect(reducer(before, { type: "move", id: "rm-1", column: "now", at: AT }, NOW)).toBe(before)
-    expect(reducer(before, { type: "move", id: "rm-99", column: "later", at: AT }, NOW)).toBe(before)
+    expect(reducer(before, { type: "move", id: "rm-1", column: "now", at: AT })).toBe(before)
+    expect(reducer(before, { type: "move", id: "rm-99", column: "later", at: AT })).toBe(before)
   })
 
   it("reorders within a column with up/down and stops at the edges", () => {
-    let state = reducer(seedState(NOW), { type: "reorder", id: "rm-2", direction: -1, at: AT }, NOW)
+    let state = reducer(seedState(NOW), { type: "reorder", id: "rm-2", direction: -1, at: AT })
     expect(titlesIn(state, "now")).toEqual(["Play share links", "Flag Football 2026", "iPad forced updates"])
     expect(inColumn(state.items, "now").map((i) => i.order)).toEqual([0, 1, 2])
     expect(state.items.find((i) => i.id === "rm-2")!.updatedAt).toBe(AT)
@@ -139,145 +144,137 @@ describe("reducer", () => {
     expect(state.items.find((i) => i.id === "rm-1")!.updatedAt).not.toBe(AT)
 
     const atTop = state
-    state = reducer(state, { type: "reorder", id: "rm-2", direction: -1, at: "later" }, NOW)
+    state = reducer(state, { type: "reorder", id: "rm-2", direction: -1, at: "later" })
     expect(state).toBe(atTop)
-    state = reducer(state, { type: "reorder", id: "rm-3", direction: 1, at: "later" }, NOW)
+    state = reducer(state, { type: "reorder", id: "rm-3", direction: 1, at: "later" })
     expect(state).toBe(atTop)
 
-    state = reducer(state, { type: "reorder", id: "rm-1", direction: 1, at: AT }, NOW)
+    state = reducer(state, { type: "reorder", id: "rm-1", direction: 1, at: AT })
     expect(titlesIn(state, "now")).toEqual(["Play share links", "iPad forced updates", "Flag Football 2026"])
     // Other columns untouched.
     expect(titlesIn(state, "next")).toEqual(titlesIn(seedState(NOW), "next"))
   })
 
   it("removes a bet and renumbers its column", () => {
-    const state = reducer(seedState(NOW), { type: "remove", id: "rm-5" }, NOW)
+    const state = reducer(seedState(NOW), { type: "remove", id: "rm-5" })
     expect(state.items).toHaveLength(7)
     expect(titlesIn(state, "next")).toEqual(["Web import from a link", "CSV web import"])
     expect(inColumn(state.items, "next").map((i) => i.order)).toEqual([0, 1])
     const before = state
-    expect(reducer(state, { type: "remove", id: "rm-5" }, NOW)).toBe(before)
+    expect(reducer(state, { type: "remove", id: "rm-5" })).toBe(before)
+  })
+})
+
+describe("shell (through the shared persistence shell)", () => {
+  const edit: Edit = { type: "add", input: { title: "Mine" }, at: AT }
+
+  it("starts unhydrated, unsaved and never-edited, seeded from nowMs", () => {
+    expect(initialRoadmapShell(NOW)).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false })
+    expect(initialRoadmapShell(NOW).data).toEqual(seedState(NOW))
   })
 
-  it("hydrate applies a saved copy, or rebuilds the seed from nowMs when there is none", () => {
+  it("hydrate applies a saved copy (saved, not edited) or rebuilds the seed from nowMs", () => {
     const saved: RoadmapState = { items: [], nextId: 1 }
-    expect(reducer(seedState(NOW), { type: "hydrate", state: saved }, NOW)).toBe(saved)
+    const found = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: saved, status: "saved" } }, NOW)
+    expect(found).toMatchObject({ data: saved, persisted: true, saved: true, edited: false })
     const later = Date.parse("2027-03-01T15:00:00.000Z")
-    expect(reducer(saved, { type: "hydrate", state: null }, later)).toEqual(seedState(later))
+    const none = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, later)
+    expect(none).toMatchObject({ persisted: true, saved: false, edited: false })
+    expect(none.data).toEqual(seedState(later))
   })
 
-  it("reset rebuilds the seed against the request clock, not a client read", () => {
+  it("hydrate strips unknown keys from a saved copy on the way in", () => {
+    const saved = seedState(NOW)
+    const withExtras = { ...saved, version: 1, items: saved.items.map((i) => ({ ...i, extra: true })) } as unknown as RoadmapState
+    const shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: withExtras, status: "saved" } }, NOW)
+    expect(shell.data).toEqual(saved)
+    expect(normalizeLoad({ state: withExtras, status: "saved" })).toEqual({ state: saved, status: "saved" })
+  })
+
+  it("a real edit marks edited + saved; a no-op edit returns the same shell", () => {
+    const shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
+    expect(shellReducer(shell, edit, NOW)).toMatchObject({ saved: true, edited: true })
+    expect(shellReducer(shell, { type: "add", input: { title: " " }, at: AT }, NOW)).toBe(shell)
+    expect(shellReducer(shell, { type: "move", id: "rm-1", column: "now", at: AT }, NOW)).toBe(shell)
+    expect(shellReducer(shell, { type: "reorder", id: "rm-1", direction: -1, at: AT }, NOW)).toBe(shell)
+    expect(shellReducer(shell, { type: "patch", id: "rm-1", patch: { owner: "Rashad" }, at: AT }, NOW)).toBe(shell)
+    expect(shellReducer(shell, { type: "remove", id: "nope" }, NOW)).toBe(shell)
+  })
+
+  it("a hydrate after edits is not an edit: another tab's copy is theirs", () => {
+    let shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
+    shell = shellReducer(shell, edit, NOW)
+    const theirs: RoadmapState = { items: [], nextId: 1 }
+    shell = shellReducer(shell, { type: "hydrate", result: { state: theirs, status: "saved" } }, NOW)
+    expect(shell).toMatchObject({ data: theirs, edited: false, saved: true })
+    // …and a removal elsewhere re-seeds this tab, never-edited.
+    shell = shellReducer(shell, { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
+    expect(shell).toMatchObject({ edited: false, saved: false })
+    expect(shell.data).toEqual(seedState(NOW))
+  })
+
+  it("reset rebuilds the seed against the request clock, not a client read, and clears the flags", () => {
     const spy = vi.spyOn(Date, "now")
-    let state = reducer(seedState(NOW), { type: "remove", id: "rm-1" }, NOW)
-    state = reducer(state, { type: "add", input: { title: "Mine" }, at: AT }, NOW)
+    let shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
+    shell = shellReducer(shell, { type: "remove", id: "rm-1" }, NOW)
+    shell = shellReducer(shell, edit, NOW)
+    shell = shellReducer(shell, { type: "save-result", ok: false }, NOW)
     const later = Date.parse("2027-03-01T15:00:00.000Z")
-    state = reducer(state, { type: "reset" }, later)
-    expect(state).toEqual(seedState(later))
-    expect(state.items[0].window).toBe("Q1 2027")
+    const reset = shellReducer(shell, { type: "reset" }, later)
+    expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false })
+    expect(reset.data).toEqual(seedState(later))
+    expect(reset.data.items[0].window).toBe("Q1 2027")
     expect(spy).not.toHaveBeenCalled()
   })
 })
 
-describe("shell", () => {
-  const edit: Action = { type: "add", input: { title: "Mine" }, at: AT }
-
-  it("starts unhydrated, unsaved and clean", () => {
-    expect(initialShell(NOW)).toMatchObject({ hydrated: false, saved: false, dirty: false, saveFailed: false })
-    expect(initialShell(NOW).data).toEqual(seedState(NOW))
-  })
-
-  it("hydrate marks saved only when a copy was found, and is never dirty", () => {
-    const found = shellReducer(initialShell(NOW), { type: "hydrate", state: { items: [], nextId: 1 } }, NOW)
-    expect(found).toMatchObject({ hydrated: true, saved: true, dirty: false })
-    const none = shellReducer(initialShell(NOW), { type: "hydrate", state: null }, NOW)
-    expect(none).toMatchObject({ hydrated: true, saved: false, dirty: false })
-  })
-
-  it("a real edit marks saved + dirty; a no-op edit returns the same shell", () => {
-    const shell = shellReducer(initialShell(NOW), { type: "hydrate", state: null }, NOW)
-    const edited = shellReducer(shell, edit, NOW)
-    expect(edited).toMatchObject({ saved: true, dirty: true })
-    expect(shellReducer(shell, { type: "add", input: { title: " " }, at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "move", id: "rm-1", column: "now", at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "reorder", id: "rm-1", direction: -1, at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "remove", id: "nope" }, NOW)).toBe(shell)
-  })
-
-  it("save-result flips saveFailed and is a no-op when unchanged", () => {
-    const shell = shellReducer(initialShell(NOW), edit, NOW)
-    expect(shellReducer(shell, { type: "save-result", ok: true }, NOW)).toBe(shell)
-    const failed = shellReducer(shell, { type: "save-result", ok: false }, NOW)
-    expect(failed.saveFailed).toBe(true)
-    expect(shellReducer(failed, { type: "save-result", ok: false }, NOW)).toBe(failed)
-    expect(shellReducer(failed, { type: "save-result", ok: true }, NOW).saveFailed).toBe(false)
-  })
-
-  it("reset clears saved, dirty and saveFailed", () => {
-    let shell = shellReducer(initialShell(NOW), { type: "hydrate", state: null }, NOW)
-    shell = shellReducer(shell, edit, NOW)
-    shell = shellReducer(shell, { type: "save-result", ok: false }, NOW)
-    const reset = shellReducer(shell, { type: "reset" }, NOW)
-    expect(reset).toMatchObject({ hydrated: true, saved: false, dirty: false, saveFailed: false })
-    expect(reset.data).toEqual(seedState(NOW))
-  })
-})
-
-describe("storage", () => {
+describe("storage (shared createStorage, roadmap key)", () => {
   it("uses the agreed keys", () => {
     expect(STORAGE_KEY).toBe("hotdash.product-roadmap.v1")
     expect(REJECTED_KEY).toBe("hotdash.product-roadmap.v1.rejected")
+    expect(roadmapStorage.key).toBe(STORAGE_KEY)
+    expect(roadmapStorage.rejectedKey).toBe(REJECTED_KEY)
   })
 
   it("round-trips a state and reports success", () => {
-    const state = reducer(seedState(NOW), { type: "add", input: { title: "Round trip" }, at: AT }, NOW)
+    const state = reducer(seedState(NOW), { type: "add", input: { title: "Round trip" }, at: AT })
     expect(saveState(window.localStorage, state)).toBe(true)
-    expect(loadState(window.localStorage)).toEqual({ state, rejected: null })
+    expect(loadState(window.localStorage)).toEqual({ state, status: "saved" })
   })
 
   it("reports failure instead of throwing when the write is refused", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError")
     })
     expect(saveState(window.localStorage, seedState(NOW))).toBe(false)
     expect(saveState(undefined, seedState(NOW))).toBe(false)
-    expect(clearState(undefined)).toBe(false)
   })
 
-  it("treats nothing saved as nothing to reject", () => {
-    expect(loadState(window.localStorage)).toEqual({ state: null, rejected: null })
-    expect(parseRaw(null)).toEqual({ state: null, rejected: null })
-    expect(parseRaw("")).toEqual({ state: null, rejected: null })
-    expect(loadState(undefined)).toEqual({ state: null, rejected: null })
-  })
-
-  it("rejects garbage and bad shapes, handing back the raw text", () => {
-    for (const raw of ["{not json", JSON.stringify({ items: [] }), JSON.stringify({ items: {}, nextId: 1 }), JSON.stringify({ items: [], nextId: 0 })]) {
-      window.localStorage.setItem(STORAGE_KEY, raw)
-      expect(loadState(window.localStorage)).toEqual({ state: null, rejected: raw })
-    }
-  })
-
-  it("rejects the whole copy when one item is bad", () => {
+  it("rejects the whole copy when one item is bad: parks it raw under .rejected and drops the live key", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const good = seedState(NOW)
     const bad = { ...good, items: good.items.map((i, n) => (n === 2 ? { ...i, owner: "Dan" } : i)) }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
-    expect(loadState(window.localStorage)).toEqual({ state: null, rejected: raw })
+    expect(loadState(window.localStorage)).toEqual({ state: null, status: "rejected" })
+    expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 
-  it("quarantines a rejected copy under the .rejected key and warns outside production", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    quarantineRejected(window.localStorage, "{broken")
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe("{broken")
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0][0]).toContain(REJECTED_KEY)
+  it("rejects garbage too", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    window.localStorage.setItem(STORAGE_KEY, "{not json")
+    expect(loadState(window.localStorage).status).toBe("rejected")
+    expect(window.localStorage.getItem(REJECTED_KEY)).toBe("{not json")
   })
 
   it("clearState removes only our key", () => {
     window.localStorage.setItem(STORAGE_KEY, "x")
     window.localStorage.setItem(REJECTED_KEY, "y")
     window.localStorage.setItem("other", "z")
-    expect(clearState(window.localStorage)).toBe(true)
+    clearState(window.localStorage)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe("y")
     expect(window.localStorage.getItem("other")).toBe("z")
@@ -287,12 +284,13 @@ describe("storage", () => {
 /* --------------------------------------------------------------- provider */
 
 function Probe() {
-  const { items, nowMs, persisted, saved, saveFailed, addItem, patchItem, moveItem, reorderItem, removeItem, resetDemoData } =
+  const { items, nowMs, persisted, edited, saved, saveFailed, addItem, patchItem, moveItem, reorderItem, removeItem, resetDemoData } =
     useRoadmap()
   const now = inColumn(items, "now")
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
+      <span data-testid="edited">{String(edited)}</span>
       <span data-testid="saved">{String(saved)}</span>
       <span data-testid="save-failed">{String(saveFailed)}</span>
       <span data-testid="now-ms">{nowMs}</span>
@@ -322,6 +320,8 @@ function mount(nowMs = NOW) {
 }
 
 const click = (name: string) => act(() => screen.getByRole("button", { name }).click())
+const writesTo = (spy: { mock: { calls: unknown[][] } }, key: string) =>
+  spy.mock.calls.filter((c) => c[0] === key).length
 
 describe("RoadmapProvider", () => {
   it("hydrates before the first paint and exposes the request clock it was given", () => {
@@ -336,6 +336,7 @@ describe("RoadmapProvider", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     mount()
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(setItem).not.toHaveBeenCalled()
     const updatedBefore = screen.getByTestId("rm-1-updated").textContent
 
@@ -344,17 +345,19 @@ describe("RoadmapProvider", () => {
     click("already-top")
     click("same-owner")
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(setItem).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("rm-1-updated")).toHaveTextContent(updatedBefore!)
   })
 
   it("does not re-write a copy it merely found on load", () => {
-    const state = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT }, NOW)
+    const state = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     mount()
     expect(screen.getByTestId("saved")).toHaveTextContent("true")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(screen.getByTestId("count")).toHaveTextContent("9")
     expect(setItem).not.toHaveBeenCalled()
   })
@@ -369,14 +372,18 @@ describe("RoadmapProvider", () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it("persists from the first real edit on, and rehydrates after a remount (reload)", () => {
+  it("persists from the first real edit on, once per change, and rehydrates after a remount (reload)", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
     const first = mount()
     click("add")
     expect(screen.getByTestId("saved")).toHaveTextContent("true")
+    expect(screen.getByTestId("edited")).toHaveTextContent("true")
     expect(screen.getByTestId("save-failed")).toHaveTextContent("false")
+    expect(writesTo(setItem, STORAGE_KEY)).toBe(1)
     click("move-later")
     click("up-3")
     click("remove-8")
+    expect(writesTo(setItem, STORAGE_KEY)).toBe(4)
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("now-titles")).toHaveTextContent("iPad forced updates|Play share links|Probe bet")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"title":"Probe bet"')
@@ -387,6 +394,7 @@ describe("RoadmapProvider", () => {
     expect(screen.getByTestId("saved")).toHaveTextContent("true")
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("now-titles")).toHaveTextContent("iPad forced updates|Play share links|Probe bet")
+    expect(writesTo(setItem, STORAGE_KEY)).toBe(4) // the remount wrote nothing
   })
 
   it("stamps edits with the request clock, not a client read", () => {
@@ -405,10 +413,12 @@ describe("RoadmapProvider", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("now-titles")).toHaveTextContent("Flag Football 2026|Play share links|iPad forced updates")
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
   it("reports a failed write and recovers when the next one lands", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError")
     })
@@ -423,9 +433,9 @@ describe("RoadmapProvider", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
   })
 
-  it("falls back to the seed when the saved copy has one bad item, quarantines it, and overwrites on the next edit", () => {
+  it("falls back to the seed when the saved copy has one bad item; the copy is parked under .rejected", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const bad = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT }, NOW)
+    const bad = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT })
     bad.items[3] = { ...bad.items[3], column: "shipped" as never }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
@@ -434,34 +444,60 @@ describe("RoadmapProvider", () => {
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
-    // Nothing is written until the founder edits again; the next edit replaces the bad copy.
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    // Nothing is written until the founder edits again; the parked copy stays.
     click("add")
-    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
   })
 
-  it("follows a change made in another tab, and a removal brings the seed back", () => {
+  it("follows a change made in another tab without writing anything back", () => {
     mount()
-    const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT }, NOW)
+    click("add") // this tab has edits of its own
+    const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
     const raw = JSON.stringify(other)
+    window.localStorage.setItem(STORAGE_KEY, raw)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
-    act(() => {
-      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: raw, storageArea: window.localStorage }))
-    })
+    act(() => fireStorageEvent(STORAGE_KEY, raw))
     expect(screen.getByTestId("count")).toHaveTextContent("9")
     expect(screen.getByTestId("saved")).toHaveTextContent("true")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(screen.getByTestId("now-titles")).toHaveTextContent("From another tab")
-    // Following is not editing: nothing written back.
+    // Following is not editing: nothing written back, so two tabs never ping-pong.
     expect(setItem).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+  })
 
-    act(() => {
-      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: null, storageArea: window.localStorage }))
-    })
+  it("a removal in another tab re-seeds this tab, never-edited, and still writes nothing", () => {
+    mount()
+    click("add")
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    window.localStorage.removeItem(STORAGE_KEY)
+    act(() => fireStorageEvent(STORAGE_KEY, null))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(setItem).not.toHaveBeenCalled()
+    // Storage.clear() in the other tab arrives with a null key.
+    click("add")
+    window.localStorage.clear()
+    act(() => fireStorageEvent(null, null))
+    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+  })
+
+  it("after taking another tab's copy, the next real edit writes exactly once", () => {
+    mount()
+    const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(other))
+    act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(other)))
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    click("move-later")
+    expect(writesTo(setItem, STORAGE_KEY)).toBe(1)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain("From another tab")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"column":"later"')
   })
 
   it("ignores storage events for other keys and other storage areas", () => {
@@ -469,7 +505,7 @@ describe("RoadmapProvider", () => {
     click("add")
     const other = JSON.stringify({ items: [], nextId: 1 })
     act(() => {
-      window.dispatchEvent(new StorageEvent("storage", { key: "hotdash.feature-requests.v1", newValue: other, storageArea: window.localStorage }))
+      fireStorageEvent("hotdash.feature-requests.v1", other)
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: other, storageArea: window.sessionStorage }))
     })
     expect(screen.getByTestId("count")).toHaveTextContent("9")
@@ -479,17 +515,16 @@ describe("RoadmapProvider", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     mount()
     click("add")
-    act(() => {
-      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: "{broken", storageArea: window.localStorage }))
-    })
+    window.localStorage.setItem(STORAGE_KEY, "{broken")
+    act(() => fireStorageEvent(STORAGE_KEY, "{broken"))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe("{broken")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
   it("the seed it falls back to matches the fixture exactly", () => {
     mount()
-    const seed = buildSeed(NOW)
-    expect(screen.getByTestId("count")).toHaveTextContent(String(seed.length))
+    expect(screen.getByTestId("count")).toHaveTextContent(String(buildSeed(NOW).length))
   })
 })

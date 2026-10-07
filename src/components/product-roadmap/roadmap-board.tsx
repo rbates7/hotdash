@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { RouteIcon } from "lucide-react"
+import { FlaskConicalIcon, RouteIcon } from "lucide-react"
 
 import {
   COLUMN_CONFIG,
@@ -9,11 +9,41 @@ import {
   inColumn,
   type RoadmapColumn,
 } from "@/lib/roadmap/roadmap"
+import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EditBetDialog } from "@/components/product-roadmap/item-dialog"
 import { RoadmapCard } from "@/components/product-roadmap/roadmap-card"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
-import { SampleDataNotice } from "@/components/product-roadmap/sample-data"
+import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
+
+/**
+ * The page-wide notice above the board. The shared `SampleDataNotice` is
+ * worded for Metrics, so this one says what is and is not real *here*, on
+ * the shared sample-data surface so the palette (and its contrast) is the
+ * same everywhere.
+ */
+function RoadmapSampleNotice({ count }: { count: number }) {
+  return (
+    <div
+      role="note"
+      aria-label={SAMPLE_DATA_LABEL}
+      data-testid="sample-data-notice"
+      className={cn(
+        "text-body flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5",
+        SAMPLE_SURFACE
+      )}
+    >
+      <FlaskConicalIcon className="mt-0.5 size-4 flex-none" aria-hidden />
+      <p>
+        <strong className="font-semibold">{SAMPLE_DATA_LABEL}.</strong> The{" "}
+        {count === 1 ? "bet" : `${count} bets`} tagged below{" "}
+        {count === 1 ? "is an" : "are"} invented example{count === 1 ? "" : "s"} of a
+        Chlk roadmap, not signed bets. Bets you add or rewrite are yours, and they live
+        only in this browser.
+      </p>
+    </div>
+  )
+}
 
 function ColumnHead({ column, count }: { column: RoadmapColumn; count: number }) {
   return (
@@ -81,7 +111,7 @@ export function RoadmapBoard() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {sampleCount > 0 && <SampleDataNotice count={sampleCount} />}
+      {sampleCount > 0 && <RoadmapSampleNotice count={sampleCount} />}
 
       {items.length === 0 && (
         <div

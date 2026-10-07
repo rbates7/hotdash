@@ -3,7 +3,8 @@
 import * as React from "react"
 import { ChevronRightIcon, TicketPlusIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { formatDate, relativeLabel } from "@/lib/roadmap/clock"
+import { formatDate } from "@/lib/clock"
+import { relativeLabel } from "@/lib/roadmap/dates"
 import {
   COLUMN_CONFIG,
   COLUMN_ORDER,
@@ -30,7 +31,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
 import { ticketsLabel } from "@/components/product-roadmap/roadmap-card"
-import { SampleDataTag } from "@/components/product-roadmap/sample-data"
+import { SampleDataTag } from "@/components/sample-data"
 
 export const SPAWN_TICKET_LABEL = "Spawn ticket (soon)"
 export const SPAWN_TICKET_TITLE =
@@ -350,7 +351,7 @@ function EditBetBody({
 
         <p className="text-caption text-muted-foreground">
           Signed {relativeLabel(item.signedAt, nowMs)} ·{" "}
-          <time dateTime={item.signedAt}>{formatDate(item.signedAt)}</time>
+          <time dateTime={item.signedAt}>{formatDate(new Date(item.signedAt))}</time>
           {item.fromFeatureRequest && " · from Feature Request"}
         </p>
 

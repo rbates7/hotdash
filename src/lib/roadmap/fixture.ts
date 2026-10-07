@@ -1,4 +1,4 @@
-import { daysAgo, monthLabel, quarterLabel, yearLabel } from "@/lib/roadmap/clock"
+import { monthLabel, quarterLabel, signedDaysAgo, yearLabel } from "@/lib/roadmap/dates"
 import type { RoadmapColumn, RoadmapItem, RoadmapOwner, RoadmapState } from "@/lib/roadmap/roadmap"
 
 type SeedRow = {
@@ -106,7 +106,7 @@ export const SEED_ROWS: readonly SeedRow[] = [
 export function buildSeed(nowMs: number): RoadmapItem[] {
   const perColumn: Record<RoadmapColumn, number> = { now: 0, next: 0, later: 0 }
   return SEED_ROWS.map((row, i) => {
-    const at = new Date(daysAgo(nowMs, row.signedDaysAgo)).toISOString()
+    const at = signedDaysAgo(nowMs, row.signedDaysAgo)
     const item: RoadmapItem = {
       id: `rm-${i + 1}`,
       title: row.title,

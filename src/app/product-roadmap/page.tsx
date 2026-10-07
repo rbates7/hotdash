@@ -1,4 +1,4 @@
-import { requestNow } from "@/lib/roadmap/clock"
+import { now } from "@/lib/clock"
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
 import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
 import { RoadmapProvider } from "@/components/product-roadmap/roadmap-store"
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic"
 
 export default function ProductRoadmapPage() {
   // The one clock read for this screen. Everything below receives it.
-  const nowMs = requestNow()
+  const nowMs = now().getTime()
 
   return (
     <RoadmapProvider nowMs={nowMs}>

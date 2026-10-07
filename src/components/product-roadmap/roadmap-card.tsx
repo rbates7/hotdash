@@ -15,7 +15,7 @@ import { COLUMN_CONFIG, COLUMN_ORDER, type RoadmapItem } from "@/lib/roadmap/roa
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
-import { SampleDataTag } from "@/components/product-roadmap/sample-data"
+import { SampleDataTag } from "@/components/sample-data"
 
 export const SOURCE_CHIP_TITLE =
   "Came in through the Feature Request intake. Shown for context; the two pages are not linked yet."

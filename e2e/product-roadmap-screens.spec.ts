@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+
 /**
  * Review screenshots for the Product Roadmap screen, every main state in
  * both themes at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
@@ -23,7 +25,6 @@ test.use({ viewport: { width: 1440, height: 900 } })
 const column = (page: Page, name: string) => page.getByRole("region", { name, exact: true })
 const card = (page: Page, title: string) => page.getByRole("article", { name: title, exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
-const persistence = (page: Page) => page.getByTestId("persistence-note")
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(250)
@@ -47,14 +48,14 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(persistence(page)).toHaveText("Edits save in this browser")
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 
     // With data (the seed).
     await shoot(page, `product-roadmap-board-${theme}`)
 
     // Persistence label, close up (before any save).
     for (const dir of OUT_DIRS) {
-      await page.locator("main header").first().screenshot({
+      await page.getByRole("main").locator("header").first().screenshot({
         path: path.join(dir, `product-roadmap-persistence-label-${theme}.png`),
       })
     }
@@ -93,7 +94,7 @@ for (const theme of ["light", "dark"] as const) {
 
     // Persisted after reload.
     await page.reload()
-    await expect(persistence(page)).toHaveText("Saved in this browser")
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(column(page, "Now").getByRole("article").first()).toHaveAccessibleName("Practice plan templates")
     await expect(column(page, "Next").getByRole("article", { name: "Import a play from a HUDL link", exact: true })).toBeVisible()
     await shoot(page, `product-roadmap-persisted-after-reload-${theme}`)
@@ -113,8 +114,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `product-roadmap-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
-    await dialog(page, "Reset the roadmap?").getByRole("button", { name: "Confirm reset", exact: true }).click()
-    await expect(page.getByTestId("sample-data-tag")).toHaveCount(8)
+    await resetDemoData(page)
+    await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(8)
   })
 }
