@@ -1,0 +1,8796 @@
+[
+  {
+    "screen": "home",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/home-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 34,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-5",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex items-start justify-between gap-4",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "h1",
+        "role": "text-display-sm font-semibold tracking-tight",
+        "scrollWidth": 66,
+        "clientWidth": 0
+      },
+      {
+        "tag": "p",
+        "role": "text-label text-muted-foreground mt-[5px] tracking-tight",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "section",
+        "role": "KPI strip",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-3 px-0.5",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "My Desk",
+        "w": 78,
+        "h": 22
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "agent-workplace",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/agent-workplace-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "tablist",
+        "scrollWidth": 388,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Issues",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Backlog",
+        "w": 67,
+        "h": 24
+      },
+      {
+        "name": "Agents",
+        "w": 61,
+        "h": 24
+      },
+      {
+        "name": "Chat",
+        "w": 44,
+        "h": 24
+      },
+      {
+        "name": "Autopilots",
+        "w": 84,
+        "h": 24
+      },
+      {
+        "name": "Inbox",
+        "w": 50,
+        "h": 24
+      },
+      {
+        "name": "All",
+        "w": 40,
+        "h": 28
+      },
+      {
+        "name": "Members",
+        "w": 79,
+        "h": 28
+      },
+      {
+        "name": "Agents",
+        "w": 67,
+        "h": 28
+      },
+      {
+        "name": "New",
+        "w": 50,
+        "h": 28
+      },
+      {
+        "name": "New issue",
+        "w": 103,
+        "h": 28
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "CHLK-401",
+        "size": 11
+      },
+      {
+        "text": "–",
+        "size": 8
+      },
+      {
+        "text": "Unassigned",
+        "size": 11
+      },
+      {
+        "text": "CHLK-402",
+        "size": 11
+      },
+      {
+        "text": "MWMay",
+        "size": 8
+      },
+      {
+        "text": "May",
+        "size": 8
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "metrics",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/metrics-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "tablist",
+        "scrollWidth": 451,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Overview",
+        "w": 78,
+        "h": 24
+      },
+      {
+        "name": "New Subscribers",
+        "w": 126,
+        "h": 24
+      },
+      {
+        "name": "Churned Subscribers",
+        "w": 150,
+        "h": 24
+      },
+      {
+        "name": "Expenses",
+        "w": 78,
+        "h": 24
+      },
+      {
+        "name": "MRR: bar chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "MRR: line chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Remove MRR",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "ARR: bar chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "ARR: line chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Remove ARR",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Churn Rate: bar chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Churn Rate: line chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Remove Churn Rate",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Revenue: bar chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Revenue: line chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Remove Revenue",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Retention: bar chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Retention: line chart",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Remove Retention",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "feature-request",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/feature-request-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 12,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 402,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 402,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 402,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 402,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-5",
+        "scrollWidth": 378,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex min-h-10 flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 347,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "group",
+        "scrollWidth": 347,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-4",
+        "scrollWidth": 378,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "region",
+        "scrollWidth": 378,
+        "clientWidth": 342
+      },
+      {
+        "tag": "section",
+        "role": "Inbox",
+        "scrollWidth": 111,
+        "clientWidth": 75
+      },
+      {
+        "tag": "button",
+        "role": "Open idea: Play of the Day",
+        "scrollWidth": 110,
+        "clientWidth": 73
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 45
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "New idea",
+        "w": 98,
+        "h": 28
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "product-roadmap",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/product-roadmap-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 57,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 447,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 447,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 447,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 447,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-5",
+        "scrollWidth": 423,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-4",
+        "scrollWidth": 423,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "Roadmap sequence",
+        "scrollWidth": 423,
+        "clientWidth": 342
+      },
+      {
+        "tag": "section",
+        "role": "Now",
+        "scrollWidth": 186,
+        "clientWidth": 105
+      },
+      {
+        "tag": "article",
+        "role": "Flag Football 2026",
+        "scrollWidth": 185,
+        "clientWidth": 103
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 items-start justify-between gap-2",
+        "scrollWidth": 104,
+        "clientWidth": 75
+      },
+      {
+        "tag": "h3",
+        "role": "text-label min-w-0 leading-[1.35] font-semibold tracking-tight",
+        "scrollWidth": 52,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "border-surface-border mt-1 flex items-center gap-0.5 border-t pt-2",
+        "scrollWidth": 171,
+        "clientWidth": 75
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "New bet",
+        "w": 92,
+        "h": 28
+      },
+      {
+        "name": "Move up",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move down",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Already first column",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move to Next",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Move up",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move down",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Already first column",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move to Next",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Move up",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move down",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Already first column",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move to Next",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Move up",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move down",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Move to Now",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 10
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "RRashad",
+        "size": 11
+      },
+      {
+        "text": "R",
+        "size": 9
+      },
+      {
+        "text": "Q4 2026",
+        "size": 11
+      },
+      {
+        "text": "4 tickets",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "clinics",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/clinics-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 73,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 463,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 463,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 463,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 463,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-[22px]",
+        "scrollWidth": 439,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 439,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 969,
+        "clientWidth": 340
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1032,
+        "clientWidth": 340
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Add clinic",
+        "w": 98,
+        "h": 28
+      },
+      {
+        "name": "Actions for Houston Offensive Staff Clinic",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Dallas 7-on-7 Coaches Night",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Midweek CHLK walkthrough",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Austin staff install",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Spring Houston walk-through",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Dallas staff huddle",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Remote playbook office hours",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Actions for Fort Worth spring clinic",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 15 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 22 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Upcoming clinics",
+        "scrollWidth": 969,
+        "clientWidth": 969,
+        "overflow": false
+      },
+      {
+        "label": "Past clinics",
+        "scrollWidth": 1032,
+        "clientWidth": 1032,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "sales",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/sales-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1081,
+        "clientWidth": 340
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Open",
+        "w": 51,
+        "h": 28
+      },
+      {
+        "name": "Won",
+        "w": 44,
+        "h": 28
+      },
+      {
+        "name": "Lost",
+        "w": 45,
+        "h": 28
+      },
+      {
+        "name": "All",
+        "w": 33,
+        "h": 28
+      },
+      {
+        "name": "Add deal",
+        "w": 95,
+        "h": 28
+      },
+      {
+        "name": "Who",
+        "w": 48,
+        "h": 15
+      },
+      {
+        "name": "Value",
+        "w": 56,
+        "h": 15
+      },
+      {
+        "name": "Stage",
+        "w": 60,
+        "h": 15
+      },
+      {
+        "name": "Next step",
+        "w": 87,
+        "h": 15
+      },
+      {
+        "name": "Owner",
+        "w": 64,
+        "h": 15
+      },
+      {
+        "name": "Last touch",
+        "w": 98,
+        "h": 15
+      },
+      {
+        "name": "Stage: Verbal",
+        "w": 71,
+        "h": 22
+      },
+      {
+        "name": "Mark next step done for Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Delete Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Stage: Proposal",
+        "w": 86,
+        "h": 22
+      },
+      {
+        "name": "Mark next step done for Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Delete Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2 overdue",
+        "size": 11
+      },
+      {
+        "text": "6",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Who",
+        "size": 11
+      },
+      {
+        "text": "Value",
+        "size": 11
+      },
+      {
+        "text": "Stage",
+        "size": 11
+      },
+      {
+        "text": "Next step",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Deals",
+        "scrollWidth": 1081,
+        "clientWidth": 1081,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "system-status",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/system-status-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [],
+    "smallTargets": [
+      {
+        "name": "Sentry",
+        "w": 54,
+        "h": 18
+      },
+      {
+        "name": "Green",
+        "w": 56,
+        "h": 26
+      },
+      {
+        "name": "Not green",
+        "w": 78,
+        "h": 26
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 99,
+        "h": 20
+      },
+      {
+        "name": "Sentry errors (24h)",
+        "w": 131,
+        "h": 40
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Preview",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Past incident",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "bugs",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/bugs-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Last 7 days · Sentry not connected",
+        "size": 11
+      },
+      {
+        "text": "1",
+        "size": 11
+      },
+      {
+        "text": "Bug · Crash",
+        "size": 11
+      },
+      {
+        "text": "YYYo-Yo",
+        "size": 8
+      },
+      {
+        "text": "Yo-Yo",
+        "size": 8
+      },
+      {
+        "text": "5h ago",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "crm",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/crm-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 93,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 483,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 483,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 483,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 483,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-[22px]",
+        "scrollWidth": 459,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 459,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Search⌘K",
+        "w": 118,
+        "h": 28
+      },
+      {
+        "name": "Overview",
+        "w": 78,
+        "h": 24
+      },
+      {
+        "name": "Cases",
+        "w": 58,
+        "h": 24
+      },
+      {
+        "name": "Contacts",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Triage2",
+        "w": 84,
+        "h": 24
+      },
+      {
+        "name": "#5Apple Pencil skips strokes in the play editorSample dataOp",
+        "w": 326,
+        "h": 34
+      },
+      {
+        "name": "#7iPad login loop after a forced updateSample dataOpen1d ago",
+        "w": 326,
+        "h": 34
+      },
+      {
+        "name": "#4Install / plays checklist stuck at step 3Sample dataNew3h ",
+        "w": 326,
+        "h": 34
+      },
+      {
+        "name": "#1Staff seats invite fails on the iPadSample dataOpen2h ago",
+        "w": 326,
+        "h": 34
+      },
+      {
+        "name": "MHMarcus Hale wrote on #1 Both are on westfieldfb.org. Last ",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "PSPriya Shah wrote on #4 The 'load this week's plays' step n",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "Note on #1 — Reproduced on the staff iPad — invite POST 500s",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "YYou replied on #1 Hi Marcus, sorry about that. Quick questi",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "MHMarcus Hale wrote on #1 Hey — when I try to invite two ass",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "YYou replied on #3 Thanks Jamal — I can reproduce it on a 40",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "TATom Alvarez wrote on #7 After last night's forced update I",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "JRJamal Reeves wrote on #3 Pushing a full install to the sta",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "YYou replied on #8 Noted — it's on the shortlist. Curious: w",
+        "w": 326,
+        "h": 36
+      },
+      {
+        "name": "CBColin Brooks wrote on #5 Clip's attached in the next email",
+        "w": 326,
+        "h": 36
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2",
+        "size": 10.4
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "my-desk",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/my-desk-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 78,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 468,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 468,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 468,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 468,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-[22px]",
+        "scrollWidth": 444,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 444,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Add to-do",
+        "w": 103,
+        "h": 28
+      },
+      {
+        "name": "Call Aledo",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Call Aledo",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Call Aledo",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Clinic follow-up",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Clinic follow-up",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Clinic follow-up",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Look at Metrics",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Look at Metrics",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Look at Metrics",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Reply to Dan",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Reply to Dan",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Reply to Dan",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Text May — Dallas night",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Text May — Dallas night",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Text May — Dallas night",
+        "w": 75,
+        "h": 24
+      },
+      {
+        "name": "Confirm Austin flight",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Confirm Austin flight",
+        "w": 57,
+        "h": 24
+      },
+      {
+        "name": "Delete Confirm Austin flight",
+        "w": 75,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Wed 7 Oct",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "community-development",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/community-development-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 106,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 496,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 496,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 496,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 496,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-[22px]",
+        "scrollWidth": 472,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 460,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-wrap items-center gap-3",
+        "scrollWidth": 472,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 928,
+        "clientWidth": 340
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Add initiative",
+        "w": 119,
+        "h": 28
+      },
+      {
+        "name": "All types",
+        "w": 71,
+        "h": 28
+      },
+      {
+        "name": "Volunteer",
+        "w": 77,
+        "h": 28
+      },
+      {
+        "name": "Donation",
+        "w": 72,
+        "h": 28
+      },
+      {
+        "name": "Foundation program",
+        "w": 140,
+        "h": 28
+      },
+      {
+        "name": "Outreach event",
+        "w": 112,
+        "h": 28
+      },
+      {
+        "name": "All statuses",
+        "w": 89,
+        "h": 28
+      },
+      {
+        "name": "Idea",
+        "w": 45,
+        "h": 28
+      },
+      {
+        "name": "Planned",
+        "w": 67,
+        "h": 28
+      },
+      {
+        "name": "Active",
+        "w": 57,
+        "h": 28
+      },
+      {
+        "name": "Done",
+        "w": 50,
+        "h": 28
+      },
+      {
+        "name": "Equipment drive for Yates High School",
+        "w": 240,
+        "h": 32
+      },
+      {
+        "name": "Actions for Equipment drive for Yates High School",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Saturday volunteer coaching at Alief rec",
+        "w": 240,
+        "h": 32
+      },
+      {
+        "name": "Actions for Saturday volunteer coaching at Alief rec",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Youth flag-football clinic volunteer day",
+        "w": 240,
+        "h": 32
+      },
+      {
+        "name": "Actions for Youth flag-football clinic volunteer day",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Coaches serve-day at the Houston Food Bank",
+        "w": 240,
+        "h": 32
+      },
+      {
+        "name": "Actions for Coaches serve-day at the Houston Food Bank",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "8",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 8 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Giving initiatives",
+        "scrollWidth": 928,
+        "clientWidth": 928,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "shell",
+    "size": "phone",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/shell-phone.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 34,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-5",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex items-start justify-between gap-4",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "h1",
+        "role": "text-display-sm font-semibold tracking-tight",
+        "scrollWidth": 66,
+        "clientWidth": 0
+      },
+      {
+        "tag": "p",
+        "role": "text-label text-muted-foreground mt-[5px] tracking-tight",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "section",
+        "role": "KPI strip",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-3 px-0.5",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "My Desk",
+        "w": 78,
+        "h": 22
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "home",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/home-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1474,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "agent-workplace",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/agent-workplace-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1484,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "CHLK-401",
+        "size": 11
+      },
+      {
+        "text": "–",
+        "size": 8
+      },
+      {
+        "text": "Unassigned",
+        "size": 11
+      },
+      {
+        "text": "CHLK-402",
+        "size": 11
+      },
+      {
+        "text": "MWMay",
+        "size": 8
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "metrics",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/metrics-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 105,
+        "clientWidth": 75
+      },
+      {
+        "tag": "p",
+        "role": "text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabula",
+        "scrollWidth": 105,
+        "clientWidth": 75
+      },
+      {
+        "tag": "div",
+        "role": "mt-2.5 flex min-w-0 flex-wrap items-center gap-2",
+        "scrollWidth": 105,
+        "clientWidth": 75
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 123,
+        "clientWidth": 75
+      },
+      {
+        "tag": "p",
+        "role": "text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabula",
+        "scrollWidth": 123,
+        "clientWidth": 75
+      },
+      {
+        "tag": "div",
+        "role": "mt-2.5 flex min-w-0 flex-wrap items-center gap-2",
+        "scrollWidth": 105,
+        "clientWidth": 75
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 105,
+        "clientWidth": 75
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "feature-request",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/feature-request-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      },
+      {
+        "tag": "div",
+        "role": "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5",
+        "scrollWidth": 96,
+        "clientWidth": 89
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "product-roadmap",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/product-roadmap-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-5",
+        "scrollWidth": 539,
+        "clientWidth": 516
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-4",
+        "scrollWidth": 539,
+        "clientWidth": 516
+      },
+      {
+        "tag": "div",
+        "role": "Roadmap sequence",
+        "scrollWidth": 539,
+        "clientWidth": 516
+      },
+      {
+        "tag": "section",
+        "role": "Now",
+        "scrollWidth": 186,
+        "clientWidth": 163
+      },
+      {
+        "tag": "article",
+        "role": "Flag Football 2026",
+        "scrollWidth": 185,
+        "clientWidth": 161
+      },
+      {
+        "tag": "h3",
+        "role": "text-label min-w-0 leading-[1.35] font-semibold tracking-tight",
+        "scrollWidth": 52,
+        "clientWidth": 29
+      },
+      {
+        "tag": "div",
+        "role": "border-surface-border mt-1 flex items-center gap-0.5 border-t pt-2",
+        "scrollWidth": 171,
+        "clientWidth": 133
+      },
+      {
+        "tag": "article",
+        "role": "Play share links",
+        "scrollWidth": 185,
+        "clientWidth": 161
+      },
+      {
+        "tag": "h3",
+        "role": "text-label min-w-0 leading-[1.35] font-semibold tracking-tight",
+        "scrollWidth": 36,
+        "clientWidth": 29
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 10
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "RRashad",
+        "size": 11
+      },
+      {
+        "text": "R",
+        "size": 9
+      },
+      {
+        "text": "Q4 2026",
+        "size": 11
+      },
+      {
+        "text": "4 tickets",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "clinics",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/clinics-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 969,
+        "clientWidth": 514
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1032,
+        "clientWidth": 514
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 15 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 22 days",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Upcoming clinics",
+        "scrollWidth": 969,
+        "clientWidth": 969,
+        "overflow": false
+      },
+      {
+        "label": "Past clinics",
+        "scrollWidth": 1032,
+        "clientWidth": 1032,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "sales",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/sales-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1081,
+        "clientWidth": 514
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2 overdue",
+        "size": 11
+      },
+      {
+        "text": "6",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Who",
+        "size": 11
+      },
+      {
+        "text": "Value",
+        "size": 11
+      },
+      {
+        "text": "Stage",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Deals",
+        "scrollWidth": 1081,
+        "clientWidth": 1081,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "system-status",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/system-status-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sentry",
+        "w": 54,
+        "h": 18
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Preview",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Past incident",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "bugs",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/bugs-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Last 7 days · Sentry not connected",
+        "size": 11
+      },
+      {
+        "text": "1",
+        "size": 11
+      },
+      {
+        "text": "Bug · Crash",
+        "size": 11
+      },
+      {
+        "text": "YYYo-Yo",
+        "size": 8
+      },
+      {
+        "text": "Yo-Yo",
+        "size": 8
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "crm",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/crm-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1345,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2",
+        "size": 10.4
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "my-desk",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/my-desk-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1318,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Wed 7 Oct",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "community-development",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/community-development-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1180,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 928,
+        "clientWidth": 514
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "8",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 8 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Giving initiatives",
+        "scrollWidth": 928,
+        "clientWidth": 928,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "shell",
+    "size": "tablet-portrait",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/shell-tablet-portrait.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1474,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "home",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/home-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 824,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "ul",
+        "role": "Columns",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-warning/5",
+        "scrollWidth": 70,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-success/5",
+        "scrollWidth": 61,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-destructive/5",
+        "scrollWidth": 53,
+        "clientWidth": 43
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "agent-workplace",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/agent-workplace-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 820,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "section",
+        "role": "In Progress",
+        "scrollWidth": 177,
+        "clientWidth": 166
+      },
+      {
+        "tag": "button",
+        "role": "bg-surface border-surface-border hover:border-foreground/15 hover:bg-surface-hov",
+        "scrollWidth": 176,
+        "clientWidth": 164
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-2",
+        "scrollWidth": 164,
+        "clientWidth": 140
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "CHLK-401",
+        "size": 11
+      },
+      {
+        "text": "–",
+        "size": 8
+      },
+      {
+        "text": "Unassigned",
+        "size": 11
+      },
+      {
+        "text": "CHLK-402",
+        "size": 11
+      },
+      {
+        "text": "MWMay",
+        "size": 8
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "metrics",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/metrics-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1014,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "",
+        "scrollWidth": 120,
+        "clientWidth": 0
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "feature-request",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/feature-request-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 820,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "product-roadmap",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/product-roadmap-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 820,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 10
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "RRashad",
+        "size": 11
+      },
+      {
+        "text": "R",
+        "size": 9
+      },
+      {
+        "text": "Q4 2026",
+        "size": 11
+      },
+      {
+        "text": "4 tickets",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "clinics",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/clinics-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 882,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 969,
+        "clientWidth": 874
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1032,
+        "clientWidth": 874
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "4",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 15 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 22 days",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Upcoming clinics",
+        "scrollWidth": 969,
+        "clientWidth": 969,
+        "overflow": false
+      },
+      {
+        "label": "Past clinics",
+        "scrollWidth": 1032,
+        "clientWidth": 1032,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "sales",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/sales-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 820,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1081,
+        "clientWidth": 874
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2 overdue",
+        "size": 11
+      },
+      {
+        "text": "6",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Who",
+        "size": 11
+      },
+      {
+        "text": "Value",
+        "size": 11
+      },
+      {
+        "text": "Stage",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Deals",
+        "scrollWidth": 1081,
+        "clientWidth": 1081,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "system-status",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/system-status-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 894,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sentry",
+        "w": 54,
+        "h": 18
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Preview",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Past incident",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "bugs",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/bugs-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 823,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Last 7 days · Sentry not connected",
+        "size": 11
+      },
+      {
+        "text": "1",
+        "size": 11
+      },
+      {
+        "text": "Bug · Crash",
+        "size": 11
+      },
+      {
+        "text": "YYYo-Yo",
+        "size": 8
+      },
+      {
+        "text": "Yo-Yo",
+        "size": 8
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "crm",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/crm-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 975,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2",
+        "size": 10.4
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "my-desk",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/my-desk-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 820,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Wed 7 Oct",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "community-development",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/community-development-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1024,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 928,
+        "clientWidth": 874
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "8",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Actions",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "in 8 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Giving initiatives",
+        "scrollWidth": 928,
+        "clientWidth": 928,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "shell",
+    "size": "tablet-landscape",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/shell-tablet-landscape.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 824,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "ul",
+        "role": "Columns",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-warning/5",
+        "scrollWidth": 70,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-success/5",
+        "scrollWidth": 61,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-destructive/5",
+        "scrollWidth": 53,
+        "clientWidth": 43
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "shell",
+    "size": "phone",
+    "theme": "dark",
+    "file": "/workspace/artifacts/responsive-audit/shell-phone-dark.png",
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "pageOverflowX": 34,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 424,
+        "clientWidth": 390
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-5",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "header",
+        "role": "flex items-start justify-between gap-4",
+        "scrollWidth": 400,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "h1",
+        "role": "text-display-sm font-semibold tracking-tight",
+        "scrollWidth": 66,
+        "clientWidth": 0
+      },
+      {
+        "tag": "p",
+        "role": "text-label text-muted-foreground mt-[5px] tracking-tight",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "section",
+        "role": "KPI strip",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-3 px-0.5",
+        "scrollWidth": 372,
+        "clientWidth": 342
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "My Desk",
+        "w": 78,
+        "h": 22
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "shell",
+    "size": "tablet-portrait",
+    "theme": "dark",
+    "file": "/workspace/artifacts/responsive-audit/shell-tablet-portrait-dark.png",
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 1474,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 482,
+        "clientWidth": 474
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "shell",
+    "size": "tablet-landscape",
+    "theme": "dark",
+    "file": "/workspace/artifacts/responsive-audit/shell-tablet-landscape-dark.png",
+    "viewport": {
+      "w": 1180,
+      "h": 820
+    },
+    "pageOverflowX": 0,
+    "sidebar": {
+      "w": 256,
+      "h": 824,
+      "visible": true
+    },
+    "navVisible": true,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,wid",
+        "scrollWidth": 260,
+        "clientWidth": 256
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-inner flex size-full flex-col",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "cn-sidebar-header flex flex-col relative",
+        "scrollWidth": 252,
+        "clientWidth": 240
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "ul",
+        "role": "Columns",
+        "scrollWidth": 249,
+        "clientWidth": 239
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-warning/5",
+        "scrollWidth": 70,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-success/5",
+        "scrollWidth": 61,
+        "clientWidth": 43
+      },
+      {
+        "tag": "li",
+        "role": "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2 bg-destructive/5",
+        "scrollWidth": 53,
+        "clientWidth": 43
+      },
+      {
+        "tag": "div",
+        "role": "mt-4 flex min-h-0 flex-1 flex-col",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-2",
+        "scrollWidth": 247,
+        "clientWidth": 239
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Collapse sidebar",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Home",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "My Desk",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Metrics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Agent Workplace",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Feature Request",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Product Roadmap",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Sales Opportunities",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "CRM",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Clinics",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Community Development",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "System Status",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Bugs",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Infrastructure",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "chlkapp.com",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Light",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Dark",
+        "w": 112,
+        "h": 32
+      },
+      {
+        "name": "Help",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Logout",
+        "w": 224,
+        "h": 32
+      },
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Founder",
+        "size": 10
+      },
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "home",
+    "size": "phone-360",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/home-phone-360.png",
+    "viewport": {
+      "w": 360,
+      "h": 740
+    },
+    "pageOverflowX": 64,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-5",
+        "scrollWidth": 400,
+        "clientWidth": 312
+      },
+      {
+        "tag": "header",
+        "role": "flex items-start justify-between gap-4",
+        "scrollWidth": 400,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "h1",
+        "role": "text-display-sm font-semibold tracking-tight",
+        "scrollWidth": 66,
+        "clientWidth": 0
+      },
+      {
+        "tag": "p",
+        "role": "text-label text-muted-foreground mt-[5px] tracking-tight",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      },
+      {
+        "tag": "section",
+        "role": "KPI strip",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-3 px-0.5",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "My Desk",
+        "w": 78,
+        "h": 22
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "sales",
+    "size": "phone-360",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/sales-phone-360.png",
+    "viewport": {
+      "w": 360,
+      "h": 740
+    },
+    "pageOverflowX": 0,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "div",
+        "role": "cn-table-container",
+        "scrollWidth": 1081,
+        "clientWidth": 310
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "Open",
+        "w": 51,
+        "h": 28
+      },
+      {
+        "name": "Won",
+        "w": 44,
+        "h": 28
+      },
+      {
+        "name": "Lost",
+        "w": 45,
+        "h": 28
+      },
+      {
+        "name": "All",
+        "w": 33,
+        "h": 28
+      },
+      {
+        "name": "Add deal",
+        "w": 95,
+        "h": 28
+      },
+      {
+        "name": "Who",
+        "w": 48,
+        "h": 15
+      },
+      {
+        "name": "Value",
+        "w": 56,
+        "h": 15
+      },
+      {
+        "name": "Stage",
+        "w": 60,
+        "h": 15
+      },
+      {
+        "name": "Next step",
+        "w": 87,
+        "h": 15
+      },
+      {
+        "name": "Owner",
+        "w": 64,
+        "h": 15
+      },
+      {
+        "name": "Last touch",
+        "w": 98,
+        "h": 15
+      },
+      {
+        "name": "Stage: Verbal",
+        "w": 71,
+        "h": 22
+      },
+      {
+        "name": "Mark next step done for Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Delete Coach Lonnie Pruitt",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Stage: Proposal",
+        "w": 86,
+        "h": 22
+      },
+      {
+        "name": "Mark next step done for Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Edit Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      },
+      {
+        "name": "Delete Coach Reggie Okafor",
+        "w": 24,
+        "h": 24
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "2 overdue",
+        "size": 11
+      },
+      {
+        "text": "6",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Who",
+        "size": 11
+      },
+      {
+        "text": "Value",
+        "size": 11
+      },
+      {
+        "text": "Stage",
+        "size": 11
+      },
+      {
+        "text": "Next step",
+        "size": 11
+      }
+    ],
+    "tables": [
+      {
+        "label": "Deals",
+        "scrollWidth": 1081,
+        "clientWidth": 1081,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "screen": "feature-request",
+    "size": "phone-360",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/feature-request-phone-360.png",
+    "viewport": {
+      "w": 360,
+      "h": 740
+    },
+    "pageOverflowX": 19,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 379,
+        "clientWidth": 360
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 379,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 379,
+        "clientWidth": 360
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 379,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-5",
+        "scrollWidth": 355,
+        "clientWidth": 312
+      },
+      {
+        "tag": "header",
+        "role": "flex min-h-10 flex-wrap items-start justify-between gap-4",
+        "scrollWidth": 347,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "group",
+        "scrollWidth": 347,
+        "clientWidth": 320
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-col gap-4",
+        "scrollWidth": 355,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "region",
+        "scrollWidth": 355,
+        "clientWidth": 312
+      },
+      {
+        "tag": "section",
+        "role": "Inbox",
+        "scrollWidth": 111,
+        "clientWidth": 68
+      },
+      {
+        "tag": "button",
+        "role": "Open idea: Play of the Day",
+        "scrollWidth": 110,
+        "clientWidth": 66
+      },
+      {
+        "tag": "span",
+        "role": "text-caption text-muted-foreground leading-[1.45] tracking-tight",
+        "scrollWidth": 46,
+        "clientWidth": 38
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "New idea",
+        "w": 98,
+        "h": 28
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "3",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Dan",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  },
+  {
+    "screen": "shell",
+    "size": "phone-360",
+    "theme": "light",
+    "file": "/workspace/artifacts/responsive-audit/shell-phone-360.png",
+    "viewport": {
+      "w": 360,
+      "h": 740
+    },
+    "pageOverflowX": 64,
+    "sidebar": null,
+    "navVisible": false,
+    "menuButton": false,
+    "overflowing": [
+      {
+        "tag": "html",
+        "role": "geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__vari",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "body",
+        "role": "min-h-full",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "main",
+        "role": "cn-sidebar-inset relative flex w-full flex-1 flex-col min-w-0 p-6",
+        "scrollWidth": 424,
+        "clientWidth": 360
+      },
+      {
+        "tag": "div",
+        "role": "flex min-w-0 flex-1 flex-col gap-5",
+        "scrollWidth": 400,
+        "clientWidth": 312
+      },
+      {
+        "tag": "header",
+        "role": "flex items-start justify-between gap-4",
+        "scrollWidth": 400,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "min-w-0",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "h1",
+        "role": "text-display-sm font-semibold tracking-tight",
+        "scrollWidth": 66,
+        "clientWidth": 0
+      },
+      {
+        "tag": "p",
+        "role": "text-label text-muted-foreground mt-[5px] tracking-tight",
+        "scrollWidth": 67,
+        "clientWidth": 0
+      },
+      {
+        "tag": "div",
+        "role": "flex flex-1 flex-col gap-4",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      },
+      {
+        "tag": "section",
+        "role": "KPI strip",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      },
+      {
+        "tag": "div",
+        "role": "flex items-center justify-between gap-3 px-0.5",
+        "scrollWidth": 365,
+        "clientWidth": 312
+      }
+    ],
+    "smallTargets": [
+      {
+        "name": "Reset",
+        "w": 63,
+        "h": 24
+      },
+      {
+        "name": "My Desk",
+        "w": 78,
+        "h": 22
+      }
+    ],
+    "smallText": [
+      {
+        "text": "Edits save in this browserResetNothing is saved in",
+        "size": 11
+      },
+      {
+        "text": "Edits save in this browser",
+        "size": 11
+      },
+      {
+        "text": "Reset",
+        "size": 11
+      },
+      {
+        "text": "Nothing is saved in this browser yet, so there is ",
+        "size": 11
+      },
+      {
+        "text": "Dummy / design mock",
+        "size": 10
+      },
+      {
+        "text": "#1",
+        "size": 11
+      },
+      {
+        "text": "My Desk",
+        "size": 11
+      },
+      {
+        "text": "Truth strip",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      },
+      {
+        "text": "MRR · 6 × 28 days",
+        "size": 11
+      },
+      {
+        "text": "Sample data",
+        "size": 11
+      }
+    ],
+    "tables": []
+  }
+]

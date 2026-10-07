@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -53,6 +54,13 @@ function CollapseToggle() {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  // Compact: the rail is a sheet. Close it after a route change so the
+  // next screen is not sitting under an open drawer.
+  React.useEffect(() => {
+    if (isMobile) setOpenMobile(false)
+  }, [pathname, isMobile, setOpenMobile])
 
   return (
     <Sidebar collapsible="icon" variant="floating">
@@ -71,7 +79,7 @@ export function AppSidebar() {
             <span className="truncate text-sm font-semibold">Rashad Bates</span>
           </div>
         </div>
-        <CollapseToggle />
+        {!isMobile && <CollapseToggle />}
       </SidebarHeader>
 
       <SidebarSeparator />

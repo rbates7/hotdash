@@ -58,3 +58,14 @@ export const navItems: NavItem[] = [
 export function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
+
+/**
+ * Sidebar label for the current route. Nested CRM paths still read "CRM".
+ * Unknown paths fall back to the product name so the compact header is never blank.
+ */
+export function navLabelFor(pathname: string) {
+  const match = navItems
+    .filter((item) => !item.external && isActiveRoute(pathname, item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+  return match?.label ?? "Founder dashboard"
+}
