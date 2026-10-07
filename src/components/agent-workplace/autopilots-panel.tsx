@@ -11,6 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  WORKPLACE_AUTOPILOT_BODY,
+  WORKPLACE_AUTOPILOT_CELL,
+  WORKPLACE_AUTOPILOT_HEAD,
+  WORKPLACE_AUTOPILOT_ROW,
+  WORKPLACE_AUTOPILOT_TABLE,
+} from "@/components/agent-workplace/responsive"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 
 function RunPill({ state }: { state: Autopilot["lastRun"] }) {
@@ -39,8 +46,8 @@ export function AutopilotsPanel() {
         Schedules assumed for this mock.
       </p>
       <div className="bg-surface border-surface-border max-w-[1100px] overflow-hidden rounded-xl border">
-        <Table>
-          <TableHeader>
+        <Table className={WORKPLACE_AUTOPILOT_TABLE}>
+          <TableHeader className={WORKPLACE_AUTOPILOT_HEAD}>
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>Autopilot</TableHead>
               <TableHead className={HEAD}>Schedule</TableHead>
@@ -48,22 +55,35 @@ export function AutopilotsPanel() {
               <TableHead className={HEAD}>Last run</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {autopilots.map((ap) => (
-              <TableRow key={ap.id} className="hover:bg-transparent">
-                <TableCell className={CELL}>
-                  <p className="font-semibold tracking-tight">{ap.name}</p>
-                  <p className="text-caption text-muted-foreground mt-[3px]">
-                    {ap.note}
-                  </p>
-                </TableCell>
-                <TableCell className={CELL}>{ap.scheduleLabel}</TableCell>
-                <TableCell className={CELL}>{nextRunLabel(ap.schedule, now)}</TableCell>
-                <TableCell className={CELL}>
-                  <RunPill state={ap.lastRun} />
-                </TableCell>
-              </TableRow>
-            ))}
+          <TableBody className={WORKPLACE_AUTOPILOT_BODY}>
+            {autopilots.map((ap) => {
+              const next = nextRunLabel(ap.schedule, now)
+              return (
+                <TableRow key={ap.id} className={WORKPLACE_AUTOPILOT_ROW}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL)}>
+                    <p className="font-semibold tracking-tight">{ap.name}</p>
+                    <p className="text-caption text-muted-foreground mt-[3px] max-md:hidden">
+                      {ap.note}
+                    </p>
+                    <p className="text-caption text-muted-foreground mt-[3px] md:hidden">
+                      {ap.scheduleLabel} · {ap.note}
+                    </p>
+                    <p className="text-caption text-muted-foreground mt-[3px] md:hidden">
+                      Next run {next} · Last run {ap.lastRun}
+                    </p>
+                  </TableCell>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:hidden")}>
+                    {ap.scheduleLabel}
+                  </TableCell>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:hidden")}>
+                    {next}
+                  </TableCell>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:pt-0.5")}>
+                    <RunPill state={ap.lastRun} />
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>

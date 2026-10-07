@@ -8,6 +8,7 @@ import {
   STATUS_CONFIG,
   STATUS_ORDER,
   type BoardFilter,
+  type IssueStatus,
   activeSprint,
   daysUntil,
   formatDay,
@@ -21,6 +22,15 @@ import { Button } from "@/components/ui/button"
 import { CreateIssueDialog } from "@/components/agent-workplace/create-issue-dialog"
 import { IssueCard } from "@/components/agent-workplace/issue-card"
 import { useIssues } from "@/components/agent-workplace/issues-store"
+import {
+  WORKPLACE_BOARD,
+  WORKPLACE_BOARD_COLUMN,
+  WORKPLACE_BOARD_META,
+  WORKPLACE_BOARD_TOOLBAR,
+  WORKPLACE_FILTER,
+  WORKPLACE_TOUCH,
+} from "@/components/agent-workplace/responsive"
+import { StatusSwitcher } from "@/components/agent-workplace/status-switcher"
 
 /** Green "3 agents working" pill with a pulsing dot, as in the mock. */
 export function AgentsWorkingPill({ count }: { count: number }) {
@@ -49,7 +59,7 @@ export function FilterChips({
     <div
       role="group"
       aria-label="Issue filters"
-      className="flex flex-wrap items-center gap-1.5"
+      className="flex items-center gap-1.5 overflow-x-auto max-md:flex-nowrap md:flex-wrap"
     >
       {BOARD_FILTERS.map((f) => {
         const on = value === f.value
@@ -60,8 +70,7 @@ export function FilterChips({
             aria-pressed={on}
             onClick={() => onChange(f.value)}
             className={cn(
-              "text-caption h-7 rounded-full border px-[11px] leading-none font-semibold tracking-tight transition-colors",
-              "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
+              WORKPLACE_FILTER,
               on
                 ? "border-foreground bg-foreground text-background"
                 : "border-surface-border bg-surface text-foreground hover:bg-surface-hover"
@@ -82,6 +91,7 @@ export function IssuesBoard({
 }) {
   const { issues, sprints, actors, now } = useIssues()
   const [filter, setFilter] = React.useState<BoardFilter>("all")
+  const [statusView, setStatusView] = React.useState<IssueStatus>("todo")
 
   const sprint = activeSprint(sprints)
   const sprintIssues = issuesInSprint(issues, sprint?.id ?? null)
@@ -104,14 +114,17 @@ export function IssuesBoard({
   }
 
   const remaining = daysUntil(sprint.endDate, now)
+  const counts = Object.fromEntries(
+    STATUS_ORDER.map((status) => [status, issuesByStatus(visible, status).length])
+  ) as Record<IssueStatus, number>
 
   return (
     <div className="flex min-w-0 flex-col gap-3.5">
-      <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
+      <div className={WORKPLACE_BOARD_TOOLBAR}>
         <FilterChips value={filter} onChange={setFilter} />
 
-        <div className="flex items-center gap-2.5">
-          <span className="text-caption text-muted-foreground hidden tabular-nums md:inline">
+        <div className={WORKPLACE_BOARD_META}>
+          <span className="text-caption text-muted-foreground tabular-nums">
             {sprint.name} · {formatDay(sprint.startDate)} –{" "}
             {formatDay(sprint.endDate)} ·{" "}
             {remaining < 0
@@ -122,7 +135,11 @@ export function IssuesBoard({
           <CreateIssueDialog
             defaultSprintId={sprint.id}
             trigger={
-              <Button variant="outline" size="sm" className="rounded-full">
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn("rounded-full", WORKPLACE_TOUCH)}
+              >
                 <PlusIcon aria-hidden />
                 New issue
               </Button>
@@ -131,7 +148,13 @@ export function IssuesBoard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <StatusSwitcher
+        value={statusView}
+        counts={counts}
+        onChange={setStatusView}
+      />
+
+      <div className={WORKPLACE_BOARD}>
         {STATUS_ORDER.map((status) => {
           const config = STATUS_CONFIG[status]
           const columnIssues = issuesByStatus(visible, status)
@@ -139,9 +162,12 @@ export function IssuesBoard({
             <section
               key={status}
               aria-label={config.label}
-              className="flex min-w-0 flex-col gap-2"
+              className={cn(
+                WORKPLACE_BOARD_COLUMN,
+                status !== statusView && "max-md:hidden"
+              )}
             >
-              <header className="flex min-h-6 items-center justify-between gap-2 px-0.5 pb-0.5">
+              <header className="flex min-h-6 items-center justify-between gap-2 px-0.5 pb-0.5 max-md:hidden md:flex">
                 <h3 className="text-caption font-semibold tracking-tight">
                   {config.label}
                 </h3>

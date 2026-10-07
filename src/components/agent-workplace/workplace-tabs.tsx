@@ -4,6 +4,10 @@ import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  WORKPLACE_TAB,
+  WORKPLACE_TABS_LIST,
+} from "@/components/agent-workplace/responsive"
 import { AgentsRoster } from "@/components/agent-workplace/agents-roster"
 import { AutopilotsPanel } from "@/components/agent-workplace/autopilots-panel"
 import { BacklogPanel } from "@/components/agent-workplace/backlog-panel"
@@ -76,16 +80,9 @@ export function WorkplaceTabs() {
       onValueChange={(value) => setParam({ tab: String(value), issue: null })}
       className="min-w-0 gap-4"
     >
-      <TabsList
-        variant="line"
-        className="border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px]"
-      >
+      <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
         {WORKPLACE_TABS.map((t) => (
-          <TabsTrigger
-            key={t.value}
-            value={t.value}
-            className="text-label flex-none px-3.5 py-1.5 font-medium tracking-tight"
-          >
+          <TabsTrigger key={t.value} value={t.value} className={WORKPLACE_TAB}>
             {t.label}
           </TabsTrigger>
         ))}

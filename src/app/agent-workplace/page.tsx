@@ -2,6 +2,10 @@ import { Suspense } from "react"
 
 import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
+import {
+  WORKPLACE_HEADER,
+  WORKPLACE_HEADER_META,
+} from "@/components/agent-workplace/responsive"
 import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
 
@@ -16,11 +20,11 @@ export default function AgentWorkplacePage() {
   return (
     <IssuesProvider nowMs={now().getTime()}>
       <div className="flex min-w-0 flex-col gap-2.5">
-        <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
+        <header className={WORKPLACE_HEADER}>
           <h1 className="text-display-sm font-semibold tracking-tight">
             Agent Workplace
           </h1>
-          <div className="flex items-center gap-2.5">
+          <div className={WORKPLACE_HEADER_META}>
             <WorkplacePersistenceNote />
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
               Dummy / design mock

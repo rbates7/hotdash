@@ -25,7 +25,8 @@
     "screens:clinics": "SCREENSHOTS=1 playwright test e2e/clinics-screens.spec.ts",
     "screens:crm": "CI=true SCREENSHOTS=1 playwright test e2e/crm-screens.spec.ts",
     "screens:my-desk": "CI=true SCREENSHOTS=1 playwright test e2e/my-desk-screens.spec.ts",
-    "screens:community-development": "CI=true SCREENSHOTS=1 playwright test e2e/community-development-screens.spec.ts"
+    "screens:community-development": "CI=true SCREENSHOTS=1 playwright test e2e/community-development-screens.spec.ts",
+    "screens:responsive-agent-workplace": "SCREENSHOTS=1 playwright test e2e/responsive-agent-workplace-screens.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
