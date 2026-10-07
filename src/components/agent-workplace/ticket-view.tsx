@@ -10,12 +10,13 @@ import {
   PaperclipIcon,
   PanelRightIcon,
   PinIcon,
-  PlusIcon,
   SmilePlusIcon,
 } from "lucide-react"
 
 import {
   PRIORITY_CONFIG,
+  PRIORITY_ORDER,
+  PROJECTS,
   STATUS_CONFIG,
   STATUS_ORDER,
   actorById,
@@ -32,6 +33,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { useIssues } from "@/components/agent-workplace/issues-store"
+
+const NOT_YET = "Not in this pass"
 
 function RailSection({
   title,
@@ -129,10 +132,22 @@ export function TicketView({
             {issue.title}
           </span>
           <div className="ml-auto flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label="Pin issue">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Pin issue"
+              disabled
+              title={NOT_YET}
+            >
               <PinIcon />
             </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="More actions">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="More actions"
+              disabled
+              title={NOT_YET}
+            >
               <EllipsisIcon />
             </Button>
             <Button
@@ -165,33 +180,31 @@ export function TicketView({
           )}
 
           <div className="text-muted-foreground mt-3 flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label="Add reaction">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Add reaction"
+              disabled
+              title={NOT_YET}
+            >
               <SmilePlusIcon />
             </Button>
-            <Button variant="ghost" size="icon-sm" aria-label="Attach a file">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Attach a file"
+              disabled
+              title={NOT_YET}
+            >
               <PaperclipIcon />
             </Button>
           </div>
-
-          <button
-            type="button"
-            className="text-body text-muted-foreground hover:text-foreground mt-6 flex items-center gap-1.5"
-          >
-            <PlusIcon className="size-4" aria-hidden />
-            Add sub-issues
-          </button>
 
           <hr className="border-border my-6" />
 
           <div className="flex items-center gap-2">
             <h2 className="text-title-sm font-semibold">Activity</h2>
             <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                className="text-caption text-muted-foreground hover:text-foreground"
-              >
-                Unsubscribe
-              </button>
               <ActorAvatar actor={author} size="sm" />
             </div>
           </div>
@@ -269,7 +282,13 @@ export function TicketView({
               className="text-body placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 py-1 outline-none"
             />
             <div className="flex items-center justify-end gap-1">
-              <Button variant="ghost" size="icon-sm" aria-label="Attach a file">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Attach a file"
+                disabled
+                title={NOT_YET}
+              >
                 <PaperclipIcon />
               </Button>
               <Button
@@ -325,10 +344,38 @@ export function TicketView({
               </RailRow>
 
               <RailRow label="Priority">
-                <span className="text-body flex items-center gap-1.5">
-                  <priority.icon className={cn("size-3.5", priority.color)} />
-                  {priority.label}
-                </span>
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label={`Priority: ${priority.label}`}
+                        className="text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
+                      >
+                        <priority.icon
+                          className={cn("size-3.5", priority.color)}
+                        />
+                        {priority.label}
+                      </button>
+                    }
+                  />
+                  <PopoverContent className="w-44 p-1">
+                    {PRIORITY_ORDER.map((p) => {
+                      const c = PRIORITY_CONFIG[p]
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => patchIssue(issue.key, { priority: p })}
+                          className="text-body hover:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5"
+                        >
+                          <c.icon className={cn("size-3.5", c.color)} />
+                          {c.label}
+                        </button>
+                      )
+                    })}
+                  </PopoverContent>
+                </Popover>
               </RailRow>
 
               <RailRow label="Assignee">
@@ -339,7 +386,7 @@ export function TicketView({
                         type="button"
                         className="text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
                       >
-                        <ActorAvatar actor={assignee} size="sm" showPresence />
+                        <ActorAvatar actor={assignee} size="sm" />
                         {assignee?.name ?? "Unassigned"}
                       </button>
                     }
@@ -411,19 +458,47 @@ export function TicketView({
               </RailRow>
 
               <RailRow label="Project">
-                <span className="text-body text-muted-foreground flex items-center gap-1.5">
-                  <FolderIcon className="size-3.5" aria-hidden />
-                  No project
-                </span>
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label={`Project: ${issue.project ?? "No project"}`}
+                        // Not `cn()`: tailwind-merge reads the role-named
+                        // `text-body` as a colour and drops it next to
+                        // `text-muted-foreground`.
+                        className={`text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ${
+                          issue.project ? "" : "text-muted-foreground"
+                        }`}
+                      >
+                        <FolderIcon className="size-3.5" aria-hidden />
+                        {issue.project ?? "No project"}
+                      </button>
+                    }
+                  />
+                  <PopoverContent className="w-52 p-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patchIssue(issue.key, { project: undefined })
+                      }
+                      className="text-body hover:bg-muted text-muted-foreground w-full rounded-md px-2 py-1.5 text-left"
+                    >
+                      No project
+                    </button>
+                    {PROJECTS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => patchIssue(issue.key, { project: p })}
+                        className="text-body hover:bg-muted w-full rounded-md px-2 py-1.5 text-left"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               </RailRow>
-
-              <button
-                type="button"
-                className="text-body text-muted-foreground hover:text-foreground -ml-0.5 flex items-center gap-1.5"
-              >
-                <PlusIcon className="size-4" aria-hidden />
-                Add property
-              </button>
             </RailSection>
 
             <RailSection title="Pull requests">

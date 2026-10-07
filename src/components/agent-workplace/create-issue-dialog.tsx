@@ -14,10 +14,13 @@ import {
 
 import {
   PRIORITY_CONFIG,
+  PRIORITY_ORDER,
+  PROJECTS,
   STATUS_CONFIG,
   STATUS_ORDER,
   type IssuePriority,
   type IssueStatus,
+  type Project,
 } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -33,7 +36,7 @@ import { Switch } from "@/components/ui/switch"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 
-const PRIORITIES: IssuePriority[] = ["urgent", "high", "medium", "low", "none"]
+const NOT_YET = "Not in this pass"
 
 function Pill({
   children,
@@ -73,6 +76,7 @@ export function CreateIssueDialog({
   const [status, setStatus] = React.useState<IssueStatus>("todo")
   const [priority, setPriority] = React.useState<IssuePriority>("none")
   const [assigneeId, setAssigneeId] = React.useState<string | null>(null)
+  const [project, setProject] = React.useState<Project | null>(null)
 
   const titleRef = React.useRef<HTMLInputElement>(null)
 
@@ -82,6 +86,7 @@ export function CreateIssueDialog({
     setStatus("todo")
     setPriority("none")
     setAssigneeId(null)
+    setProject(null)
   }
 
   function submit() {
@@ -94,6 +99,7 @@ export function CreateIssueDialog({
       assigneeId,
       sprintId: defaultSprintId,
       labels: [],
+      project: project ?? undefined,
     })
     reset()
     if (createAnother) titleRef.current?.focus()
@@ -129,7 +135,13 @@ export function CreateIssueDialog({
             Create manually
           </DialogTitle>
           <div className="ml-auto flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label="Expand">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Expand"
+              disabled
+              title={NOT_YET}
+            >
               <MaximizeIcon />
             </Button>
             <Button
@@ -209,7 +221,7 @@ export function CreateIssueDialog({
               }
             />
             <PopoverContent className="w-44 p-1">
-              {PRIORITIES.map((p) => {
+              {PRIORITY_ORDER.map((p) => {
                 const c = PRIORITY_CONFIG[p]
                 return (
                   <button
@@ -264,21 +276,58 @@ export function CreateIssueDialog({
             </PopoverContent>
           </Popover>
 
-          <Pill>
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Pill aria-label={`Project: ${project ?? "No project"}`}>
+                  <FolderIcon className="text-muted-foreground size-3.5" />
+                  {project ?? "No project"}
+                </Pill>
+              }
+            />
+            <PopoverContent className="w-52 p-1">
+              <button
+                type="button"
+                onClick={() => setProject(null)}
+                className="text-body hover:bg-muted text-muted-foreground w-full rounded-md px-2 py-1.5 text-left"
+              >
+                No project
+              </button>
+              {PROJECTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setProject(p)}
+                  className="text-body hover:bg-muted w-full rounded-md px-2 py-1.5 text-left"
+                >
+                  {p}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          <Pill disabled title={NOT_YET} className="disabled:opacity-50">
             <TagIcon className="text-muted-foreground size-3.5" />
             Add label
           </Pill>
-          <Pill>
-            <FolderIcon className="text-muted-foreground size-3.5" />
-            No project
-          </Pill>
-          <Pill aria-label="More options">
+          <Pill
+            aria-label="More options"
+            disabled
+            title={NOT_YET}
+            className="disabled:opacity-50"
+          >
             <EllipsisIcon className="text-muted-foreground size-3.5" />
           </Pill>
         </div>
 
         <div className="border-border flex items-center gap-3 border-t px-4 py-3">
-          <Button variant="ghost" size="icon-sm" aria-label="Attach a file">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Attach a file"
+            disabled
+            title={NOT_YET}
+          >
             <PaperclipIcon />
           </Button>
 
@@ -287,7 +336,7 @@ export function CreateIssueDialog({
                 as picking an agent in the normal assignee field, and never says
                 what a separate agent mode would do — so this stays inert rather
                 than inventing a second creation flow. */}
-            <Button variant="ghost" size="sm" disabled title="Not in this pass">
+            <Button variant="ghost" size="sm" disabled title={NOT_YET}>
               <ArrowLeftRightIcon className="text-brand" />
               Switch to Agent
             </Button>
