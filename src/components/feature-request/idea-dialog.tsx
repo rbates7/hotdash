@@ -336,7 +336,7 @@ function EditIdeaBody({
                 key={s}
                 value={s}
                 title={STATUS_CONFIG[s].description}
-                className="aria-pressed:bg-brand/12! aria-pressed:text-brand! aria-pressed:border-brand/40!"
+                className="aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!"
               >
                 {STATUS_CONFIG[s].label}
               </ToggleGroupItem>

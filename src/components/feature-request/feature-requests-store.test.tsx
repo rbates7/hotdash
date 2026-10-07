@@ -20,7 +20,6 @@ import {
   isState,
   reducer,
   parseState,
-  sanitize,
   useFeatureRequests,
 } from "@/components/feature-request/feature-requests-store"
 

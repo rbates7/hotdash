@@ -76,6 +76,8 @@ describe("board", () => {
     expect(headerTag()).toBe(1)
     const note = screen.getByRole("note", { name: "Sample data" })
     expect(note).toHaveTextContent("10 cards tagged below are invented examples")
+    // aria-label is the name; the sample tag is in the description.
+    expect(card("Play of the Day")).toHaveAccessibleDescription(/Sample data/)
   })
 
   it("marks the roadmap hint as board-only, with no promise of a handoff", () => {
@@ -84,6 +86,7 @@ describe("board", () => {
     expect(hint).toHaveTextContent("Roadmap")
     expect(ROADMAP_HINT_TITLE).toMatch(/isn't wired yet/)
     expect(within(card("Play of the Day")).queryByTitle(ROADMAP_HINT_TITLE)).toBeNull()
+    expect(card("Play share links")).toHaveAccessibleDescription(/Roadmap/)
   })
 
   it("shows skeletons, never the seed, until localStorage has been read", () => {
@@ -136,6 +139,7 @@ describe("board", () => {
     expect(inbox[0]).toHaveTextContent("Reusable weekly plans.")
     expect(inbox[0]).toHaveTextContent("24 Aug 2026")
     expect(within(inbox[0]).queryByTestId("sample-data-tag")).toBeNull()
+    expect(inbox[0]).not.toHaveAccessibleDescription(/Sample data/)
     expect(cardTags()).toHaveLength(10)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Practice plan templates")
   })

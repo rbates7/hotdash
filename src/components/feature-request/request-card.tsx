@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import { ArrowRightIcon } from "lucide-react"
 
 import { formatDate } from "@/lib/clock"
@@ -18,11 +19,31 @@ export function RequestCard({
   request: FeatureRequest
   onOpen: (id: string) => void
 }) {
+  // aria-label keeps the accessible name as "Open idea: <title>". The
+  // description (ask, From, date, sample tag, roadmap hint) is the visible
+  // text, pointed at so a screen reader still hears it.
+  const uid = useId()
+  const askId = `${uid}-ask`
+  const fromId = `${uid}-from`
+  const dateId = `${uid}-date`
+  const sampleId = `${uid}-sample`
+  const hintId = `${uid}-hint`
+  const describedBy = [
+    request.ask ? askId : null,
+    fromId,
+    dateId,
+    request.sample ? sampleId : null,
+    request.status === "roadmap" ? hintId : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+
   return (
     <button
       type="button"
       onClick={() => onOpen(request.id)}
       aria-label={`Open idea: ${request.title}`}
+      aria-describedby={describedBy}
       className={cn(
         "bg-surface border-surface-border hover:border-foreground/15 hover:bg-surface-hover",
         "focus-visible:ring-ring/50 flex w-full min-w-0 flex-col gap-2 rounded-xl border px-3.5 pt-3.5 pb-3 text-left",
@@ -34,24 +55,29 @@ export function RequestCard({
       </span>
 
       {request.ask && (
-        <span className="text-caption text-muted-foreground leading-[1.45] tracking-tight">
+        <span id={askId} className="text-caption text-muted-foreground leading-[1.45] tracking-tight">
           {request.ask}
         </span>
       )}
 
       <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-        <span className="bg-muted border-surface-border text-micro text-foreground inline-flex h-5 items-center rounded-full border px-2 font-medium whitespace-nowrap">
+        <span
+          id={fromId}
+          className="bg-muted border-surface-border text-micro text-foreground inline-flex h-5 items-center rounded-full border px-2 font-medium whitespace-nowrap"
+        >
           {request.from}
         </span>
         <time
+          id={dateId}
           dateTime={request.createdAt}
           className="text-micro text-muted-foreground font-medium whitespace-nowrap tabular-nums"
         >
           {formatDate(new Date(request.createdAt))}
         </time>
-        {request.sample && <SampleDataTag />}
+        {request.sample && <SampleDataTag id={sampleId} />}
         {request.status === "roadmap" && (
           <span
+            id={hintId}
             title={ROADMAP_HINT_TITLE}
             className="bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap"
           >
