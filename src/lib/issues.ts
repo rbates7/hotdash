@@ -30,9 +30,10 @@ export type Actor = {
   id: string
   name: string
   kind: ActorKind
-  /** Humans render initials; agents render a bot glyph instead. */
+  /** Humans render initials in a round avatar; agents render a square bot glyph. */
   initials: string
-  presence: "idle" | "working"
+  /** Fill for a human's round avatar. Agents ignore it. */
+  tone?: "brand" | "neutral"
 }
 
 export type ActivityEntry = {
@@ -143,6 +144,28 @@ export const PRIORITY_CONFIG: Record<
   none: { label: "No priority", icon: MinusIcon, color: "text-faint-foreground" },
 }
 
+export const PRIORITY_ORDER: IssuePriority[] = [
+  "urgent",
+  "high",
+  "medium",
+  "low",
+  "none",
+]
+
+/**
+ * Projects an issue can belong to. Flat list for the mock; `undefined` on an
+ * issue means "No project".
+ */
+export const PROJECTS = [
+  "Playbook editor",
+  "Sharing",
+  "Billing",
+  "Imports",
+  "Founder dashboard",
+] as const
+
+export type Project = (typeof PROJECTS)[number]
+
 /* ------------------------------------------------------------- board filter */
 
 export type BoardFilter = "all" | "members" | "agents" | "new"
@@ -191,10 +214,16 @@ export function matchesFilter(
     : assignee.kind === "human"
 }
 
+/** Column contents in key order, so a card keeps its place as it is edited. */
 export function issuesByStatus(issues: Issue[], status: IssueStatus) {
   return issues
     .filter((i) => i.status === status)
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .sort((a, b) => keyNumber(a.key) - keyNumber(b.key))
+}
+
+function keyNumber(key: string) {
+  const n = Number(key.split("-")[1])
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER
 }
 
 /** Agents with at least one issue actively running. */
@@ -207,6 +236,24 @@ export function workingAgentIds(issues: Issue[], actors: Actor[]) {
     }
   }
   return [...ids]
+}
+
+export function agents(actors: Actor[]) {
+  return actors.filter((a) => a.kind === "agent")
+}
+
+/**
+ * The issue an agent is running right now, or null when idle. Status is
+ * derived from the board rather than stored on the actor so the roster, the
+ * Working badge and the "agents working" pill can never disagree.
+ */
+export function currentTask(issues: Issue[], agentId: string) {
+  return (
+    issues
+      .filter((i) => i.assigneeId === agentId && i.isAgentWorking)
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ??
+    null
+  )
 }
 
 export function sprintProgress(issues: Issue[]) {
