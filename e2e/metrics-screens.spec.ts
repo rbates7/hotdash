@@ -30,13 +30,17 @@ async function shoot(page: Page, name: string) {
 
 async function setTheme(page: Page, theme: "light" | "dark") {
   // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByText(theme === "dark" ? "Dark" : "Light", { exact: true }).click()
+  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
   )
 }
 
+// Role lookups are scoped by name, directly or through a named ancestor.
+const grid = (page: Page) => page.getByRole("region", { name: "Metric cards" })
 const card = (page: Page, name: string) => page.getByRole("article", { name, exact: true })
+const tab = (page: Page, name: string) =>
+  page.getByRole("tablist", { name: "Metrics views" }).getByRole("tab", { name, exact: true })
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Metrics state (${theme})`, async ({ page }) => {
@@ -45,7 +49,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.reload()
     await setTheme(page, theme)
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
-    await expect(card(page, "MRR").locator("svg.recharts-surface")).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img", { name: "MRR, six-month bar chart" })).toBeVisible()
 
     // Overview with data.
     await shoot(page, `metrics-overview-${theme}`)
@@ -58,12 +62,12 @@ for (const theme of ["light", "dark"] as const) {
     }
 
     // Add-metric picker open.
-    await page.getByRole("button", { name: "Add metric" }).click()
+    await page.getByRole("button", { name: "Add metric", exact: true }).click()
     await expect(page.getByRole("dialog", { name: "Add a metric" })).toBeVisible()
     await shoot(page, `metrics-overview-add-metric-${theme}`)
 
     // Editing: an extra added, a default removed, a card switched to line.
-    await page.getByRole("button", { name: /^Valuation/ }).click()
+    await page.getByRole("dialog", { name: "Add a metric" }).getByRole("button", { name: /^Valuation/ }).click()
     await card(page, "ARR").getByRole("button", { name: "Remove ARR" }).click()
     await card(page, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
     await expect(card(page, "Valuation")).toBeVisible()
@@ -78,42 +82,42 @@ for (const theme of ["light", "dark"] as const) {
     for (const name of ["MRR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses", "Valuation"]) {
       await card(page, name).getByRole("button", { name: `Remove ${name}` }).click()
     }
-    await expect(page.getByRole("status")).toBeVisible()
+    await expect(page.getByRole("status", { name: "Empty board" })).toBeVisible()
     await shoot(page, `metrics-overview-empty-${theme}`)
-    await page.getByRole("button", { name: "Reset" }).click()
-    await expect(page.getByRole("article")).toHaveCount(8)
+    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await expect(grid(page).getByRole("article")).toHaveCount(8)
 
     // Tables.
-    await page.getByRole("tab", { name: "New Subscribers" }).click()
+    await tab(page, "New Subscribers").click()
     await expect(page.getByRole("table", { name: "New subscribers" })).toBeVisible()
     await shoot(page, `metrics-new-subscribers-${theme}`)
 
-    await page.getByRole("tab", { name: "Churned Subscribers" }).click()
+    await tab(page, "Churned Subscribers").click()
     await expect(page.getByRole("table", { name: "Churned subscribers" })).toBeVisible()
     await shoot(page, `metrics-churned-subscribers-${theme}`)
 
-    await page.getByRole("tab", { name: "Expenses" }).click()
+    await tab(page, "Expenses").click()
     await expect(page.getByRole("table", { name: "Expenses" })).toBeVisible()
-    await expect(card(page, "Expenses").locator("svg.recharts-surface")).toBeVisible()
+    await expect(card(page, "Expenses").getByRole("img", { name: "Expenses, six-month bar chart" })).toBeVisible()
     await shoot(page, `metrics-expenses-${theme}`)
 
     // Add-expense dialog, filled in.
-    await page.getByRole("button", { name: "Add expense" }).click()
+    await page.getByRole("button", { name: "Add expense", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
     await dialog.getByRole("switch", { name: "Recurring" }).click()
     await shoot(page, `metrics-expenses-add-${theme}`)
-    await dialog.getByRole("button", { name: "Add expense" }).click()
+    await dialog.getByRole("button", { name: "Add expense", exact: true }).click()
     await expect(dialog).toBeHidden()
 
     await page.reload()
-    await expect(page.getByRole("table", { name: "Expenses" }).getByText("Vercel")).toBeVisible()
+    await expect(page.getByRole("table", { name: "Expenses", exact: true }).getByRole("row", { name: /Vercel/ })).toBeVisible()
     await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
     await shoot(page, `metrics-expenses-persisted-after-reload-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset" }).click()
+    await page.getByRole("button", { name: "Reset", exact: true }).click()
     await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
   })
 }
