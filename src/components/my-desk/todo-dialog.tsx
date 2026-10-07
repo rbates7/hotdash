@@ -16,11 +16,11 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useMyDesk } from "@/components/my-desk/my-desk-store"
 
-type Draft = { title: string; note: string }
+type Draft = { title: string; note: string; done: boolean }
 
 function draftFrom(todo: Todo | null): Draft {
-  if (!todo) return { title: "", note: "" }
-  return { title: todo.title, note: todo.note }
+  if (!todo) return { title: "", note: "", done: false }
+  return { title: todo.title, note: todo.note, done: todo.done }
 }
 
 /**
@@ -70,7 +70,7 @@ function TodoForm({
     const input = {
       title: draft.title,
       note: draft.note,
-      done: todo?.done ?? false,
+      done: draft.done,
     }
     if (todo) updateTodo(todo.id, input)
     else addTodo(input)
@@ -117,6 +117,18 @@ function TodoForm({
             className="min-h-9"
           />
         </div>
+        {editing ? (
+          <label htmlFor={id("done")} className="text-caption flex items-center gap-2 font-medium">
+            <input
+              id={id("done")}
+              type="checkbox"
+              checked={draft.done}
+              onChange={(e) => setDraft((d) => ({ ...d, done: e.target.checked }))}
+              className="size-4 accent-foreground"
+            />
+            Done
+          </label>
+        ) : null}
       </div>
 
       <DialogFooter>

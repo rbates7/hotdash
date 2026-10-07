@@ -2,17 +2,24 @@ import * as React from "react"
 import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { now, todayIn } from "@/lib/clock"
 import { DESK_MOCK_DAY, SEED_SCRATCH, seedTodos, type TodoInput } from "@/lib/my-desk"
 import { initialShell, type LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
   MyDeskProvider,
+  LEGACY_KEY,
   STORAGE_KEY,
+  clearState,
   deskStorage,
   initialState,
   isState,
+  legacyDesk,
+  loadDesk,
   loadState,
+  migrateV1,
   parseState,
+  parseV1,
   reducer,
   saveState,
   shellReducer,
@@ -20,6 +27,7 @@ import {
   stripState,
   useMyDesk,
   type State,
+  type V1State,
 } from "@/components/my-desk/my-desk-store"
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
@@ -32,6 +40,9 @@ const WALK: TodoInput = {
   note: "  after clinic  ",
   done: false,
 }
+
+const addWalk = (state: State, today = TODAY) =>
+  reducer(state, { type: "add", input: WALK, today })
 
 /** Noon Central on `day`, as an instant. */
 const noonMs = (day: string) => Date.parse(`${day}T17:00:00.000Z`)
@@ -54,46 +65,97 @@ describe("reducer", () => {
   })
 
   it("adds a normalised to-do with the next id and bumps the counter", () => {
-    const s = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const s = addWalk(initialState(NOW_MS))
     expect(s.todos).toHaveLength(8)
     expect(s.todos.at(-1)).toEqual({
       id: "todo-8",
       title: "Walk the dog",
       note: "after clinic",
       done: false,
+      createdOn: TODAY,
+      doneOn: null,
     })
     expect(s.nextId).toBe(9)
   })
 
   it("refuses to add a blank title", () => {
     const start = initialState(NOW_MS)
-    expect(reducer(start, { type: "add", input: { title: "   ", note: "", done: false } })).toBe(start)
+    expect(reducer(start, { type: "add", input: { title: "   ", note: "", done: false }, today: TODAY })).toBe(start)
   })
 
   it("updates a to-do in place and is a no-op when nothing changed", () => {
-    const start = reducer(initialState(NOW_MS), { type: "add", input: WALK })
-    const same = reducer(start, { type: "update", id: "todo-8", input: WALK })
+    const start = addWalk(initialState(NOW_MS))
+    const same = reducer(start, { type: "update", id: "todo-8", input: WALK, today: TODAY })
     expect(same).toBe(start)
     const changed = reducer(start, {
       type: "update",
       id: "todo-8",
       input: { ...WALK, note: "before dinner", done: true },
+      today: TODAY,
     })
     expect(changed).not.toBe(start)
-    expect(changed.todos.at(-1)).toMatchObject({ note: "before dinner", done: true, id: "todo-8" })
-    expect(reducer(start, { type: "update", id: "todo-404", input: WALK })).toBe(start)
+    expect(changed.todos.at(-1)).toMatchObject({
+      note: "before dinner",
+      done: true,
+      id: "todo-8",
+      createdOn: TODAY,
+      doneOn: TODAY,
+    })
+    expect(reducer(start, { type: "update", id: "todo-404", input: WALK, today: TODAY })).toBe(start)
+  })
+
+  it("editing a carried row keeps createdOn; ticking it done stamps doneOn with today", () => {
+    const yesterday = "2026-08-25"
+    const carried: State = {
+      ...initialState(NOW_MS),
+      todos: [
+        {
+          id: "todo-20",
+          title: "Finish the packet",
+          note: "Aledo",
+          done: false,
+          createdOn: yesterday,
+          doneOn: null,
+        },
+      ],
+      nextId: 21,
+    }
+    const renamed = reducer(carried, {
+      type: "update",
+      id: "todo-20",
+      input: { title: "Finish the Aledo packet", note: "Aledo", done: false },
+      today: TODAY,
+    })
+    expect(renamed.todos[0]).toMatchObject({
+      title: "Finish the Aledo packet",
+      createdOn: yesterday,
+      doneOn: null,
+    })
+    const ticked = reducer(renamed, {
+      type: "update",
+      id: "todo-20",
+      input: { title: "Finish the Aledo packet", note: "Aledo", done: true },
+      today: TODAY,
+    })
+    expect(ticked.todos[0]).toMatchObject({
+      createdOn: yesterday,
+      done: true,
+      doneOn: TODAY,
+    })
   })
 
   it("toggles done and is a no-op for an unknown id", () => {
     const start = initialState(NOW_MS)
-    const s = reducer(start, { type: "toggle", id: "todo-1" })
+    const s = reducer(start, { type: "toggle", id: "todo-1", today: TODAY })
     expect(s.todos[0].done).toBe(true)
-    expect(reducer(s, { type: "toggle", id: "todo-1" }).todos[0].done).toBe(false)
-    expect(reducer(start, { type: "toggle", id: "nope" })).toBe(start)
+    expect(s.todos[0].doneOn).toBe(TODAY)
+    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].done).toBe(false)
+    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].doneOn).toBeNull()
+    expect(reducer(start, { type: "toggle", id: "nope", today: TODAY })).toBe(start)
   })
 
   it("removes by id and is a no-op for an unknown id; the counter never goes back", () => {
-    const start = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const start = addWalk(initialState(NOW_MS))
     const s = reducer(start, { type: "remove", id: "todo-8" })
     expect(s.todos).toHaveLength(7)
     expect(s.nextId).toBe(9)
@@ -139,12 +201,12 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
     expect(shellToday({ nowMs: LATE_EVENING_CT_MS })).toBe("2026-10-07")
     expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
     const s = shellReducer(fresh, hydrate(null, LATE_EVENING_CT_MS))
-    expect(s.data.todos).toEqual(seedTodos())
+    expect(s.data.todos).toEqual(seedTodos("2026-10-07"))
     expect(shellToday(s)).toBe("2026-10-07")
   })
 
   it("a hydrate never moves the edit counter; a local unsaved edit wins over an incoming copy", () => {
-    const edited = shellReducer(fresh, { type: "add", input: WALK })
+    const edited = shellReducer(fresh, { type: "add", input: WALK, today: TODAY })
     const racing = shellReducer(edited, hydrate(initialState(NOW_MS)))
     expect(racing.edits).toBe(1)
     expect(racing.data).toBe(edited.data)
@@ -156,7 +218,7 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
   })
 
   it("reset regenerates the seed around the given instant and returns to the never-edited state", () => {
-    const s = shellReducer(shellReducer(fresh, { type: "add", input: WALK }), {
+    const s = shellReducer(shellReducer(fresh, { type: "add", input: WALK, today: TODAY }), {
       type: "reset",
       nowMs: noonMs("2026-10-07"),
     })
@@ -190,6 +252,8 @@ describe("isState rejects a bad saved copy", () => {
     ["todos not an array", { ...good, todos: {} }],
     ["a malformed row", { ...good, todos: [{ ...good.todos[0], done: "yes" }] }],
     ["a row with a blank title", { ...good, todos: [{ ...good.todos[0], title: "" }] }],
+    ["a row missing createdOn", { ...good, todos: [{ ...good.todos[0], createdOn: undefined }] }],
+    ["a done row with no doneOn", { ...good, todos: [{ ...good.todos[0], done: true, doneOn: null }] }],
     ["duplicate ids", { ...good, todos: [good.todos[0], good.todos[0]] }],
     ["nextId not above the highest id", { ...good, nextId: 7 }],
     ["nextId fractional", { ...good, nextId: 8.5 }],
@@ -204,7 +268,7 @@ describe("isState rejects a bad saved copy", () => {
 
   it("accepts the seed, an edited copy and an empty list", () => {
     expect(isState(good)).toBe(true)
-    expect(isState(reducer(good, { type: "add", input: WALK }))).toBe(true)
+    expect(isState(addWalk(good))).toBe(true)
     expect(
       isState({
         todos: [],
@@ -243,20 +307,20 @@ describe("isState rejects a bad saved copy", () => {
 })
 
 describe("localStorage", () => {
-  it("uses the v1 key", () => {
-    expect(STORAGE_KEY).toBe("hotdash.my-desk.v1")
+  it("uses the v2 key", () => {
+    expect(STORAGE_KEY).toBe("hotdash.my-desk.v2")
   })
 
   it("loadState returns null when nothing is saved and the stripped copy when there is", () => {
     expect(loadState(window.localStorage)).toBeNull()
-    const edited = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const edited = addWalk(initialState(NOW_MS))
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...edited, extra: 1 }))
     expect(loadState(window.localStorage)).toEqual(edited)
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    const s = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const s = addWalk(initialState(NOW_MS))
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
     const other = reducer(s, { type: "remove", id: "todo-1" })
@@ -300,7 +364,10 @@ function Probe({ label = "" }: { label?: string }) {
       <span data-testid="today">{today}</span>
       <span data-testid="count">{todos.length}</span>
       <span data-testid="next">{nextId}</span>
+      <span data-testid="ids">{todos.map((t) => t.id).join("|")}</span>
       <span data-testid="titles">{todos.map((t) => t.title).join("|")}</span>
+      <span data-testid="created">{todos.map((t) => t.createdOn).join("|")}</span>
+      <span data-testid="done-on">{todos.map((t) => t.doneOn ?? "-").join("|")}</span>
       <span data-testid="done">{todos.map((t) => String(t.done)).join(",")}</span>
       <span data-testid="scratch">{scratch}</span>
       <span data-testid="scratch-sample">{String(scratchSample)}</span>
@@ -530,5 +597,195 @@ describe("MyDeskProvider", () => {
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
       writes.restore()
     })
+  })
+})
+
+const V1: V1State = {
+  todos: [
+    { id: "todo-1", title: "Call Aledo", note: "HC", done: false },
+    { id: "todo-2", title: "Filed it", note: "", done: true },
+  ],
+  nextId: 9,
+  scratch: "Keep this personal.",
+  scratchUpdatedAt: "2026-08-26T17:00:00.000Z",
+}
+
+function writeV1(state: V1State | string = V1) {
+  window.localStorage.setItem(LEGACY_KEY, typeof state === "string" ? state : JSON.stringify(state))
+}
+
+describe("v1 → v2 migration (loadDesk)", () => {
+  it("parseV1 accepts the old shape and rejects a blank title", () => {
+    expect(parseV1(V1)).toEqual(V1)
+    expect(parseV1({ ...V1, todos: [{ ...V1.todos[0], title: "" }] })).toBeNull()
+    expect(migrateV1(V1, TODAY)?.todos.map((t) => [t.id, t.createdOn, t.doneOn])).toEqual([
+      ["todo-1", TODAY, null],
+      ["todo-2", TODAY, TODAY],
+    ])
+  })
+
+  it("(a) v1 only: the provider shows the v1 rows and scratch, dated today, and writes nothing", () => {
+    writeV1()
+    const writes = countingSetItem()
+    mount()
+    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo|Filed it")
+    expect(screen.getByTestId("ids")).toHaveTextContent("todo-1|todo-2")
+    expect(screen.getByTestId("next")).toHaveTextContent("9")
+    expect(screen.getByTestId("created")).toHaveTextContent(`${TODAY}|${TODAY}`)
+    expect(screen.getByTestId("done-on")).toHaveTextContent(`-|${TODAY}`)
+    expect(screen.getByTestId("scratch")).toHaveTextContent("Keep this personal.")
+    expect(screen.getByTestId("titles")).not.toHaveTextContent("Clinic follow-up")
+    expect(writes.calls).toEqual([])
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(LEGACY_KEY)).not.toBeNull()
+    writes.restore()
+  })
+
+  it("(b) the first edit writes v2 with the migrated rows and only then removes v1", () => {
+    writeV1()
+    mount()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    const saved = loadState(window.localStorage)
+    expect(saved?.todos.map((t) => t.id)).toEqual(["todo-1", "todo-2"])
+    expect(saved?.todos[0]).toMatchObject({ createdOn: TODAY, done: true, doneOn: TODAY })
+    expect(saved?.scratch).toBe("Keep this personal.")
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+  })
+
+  it("(c) v1 and v2 both present: v2 wins, and v1 is removed on the next save", () => {
+    writeV1()
+    const v2 = reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" })
+    saveState(window.localStorage, v2)
+    writeV1()
+    expect(loadDesk(window.localStorage, NOW_MS).state?.todos.map((t) => t.title)[0]).toBe(
+      "Clinic follow-up"
+    )
+    mount()
+    expect(screen.getByTestId("titles")).toHaveTextContent("Clinic follow-up")
+    expect(screen.getByTestId("titles")).not.toHaveTextContent("Call Aledo")
+    expect(window.localStorage.getItem(LEGACY_KEY)).not.toBeNull()
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+  })
+
+  it("(d) corrupt v1 shows the seed; the first save parks the raw copy under v1.rejected", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    writeV1("{not a desk")
+    const writes = countingSetItem()
+    mount()
+    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo")
+    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(writes.calls).toEqual([])
+    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    expect(legacyDesk.rejected(window.localStorage)[0]?.raw).toBe("{not a desk")
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+    expect(window.localStorage.getItem(`${LEGACY_KEY}.rejected`)).toContain("{not a desk")
+    writes.restore()
+  })
+
+  it("(f) Reset and clearState remove v1; a reload after Reset shows the seed", () => {
+    writeV1()
+    const first = mount()
+    expect(screen.getByTestId("count")).toHaveTextContent("2")
+    act(() => screen.getByRole("button", { name: "reset" }).click())
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo|Clinic follow-up")
+    first.unmount()
+    mount()
+    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("titles")).toHaveTextContent("Clinic follow-up")
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+    writeV1()
+    clearState(window.localStorage)
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+  })
+
+  it("(g) a save that fails on quota leaves v1 in place", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    writeV1()
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    })
+    mount()
+    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    expect(screen.getByTestId("status")).toHaveTextContent("failed=true")
+    spy.mockRestore()
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBe(JSON.stringify(V1))
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe("today advances past Central midnight in an open tab", () => {
+  const wed = "2026-10-07"
+  const thu = "2026-10-08"
+  const at2359 = new Date("2026-10-08T04:59:00.000Z")
+  const afterMidnight = new Date("2026-10-08T05:00:30.000Z")
+
+  const overnight: State = {
+    todos: [
+      {
+        id: "todo-1",
+        title: "Finish the packet",
+        note: "",
+        done: false,
+        createdOn: wed,
+        doneOn: null,
+      },
+      {
+        id: "todo-11",
+        title: "Ticked Wed",
+        note: "",
+        done: true,
+        createdOn: wed,
+        doneOn: wed,
+      },
+    ],
+    nextId: 12,
+    scratch: "",
+    scratchUpdatedAt: "2026-10-07T17:00:00.000Z",
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("23:59 CT Wed keeps a row ticked Wed; the timer at 00:00 CT Thu hides it and stamps new edits Thu", () => {
+    expect(todayIn(at2359)).toBe(wed)
+    expect(at2359.getUTCDate()).toBe(8)
+    saveState(window.localStorage, overnight)
+    vi.useFakeTimers({ now: at2359, toFake: ["Date", "setTimeout", "clearTimeout"] })
+    mount(at2359.getTime())
+    expect(screen.getByTestId("today")).toHaveTextContent(wed)
+    expect(screen.getByTestId("titles")).toHaveTextContent("Finish the packet|Ticked Wed")
+
+    act(() => {
+      vi.advanceTimersByTime(90_000)
+    })
+    expect(todayIn(now())).toBe(thu)
+    expect(screen.getByTestId("today")).toHaveTextContent(thu)
+
+    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
+    expect(screen.getByTestId("done-on").textContent?.split("|")[0]).toBe(thu)
+    expect(screen.getByTestId("created").textContent?.split("|").at(-1)).toBe(thu)
+  })
+
+  it("visibilitychange to visible after midnight moves today without a reload", () => {
+    saveState(window.localStorage, overnight)
+    vi.useFakeTimers({ now: at2359, toFake: ["Date", "setTimeout", "clearTimeout"] })
+    mount(at2359.getTime())
+    expect(screen.getByTestId("today")).toHaveTextContent(wed)
+    vi.setSystemTime(afterMidnight)
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(screen.getByTestId("today")).toHaveTextContent(thu)
+    act(() => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(screen.getByTestId("today")).toHaveTextContent(thu)
   })
 })

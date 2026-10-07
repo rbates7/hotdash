@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import MyDeskError from "@/app/my-desk/error"
 import {
+  LEGACY_KEY,
   STORAGE_KEY,
   initialState,
   loadState,
@@ -38,6 +39,26 @@ describe("My Desk error boundary", () => {
     await user.click(screen.getByRole("button", { name: "Reset and clear saved copy" }))
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(loadState(window.localStorage)).toBeNull()
+    expect(reset).toHaveBeenCalledTimes(1)
+  })
+
+  it("Reset and clear saved copy also removes a leftover v1 copy", async () => {
+    const user = userEvent.setup()
+    const reset = vi.fn()
+    window.localStorage.setItem(
+      LEGACY_KEY,
+      JSON.stringify({
+        todos: [{ id: "todo-1", title: "Old row", note: "", done: false }],
+        nextId: 2,
+        scratch: "v1 note",
+        scratchUpdatedAt: "2026-08-26T17:00:00.000Z",
+      })
+    )
+    render(<MyDeskError error={boom} reset={reset} />)
+
+    await user.click(screen.getByRole("button", { name: "Reset and clear saved copy" }))
+    expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(reset).toHaveBeenCalledTimes(1)
   })
 })
