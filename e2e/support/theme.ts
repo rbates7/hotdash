@@ -24,21 +24,24 @@ export async function setTheme(page: Page, theme: "light" | "dark") {
     return
   }
 
-  const group = themeToggle(page)
-  if (await group.isVisible()) {
-    await group.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  const segmented = themeToggle(page).getByRole("button", {
+    name: theme === "dark" ? "Dark" : "Light",
+    exact: true,
+  })
+  const headerIcon = page
+    .getByRole("region", { name: APP_HEADER_NAME })
+    .getByRole("button", { name: `Switch to ${theme} theme` })
+  const railIcon = page
+    .getByRole("region", { name: "Appearance" })
+    .getByRole("button", { name: `Switch to ${theme} theme` })
+
+  await expect(segmented.or(headerIcon).or(railIcon).first()).toBeVisible()
+  if (await segmented.isVisible()) {
+    await segmented.click()
+  } else if (await headerIcon.isVisible()) {
+    await headerIcon.click()
   } else {
-    const headerIcon = page
-      .getByRole("region", { name: APP_HEADER_NAME })
-      .getByRole("button", { name: `Switch to ${theme} theme` })
-    const railIcon = page
-      .getByRole("region", { name: "Appearance" })
-      .getByRole("button", { name: `Switch to ${theme} theme` })
-    if (await headerIcon.isVisible()) {
-      await headerIcon.click()
-    } else {
-      await railIcon.click()
-    }
+    await railIcon.click()
   }
   await expect(html).toHaveClass(expected)
 }
