@@ -10,6 +10,7 @@ import {
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
   HOME_KPI_HEAD,
+  HOME_NEED_ROW,
   HOME_NOTE,
   HOME_RESET,
   HOME_TOUCH,
@@ -23,6 +24,7 @@ describe("Home responsive layout", () => {
     expect(HOME_HEADER).toContain("xl:justify-between")
     expect(HOME_HEADER_META).toContain("flex-wrap")
     expect(HOME_HEADER_META).toContain("w-full")
+    expect(HOME_HEADER_META).toContain("xl:w-auto")
     expect(HOME_DUMMY).toContain("shrink-0")
     expect(HOME_DUMMY).toContain("whitespace-nowrap")
     expect(HOME_DUMMY).not.toContain("truncate")
@@ -51,5 +53,6 @@ describe("Home responsive layout", () => {
   it("lets the truth-strip label wrap and grows compact tap targets", () => {
     expect(HOME_KPI_HEAD).toContain("flex-wrap")
     expect(HOME_TOUCH).toContain("max-xl:h-11!")
+    expect(HOME_NEED_ROW).toBe("min-h-11")
   })
 })

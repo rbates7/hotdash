@@ -6,7 +6,7 @@ import type { NeedsYou } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
-import { HOME_TOUCH } from "@/components/home/responsive"
+import { HOME_NEED_ROW } from "@/components/home/responsive"
 
 const INBOX_HREF = "/agent-workplace?tab=inbox"
 
@@ -70,7 +70,7 @@ export function NeedsYouDoor({
                   href={inboxIssueHref(item.issueKey)}
                   className={cn(
                     "hover:bg-surface-selected focus-visible:ring-ring/50 flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors focus-visible:ring-[3px] focus-visible:outline-none",
-                    HOME_TOUCH
+                    HOME_NEED_ROW
                   )}
                 >
                   <span
@@ -86,9 +86,13 @@ export function NeedsYouDoor({
                     <span className="text-label block truncate leading-[1.35] font-semibold tracking-tight">
                       {item.title}
                     </span>
-                    <span className="text-caption text-muted-foreground mt-px block truncate leading-[1.4]">
+                    <span className="text-caption text-muted-foreground mt-px hidden truncate leading-[1.4] md:block">
                       {item.snippet}
                       {item.issueKey && ` · ${item.issueKey}`}
+                    </span>
+                    <span className="text-caption text-muted-foreground mt-px block leading-[1.4] md:hidden">
+                      <span className="line-clamp-2">{item.snippet}</span>
+                      {item.issueKey ? <span className="block">{item.issueKey}</span> : null}
                     </span>
                   </span>
                   <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">

@@ -11,7 +11,7 @@ export const HOME_HEADER =
   "flex flex-col items-stretch gap-3 max-md:w-full xl:flex-row xl:items-start xl:justify-between xl:gap-4"
 
 /**
- * Persistence + dummy chip sit under the title below `md` (768). They wrap
+ * Persistence + dummy chip sit under the title below `xl` (1280). They wrap
  * as whole chips (`shrink-0`) so the stamp never ellipsizes to
  * “DUMMY / DESIGN MO…”.
  */
@@ -50,3 +50,6 @@ export const HOME_KPI_HEAD =
 
 /** 44px tap target on phone + tablet; desktop chrome stays as-is. */
 export const HOME_TOUCH = "max-xl:h-11!"
+
+/** Needs-you rows grow to 44px without forcing a fixed height. */
+export const HOME_NEED_ROW = "min-h-11"
