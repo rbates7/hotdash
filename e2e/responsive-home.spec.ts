@@ -155,7 +155,11 @@ const READABLE_VIEWPORTS = [
 ] as const
 
 async function forceTheme(page: Page, theme: "light" | "dark") {
-  await page.addInitScript((t) => localStorage.setItem("theme", t), theme)
+  await page.evaluate((t) => localStorage.setItem("theme", t), theme)
+  await page.reload()
+  await expect(page.locator("html")).toHaveClass(
+    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
+  )
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -164,11 +168,8 @@ for (const theme of ["light", "dark"] as const) {
       test.use({ viewport: { width: vp.width, height: vp.height } })
 
       test(`B2: text clears 4.5:1 in ${theme}`, async ({ page }) => {
-        await forceTheme(page, theme)
         await page.goto("/home")
-        await expect(page.locator("html")).toHaveClass(
-          theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-        )
+        await forceTheme(page, theme)
         const label = `${theme}/${vp.name}`
         await expectReadable(page.getByRole("heading", { level: 1, name: "Home" }), `${label}/title`, expect)
         await expectReadable(page.getByTestId("persistence-note"), `${label}/note`, expect)
@@ -179,7 +180,7 @@ for (const theme of ["light", "dark"] as const) {
         )
         await expectReadable(page.getByRole("article", { name: "Subscribers" }), `${label}/subscribers`, expect)
         await expectReadable(
-          page.getByRole("region", { name: "Agent Workplace" }).getByRole("heading", { name: "Agent Workplace" }),
+          page.getByRole("region", { name: "Agent Workplace" }),
           `${label}/workplace door`,
           expect
         )
