@@ -71,6 +71,12 @@ test.describe("Home", () => {
     await expect(inbox.getByText("Nothing needs you")).toBeVisible()
     await expect(inbox.getByText(/waiting/)).toHaveCount(0)
 
+    // The Workplace Inbox agrees: only the dismissed digest is left.
+    await page.goto("/agent-workplace?tab=inbox")
+    const panel = page.getByRole("tabpanel")
+    await expect(panel.getByRole("listitem")).toHaveCount(1)
+    await expect(panel.getByText("Daily standup summary")).toBeVisible()
+
     // Reset the browser copy so other tests see the seed.
     await page.goto("/agent-workplace")
     await page.getByRole("button", { name: "Reset" }).click()

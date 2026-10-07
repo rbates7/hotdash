@@ -1,20 +1,32 @@
 "use client"
 
+import { openInboxItems } from "@/lib/inbox"
 import { inbox } from "@/lib/workplace-fixture"
 import { cn } from "@/lib/utils"
+import { useIssues } from "@/components/agent-workplace/issues-store"
 
 export function InboxPanel({
   onOpenIssue,
 }: {
   onOpenIssue: (key: string) => void
 }) {
+  const { issues } = useIssues()
+  // Same selector Home's "Needs you" uses, so a ticket closed on the board
+  // leaves both at once.
+  const rows = openInboxItems(inbox, issues)
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-caption text-muted-foreground -mt-1 tracking-tight">
         Absorbs Home &ldquo;Needs you.&rdquo; Founder-only.
       </p>
+      {rows.length === 0 ? (
+        <p className="bg-surface border-surface-border text-label text-muted-foreground max-w-[1100px] rounded-xl border px-[18px] py-6 text-center">
+          Nothing in the Inbox.
+        </p>
+      ) : (
       <ul className="bg-surface border-surface-border max-w-[1100px] overflow-hidden rounded-xl border">
-        {inbox.map((item) => {
+        {rows.map((item) => {
           const Row = item.issueKey ? "button" : "div"
           return (
             <li
@@ -63,6 +75,7 @@ export function InboxPanel({
           )
         })}
       </ul>
+      )}
     </div>
   )
 }

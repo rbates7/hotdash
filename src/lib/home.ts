@@ -9,6 +9,7 @@ import {
   sprintProgress,
   workingAgentIds,
 } from "@/lib/issues"
+import { pendingInboxItems } from "@/lib/inbox"
 import type { InboxItem } from "@/lib/workplace-fixture"
 
 /* ------------------------------------------------------------------ types */
@@ -82,22 +83,16 @@ export function pulseLabel(date: Date, timeZone = "America/Chicago") {
 export const NEEDS_YOU_CAP = 5
 
 /**
- * The Inbox rows that still need the founder. Dismissed rows drop out, and
- * so does anything whose ticket has since been closed on the board — Home
- * should never nag about finished work. Capped so the strip stays a glance;
- * the Inbox tab keeps the full list.
+ * The Inbox rows that still need the founder: the shared pending selector
+ * (open ticket, not dismissed), capped so the strip stays a glance. The
+ * Inbox tab keeps the full list through the same selector.
  */
 export function needsYou(
   inbox: InboxItem[],
   issues: Issue[],
   cap = NEEDS_YOU_CAP
 ): NeedsYou {
-  const open = inbox.filter((item) => {
-    if (item.dismissed) return false
-    if (!item.issueKey) return true
-    const issue = issues.find((i) => i.key === item.issueKey)
-    return issue !== undefined && issue.status !== "done"
-  })
+  const open = pendingInboxItems(inbox, issues)
   return {
     items: open.slice(0, cap),
     waiting: open.filter((i) => i.unread).length,
