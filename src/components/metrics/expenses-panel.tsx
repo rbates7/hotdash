@@ -39,7 +39,7 @@ import {
   Pill,
   SortableHead,
   TableCard,
-} from "@/components/metrics/table-bits"
+} from "@/components/table-bits"
 
 function AddExpenseDialog() {
   // Default to the page's "today" (read once per request), not the machine's.

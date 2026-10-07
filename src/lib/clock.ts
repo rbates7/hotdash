@@ -135,29 +135,36 @@ export function formatPeriod({ start, end }: Period) {
   return `${startText} – ${formatDate(end)}`
 }
 
-export type MonthLabel = { label: string; year: number }
-
-/** The `count` calendar months ending in `today`'s month, oldest first. */
-export function monthsEnding(today: IsoDay | Date, count: number): MonthLabel[] {
-  const p = parts(toDay(today))
-  if (!p) return []
-  const [y, m] = p
-  const out: MonthLabel[] = []
+/**
+ * `count` back-to-back windows of `days` days, oldest first, the last one
+ * ending `today`. The sparklines are six of these — 28-day windows, not
+ * calendar months — so they are labelled by the day each window ends.
+ */
+export function windowsEnding(today: IsoDay | Date, count: number, days = PERIOD_DAYS): Period[] {
+  const end = toDay(today)
+  const out: Period[] = []
   for (let i = count - 1; i >= 0; i--) {
-    // Zero-based month arithmetic; negative values wrap to the prior year.
-    const idx = m - 1 - i
-    const year = y + Math.floor(idx / 12)
-    const month = ((idx % 12) + 12) % 12
-    out.push({ label: MONTHS[month], year })
+    const windowEnd = addDays(end, -i * days)
+    out.push({ start: addDays(windowEnd, -(days - 1)), end: windowEnd })
   }
   return out
 }
 
-/** "Mar – Aug 2026" or "Nov 2025 – Apr 2026", for a chart's accessible name. */
-export function formatMonthSpan(months: MonthLabel[]) {
-  if (months.length === 0) return ""
-  const first = months[0]
-  const last = months[months.length - 1]
-  if (first.year === last.year) return `${first.label} – ${last.label} ${last.year}`
-  return `${first.label} ${first.year} – ${last.label} ${last.year}`
+/** "15 May – 7 Oct 2026": the first window's start to the last one's end. */
+export function formatWindowSpan(windows: readonly Period[]) {
+  if (windows.length === 0) return ""
+  return formatPeriod({ start: windows[0].start, end: windows[windows.length - 1].end })
+}
+
+/** "7 Oct" — a window's end, without the year, for a point label. */
+export function formatDayShort(day: IsoDay | Date) {
+  const p = parts(toDay(day))
+  if (!p) return toDay(day)
+  return `${p[2]} ${MONTHS[p[1] - 1]}`
+}
+
+/** The `count` calendar days ending `today`, oldest first. */
+export function daysEnding(today: IsoDay | Date, count: number): IsoDay[] {
+  const end = toDay(today)
+  return Array.from({ length: count }, (_, i) => addDays(end, -(count - 1 - i)))
 }

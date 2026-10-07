@@ -10,8 +10,14 @@ import {
 } from "@/lib/clock"
 import {
   MOCK_DAY,
+  VS_PREVIOUS_WEEK,
+  VS_PREVIOUS_WINDOW,
+  cashIn,
+  churnRate,
+  dailyRevenue,
   growthStrip,
   mrrTrend,
+  netSubscribers,
   priorExpensesTotal,
   seedChurnedSubscribers,
   seedEventDates,
@@ -19,6 +25,7 @@ import {
   seedNewSubscribers,
   snapshotFor,
   truthStrip,
+  weekEnding,
 } from "@/lib/kpis"
 import { expensesTotal, formatMetricValue, trendFor } from "@/lib/metrics"
 
@@ -27,21 +34,43 @@ afterEach(() => vi.useRealTimers())
 const DAYS = [MOCK_DAY, "2026-10-07", "2025-12-31", "2026-03-01"] as const
 
 describe("Home and Metrics read the same numbers", () => {
-  it.each(DAYS)("truth strip = Subscribers card + a week of the Revenue card (%s)", (today) => {
+  it.each(DAYS)("truth strip = Subscribers card + a real trailing-7-day cash figure (%s)", (today) => {
     const [subs, cash] = truthStrip({ today })
     const subsCard = snapshotFor("subscribers", { today })
-    const revenue = snapshotFor("revenue", { today })
 
     expect(subs.label).toBe(subsCard.label)
     expect(subs.label).toBe("Subscribers")
     expect(subs.value).toBe(formatMetricValue(subsCard.value, subsCard.unit))
-    expect(subs.delta).toBe(`${trendFor(subsCard.value, subsCard.previous, "abs").text} vs last month`)
+    expect(subs.delta).toBe(`${trendFor(subsCard.value, subsCard.previous, "abs").text} ${VS_PREVIOUS_WINDOW}`)
+    expect(VS_PREVIOUS_WINDOW).toBe("vs previous 28 days")
 
+    const { thisWeek, lastWeek } = weekEnding(today)
+    const week = cashIn(thisWeek, today)
+    const prior = cashIn(lastWeek, today)
     expect(cash.label).toBe("Cash this week")
-    expect(cash.value).toBe(`$${Math.round(revenue.value / 4).toLocaleString("en-US")}`)
-    const t = trendFor(revenue.value / 4, revenue.previous / 4, "percent")
-    expect(cash.delta).toBe(`${t.text} vs last week`)
+    expect(cash.value).toBe(`$${week.toLocaleString("en-US")}`)
+    expect(cash.delta).toBe(`${trendFor(week, prior, "percent").text} ${VS_PREVIOUS_WEEK}`)
+    expect(VS_PREVIOUS_WEEK).toBe("vs previous 7 days")
     expect(cash.direction).toBe("up")
+  })
+
+  it("cash this week is seven Central days ending today, not a 28-day average", () => {
+    const today = MOCK_DAY
+    const { thisWeek, lastWeek } = weekEnding(today)
+    expect(thisWeek).toEqual({ start: "2026-08-15", end: "2026-08-21" })
+    expect(lastWeek).toEqual({ start: "2026-08-08", end: "2026-08-14" })
+    const days = dailyRevenue(today)
+    expect(days).toHaveLength(56)
+    expect(days.at(-1)!.date).toBe(today)
+    // The daily spread sums exactly to the Revenue card's two windows.
+    const revenue = snapshotFor("revenue", { today })
+    expect(days.slice(28).reduce((a, d) => a + d.amount, 0)).toBe(revenue.value)
+    expect(days.slice(0, 28).reduce((a, d) => a + d.amount, 0)).toBe(revenue.previous)
+    // And the week is a real sum of its seven days — more than the window average.
+    expect(cashIn(thisWeek, today)).toBe(days.slice(-7).reduce((a, d) => a + d.amount, 0))
+    expect(cashIn(thisWeek, today)).toBe(7_848)
+    expect(cashIn(thisWeek, today)).not.toBe(Math.round(revenue.value / 4))
+    expect(cashIn(lastWeek, today)).toBe(7_351)
   })
 
   it("growth strip mirrors the MRR / ARR / Subscribers / Churn cards", () => {
@@ -53,6 +82,7 @@ describe("Home and Metrics read the same numbers", () => {
     }
     expect(strip[3].lowerIsBetter).toBe(true)
     expect(strip[3].direction).toBe("down")
+    for (const kpi of strip) expect(kpi.delta.endsWith(VS_PREVIOUS_WINDOW)).toBe(true)
   })
 
   it("the Metrics door's trend is the MRR card's series", () => {
@@ -73,8 +103,25 @@ describe("the seed reconciles", () => {
     const subs = snapshotFor("subscribers", { today })
     const net = seedNewSubscribers(today).length - seedChurnedSubscribers(today).length
     expect(net).toBe(3)
+    expect(netSubscribers(today)).toBe(net)
     expect(subs.value - subs.previous).toBe(net)
     expect(trendFor(subs.value, subs.previous, "abs").text).toBe("+3")
+  })
+
+  it.each(DAYS)("Churn and Retention follow from the churn table and last window's count (%s)", (today) => {
+    const subs = snapshotFor("subscribers", { today })
+    const churn = snapshotFor("churn", { today })
+    const retention = snapshotFor("retention", { today })
+    const churned = seedChurnedSubscribers(today).length
+    expect(churned).toBe(5)
+    expect(subs.previous).toBe(183)
+    expect(churnRate(today)).toBeCloseTo((5 / 183) * 100, 10)
+    expect(churn.value).toBe(churnRate(today))
+    expect(formatMetricValue(churn.value, "percent")).toBe("2.7%")
+    expect(retention.value).toBeCloseTo(100 - churn.value, 10)
+    expect(formatMetricValue(retention.value, "percent")).toBe("97.3%")
+    expect(trendFor(churn.value, churn.previous, "pts", { lowerIsBetter: true }).text).toBe("−1.5 pts")
+    expect(trendFor(retention.value, retention.previous, "pts").text).toBe("+1.5 pts")
   })
 
   it.each(DAYS)("every seed event sits inside the trailing-28-day period shown in the header (%s)", (today) => {

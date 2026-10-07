@@ -37,7 +37,7 @@ jobs:
       - name: Unit and component tests (TZ=UTC)
         run: pnpm test
 
-      - name: Clock and Metrics tests again under TZ=America/Chicago
+      - name: Unit and component tests again (TZ=America/Chicago)
         run: pnpm test:tz
 
       - run: pnpm build
@@ -45,8 +45,8 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Playwright smoke
-        run: pnpm test:e2e
+      - name: Playwright smoke (a retry may not hide a flake)
+        run: pnpm test:e2e:ci
 
       - name: Upload Playwright report
         if: failure()

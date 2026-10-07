@@ -8,8 +8,8 @@ import {
   periodEnding,
   todayIn,
 } from "../src/lib/clock"
-import { expectReadable } from "./support/contrast"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
+import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.metrics.v2"
 
@@ -20,22 +20,32 @@ const STORAGE_KEY = "hotdash.metrics.v2"
  */
 const today = () => todayIn(now())
 
-// Every role lookup below is scoped by name, directly or through a named
-// ancestor, so a sibling panel mid-transition can never match.
-const grid = (page: Page) => page.getByRole("region", { name: "Metric cards" })
-const card = (page: Page, name: string) =>
-  page.getByRole("article", { name, exact: true })
+// Every role lookup below is anchored to a *named* region or tab panel, so a
+// sibling panel mid-transition (Base UI keeps the outgoing one briefly) can
+// never match. The Expenses card exists on two panels — Overview's grid and
+// the Expenses tab — hence two distinct helpers.
+const panel = (page: Page, name: "Overview" | "New Subscribers" | "Churned Subscribers" | "Expenses") =>
+  page.getByRole("tabpanel", { name, exact: true })
+const grid = (page: Page) => panel(page, "Overview").getByRole("region", { name: "Metric cards" })
+/** A card on the Overview board. */
+const card = (page: Page, name: string) => grid(page).getByRole("article", { name, exact: true })
+/** The Expenses tab's own card. */
+const expensesCard = (page: Page) => panel(page, "Expenses").getByRole("article", { name: "Expenses", exact: true })
 const tab = (page: Page, name: string) =>
   page.getByRole("tablist", { name: "Metrics views" }).getByRole("tab", { name, exact: true })
-const table = (page: Page, name: string) => page.getByRole("table", { name, exact: true })
+const table = (page: Page, name: "New subscribers" | "Churned subscribers" | "Expenses") => {
+  const owner = name === "New subscribers" ? "New Subscribers" : name === "Churned subscribers" ? "Churned Subscribers" : "Expenses"
+  return panel(page, owner).getByRole("table", { name, exact: true })
+}
 const sampleNote = (page: Page) => page.getByRole("note", { name: "Sample data" })
+const headerTag = (page: Page) => page.locator("main header").getByTestId("sample-data-tag")
 
 async function freshMetrics(page: Page, path = "/metrics") {
   await page.goto(path)
   await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
   await page.reload()
   // Nothing edited in this browser yet, so nothing is saved — and it says so.
-  await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
+  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
   await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled()
 }
 
@@ -69,9 +79,10 @@ test.describe("Metrics", () => {
     const mrr = card(page, "MRR")
     await expect(mrr.getByTestId("metric-value")).toHaveText("$26,190")
     await expect(mrr.getByTestId("trend")).toHaveText("+4.2%")
-    await expect(mrr.getByText("compared to last month")).toBeVisible()
-    // Recharts draws once it has measured its box.
-    await expect(mrr.getByRole("img", { name: /^MRR, six-month bar chart, / })).toBeVisible()
+    await expect(mrr.getByText("vs previous 28 days")).toBeVisible()
+    // Recharts draws once it has measured its box; the name says what the
+    // six points really are (28-day windows, not months) and their values.
+    await expect(mrr.getByRole("img", { name: /^MRR, bar chart of six 28-day windows, .*to \d+ \w+ \$26,190$/ })).toBeVisible()
   })
 
   test("labels every hard-coded number as sample data, in both themes, at ≥ 4.5:1 on every text node", async ({ page }) => {
@@ -87,23 +98,38 @@ test.describe("Metrics", () => {
 
       // Overview: header tag + notice + eight card tags + the picker's tag.
       await expectReadable(sampleNote(page), `${theme}/notice`, expect)
-      await expectReadable(page.locator("main header").getByTestId("sample-data-tag"), `${theme}/header badge`, expect)
+      await expectReadable(headerTag(page), `${theme}/header badge`, expect)
       for (const tag of await grid(page).getByTestId("sample-data-tag").all()) {
         await expectReadable(tag, `${theme}/card tag`, expect)
       }
-      await page.getByRole("button", { name: "Add metric", exact: true }).click()
+      // The picker fades in; the probe waits for that to finish before it
+      // measures (it read 1.45:1 mid-animation before the shared fix).
+      await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
       const picker = page.getByRole("dialog", { name: "Add a metric" })
-      await expectReadable(picker.getByTestId("sample-data-tag"), `${theme}/picker tag`, expect)
+      const pickerTag = await expectReadable(picker.getByTestId("sample-data-tag"), `${theme}/picker tag`, expect)
+      expect(pickerTag.every((n) => n.ratio >= 4.5)).toBe(true)
       await page.keyboard.press("Escape")
 
       // Expenses: the card's tag and the table strip (tag + explanatory line).
       await tab(page, "Expenses").click()
-      await expect(page.getByTestId("sample-data-strip")).toBeVisible()
-      const strip = await expectReadable(page.getByTestId("sample-data-strip"), `${theme}/table strip`, expect)
-      expect(strip.some((n) => /illustrative/.test(n.text))).toBe(true)
-      await expectReadable(card(page, "Expenses").getByTestId("sample-data-tag"), `${theme}/expenses card tag`, expect)
+      const strip = panel(page, "Expenses").getByTestId("sample-data-strip")
+      await expect(strip).toBeVisible()
+      const stripNodes = await expectReadable(strip, `${theme}/table strip`, expect)
+      expect(stripNodes.some((n) => /illustrative/.test(n.text))).toBe(true)
+      await expectReadable(expensesCard(page).getByTestId("sample-data-tag"), `${theme}/expenses card tag`, expect)
       await tab(page, "Overview").click()
     }
+    await setTheme(page, "light")
+  })
+
+  test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
+    await freshMetrics(page)
+    // One shared probe for every screen; if it stopped seeing unreadable
+    // text, every contrast assertion above would pass vacuously.
+    await expectProbeCatchesSabotage(sampleNote(page), "notice", expect)
+    await expectProbeCatchesSabotage(card(page, "MRR").getByTestId("sample-data-tag"), "card tag", expect)
+    await setTheme(page, "dark")
+    await expectProbeCatchesSabotage(headerTag(page), "header tag (dark)", expect)
     await setTheme(page, "light")
   })
 
@@ -118,9 +144,10 @@ test.describe("Metrics", () => {
     await expect(grid(page).locator('[role="img"] [tabindex]:not([tabindex="-1"])')).toHaveCount(0)
     await expect(grid(page).locator('[role="img"] svg[tabindex], [role="img"] svg[role]')).toHaveCount(0)
     // Values are in the accessible name, so a screen reader gets the numbers.
-    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month bar chart, .*\$26,190$/ })).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, bar chart of six 28-day windows, .*\$26,190$/ })).toBeVisible()
 
     await page.getByRole("heading", { level: 1, name: "Metrics" }).focus()
+    // Start from the Overview panel's first stop so the walk is deterministic.
     const seen: string[] = []
     for (let i = 0; i < 60; i++) {
       await page.keyboard.press("Tab")
@@ -165,7 +192,7 @@ test.describe("Metrics", () => {
 
     await tab(page, "Expenses").click()
     await expect(page).toHaveURL(/tab=expenses$/)
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,240")
     await expect(table(page, "Expenses").getByRole("row")).toHaveCount(9)
 
     await page.goBack()
@@ -178,7 +205,7 @@ test.describe("Metrics", () => {
     // A visit that changes nothing writes nothing; the seed is never pinned.
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
 
-    await page.getByRole("button", { name: "Add metric", exact: true }).click()
+    await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
     const picker = page.getByRole("dialog", { name: "Add a metric" })
     await expect(picker.getByRole("button")).toHaveText([
       /^CAC/,
@@ -199,22 +226,22 @@ test.describe("Metrics", () => {
 
     await card(page, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
-    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month line chart, / })).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, line chart of six 28-day windows, / })).toBeVisible()
     // Only now, after real edits, is there a save — under the v2 key — and the note says so.
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.saved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     const saved = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
     expect(saved).toContain('"seededAt"')
     expect(await page.evaluate(() => localStorage.getItem("hotdash.metrics.v1"))).toBeNull()
 
     await page.reload()
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.saved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
     await expect(card(page, "CAC")).toBeVisible()
     await expect(card(page, "ARR")).toHaveCount(0)
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
 
     // Removed defaults come back through the picker, after the extras.
-    await page.getByRole("button", { name: "Add metric", exact: true }).click()
+    await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
     await expect(picker.getByRole("button", { name: /^ARR/ })).toBeVisible()
     await expect(picker.getByRole("button").last()).toHaveText(/^ARR/)
     await page.keyboard.press("Escape")
@@ -223,7 +250,7 @@ test.describe("Metrics", () => {
   test("adds an expense, the card follows, and it persists across reload", async ({ page }) => {
     await freshMetrics(page, "/metrics?tab=expenses")
 
-    await page.getByRole("button", { name: "Add expense", exact: true }).click()
+    await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
@@ -241,12 +268,12 @@ test.describe("Metrics", () => {
     await expect(row).toContainText("$160")
     await expect(row).toContainText(formatDate(day))
     await expect(row).toContainText("Yes")
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
 
     await page.reload()
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.saved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(expenses.getByRole("row", { name: /Vercel/ })).toBeVisible()
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
 
     // The Overview card is the same number.
     await tab(page, "Overview").click()
@@ -256,7 +283,47 @@ test.describe("Metrics", () => {
     await resetDemoData(page)
     await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+  })
+
+  test("two tabs: an edit in one reaches the other, a Reset in one re-seeds the other, and the writes settle", async ({ context }) => {
+    // Count real writes to our key from inside each tab, before any page
+    // script runs. Same-origin pages in one context share localStorage and
+    // receive each other's `storage` events, exactly like two browser tabs.
+    await countWrites(context, STORAGE_KEY)
+    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
+
+    const a = await context.newPage()
+    const b = await context.newPage()
+    await freshMetrics(a)
+    await b.goto("/metrics")
+    await expect(persistenceNote(b)).toHaveText(NOTE.unsaved)
+    expect(await writes(a)).toBe(0)
+    expect(await writes(b)).toBe(0)
+
+    // A edits: one write in A; B hears it and takes the copy without writing.
+    await card(a, "ARR").getByRole("button", { name: "Remove ARR" }).click()
+    await expect(card(b, "ARR")).toHaveCount(0)
+    await expect(persistenceNote(b)).toHaveText(NOTE.saved)
+    await a.waitForTimeout(750) // let any echo land — there must be none
+    expect(await writes(a)).toBe(1)
+    expect(await writes(b)).toBe(0)
+
+    // B edits: one write in B; A follows the same way, still at one.
+    await card(b, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
+    await expect(card(a, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
+    await a.waitForTimeout(750)
+    expect(await writes(a)).toBe(1)
+    expect(await writes(b)).toBe(1)
+
+    // A Reset in B clears the key; A goes back to a fresh seed too.
+    await resetDemoData(b)
+    await expect(grid(a).getByRole("article")).toHaveCount(8)
+    await expect(persistenceNote(a)).toHaveText(NOTE.unsaved)
+    await a.waitForTimeout(750)
+    expect(await writes(a)).toBe(1)
+    expect(await writes(b)).toBe(1)
+    expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
   test("the board can be emptied and shows an empty state", async ({ page }) => {

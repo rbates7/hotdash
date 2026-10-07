@@ -47,10 +47,13 @@ export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "sav
  * Pass any store that exposes `PersistenceStore` (Agent Workplace / Home
  * via `useIssues()`, Metrics via `useMetrics()`).
  */
+export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
+
 export function PersistenceNote({ store }: { store: PersistenceStore }) {
   const [confirming, setConfirming] = React.useState(false)
   const copy = persistenceCopy(store)
   const canReset = store.persisted && store.saved
+  const hintId = React.useId()
 
   return (
     <span
@@ -73,6 +76,9 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
       </span>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
+        {/* Disabled Reset stays in the tab order (focusableWhenDisabled) and
+            describes why it is off, so keyboard and screen-reader users get
+            the same hint a pointer user gets from the title. */}
         <DialogTrigger
           render={
             <Button
@@ -80,10 +86,12 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
               size="xs"
               className="text-micro text-muted-foreground h-6 px-1.5"
               disabled={!canReset}
+              focusableWhenDisabled
+              aria-describedby={canReset ? undefined : hintId}
               title={
                 canReset
                   ? "Discard this browser's edits and restore the demo data"
-                  : "Nothing is saved in this browser yet"
+                  : RESET_DISABLED_HINT
               }
             >
               <RotateCcwIcon aria-hidden />
@@ -91,6 +99,11 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
             </Button>
           }
         />
+        {!canReset && (
+          <span id={hintId} className="sr-only">
+            {RESET_DISABLED_HINT}
+          </span>
+        )}
         <DialogContent className="sm:max-w-sm!">
           <DialogHeader>
             <DialogTitle>Reset demo data?</DialogTitle>

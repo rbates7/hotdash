@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test"
 
 export type TextContrast = {
   text: string
+  /** WCAG ratio of the text as painted — colour alpha *and* ancestor opacity folded in. */
   ratio: number
   fg: string
   bg: string
@@ -11,11 +12,15 @@ export type TextContrast = {
   opacity: number
 }
 
+/** WCAG AA for normal text. */
+export const MIN_CONTRAST = 4.5
+
 /**
- * Wait for every *finite* animation and transition on the page to finish
- * (dialogs fade in, popovers slide), so opacity is read at rest rather than
- * mid-transition. Infinite ones — skeleton pulses — are left alone, and a
- * short ceiling keeps a stuck animation from hanging the test.
+ * The one animation-settle helper. Waits for every *finite* animation and
+ * transition on the page to finish (dialogs fade in, popovers slide), so
+ * colour and opacity are read at rest rather than mid-transition. Infinite
+ * ones — skeleton pulses — are left alone, and a short ceiling keeps a stuck
+ * animation from hanging the test.
  */
 export async function settleAnimations(page: Page, ceilingMs = 2_000) {
   await page.evaluate(
@@ -37,11 +42,14 @@ export async function settleAnimations(page: Page, ceilingMs = 2_000) {
  * WCAG contrast of every text node inside an element, each measured with
  * the colour of the element that actually paints it against what is really
  * behind it: the backgrounds up the tree composited onto the nearest opaque
- * ancestor, so translucent chips are measured honestly. Shared by every
- * screen's e2e; Home, Metrics and Product Roadmap call it on their
- * sample-data surfaces. Also reports the raw text alpha and the ancestor
+ * ancestor, so translucent chips are measured honestly. CSS `opacity` fades
+ * the text too but never shows up in `color`, so it is multiplied into the
+ * alpha before compositing. Also reports the raw text alpha and the ancestor
  * opacity chain, so "solid colours, no opacity" can be asserted outright
  * rather than inferred from the ratio.
+ *
+ * Shared by every screen's e2e (Home, Metrics, Feature Request, Product
+ * Roadmap); waits for animations to settle first.
  */
 export async function textNodeContrasts(locator: Locator): Promise<TextContrast[]> {
   await settleAnimations(locator.page())
@@ -101,7 +109,8 @@ export async function textNodeContrasts(locator: Locator): Promise<TextContrast[
       if (!text || !el) continue
       const backdrop = backdropOf(el)
       const colour = parse(getComputedStyle(el).color)
-      const fg = over(colour, backdrop)
+      const opacity = opacityOf(el)
+      const fg = over({ ...colour, a: colour.a * opacity }, backdrop)
       const [l1, l2] = [lum(fg), lum(backdrop)].sort((a, b) => b - a)
       out.push({
         text,
@@ -109,15 +118,12 @@ export async function textNodeContrasts(locator: Locator): Promise<TextContrast[
         fg: rgb(fg),
         bg: rgb(backdrop),
         alpha: Math.round(colour.a * 1000) / 1000,
-        opacity: Math.round(opacityOf(el) * 1000) / 1000,
+        opacity: Math.round(opacity * 1000) / 1000,
       })
     }
     return out
   })
 }
-
-/** WCAG AA for normal text. */
-export const MIN_CONTRAST = 4.5
 
 /**
  * Everything wrong with a set of measured nodes, as human-readable strings:
@@ -138,7 +144,7 @@ export function contrastFailures(nodes: TextContrast[], label: string, minimum =
 
 /**
  * Assert every text node in `locator` clears WCAG AA for normal text, with
- * solid colour and no opacity.
+ * solid colour and no opacity. Returns the measurements.
  */
 export async function expectReadable(
   locator: Locator,
@@ -151,43 +157,47 @@ export async function expectReadable(
   return nodes
 }
 
+const SABOTAGE_ATTR = "data-contrast-sabotage"
+
 /**
- * Negative control for the probe itself: plant three deliberately bad text
- * nodes inside `host` — too little contrast, translucent text, and a
- * half-opacity ancestor — and assert the probe reports exactly those three
- * failures, then remove them and assert the host is clean again. Run it
- * once per screen so a probe that silently passes everything is caught.
+ * The one negative control for the probe. Makes the real text in `locator`
+ * unreadable two different ways — near-transparent colour (sinks into any
+ * backdrop, light or dark) and a faded ancestor — and asserts the probe
+ * reports every node below the bar *and* names the cause (text alpha,
+ * opacity) each time. Then undoes both and asserts the surface reads well
+ * again. Call it once per screen so a probe that silently passes
+ * everything is caught.
  */
-export async function expectProbeCatchesBadText(
-  page: Page,
-  host: Locator,
+export async function expectProbeCatchesSabotage(
+  locator: Locator,
+  label: string,
   expect: typeof import("@playwright/test").expect
 ) {
-  const IDS = ["probe-low-contrast", "probe-alpha-text", "probe-half-opacity"] as const
-  await host.evaluate((root, ids) => {
-    const mk = (id: string, style: string, text: string) => {
-      const el = document.createElement("span")
-      el.id = id
-      el.setAttribute("style", style)
-      el.textContent = text
-      root.append(el)
+  const page = locator.page()
+  const before = await expectReadable(locator, `${label} (before)`, expect)
+  await locator.evaluate((el, attr) => el.setAttribute(attr, ""), SABOTAGE_ATTR)
+  const sabotage = {
+    colour: {
+      css: `[${SABOTAGE_ATTR}], [${SABOTAGE_ATTR}] * { color: rgb(0 0 0 / 0.06) !important; }`,
+      // The canvas quantises alpha to 1/255 steps (0.06 → 0.059).
+      names: (f: string) => /— text alpha 0\.0\d+ /.test(f),
+    },
+    opacity: {
+      css: `[${SABOTAGE_ATTR}] { opacity: 0.15 !important; }`,
+      names: (f: string) => /— opacity 0\.15 /.test(f),
+    },
+  }
+  for (const [kind, { css, names }] of Object.entries(sabotage)) {
+    const style = await page.addStyleTag({ content: css })
+    const nodes = await textNodeContrasts(locator)
+    expect(nodes.length, `${label} (${kind}): text nodes measured`).toBe(before.length)
+    for (const node of nodes) {
+      expect(node.ratio, `${label} (${kind}): probe missed "${node.text}" ${node.fg} on ${node.bg}`).toBeLessThan(MIN_CONTRAST)
     }
-    mk(ids[0], "color:#9a9a9a;background:#ffffff", "Low contrast")
-    mk(ids[1], "color:rgba(0,0,0,0.4);background:#ffffff", "Alpha text")
-    mk(ids[2], "color:#000000;background:#ffffff;opacity:0.5", "Half opacity")
-  }, IDS)
-
-  const planted = page.locator(`#${IDS[0]}, #${IDS[1]}, #${IDS[2]}`)
-  const nodes = (await Promise.all((await planted.all()).map((l) => textNodeContrasts(l)))).flat()
-  const failures = contrastFailures(nodes, "negative control")
-  expect(failures.some((f) => f.includes('"Low contrast"') && / — contrast 2\.\d\d:1 < 4\.5:1$/.test(f)), failures.join("\n")).toBe(true)
-  expect(failures.some((f) => f.includes('"Alpha text"') && f.includes("text alpha 0.4")), failures.join("\n")).toBe(true)
-  expect(failures.some((f) => f.includes('"Half opacity"') && f.includes("opacity 0.5")), failures.join("\n")).toBe(true)
-  // Translucent black over white also fails the ratio, so four in total.
-  expect(failures).toHaveLength(4)
-
-  await page.evaluate((ids) => {
-    for (const id of ids) document.getElementById(id)?.remove()
-  }, IDS)
-  await expect(planted).toHaveCount(0)
+    const failures = contrastFailures(nodes, label)
+    expect(failures.filter(names).length, `${label} (${kind}): cause named\n${failures.join("\n")}`).toBe(before.length)
+    await style.evaluate((el) => (el as HTMLElement).remove())
+  }
+  await locator.evaluate((el, attr) => el.removeAttribute(attr), SABOTAGE_ATTR)
+  await expectReadable(locator, `${label} (after)`, expect)
 }

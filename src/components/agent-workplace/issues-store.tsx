@@ -10,7 +10,22 @@ import {
   buildSprints,
   RASHAD,
 } from "@/lib/issues-fixture"
-import { createStorage, type PersistenceStore } from "@/lib/persistence"
+import {
+  createStorage,
+  isBoolean,
+  isIsoInstant,
+  isOptionalString,
+  isString,
+  isStringOrNull,
+  parseAll,
+  initialShell,
+  persistenceShellReducer,
+  usePersistenceSync,
+  type LoadResult,
+  type PersistenceShell,
+  type PersistenceStore,
+} from "@/lib/persistence"
+import type { ActivityEntry, Comment } from "@/lib/issues"
 
 export type State = {
   issues: Issue[]
@@ -43,16 +58,20 @@ export type Action =
   | { type: "create-sprint"; name: string; startDate: string; endDate: string }
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
-  | { type: "hydrate"; state: State | null }
+  | { type: "hydrate"; state: SavedState | null }
   | { type: "save-result"; ok: boolean }
   /** Regenerates the seed relative to `at`, so its dates are fresh again. */
   | { type: "reset"; at: string }
+
+/** The founder's own edits, as opposed to persistence plumbing. */
+export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
 }
 
-export function reducer(state: State, action: Action): State {
+/** The board's own transitions. Returns its input for a no-op. */
+export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "create-issue": {
       const key = `CHLK-${state.nextKey}`
@@ -165,60 +184,36 @@ export function reducer(state: State, action: Action): State {
         ),
       }
 
-    case "hydrate":
-      // A saved copy brings its board, never its clock: this page's instant
-      // stays so the saved sprint is measured against today.
-      return action.state ? { ...action.state, now: state.now } : state
-
-    case "save-result":
-      return state
-
-    case "reset":
-      return initialState(new Date(action.at))
   }
 }
 
-/** Actions that are the founder's own edits, as opposed to plumbing. */
-const USER_EDITS = new Set<Action["type"]>([
-  "create-issue",
-  "patch-issue",
-  "add-comment",
-  "create-sprint",
-  "start-sprint",
-  "complete-sprint",
-])
-
 /**
- * Reducer state plus persistence bookkeeping (see `PersistenceStatus`):
- * whether localStorage has been consulted, whether this browser holds
- * edits worth saving, whether the key holds a copy, and whether the last
- * write failed.
+ * The shared persistence shell around the board. A saved copy brings its
+ * board, never its clock: this page's instant stays so the saved sprint is
+ * measured against today. No copy — nothing saved, or another tab's Reset —
+ * means a fresh seed here too. Everything else is the shared reducer's
+ * business (no-op edits return the same shell, hydrates never write,
+ * `saved` follows the write's result).
  */
-type Shell = {
-  data: State
-  hydrated: boolean
-  dirty: boolean
-  saved: boolean
-  saveFailed: boolean
-}
+type Shell = PersistenceShell<State>
 
-function shellReducer(shell: Shell, action: Action): Shell {
-  const data = reducer(shell.data, action)
+export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
-    case "hydrate":
-      return {
-        data,
-        hydrated: true,
-        dirty: action.state !== null,
-        saved: action.state !== null,
-        saveFailed: false,
-      }
+    case "hydrate": {
+      const now = shell.data.now
+      return persistenceShellReducer<State, SavedState>(shell, {
+        type: "hydrate",
+        result: action.state ? { state: action.state, status: "saved" } : { state: null, status: "empty" },
+        fallback: initialState(new Date(now)),
+        adopt: (saved) => ({ ...saved, now }),
+      })
+    }
     case "save-result":
-      return { ...shell, data, saved: action.ok ? true : shell.saved, saveFailed: !action.ok }
+      return persistenceShellReducer(shell, action)
     case "reset":
-      return { data, hydrated: shell.hydrated, dirty: false, saved: false, saveFailed: false }
+      return persistenceShellReducer(shell, { type: "reset", data: initialState(new Date(action.at)) })
     default:
-      return { ...shell, data, dirty: shell.dirty || USER_EDITS.has(action.type) }
+      return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
@@ -264,75 +259,148 @@ export function initialState(now: Date): State {
  */
 export const STORAGE_KEY = "hotdash.agent-workplace.v2"
 
-const isString = (v: unknown): v is string => typeof v === "string"
-const isStringOrNull = (v: unknown): v is string | null => v === null || isString(v)
-const isIsoDate = (v: unknown): v is string => isString(v) && !Number.isNaN(Date.parse(v))
+/** What is written: the board without this page's clock. */
+export type SavedState = Omit<State, "now">
 
-function isIssue(value: unknown): value is Issue {
-  if (!value || typeof value !== "object") return false
+const isStatus = (v: unknown): v is IssueStatus => (STATUS_ORDER as readonly string[]).includes(v as string)
+const isPriority = (v: unknown): v is IssuePriority =>
+  (PRIORITY_ORDER as readonly string[]).includes(v as string)
+const isSprintStatus = (v: unknown): v is Sprint["status"] =>
+  v === "planned" || v === "active" || v === "completed"
+
+/** Known keys only; anything else a saved copy carries is dropped. */
+function parseActivity(value: unknown): ActivityEntry | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    isString(v.key) &&
-    isString(v.title) &&
-    (STATUS_ORDER as string[]).includes(v.status as string) &&
-    (PRIORITY_ORDER as string[]).includes(v.priority as string) &&
-    isStringOrNull(v.assigneeId) &&
-    isStringOrNull(v.sprintId) &&
-    Array.isArray(v.labels) &&
-    v.labels.every(isString) &&
-    isString(v.createdById) &&
-    isIsoDate(v.createdAt) &&
-    isIsoDate(v.updatedAt) &&
-    typeof v.isAgentWorking === "boolean" &&
-    Array.isArray(v.activity) &&
-    Array.isArray(v.comments)
-  )
+  if (!isString(v.id) || !isString(v.actorId) || !isString(v.verb) || !isIsoInstant(v.at)) return null
+  return { id: v.id, actorId: v.actorId, verb: v.verb, at: v.at }
 }
 
-function isSprint(value: unknown): value is Sprint {
-  if (!value || typeof value !== "object") return false
+function parseComment(value: unknown): Comment | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    isString(v.id) &&
-    isString(v.name) &&
-    isIsoDate(v.startDate) &&
-    isIsoDate(v.endDate) &&
-    (v.status === "planned" || v.status === "active" || v.status === "completed")
-  )
+  if (!isString(v.id) || !isString(v.actorId) || !isString(v.body) || !isIsoInstant(v.at)) return null
+  return { id: v.id, actorId: v.actorId, body: v.body, at: v.at }
+}
+
+export function parseIssue(value: unknown): Issue | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+  if (
+    !isString(v.key) ||
+    !isString(v.title) ||
+    !isOptionalString(v.description) ||
+    !isStatus(v.status) ||
+    !isPriority(v.priority) ||
+    !isStringOrNull(v.assigneeId) ||
+    !isStringOrNull(v.sprintId) ||
+    !Array.isArray(v.labels) ||
+    !v.labels.every(isString) ||
+    !isOptionalString(v.project) ||
+    !isString(v.createdById) ||
+    !isIsoInstant(v.createdAt) ||
+    !isIsoInstant(v.updatedAt) ||
+    !isBoolean(v.isAgentWorking) ||
+    !isOptionalString(v.blockerReason)
+  ) {
+    return null
+  }
+  const activity = parseAll(v.activity, parseActivity)
+  const comments = parseAll(v.comments, parseComment)
+  if (!activity || !comments) return null
+  const issue: Issue = {
+    key: v.key,
+    title: v.title,
+    status: v.status,
+    priority: v.priority,
+    assigneeId: v.assigneeId,
+    sprintId: v.sprintId,
+    labels: v.labels,
+    createdById: v.createdById,
+    createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    isAgentWorking: v.isAgentWorking,
+    activity,
+    comments,
+  }
+  if (v.description !== undefined) issue.description = v.description
+  if (v.project !== undefined) issue.project = v.project
+  if (v.blockerReason !== undefined) issue.blockerReason = v.blockerReason
+  return issue
+}
+
+export function parseSprint(value: unknown): Sprint | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+  if (
+    !isString(v.id) ||
+    !isString(v.name) ||
+    !isOptionalString(v.goal) ||
+    !isIsoInstant(v.startDate) ||
+    !isIsoInstant(v.endDate) ||
+    !isSprintStatus(v.status)
+  ) {
+    return null
+  }
+  const sprint: Sprint = {
+    id: v.id,
+    name: v.name,
+    startDate: v.startDate,
+    endDate: v.endDate,
+    status: v.status,
+  }
+  if (v.goal !== undefined) sprint.goal = v.goal
+  return sprint
 }
 
 /**
- * Every issue and sprint is checked, not just the envelope: one malformed
- * item means the whole copy is dropped in favour of the seed, rather than
- * rendering half a board.
+ * Every issue, sprint, activity entry and comment is checked field by
+ * field and rebuilt from known keys only, so a bad saved comment cannot
+ * reach the ticket view. One malformed item drops the whole copy for the
+ * seed rather than rendering half a board. The page's clock (`now`) is
+ * never read from a copy; it is not saved either.
  */
-export function isState(value: unknown): value is State {
-  if (!value || typeof value !== "object") return false
+export function parseState(value: unknown): SavedState | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    Array.isArray(v.issues) &&
-    v.issues.every(isIssue) &&
-    Array.isArray(v.sprints) &&
-    v.sprints.every(isSprint) &&
-    typeof v.nextKey === "number" &&
-    isIsoDate(v.now)
-  )
+  const issues = parseAll(v.issues, parseIssue)
+  const sprints = parseAll(v.sprints, parseSprint)
+  if (!issues || !sprints) return null
+  if (typeof v.nextKey !== "number" || !Number.isInteger(v.nextKey)) return null
+  const highest = issues.reduce((max, i) => {
+    const n = Number(i.key.split("-")[1])
+    return Number.isFinite(n) && n > max ? n : max
+  }, 0)
+  if (v.nextKey <= highest) return null
+  if (new Set(issues.map((i) => i.key)).size !== issues.length) return null
+  if (new Set(sprints.map((s) => s.id)).size !== sprints.length) return null
+  if (sprints.filter((s) => s.status === "active").length > 1) return null
+  return { issues, sprints, nextKey: v.nextKey }
 }
 
-export const issuesStorage = createStorage<State>({
+/** Boolean form of `parseState`, for callers that only need yes/no. */
+export function isState(value: unknown): boolean {
+  return parseState(value) !== null
+}
+
+export const issuesStorage = createStorage<State, SavedState>({
   key: STORAGE_KEY,
   legacyKeys: ["hotdash.agent-workplace.v1"],
-  validate: isState,
+  parse: parseState,
+  // The clock is this page's, never the copy's — leaving it out also keeps
+  // two tabs' copies byte-identical so neither re-writes the other's.
+  serialize: ({ issues, sprints, nextKey }) => ({ issues, sprints, nextKey }),
 })
 
 /** Read the saved copy; `null` when there is none or it was rejected. */
-export function loadState(storage: Storage | undefined): State | null {
+export function loadState(storage: Storage | undefined): SavedState | null {
   return issuesStorage.load(storage).state
 }
 
-/** The saved copy, or a fresh seed dated from `now` when there is none. */
+/** The saved copy measured from `now`, or a fresh seed dated from it. */
 export function loadStateOrSeed(storage: Storage | undefined, now: Date): State {
-  return loadState(storage) ?? initialState(now)
+  const saved = loadState(storage)
+  return saved ? { ...saved, now: now.toISOString() } : initialState(now)
 }
 
 export function saveState(storage: Storage | undefined, state: State): boolean {
@@ -371,14 +439,10 @@ export function IssuesProvider({
   nowMs: number
   children: React.ReactNode
 }) {
-  const [{ data: state, hydrated: persisted, dirty, saved, saveFailed }, dispatch] =
-    React.useReducer(shellReducer, undefined, () => ({
-      data: initialState(new Date(nowMs)),
-      hydrated: false,
-      dirty: false,
-      saved: false,
-      saveFailed: false,
-    }))
+  const [shell, dispatch] = React.useReducer(shellReducer, undefined, () =>
+    initialShell(initialState(new Date(nowMs)))
+  )
+  const { data: state, persisted, edited, saved, saveFailed } = shell
 
   // Server and first client paint both use the seed; the saved copy is
   // applied after mount so the HTML never mismatches.
@@ -386,21 +450,15 @@ export function IssuesProvider({
     dispatch({ type: "hydrate", state: loadState(window.localStorage) })
   }, [])
 
-  // Another tab wrote or cleared the key: take its copy rather than
-  // overwriting it with ours on the next edit.
-  React.useEffect(
-    () => issuesStorage.subscribe((result) => dispatch({ type: "hydrate", state: result.state })),
+  // Other tabs and writes, the shared way: a hydrate never writes; only a
+  // moving edit count does (see the persistence policy above). The result
+  // feeds the note: "Saved" only when the write succeeded.
+  const onHydrate = React.useCallback(
+    (result: LoadResult<SavedState>) => dispatch({ type: "hydrate", state: result.state }),
     []
   )
-
-  // Write only once there is something of the founder's to keep (see the
-  // persistence policy above); a Reset clears the copy instead. The result
-  // feeds the note: "Saved" only when the write succeeded.
-  React.useEffect(() => {
-    if (!persisted) return
-    if (dirty) dispatch({ type: "save-result", ok: saveState(window.localStorage, state) })
-    else clearState(window.localStorage)
-  }, [persisted, dirty, state])
+  const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
+  usePersistenceSync({ storage: issuesStorage, shell, onHydrate, onSaved })
 
   const now = React.useMemo(() => new Date(state.now), [state.now])
 
@@ -411,7 +469,7 @@ export function IssuesProvider({
       actors: seedActors,
       now,
       persisted,
-      edited: dirty,
+      edited,
       saved,
       saveFailed,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
@@ -423,11 +481,15 @@ export function IssuesProvider({
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
-      // Reset re-dates the seed from right now, not from the page load, so a
-      // save left over from an older session comes back fresh.
-      resetDemoData: () => dispatch({ type: "reset", at: at() }),
+      // Reset clears the copy and re-dates the seed from right now, not from
+      // the page load, so a save left over from an older session comes back
+      // fresh and the browser returns to the never-edited state.
+      resetDemoData: () => {
+        clearState(window.localStorage)
+        dispatch({ type: "reset", at: at() })
+      },
     }
-  }, [state, persisted, dirty, saved, saveFailed, now])
+  }, [state, persisted, edited, saved, saveFailed, now])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>

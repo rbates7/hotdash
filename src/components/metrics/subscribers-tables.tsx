@@ -27,7 +27,7 @@ import {
   SortableHead,
   TableCard,
   Who,
-} from "@/components/metrics/table-bits"
+} from "@/components/table-bits"
 
 const PLAN_TONE: Record<Plan, "plan" | "annual" | "muted"> = {
   Monthly: "plan",
