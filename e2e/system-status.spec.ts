@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { formatRelative } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
+import { setTheme } from "./support/theme"
 
 /**
  * System Status: one verdict, seven seeded rows, one past incident. Nothing
@@ -30,13 +31,6 @@ const componentsTag = (page: Page) => components(page).getByTestId("sample-data-
 const ago = (minutes: number) => formatRelative(-minutes * 60_000, 0, { style: "long" })
 
 const ROWS = ["iPad app API", "Sync", "Auth", "Billing", "chlkapp.com", "Export", "Sentry errors (24h)"]
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // The theme group sits in the sidebar footer, outside the nav landmark,
-  // and has no name of its own; the two buttons are unique on the page.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
-}
 
 /** Every row shows its state as icon + word, never a colour alone. */
 async function expectStatus(page: Page, name: string, status: "operational" | "degraded" | "down") {

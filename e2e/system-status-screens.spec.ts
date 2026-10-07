@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { setTheme } from "./support/theme"
+
 /**
  * Review screenshots for System Status: both seeded states and the preview
  * toggle, in both themes, at desktop width. Opt-in: `SCREENSHOTS=1` (or
@@ -29,14 +31,6 @@ async function shoot(page: Page, name: string, clip?: Parameters<Page["screensho
 const main = (page: Page) => page.getByRole("main")
 const banner = (page: Page) => main(page).getByRole("region", { name: "Current status", exact: true })
 const preview = (page: Page) => main(page).getByRole("group", { name: "Preview", exact: true })
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  // The theme group sits in the sidebar footer, outside the nav landmark,
-  // and has no name of its own; the two buttons are unique on the page.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
-}
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every System Status state (${theme})`, async ({ page }) => {

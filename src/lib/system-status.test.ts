@@ -147,16 +147,22 @@ describe("seed", () => {
 })
 
 describe("check times use the shared relative formatter", () => {
-  it("'Checked …' is the shared long style plus the Central wall clock", () => {
-    // The verbose style is asked for explicitly, so the page keeps its words
-    // whatever the shared default is; the clock part is this page's own.
-    const ago = (deltaMs: number) => formatRelative(FIXED_NOW_MS - deltaMs, FIXED_NOW_MS, { style: "long" })
-    expect(formatCheckedAgo(FIXED_NOW_MS - 2 * 60_000, FIXED_NOW_MS)).toBe(ago(2 * 60_000))
-    expect(formatChecked(FIXED_NOW_MS - 2 * 60_000, FIXED_NOW_MS)).toBe(`Checked ${ago(2 * 60_000)} · 8:58 AM CT`)
-    expect(formatChecked(FIXED_NOW_MS, FIXED_NOW_MS)).toBe(`Checked ${ago(0)} · 9:00 AM CT`)
-    expect(formatChecked(FIXED_NOW_MS - 3 * 3_600_000, FIXED_NOW_MS)).toBe(`Checked ${ago(3 * 3_600_000)} · 6:00 AM CT`)
+  it("pins the verbose long style, which is no longer the default", () => {
+    // Round 5 made `ago` ("5m ago") the default. This page keeps asking for
+    // `long` so the health copy stays "2 min ago" / "3 h ago". These literals
+    // are the contract — if the default or the long words move, this fails.
+    const twoMin = FIXED_NOW_MS - 2 * 60_000
+    const threeHr = FIXED_NOW_MS - 3 * 3_600_000
+    expect(formatRelative(twoMin, FIXED_NOW_MS, { style: "long" })).toBe("2 min ago")
+    expect(formatRelative(FIXED_NOW_MS, FIXED_NOW_MS, { style: "long" })).toBe("just now")
+    expect(formatRelative(threeHr, FIXED_NOW_MS, { style: "long" })).toBe("3 h ago")
+    expect(formatRelative(twoMin, FIXED_NOW_MS)).toBe("2m ago") // default is now `ago`
+    expect(formatCheckedAgo(twoMin, FIXED_NOW_MS)).toBe("2 min ago")
+    expect(formatChecked(twoMin, FIXED_NOW_MS)).toBe("Checked 2 min ago · 8:58 AM CT")
+    expect(formatChecked(FIXED_NOW_MS, FIXED_NOW_MS)).toBe("Checked just now · 9:00 AM CT")
+    expect(formatChecked(threeHr, FIXED_NOW_MS)).toBe("Checked 3 h ago · 6:00 AM CT")
     // A check "in the future" (clock skew) reads as the freshest bucket, never negative.
-    expect(formatCheckedAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).toBe(ago(0))
+    expect(formatCheckedAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).toBe("just now")
     expect(formatCheckedAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).not.toMatch(/-/)
   })
 })
