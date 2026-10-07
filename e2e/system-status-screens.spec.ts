@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { settleAnimations } from "./support/contrast"
 import { setTheme } from "./support/theme"
 
 /**
@@ -41,11 +42,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
     await shoot(page, `system-status-green-${theme}`)
 
-    // The preview toggle, close up, with "Not green" focused: the only
-    // interactive state on the page (the rest is a plain read).
-    await preview(page).getByRole("link", { name: "Not green", exact: true }).focus()
+    // Tab from Green onto "Not green" so the focus ring paints (`.focus()`
+    // does not). Shared settle, not a timeout, before the close-up.
+    await preview(page).getByRole("link", { name: "Green", exact: true }).press("Tab")
     const header = main(page).locator("header").first()
-    await page.waitForTimeout(250)
+    await settleAnimations(page)
     for (const dir of OUT_DIRS) {
       await header.screenshot({ path: path.join(dir, `system-status-preview-toggle-${theme}.png`) })
     }
@@ -54,6 +55,12 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page).toHaveURL(/preview=not-green$/)
     await expect(banner(page).getByRole("heading", { level: 2, name: "Not green" })).toBeVisible()
     await shoot(page, `system-status-not-green-${theme}`)
+
+    // Cheap extra: the zero-checks state (URL preview, same as not-green).
+    await page.goto("/system-status?preview=empty")
+    await setTheme(page, theme)
+    await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
+    await shoot(page, `system-status-empty-${theme}`)
 
     // Back to green for the next run.
     await preview(page).getByRole("link", { name: "Green", exact: true }).click()

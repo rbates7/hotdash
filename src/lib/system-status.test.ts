@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { formatDate, formatRelative, todayIn } from "@/lib/clock"
 import {
+  VERDICT_EMPTY,
   VERDICT_GREEN,
   VERDICT_NOT_GREEN,
   buildPastIncident,
@@ -68,10 +69,14 @@ describe("verdict", () => {
     expect(v.detail).toBe("Sync and Export are down · Queue stuck; Timeouts. Auth is degraded · Slow sign-ins.")
   })
 
-  it("an empty list is green-by-vacuity but says nothing is checked", () => {
+  it("an empty list is a neutral state, not green-by-vacuity", () => {
     const v = verdictFor([])
-    expect(v.green).toBe(true)
-    expect(v.detail).toBe("Nothing is being checked yet.")
+    expect(v.green).toBe(false)
+    expect(v.empty).toBe(true)
+    expect(v.anyDown).toBe(false)
+    expect(v.title).toBe(VERDICT_EMPTY)
+    expect(v.detail).toBe("Nothing is connected. There are no checks to report.")
+    expect(v.counts).toEqual({ operational: 0, degraded: 0, down: 0 })
     expect(Number.isNaN(v.updatedAtMs)).toBe(true)
   })
 
@@ -137,9 +142,10 @@ describe("seed", () => {
     expect(formatDate(buildPastIncident(FIXED_NOW_MS).day)).toBe("8 Jul 2026")
   })
 
-  it("only knows the two scenarios", () => {
+  it("only knows the seeded scenarios", () => {
     expect(isScenario("green")).toBe(true)
     expect(isScenario("not-green")).toBe(true)
+    expect(isScenario("empty")).toBe(true)
     expect(isScenario("red")).toBe(false)
     expect(isScenario(undefined)).toBe(false)
     expect(isScenario(["green"])).toBe(false)

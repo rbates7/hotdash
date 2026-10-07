@@ -6,7 +6,7 @@ import { StatusScreen } from "@/components/system-status/status-screen"
 import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 // 27 Aug 2026, 09:00 Chicago. Checks are seeded 2–6 minutes before it.
-const mount = (scenario?: "green" | "not-green", nowMs = FIXED_NOW_MS) =>
+const mount = (scenario?: "green" | "not-green" | "empty", nowMs = FIXED_NOW_MS) =>
   render(<StatusScreen nowMs={nowMs} scenario={scenario} />)
 
 const banner = () => screen.getByRole("region", { name: "Current status" })
@@ -77,7 +77,9 @@ describe("StatusScreen", () => {
   it("is marked as sample data and links out to Sentry and the site as plain external links", () => {
     mount()
     expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("Nothing here is polled yet")
-    expect(screen.getAllByTestId("sample-data-tag").length).toBeGreaterThanOrEqual(2)
+    expect(within(banner()).getAllByTestId("sample-data-tag")).toHaveLength(1)
+    expect(within(components()).getAllByTestId("sample-data-tag")).toHaveLength(1)
+    expect(within(screen.getByRole("region", { name: "Past incident" })).getAllByTestId("sample-data-tag")).toHaveLength(1)
     const sentry = screen.getAllByRole("link", { name: "Sentry" })
     expect(sentry.length).toBeGreaterThan(0)
     for (const a of sentry) {
@@ -97,6 +99,17 @@ describe("StatusScreen", () => {
     mount("green", anHourLater)
     expect(banner()).toHaveTextContent(`Updated ${ago(anHourLater, 2)}`)
     expect(row("chlkapp.com")).toHaveTextContent(`Checked ${ago(anHourLater, 2)} · 9:58 AM CT`)
+  })
+
+  it("empty: a neutral 'No checks yet' headline, not green, and the list is empty", () => {
+    mount("empty")
+    expect(within(banner()).getByRole("heading", { level: 2, name: "No checks yet" })).toBeInTheDocument()
+    expect(banner()).toHaveAttribute("data-verdict", "empty")
+    expect(banner()).toHaveTextContent("Nothing is connected. There are no checks to report.")
+    expect(banner()).not.toHaveTextContent("All systems green")
+    expect(within(components()).queryAllByRole("listitem")).toHaveLength(0)
+    expect(components()).toHaveTextContent("Nothing is connected. There are no checks to report.")
+    expect(components()).toHaveTextContent("No checks")
   })
 
   it("late evening Central renders the same in either process zone", () => {

@@ -35,9 +35,9 @@ export type PastIncident = {
   day: string
 }
 
-/** The two seeded views the page can show. */
-export type Scenario = "green" | "not-green"
-export const SCENARIOS: readonly Scenario[] = ["green", "not-green"]
+/** The seeded views the page can show. `empty` is the zero-checks state. */
+export type Scenario = "green" | "not-green" | "empty"
+export const SCENARIOS: readonly Scenario[] = ["green", "not-green", "empty"]
 export const DEFAULT_SCENARIO: Scenario = "green"
 
 export function isScenario(value: unknown): value is Scenario {
@@ -61,6 +61,7 @@ type SeedRow = Omit<Service, "checkedAtMs"> & { checkedMinutesAgo: number }
  * the not-green scenario changes.
  */
 const SEED: Record<Scenario, SeedRow[]> = {
+  empty: [],
   green: [
     { id: "ipad", name: "iPad app API", status: "operational", reason: "Responding normally", checkedMinutesAgo: 2 },
     { id: "sync", name: "Sync", status: "operational", reason: "Queue empty · nothing waiting", checkedMinutesAgo: 2 },
@@ -104,7 +105,9 @@ export function buildPastIncident(nowMs: number): PastIncident {
 
 export type Verdict = {
   green: boolean
-  /** "All systems green" / "Not green". */
+  /** True when there are no rows at all — neither green nor degraded. */
+  empty: boolean
+  /** "All systems green" / "Not green" / "No checks yet". */
   title: string
   /** The one-line reason under the title. */
   detail: string
@@ -117,6 +120,7 @@ export type Verdict = {
 
 export const VERDICT_GREEN = "All systems green"
 export const VERDICT_NOT_GREEN = "Not green"
+export const VERDICT_EMPTY = "No checks yet"
 
 export function countByStatus(services: readonly Service[]): Record<ServiceStatus, number> {
   const counts: Record<ServiceStatus, number> = { operational: 0, degraded: 0, down: 0 }
@@ -131,23 +135,29 @@ export function joinNames(names: readonly string[]) {
 }
 
 /**
- * Green only when *every* row is operational. One degraded row, or one
- * down row, makes the whole page not green — there is no "mostly up".
+ * Green only when there is at least one row and *every* row is operational.
+ * Zero checks is a neutral state — not green, not degraded. One degraded
+ * or down row makes the whole page not green; there is no "mostly up".
  */
 export function verdictFor(services: readonly Service[]): Verdict {
   const counts = countByStatus(services)
+  const empty = services.length === 0
   const notGreen = services.filter((s) => s.status !== "operational")
   const down = notGreen.filter((s) => s.status === "down")
   const degraded = notGreen.filter((s) => s.status === "degraded")
-  const green = notGreen.length === 0
+  const green = !empty && notGreen.length === 0
   const updatedAtMs = services.reduce((max, s) => Math.max(max, s.checkedAtMs), Number.NEGATIVE_INFINITY)
 
+  let title: string
   let detail: string
-  if (services.length === 0) {
-    detail = "Nothing is being checked yet."
+  if (empty) {
+    title = VERDICT_EMPTY
+    detail = "Nothing is connected. There are no checks to report."
   } else if (green) {
+    title = VERDICT_GREEN
     detail = "Every check passed. Nothing needs you."
   } else {
+    title = VERDICT_NOT_GREEN
     const clauses: string[] = []
     if (down.length > 0) {
       clauses.push(`${joinNames(down.map((s) => s.name))} ${down.length === 1 ? "is" : "are"} down · ${down.map((s) => s.reason).join("; ")}.`)
@@ -161,7 +171,8 @@ export function verdictFor(services: readonly Service[]): Verdict {
 
   return {
     green,
-    title: green ? VERDICT_GREEN : VERDICT_NOT_GREEN,
+    empty,
+    title,
     detail,
     anyDown: down.length > 0,
     counts,

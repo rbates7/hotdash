@@ -21,7 +21,16 @@ const preview = (page: Page) => main(page).getByRole("group", { name: "Preview",
 const row = (page: Page, name: string) => components(page).getByRole("listitem", { name, exact: true })
 const sampleNote = (page: Page) => main(page).getByRole("note", { name: "Sample data" })
 const headerTag = (page: Page) => main(page).locator("header").getByTestId("sample-data-tag")
+const bannerTag = (page: Page) => banner(page).getByTestId("sample-data-tag")
 const componentsTag = (page: Page) => components(page).getByTestId("sample-data-tag")
+const incidentTag = (page: Page) => incident(page).getByTestId("sample-data-tag")
+
+/** Exactly one SampleDataTag in each of the three named regions. */
+async function expectSampleTags(page: Page) {
+  await expect(bannerTag(page)).toHaveCount(1)
+  await expect(componentsTag(page)).toHaveCount(1)
+  await expect(incidentTag(page)).toHaveCount(1)
+}
 
 /**
  * The page asks the shared formatter for its verbose style explicitly, so
@@ -58,6 +67,7 @@ test.describe("System Status", () => {
     await expect(banner(page).locator("time")).toHaveText(`Updated ${ago(2)}`)
     await expect(banner(page)).toContainText("7 operational")
     await expect(banner(page).locator("svg[data-status-icon]")).toHaveCount(1)
+    await expectSampleTags(page)
 
     // Seven rows from the mock (+ Sentry), every one operational with a reason.
     await expect(components(page).getByRole("listitem")).toHaveCount(7)
@@ -117,9 +127,13 @@ test.describe("System Status", () => {
         // Solid amber chips: the header tag, the Components tag and the notice.
         await expect(headerTag(page)).toHaveText("Sample data")
         await expect(componentsTag(page)).toHaveText("Sample data")
+        await expectSampleTags(page)
         await expectReadable(headerTag(page), `${label}/header tag`, expect)
         await expectReadable(componentsTag(page), `${label}/components tag`, expect)
         await expectReadable(sampleNote(page), `${label}/notice`, expect)
+
+        // The page header: h1, lede, and the underlined Sentry link.
+        await expectReadable(main(page).locator("header"), `${label}/header`, expect)
 
         // The verdict banner (tinted), every row (status words included), the incident.
         const bannerNodes = await expectReadable(banner(page), `${label}/banner`, expect)

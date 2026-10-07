@@ -1,6 +1,7 @@
 import Link from "next/link"
 import {
   CircleCheckIcon,
+  CircleDashedIcon,
   CircleXIcon,
   ExternalLinkIcon,
   TriangleAlertIcon,
@@ -142,10 +143,18 @@ function PreviewToggle({ scenario }: { scenario: Scenario }) {
 
 /* ----------------------------------------------------------------- pieces */
 
+/** Neutral — not green, not degraded. Used when there are no checks at all. */
+const EMPTY_TONE = {
+  icon: CircleDashedIcon,
+  text: "text-muted-foreground",
+  banner: "bg-muted/40 border-border",
+  ring: "ring-border/50",
+} as const
+
 function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowMs: number }) {
   const verdict = verdictFor(services)
   const status: ServiceStatus = verdict.green ? "operational" : verdict.anyDown ? "down" : "degraded"
-  const tone = TONE[status]
+  const tone = verdict.empty ? EMPTY_TONE : TONE[status]
   const updated = Number.isFinite(verdict.updatedAtMs)
     ? `Updated ${formatCheckedAgo(verdict.updatedAtMs, nowMs)}`
     : "Not checked yet"
@@ -153,7 +162,7 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
   return (
     <section
       aria-label="Current status"
-      data-verdict={verdict.green ? "green" : "not-green"}
+      data-verdict={verdict.empty ? "empty" : verdict.green ? "green" : "not-green"}
       className={cn(
         "flex items-center justify-between gap-4 rounded-xl border px-6 py-[22px]",
         tone.banner
@@ -166,7 +175,10 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
           <tone.icon data-status-icon className="size-7" strokeWidth={2.25} aria-hidden />
         </span>
         <div className="min-w-0">
-          <h2 className="text-title-lg font-semibold tracking-tight">{verdict.title}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-title-lg font-semibold tracking-tight">{verdict.title}</h2>
+            <SampleDataTag />
+          </div>
           <p className="text-label text-muted-foreground mt-1 tracking-tight">{verdict.detail}</p>
         </div>
       </div>
@@ -176,8 +188,12 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
         ) : (
           <span>{updated}</span>
         )}
-        <br />
-        {formatCounts(verdict.counts)}
+        {!verdict.empty && (
+          <>
+            <br />
+            {formatCounts(verdict.counts)}
+          </>
+        )}
       </div>
     </section>
   )
@@ -258,22 +274,31 @@ export function StatusScreen({
               <SampleDataTag />
             </div>
             <span className="text-caption text-muted-foreground font-medium tracking-tight">
-              {formatDownCount(verdict.counts)}
+              {verdict.empty ? "No checks" : formatDownCount(verdict.counts)}
             </span>
           </div>
           <Card className="gap-0 py-0">
-            <ul aria-label="Services" className="flex flex-col">
-              {services.map((s) => (
-                <ServiceRow key={s.id} service={s} nowMs={nowMs} />
-              ))}
-            </ul>
+            {services.length === 0 ? (
+              <p className="text-label text-muted-foreground px-5 py-6 tracking-tight">
+                Nothing is connected. There are no checks to report.
+              </p>
+            ) : (
+              <ul aria-label="Services" className="flex flex-col">
+                {services.map((s) => (
+                  <ServiceRow key={s.id} service={s} nowMs={nowMs} />
+                ))}
+              </ul>
+            )}
           </Card>
         </section>
 
         <Card role="region" aria-label="Past incident" className="gap-2 px-5 py-4">
-          <p className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
-            Past incident
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
+              Past incident
+            </p>
+            <SampleDataTag />
+          </div>
           <div className="flex items-baseline justify-between gap-4">
             <p className="text-label text-muted-foreground font-medium tracking-tight">{incident.summary}</p>
             <time
