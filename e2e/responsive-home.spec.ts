@@ -103,3 +103,45 @@ test.describe("responsive Home (desktop 1440)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
+
+const TILE_WIDTHS = [
+  { name: "820", width: 820, height: 1180 },
+  { name: "1180", width: 1180, height: 820 },
+  { name: "1440", width: 1440, height: 900 },
+] as const
+
+for (const vp of TILE_WIDTHS) {
+  test.describe(`responsive Home (dev-board tiles ${vp.name})`, () => {
+    test.use({ viewport: { width: vp.width, height: vp.height } })
+
+    test("no two status tile labels overlap", async ({ page }) => {
+      await page.goto("/home")
+      const tiles = page.getByRole("list", { name: "Columns" }).getByRole("listitem")
+      await expect(tiles).toHaveCount(5)
+      const boxes = []
+      for (let i = 0; i < 5; i++) {
+        const tile = tiles.nth(i)
+        const label = tile.getByTestId("dev-board-tile-label")
+        const box = await label.boundingBox()
+        const tileBox = await tile.boundingBox()
+        expect(box, `tile label ${i} painted`).toBeTruthy()
+        expect(tileBox, `tile ${i} painted`).toBeTruthy()
+        expect(box!.width, `tile label ${i} has width`).toBeGreaterThan(0)
+        expect(box!.height, `tile label ${i} has height`).toBeGreaterThan(0)
+        expect(box!.x, `label ${i} stays in tile`).toBeGreaterThanOrEqual(tileBox!.x - 0.5)
+        expect(box!.x + box!.width, `label ${i} does not overflow tile`).toBeLessThanOrEqual(
+          tileBox!.x + tileBox!.width + 0.5
+        )
+        boxes.push(box!)
+      }
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          expect(
+            boxesOverlap(boxes[i], boxes[j]),
+            `labels ${i} and ${j} intersect at ${vp.name}`
+          ).toBe(false)
+        }
+      }
+    })
+  })
+}
