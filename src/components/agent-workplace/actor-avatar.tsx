@@ -4,28 +4,30 @@ import { BotIcon } from "lucide-react"
 
 import type { Actor } from "@/lib/issues"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 const SIZES = {
-  sm: { box: "size-5", text: "text-micro", glyph: "size-3" },
-  md: { box: "size-6", text: "text-micro", glyph: "size-3.5" },
-  lg: { box: "size-8", text: "text-caption", glyph: "size-4" },
+  sm: { box: "size-5", radius: "rounded-[4px]", text: "text-[8px]", glyph: "size-3" },
+  md: { box: "size-[22px]", radius: "rounded-[5px]", text: "text-[8px]", glyph: "size-3" },
+  lg: { box: "size-9", radius: "rounded-lg", text: "text-caption", glyph: "size-[18px]" },
+} as const
+
+const HUMAN_TONE = {
+  brand: "bg-brand text-brand-foreground",
+  neutral: "bg-zinc-700 text-zinc-50",
 } as const
 
 /**
- * Every actor is round — shape is deliberately NOT the agent/human signal, so
- * that a presence dot can carry status instead. Agents render a bot glyph,
- * humans their initials. Unassigned renders a dashed placeholder.
+ * Shape is the agent/human signal, as the requirements lock it: agents are
+ * a square bot glyph, humans a round disc of initials. Unassigned renders a
+ * dashed placeholder with a dash, like the mock.
  */
 export function ActorAvatar({
   actor,
   size = "md",
-  showPresence = false,
   className,
 }: {
   actor: Actor | null
   size?: keyof typeof SIZES
-  showPresence?: boolean
   className?: string
 }) {
   const s = SIZES[size]
@@ -35,43 +37,34 @@ export function ActorAvatar({
       <span
         aria-hidden
         className={cn(
-          "border-faint-foreground/50 shrink-0 rounded-full border border-dashed",
+          "border-surface-border text-muted-foreground grid shrink-0 place-items-center rounded-full border border-dashed leading-none",
           s.box,
+          s.text,
           className
         )}
-      />
+      >
+        –
+      </span>
     )
   }
 
   const isAgent = actor.kind === "agent"
 
   return (
-    <span className={cn("relative inline-flex shrink-0", className)}>
-      <Avatar className={cn(s.box, "rounded-full")}>
-        <AvatarFallback
-          className={cn(
-            "rounded-full! font-medium",
-            s.text,
-            isAgent
-              ? "bg-brand/12! text-brand!"
-              : "bg-muted! text-muted-foreground!"
-          )}
-        >
-          {isAgent ? (
-            <BotIcon className={s.glyph} aria-hidden />
-          ) : (
-            actor.initials
-          )}
-        </AvatarFallback>
-      </Avatar>
-      {showPresence && isAgent && (
-        <span
-          aria-hidden
-          className={cn(
-            "ring-surface absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2",
-            actor.presence === "working" ? "bg-success" : "bg-muted-foreground/40"
-          )}
-        />
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center font-bold tracking-wide",
+        s.box,
+        isAgent
+          ? cn(s.radius, "bg-zinc-900 text-zinc-50 dark:bg-zinc-700")
+          : cn("rounded-full", s.text, HUMAN_TONE[actor.tone ?? "neutral"]),
+        className
+      )}
+    >
+      {isAgent ? (
+        <BotIcon className={s.glyph} strokeWidth={1.75} aria-hidden />
+      ) : (
+        actor.initials
       )}
       <span className="sr-only">
         {actor.name}

@@ -105,7 +105,7 @@ function IssueRow({
         <status.icon className={cn("size-3.5", status.iconColor)} aria-hidden />
         {status.label}
       </span>
-      <ActorAvatar actor={assignee} size="sm" showPresence />
+      <ActorAvatar actor={assignee} size="sm" />
       <Popover>
         <PopoverTrigger
           render={
