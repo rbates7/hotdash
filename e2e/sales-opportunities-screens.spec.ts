@@ -4,7 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, now, todayIn } from "../src/lib/clock"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
  * Review screenshots for the Sales Opportunities page, every main state in
@@ -38,7 +38,7 @@ const deals = (page: Page) => screen(page).getByRole("region", { name: "Deals", 
 const table = (page: Page) => deals(page).getByRole("table", { name: "Deals", exact: true })
 const rows = (page: Page) => table(page).locator("tbody").getByRole("row")
 const row = (page: Page, who: RegExp) => table(page).getByRole("row", { name: who })
-const note = (page: Page) => screen(page).getByTestId("persistence-note")
+const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
 const filter = (page: Page, name: string) =>
   deals(page).getByRole("group", { name: "Show deals" }).getByRole("button", { name, exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
@@ -112,7 +112,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `sales-opportunities-empty-${theme}`)
 
     // Back to the seed for the next run (the filter is still on All).
-    await resetDemoData(page)
+    await resetDemoData(page, screen(page))
     await expect(rows(page)).toHaveCount(8)
   })
 
@@ -128,7 +128,7 @@ for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme)
     await row(page, /Pruitt/).getByRole("button", { name: "Stage: Verbal" }).click()
     await page.getByRole("menu").getByRole("menuitemradio", { name: "Proposal" }).click()
-    await expect(note(page)).toHaveText(NOTE.failed)
+    await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await shoot(page, `sales-opportunities-save-failed-${theme}`)
   })
 }

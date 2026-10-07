@@ -44,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { CELL, HEAD, SortableHead, TableCard } from "@/components/metrics/table-bits"
+import { CELL, HEAD, SortableHead, TableCard } from "@/components/table-bits"
 import { SampleDataTag } from "@/components/sample-data"
 import {
   AddDealDialog,

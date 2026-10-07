@@ -3,7 +3,7 @@ import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { CAPS, seedDeals, type Deal, type DealInput } from "@/lib/sales-opportunities"
-import type { LoadResult } from "@/lib/persistence"
+import { initialShell, type LoadResult } from "@/lib/persistence"
 import {
   DealsProvider,
   STORAGE_KEY,
@@ -14,8 +14,8 @@ import {
   loadState,
   loadStateOrSeed,
   normalizeInput,
+  parseState,
   reducer,
-  saveIfChanged,
   saveState,
   shellReducer,
   useDeals,
@@ -162,57 +162,59 @@ describe("reducer", () => {
     expect(reducer(s, { type: "delete-deal", id: "deal-404" })).toBe(s)
   })
 
-  it("hydrate takes a saved copy, re-seeds on empty or rejected, keeps state on error", () => {
-    const s = reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT })
+  it("hydrate (through the shell) takes a saved copy and re-seeds on empty or rejected", () => {
+    const shell = { ...initialShell(seed()), persisted: true }
+    const edited = shellReducer(shell, { type: "add-deal", input: WESTLAKE, at: AT })
     const theirs = reducer(seed(), { type: "delete-deal", id: "deal-1" })
-    expect(reducer(s, hydrate(theirs))).toEqual(theirs)
-    expect(reducer(s, hydrate(null, "empty"))).toEqual(seed())
-    expect(reducer(s, hydrate(null, "rejected"))).toEqual(seed())
-    expect(reducer(s, hydrate(null, "error"))).toBe(s)
+    expect(shellReducer(edited, hydrate(theirs)).data).toEqual(theirs)
+    expect(shellReducer(edited, hydrate(null, "empty")).data).toEqual(seed())
+    expect(shellReducer(edited, hydrate(null, "rejected")).data).toEqual(seed())
   })
 
   it("reset regenerates the seed for the instant given", () => {
-    const s = reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT })
+    const shell = shellReducer({ ...initialShell(seed()), persisted: true }, { type: "add-deal", input: WESTLAKE, at: AT })
     const later = Date.parse("2026-10-07T18:00:00.000Z")
-    expect(reducer(s, { type: "reset", nowMs: later })).toEqual(initialState(later))
+    const after = shellReducer(shell, { type: "reset", nowMs: later })
+    expect(after.data).toEqual(initialState(later))
+    expect(after).toMatchObject({ edited: false, saved: false, saveFailed: false })
   })
 })
 
-describe("shellReducer bookkeeping", () => {
-  const fresh = () => ({ data: seed(), hydrated: false, edited: false, saved: false, saveFailed: false, dirty: false })
+describe("shellReducer bookkeeping (the shared shell)", () => {
+  const fresh = () => ({ ...initialShell(seed()), persisted: true })
 
-  it("a user edit marks edited and dirty; a no-op edit marks nothing", () => {
-    const shell = shellReducer({ ...fresh(), hydrated: true }, { type: "add-deal", input: WESTLAKE, at: AT })
+  it("a user edit marks edited and bumps the edit count; a no-op edit returns the same shell", () => {
+    const shell = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
     expect(shell.edited).toBe(true)
-    expect(shell.dirty).toBe(true)
-    const noop = shellReducer({ ...fresh(), hydrated: true }, { type: "set-stage", id: "deal-1", stage: "proposal", at: AT })
-    expect(noop.edited).toBe(false)
-    expect(noop.dirty).toBe(false)
+    expect(shell.edits).toBe(1)
+    const before = fresh()
+    const noop = shellReducer(before, { type: "set-stage", id: "deal-1", stage: "proposal", at: AT })
+    expect(noop).toBe(before)
   })
 
-  it("a hydrate never leaves dirty set, so it can never cause a save", () => {
-    const edited = shellReducer({ ...fresh(), hydrated: true }, { type: "add-deal", input: WESTLAKE, at: AT })
+  it("a hydrate never moves the edit count, so it can never cause a write", () => {
+    const edited = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
     const after = shellReducer(edited, hydrate(seed()))
-    expect(after.dirty).toBe(false)
+    expect(after.edits).toBe(1)
     expect(after.saved).toBe(true)
-    expect(after.edited).toBe(true) // ours stays ours
+    expect(after.edited).toBe(false)
   })
 
   it("an empty or removed key (Reset in another tab) re-seeds and clears edited", () => {
-    const edited = shellReducer({ ...fresh(), hydrated: true }, { type: "add-deal", input: WESTLAKE, at: AT })
+    const edited = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
     const after = shellReducer(edited, hydrate(null, "empty"))
     expect(after.data).toEqual(seed())
     expect(after.edited).toBe(false)
     expect(after.saved).toBe(false)
-    expect(after.dirty).toBe(false)
+    expect(after.edits).toBe(1)
   })
 
-  it("save-result clears dirty and records the outcome without ever un-saving", () => {
-    const edited = shellReducer({ ...fresh(), hydrated: true, saved: true }, { type: "add-deal", input: WESTLAKE, at: AT })
+  it("save-result records the outcome without ever un-saving", () => {
+    const edited = shellReducer({ ...fresh(), saved: true }, { type: "add-deal", input: WESTLAKE, at: AT })
     const failed = shellReducer(edited, { type: "save-result", ok: false })
-    expect(failed).toMatchObject({ dirty: false, saved: true, saveFailed: true })
+    expect(failed).toMatchObject({ saved: true, saveFailed: true })
     const ok = shellReducer(failed, { type: "save-result", ok: true })
-    expect(ok).toMatchObject({ dirty: false, saved: true, saveFailed: false })
+    expect(ok).toMatchObject({ saved: true, saveFailed: false })
   })
 })
 
@@ -251,6 +253,8 @@ describe("isState rejects a bad saved copy", () => {
       deals: good.deals.map((d) => ({ ...d, score: 3 })),
     }
     expect(isState(extra)).toBe(true)
+    expect(parseState(extra)).toEqual(fromSaved(good))
+    expect(parseState({ ...good, nextId: 1 })).toBeNull()
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(extra))
     const loaded = loadState(window.localStorage)!
     expect(Object.keys(loaded).sort()).toEqual(["deals", "nextId"])
@@ -263,7 +267,7 @@ describe("isState rejects a bad saved copy", () => {
     const raw = JSON.stringify({ ...good, nextId: 1 })
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
-    expect(window.localStorage.getItem(dealsStorage.rejectedKey)).toBe(raw)
+    expect(dealsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(loadStateOrSeed(window.localStorage, FIXED_NOW_MS)).toEqual(seed())
   })
@@ -280,20 +284,22 @@ describe("localStorage", () => {
     const s = reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT })
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
-    expect(saveState(quotaExceededStorage() as unknown as Storage, s)).toBe(false)
+    // A different copy into a full store fails; the identical one would no-op.
+    const changed = reducer(s, { type: "delete-deal", id: "deal-1" })
+    expect(saveState(quotaExceededStorage() as unknown as Storage, changed)).toBe(false)
   })
 
-  it("saveIfChanged writes once and then skips an identical copy", () => {
+  it("the shared save writes once and then skips an identical copy", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     const s = reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT })
-    expect(saveIfChanged(window.localStorage, s)).toBe(true)
+    expect(saveState(window.localStorage, s)).toBe(true)
     expect(setItem).toHaveBeenCalledTimes(1)
-    expect(saveIfChanged(window.localStorage, s)).toBe(true)
-    expect(saveIfChanged(window.localStorage, { ...s, deals: [...s.deals] })).toBe(true)
+    expect(saveState(window.localStorage, s)).toBe(true)
+    expect(saveState(window.localStorage, { ...s, deals: [...s.deals] })).toBe(true)
     expect(setItem).toHaveBeenCalledTimes(1)
-    expect(saveIfChanged(window.localStorage, reducer(s, { type: "delete-deal", id: "deal-1" }))).toBe(true)
+    expect(saveState(window.localStorage, reducer(s, { type: "delete-deal", id: "deal-1" }))).toBe(true)
     expect(setItem).toHaveBeenCalledTimes(2)
-    expect(saveIfChanged(undefined, s)).toBe(false)
+    expect(saveState(undefined, s)).toBe(false)
   })
 })
 
@@ -370,8 +376,7 @@ describe("DealsProvider persistence", () => {
     expect(setItem).not.toHaveBeenCalled()
   })
 
-  it("persists real edits, skips no-op edits, rehydrates after a remount, and Reset clears the key and re-dates from now", () => {
-    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
+  it("persists real edits, skips no-op edits, rehydrates after a remount, and Reset clears the key and re-seeds around the request's instant", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     const first = mount()
     click("noop")
@@ -396,11 +401,13 @@ describe("DealsProvider persistence", () => {
     click("reset")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    // Around the request's instant, not a client clock read.
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-08-27")
+    expect(screen.getByTestId("now")).toHaveTextContent(String(FIXED_NOW_MS))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("stage-1")).toHaveTextContent("proposal")
+    expect(screen.getByTestId("touch-1")).toHaveTextContent(seed().deals[0].lastTouch)
     expect(setItem).toHaveBeenCalledTimes(2)
-    vi.useRealTimers()
   })
 
   it("reports a failed save and never claims Saved", () => {
@@ -423,7 +430,8 @@ describe("DealsProvider persistence", () => {
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
     expect(screen.getByTestId("stage-1")).toHaveTextContent("gone")
     expect(screen.getByTestId("count")).toHaveTextContent("7")
-    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true")
+    // Their copy is theirs: nothing of ours is pending, but the key is saved.
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
 
     // Reset elsewhere: back to the seed here too, and nothing of ours is left.
     window.localStorage.removeItem(STORAGE_KEY)

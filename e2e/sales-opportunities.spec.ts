@@ -1,8 +1,8 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
-import { expectReadable } from "./support/contrast"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
+import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.sales-opportunities.v1"
 
@@ -22,7 +22,7 @@ const deals = (page: Page) => screen(page).getByRole("region", { name: "Deals", 
 const table = (page: Page) => deals(page).getByRole("table", { name: "Deals", exact: true })
 const rows = (page: Page) => table(page).locator("tbody").getByRole("row")
 const row = (page: Page, who: RegExp) => table(page).getByRole("row", { name: who })
-const note = (page: Page) => screen(page).getByTestId("persistence-note")
+const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
 const resetButton = (page: Page) => screen(page).getByRole("button", { name: "Reset", exact: true })
 const filter = (page: Page, name: string) =>
   deals(page).getByRole("group", { name: "Show deals" }).getByRole("button", { name, exact: true })
@@ -56,19 +56,7 @@ async function addDeal(page: Page, who: string, org: string, what: string, value
   await expect(add).toBeHidden()
 }
 
-/** Count `localStorage.setItem` calls from before the page's scripts run. */
-async function countWrites(target: Page | BrowserContext) {
-  await target.addInitScript(() => {
-    const w = window as Window & { __writes?: number }
-    w.__writes = 0
-    const original = Storage.prototype.setItem
-    Storage.prototype.setItem = function (key: string, value: string) {
-      if (this === window.localStorage) w.__writes = (w.__writes ?? 0) + 1
-      return original.call(this, key, value)
-    }
-  })
-}
-const writes = (page: Page) => page.evaluate(() => (window as Window & { __writes?: number }).__writes ?? 0)
+const writes = (page: Page) => writesTo(page, STORAGE_KEY)
 
 test.describe("Sales Opportunities", () => {
   test("is reachable from the sidebar and shows the live deals, soonest next step first", async ({ page }) => {
@@ -83,6 +71,8 @@ test.describe("Sales Opportunities", () => {
     await expect(region.locator("header").getByTestId("sample-data-tag")).toHaveText("Sample data")
     await expect(note(page)).toHaveText(NOTE.unsaved)
     await expect(resetButton(page)).toBeDisabled()
+    // The disabled Reset explains itself (shared note): aria-describedby → sr-only hint.
+    await expect(resetButton(page)).toHaveAccessibleDescription(/Nothing is saved in this browser yet/)
     await expect(deals(page).getByTestId("source-chip")).toHaveAttribute("aria-disabled", "true")
 
     await expect(table(page).getByRole("columnheader")).toHaveText([
@@ -229,7 +219,7 @@ test.describe("Sales Opportunities", () => {
     await expect(note(page)).toHaveText(NOTE.saved)
 
     // Reset: key cleared, seed back, note unsaved, Reset disabled again.
-    await resetDemoData(page)
+    await resetDemoData(page, screen(page))
     await expect(rows(page)).toHaveCount(6)
     await expect(row(page, /Hale/)).toBeVisible()
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
@@ -249,14 +239,13 @@ test.describe("Sales Opportunities", () => {
     await row(page, /Pruitt/).getByRole("button", { name: "Stage: Verbal" }).click()
     await page.getByRole("menu").getByRole("menuitemradio", { name: "Proposal" }).click()
     await expect(row(page, /Pruitt/).getByRole("button", { name: "Stage: Proposal" })).toBeVisible()
-    await expect(note(page)).toHaveText(NOTE.failed)
-    await expect(screen(page).getByRole("alert")).toHaveText(NOTE.failed)
+    await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(resetButton(page)).toBeDisabled()
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
   test("two tabs stay in sync without ping-ponging writes, and a Reset in one re-seeds the other", async ({ context }) => {
-    await countWrites(context)
+    await countWrites(context, STORAGE_KEY)
     const a = await context.newPage()
     const b = await context.newPage()
     await fresh(a)
@@ -287,7 +276,7 @@ test.describe("Sales Opportunities", () => {
     expect(await writes(b)).toBe(1)
 
     // Reset in A: B goes back to the seed with nothing saved.
-    await resetDemoData(a)
+    await resetDemoData(a, screen(a))
     await expect(rows(a)).toHaveCount(6)
     await expect(rows(b)).toHaveCount(6)
     await expect(row(b, /Jordan Reyes/)).toHaveCount(0)
@@ -322,6 +311,10 @@ test.describe("Sales Opportunities", () => {
       }
       await filter(page, "Open").click()
     }
+    // Negative control: the probe must catch sabotaged text, in both themes.
+    await expectProbeCatchesSabotage(screen(page).locator("header").getByTestId("sample-data-tag"), "header tag (dark)", expect)
+    await setTheme(page, "light")
+    await expectProbeCatchesSabotage(table(page).getByTestId("sample-data-tag").first(), "row tag (light)", expect)
     await setTheme(page, "dark")
   })
 
@@ -343,7 +336,7 @@ test.describe("Sales Opportunities", () => {
     }
     await expect(empty).toContainText("No live deals")
     await expect(empty).toContainText("A hunt becomes a deal when someone is actually talking")
-    await resetDemoData(page)
+    await resetDemoData(page, screen(page))
     await expect(rows(page)).toHaveCount(8)
   })
 })
