@@ -102,16 +102,18 @@ test.describe("Feature Request", () => {
 
   test("the pressed Status button clears 4.5:1 in both themes", async ({ page }) => {
     await freshBoard(page)
-    await card(page, "Play of the Day").click()
-    const d = dialog(page, "Idea: Play of the Day")
-    await expect(d).toBeVisible()
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
+      await card(page, "Play of the Day").click()
+      const d = dialog(page, "Idea: Play of the Day")
+      await expect(d).toBeVisible()
       await expectReadable(
         d.getByRole("group", { name: "Status" }).getByRole("button", { pressed: true }),
         `${theme}/pressed status`,
         expect
       )
+      await page.keyboard.press("Escape")
+      await expect(d).toBeHidden()
     }
     await setTheme(page, "dark")
   })
