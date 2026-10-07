@@ -16,7 +16,7 @@ const OUT_DIRS = [
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
-const STORE_KEY = "hotdash.agent-workplace.v1"
+const STORE_KEY = "hotdash.agent-workplace.v2"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
