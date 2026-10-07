@@ -41,9 +41,9 @@ export const HOME_BOARD_COLUMNS = "grid grid-cols-3 gap-1.5 xl:grid-cols-5"
 export const HOME_BOARD_TILE =
   "flex w-full min-w-0 flex-col items-start gap-1.5 overflow-hidden rounded-lg px-2 py-2"
 
-/** Wrap inside the tile — `truncate` on an unbounded span was the 1180 collision. */
+/** Wrap at spaces inside the tile — `truncate` on an unbounded span was the 1180 collision. */
 export const HOME_BOARD_TILE_LABEL =
-  "text-micro text-muted-foreground w-full min-w-0 leading-tight font-medium [overflow-wrap:anywhere]"
+  "text-micro text-muted-foreground w-full min-w-0 leading-tight font-medium"
 
 export const HOME_KPI_HEAD =
   "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-0.5"

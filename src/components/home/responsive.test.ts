@@ -45,7 +45,6 @@ describe("Home responsive layout", () => {
     expect(HOME_BOARD_TILE).toContain("min-w-0")
     expect(HOME_BOARD_TILE_LABEL).toContain("w-full")
     expect(HOME_BOARD_TILE_LABEL).toContain("min-w-0")
-    expect(HOME_BOARD_TILE_LABEL).toContain("[overflow-wrap:anywhere]")
     expect(HOME_BOARD_TILE_LABEL.split(/\s+/)).not.toContain("truncate")
   })
 
