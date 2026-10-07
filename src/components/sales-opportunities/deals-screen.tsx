@@ -3,6 +3,7 @@
 import * as React from "react"
 import { AlertCircleIcon, ChevronDownIcon, PresentationIcon } from "lucide-react"
 
+import { formatRelative } from "@/lib/clock"
 import { formatCurrency } from "@/lib/metrics"
 import {
   DEAL_FILTERS,
@@ -12,7 +13,6 @@ import {
   STAGE_CONFIG,
   countByFilter,
   describeDue,
-  describeLastTouch,
   formatCentralDateTime,
   isDealFilter,
   isOverdue,
@@ -60,8 +60,8 @@ const STAGE_BADGE: Record<Stage, string> = {
   talking: "border-border bg-transparent text-muted-foreground",
   proposal: "bg-muted text-foreground",
   verbal: "bg-info/10 text-info dark:bg-info/20",
-  "closed-won": "bg-success/10 text-success dark:bg-success/20",
-  "closed-lost": "bg-destructive/10 text-destructive dark:bg-destructive/20",
+  "closed-won": "bg-success/10 text-success-text dark:bg-success/20",
+  "closed-lost": "bg-destructive/10 text-danger-text dark:bg-destructive/20",
 }
 
 export function StageBadge({ stage, className }: { stage: Stage; className?: string }) {
@@ -136,7 +136,7 @@ function NextStepCell({ deal, today }: { deal: Deal; today: string }) {
         <p
           className={cn(
             "text-caption inline-flex items-center gap-1 tabular-nums",
-            due.overdue && !closed ? "text-destructive font-semibold" : "text-muted-foreground"
+            due.overdue && !closed ? "text-danger-text font-semibold" : "text-muted-foreground"
           )}
           data-overdue={due.overdue && !closed ? "true" : undefined}
         >
@@ -255,7 +255,7 @@ const FILTER_TITLE: Record<DealFilter, string> = {
 }
 
 export function DealsScreen() {
-  const { deals, today, persisted } = useDeals()
+  const { deals, today, nowMs, persisted } = useDeals()
   const [filter, setFilter] = React.useState<DealFilter>("open")
   const [sort, setSort] = React.useState<DealSort>(DEFAULT_DEAL_SORT)
 
@@ -293,7 +293,7 @@ export function DealsScreen() {
             <h2 className="text-label font-semibold tracking-tight">{FILTER_TITLE[filter]}</h2>
             <div className="flex items-center gap-2">
               {overdue > 0 && (
-                <span className="text-micro text-destructive inline-flex items-center gap-1 font-semibold">
+                <span className="text-micro text-danger-text inline-flex items-center gap-1 font-semibold">
                   <AlertCircleIcon className="size-3" aria-hidden />
                   {overdue} overdue
                 </span>
@@ -367,7 +367,7 @@ export function DealsScreen() {
                       <TableCell className={CELL}>{deal.owner}</TableCell>
                       <TableCell className={`${CELL} text-muted-foreground`}>
                         <span title={formatCentralDateTime(deal.lastTouch)}>
-                          {describeLastTouch(deal.lastTouch, today)}
+                          {formatRelative(Date.parse(deal.lastTouch), nowMs)}
                         </span>
                       </TableCell>
                       <TableCell className={`${CELL} py-2 pr-3 pl-0 text-right`}>

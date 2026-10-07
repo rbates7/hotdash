@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { todayIn } from "@/lib/clock"
+import { formatRelative, todayIn } from "@/lib/clock"
 import {
   CAPS,
   DEAL_FILTERS,
@@ -9,7 +9,6 @@ import {
   countByFilter,
   dealsAreConsistent,
   describeDue,
-  describeLastTouch,
   formatCentralDateTime,
   highestDealId,
   isDeal,
@@ -20,7 +19,7 @@ import {
   stripDeal,
   type Deal,
 } from "@/lib/sales-opportunities"
-import { FIXED_NOW_MS } from "@/test/clock"
+import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 const seed = seedDeals(FIXED_NOW_MS)
 const TODAY = todayIn(new Date(FIXED_NOW_MS)) // 2026-08-27
@@ -51,9 +50,12 @@ describe("seed", () => {
     expect(byId("deal-3").nextStepDue).toBe("2026-08-25") // −2, overdue
     expect(byId("deal-5").nextStepDue).toBe("2026-08-26") // −1, overdue
     expect(byId("deal-6").nextStepDue).toBeNull()
-    expect(describeLastTouch(byId("deal-2").lastTouch, TODAY)).toBe("3 days ago")
-    expect(describeLastTouch(byId("deal-1").lastTouch, TODAY)).toBe("yesterday")
-    expect(describeLastTouch(byId("deal-7").lastTouch, TODAY)).toBe("today")
+    // Shown through the shared relative formatter, measured from the page's instant.
+    const rel = (id: string) => formatRelative(Date.parse(byId(id).lastTouch), FIXED_NOW_MS)
+    expect(rel("deal-2")).toBe("Mon, Aug 24")
+    expect(rel("deal-1")).toBe("Yesterday")
+    expect(rel("deal-7")).toBe("just now")
+    expect(todayIn(new Date(byId("deal-2").lastTouch))).toBe("2026-08-24")
     expect(byId("deal-7").lastTouch).toBe(new Date(FIXED_NOW_MS).toISOString())
   })
 
@@ -76,7 +78,7 @@ describe("seed", () => {
 
 describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago)", () => {
   // 23:30 CT on 7 Oct 2026 (CDT, UTC−5): already 04:30 on the 8th in UTC.
-  const LATE = Date.parse("2026-10-08T04:30:00.000Z")
+  const LATE = LATE_EVENING_CT_MS
 
   it("a seed built at 23:30 CT is dated the 7th, and its touches count Central days", () => {
     const late = seedDeals(LATE)
@@ -84,19 +86,19 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     expect(today).toBe("2026-10-07")
     expect(late.find((d) => d.id === "deal-1")!.nextStepDue).toBe("2026-10-09")
     expect(late.find((d) => d.id === "deal-3")!.nextStepDue).toBe("2026-10-05")
-    expect(describeLastTouch(late.find((d) => d.id === "deal-2")!.lastTouch, today)).toBe("3 days ago")
-    expect(describeLastTouch(late.find((d) => d.id === "deal-1")!.lastTouch, today)).toBe("yesterday")
-    expect(describeLastTouch(late.find((d) => d.id === "deal-7")!.lastTouch, today)).toBe("today")
+    const rel = (id: string) => formatRelative(Date.parse(late.find((d) => d.id === id)!.lastTouch), LATE)
+    expect(todayIn(new Date(late.find((d) => d.id === "deal-2")!.lastTouch))).toBe("2026-10-04")
+    expect(rel("deal-2")).toBe("Sun, Oct 4")
+    expect(rel("deal-1")).toBe("Yesterday")
+    expect(rel("deal-7")).toBe("just now")
     // The naive reading (UTC getters) says "deal-7 was touched tomorrow"; ours does not.
     expect(new Date(late.find((d) => d.id === "deal-7")!.lastTouch).getUTCDate()).toBe(8)
   })
 
-  it("a touch at 23:30 CT read the next Central morning is yesterday, not two hours ago", () => {
-    expect(describeLastTouch("2026-10-08T04:30:00.000Z", "2026-10-08")).toBe("yesterday")
-    expect(describeLastTouch("2026-10-08T04:30:00.000Z", "2026-10-07")).toBe("today")
-    // 23:30 CT on New Year's Eve (CST, UTC−6) stays in the old year.
-    expect(describeLastTouch("2026-01-01T05:30:00.000Z", "2026-01-01")).toBe("yesterday")
-    expect(describeLastTouch("2026-01-01T05:30:00.000Z", "2025-12-31")).toBe("today")
+  it("a touch at 23:30 CT read the next Central morning is Yesterday, not two hours ago", () => {
+    // 01:30 CT on the 8th: 2 h after the touch, but a Central day later.
+    expect(formatRelative(LATE, LATE + 2 * 3_600_000)).toBe("Yesterday")
+    expect(formatRelative(LATE, LATE + 20 * 60_000)).toBe("20 min ago")
   })
 
   it("a due date is overdue only once the Central day has passed", () => {
@@ -124,12 +126,13 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     const today = todayIn(new Date(afterFallBack))
     expect(today).toBe("2026-11-02")
     const deals = seedDeals(afterFallBack)
-    expect(describeLastTouch(deals.find((d) => d.id === "deal-2")!.lastTouch, today)).toBe("3 days ago")
     expect(todayIn(new Date(deals.find((d) => d.id === "deal-2")!.lastTouch))).toBe("2026-10-30")
+    expect(todayIn(new Date(deals.find((d) => d.id === "deal-1")!.lastTouch))).toBe("2026-11-01")
+    expect(formatRelative(Date.parse(deals.find((d) => d.id === "deal-1")!.lastTouch), afterFallBack)).toBe("Yesterday")
   })
 
   it("the long form is day-first, Central, with CT spelled out", () => {
-    expect(formatCentralDateTime("2026-10-08T04:30:00.000Z")).toBe("7 Oct 2026, 11:30 PM CT")
+    expect(formatCentralDateTime(new Date(LATE_EVENING_CT_MS))).toBe("7 Oct 2026, 11:30 PM CT")
     expect(formatCentralDateTime("2026-01-01T05:30:00.000Z")).toBe("31 Dec 2025, 11:30 PM CT")
     expect(formatCentralDateTime(new Date(FIXED_NOW_MS))).toBe("27 Aug 2026, 9:00 AM CT")
     expect(formatCentralDateTime("garbage")).toBe("garbage")

@@ -22,7 +22,7 @@ import {
  * are not deals; a hunt becomes a deal when someone is actually talking.
  *
  * Every figure here is invented. The seed is dated relative to the instant
- * the page was requested, so "3 days ago" and "overdue" are measured from
+ * the page was requested, so "Yesterday" and "overdue" are measured from
  * today — in Central calendar days, never the machine zone.
  */
 
@@ -104,7 +104,7 @@ export type Deal = {
   /** Central calendar day the next step is due; null when there is no date. */
   nextStepDue: IsoDay | null
   owner: Owner
-  /** ISO instant of the last conversation; shown as "3 days ago" in Central days. */
+  /** ISO instant of the last conversation; shown via the shared `formatRelative`. */
   lastTouch: string
   createdAt: string
   updatedAt: string
@@ -314,6 +314,10 @@ export const DEFAULT_DEAL_SORT: DealSort = { key: "nextStepDue", dir: "asc" }
  * rows always last, whatever the direction; stages follow pipeline order;
  * values put "not known" last; text compares case-insensitively. Ties fall
  * back to id so the order is stable across renders.
+ *
+ * Local rather than `sortRows` from `@/lib/sort` because nulls-last in both
+ * directions and pipeline-ordered stages are rules the generic helper has no
+ * way to express.
  */
 export function sortDeals(deals: readonly Deal[], sort: DealSort = DEFAULT_DEAL_SORT): Deal[] {
   const sign = sort.dir === "asc" ? 1 : -1
@@ -397,24 +401,11 @@ export function describeDue(deal: Pick<Deal, "nextStepDue">, today: IsoDay) {
   return { date, relative: d === 1 ? "Due tomorrow" : `Due in ${d} days`, overdue: false }
 }
 
-/**
- * "today", "yesterday", "3 days ago" — whole Central calendar days between
- * the touch and today, so a touch at 11pm read at 1am is "yesterday", not
- * "today" or "2 hours ago".
- */
-export function describeLastTouch(lastTouch: string, today: IsoDay) {
-  const day = todayIn(new Date(lastTouch))
-  const d = daysBetween(day, today)
-  if (d <= 0) return "today"
-  if (d === 1) return "yesterday"
-  return `${d} days ago`
-}
-
 let centralDateTime: Intl.DateTimeFormat | undefined
 
 /**
- * "7 Oct 2026, 9:14 AM CT" for an instant — the long form behind a "3 days
- * ago". Built on first use (Intl formatters are costly to construct and a
+ * "7 Oct 2026, 9:14 AM CT" for an instant — the long form behind the
+ * relative last-touch label. Built on first use (Intl formatters are costly to construct and a
  * server render may never need one), always in Central.
  */
 export function formatCentralDateTime(instant: string | Date) {

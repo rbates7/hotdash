@@ -4,6 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, now, todayIn } from "../src/lib/clock"
+import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
@@ -24,7 +25,7 @@ const STORAGE_KEY = "hotdash.sales-opportunities.v1"
 test.use({ viewport: { width: 1440, height: 900 } })
 
 async function shoot(page: Page, name: string) {
-  await page.waitForTimeout(250)
+  await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
     await page.screenshot({ path: path.join(dir, `${name}.png`) })
@@ -32,7 +33,6 @@ async function shoot(page: Page, name: string) {
 }
 
 // Role lookups are scoped by name, directly or through a named ancestor.
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
 const screen = (page: Page) => page.getByRole("region", { name: "Sales Opportunities", exact: true })
 const deals = (page: Page) => screen(page).getByRole("region", { name: "Deals", exact: true })
 const table = (page: Page) => deals(page).getByRole("table", { name: "Deals", exact: true })
@@ -45,7 +45,7 @@ const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, ex
 
 async function setTheme(page: Page, theme: "light" | "dark") {
   // Through the real provider: click the sidebar toggle, not a query param.
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 

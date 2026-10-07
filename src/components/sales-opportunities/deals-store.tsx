@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { todayIn, type IsoDay } from "@/lib/clock"
+import { now, todayIn, type IsoDay } from "@/lib/clock"
 import {
   CAPS,
   clampText,
@@ -20,6 +20,7 @@ import {
   initialShell,
   isFiniteNumber,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
@@ -50,8 +51,10 @@ export type Action =
       at: string
     }
   | { type: "delete-deal"; id: string }
+  /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
   | { type: "hydrate"; result: LoadResult<State>; nowMs: number }
   | { type: "save-result"; ok: boolean }
+  /** `nowMs` is `now()` at the click (`reseedNowMs`), never the request's. */
   | { type: "reset"; nowMs: number }
 
 /** The user's own edits, as opposed to persistence plumbing. */
@@ -160,10 +163,14 @@ export function initialState(nowMs: number): State {
 /**
  * Store actions mapped onto the shared persistence shell, which owns the
  * rules every screen shares: a hydrate never counts as an edit (and so never
- * writes), an empty or removed key re-seeds, a no-op edit returns the same
- * shell, `saved` follows the write's result.
+ * writes), an empty or removed key re-seeds from `nowMs` and moves the
+ * clock, a pending local edit wins over an incoming copy, a no-op edit
+ * returns the same shell, `saved` follows the write's result.
  */
 type Shell = PersistenceShell<State>
+
+/** The Central calendar day the shell's clock falls on. */
+export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
 
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
@@ -171,12 +178,13 @@ export function shellReducer(shell: Shell, action: Action): Shell {
       return persistenceShellReducer(shell, {
         type: "hydrate",
         result: action.result,
-        fallback: initialState(action.nowMs),
+        nowMs: action.nowMs,
+        fallback: initialState,
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", data: initialState(action.nowMs) })
+      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: initialState })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
@@ -240,12 +248,12 @@ export function clearState(storage: Storage | undefined) {
 type Store = State &
   PersistenceStore & {
     /**
-     * The instant this page measures from — the server's request time,
-     * passed in and never read from a client clock, so SSR and hydration
-     * agree. Every stamp an edit makes is this instant.
+     * The instant this page measures from: the request's on mount, then the
+     * moment of a Reset (or of a re-seed after another tab's Reset). Held by
+     * the shared shell; never read from a client clock in render.
      */
     nowMs: number
-    /** `nowMs` as a Central calendar day. */
+    /** `nowMs` as a Central calendar day. "Overdue" and "Due in" are measured from it. */
     today: IsoDay
     addDeal: (input: DealInput) => void
     editDeal: (id: string, input: DealInput) => void
@@ -257,60 +265,64 @@ type Store = State &
 const DealsContext = React.createContext<Store | null>(null)
 
 export function DealsProvider({
-  nowMs,
+  nowMs: requestNowMs,
   children,
 }: {
   /** `now().getTime()` from the server component rendering this page. */
   nowMs: number
   children: React.ReactNode
 }) {
-  const [shell, dispatch] = React.useReducer(shellReducer, nowMs, (ms) =>
-    initialShell(initialState(ms))
+  const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, (ms) =>
+    initialShell(initialState(ms), ms)
   )
-  const { data: state, persisted, edited, saved, saveFailed } = shell
+  const { data: state, nowMs, persisted, edited, saved, saveFailed } = shell
+  const today = shellToday(shell)
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a layout effect — before the browser paints — so the
-  // first visible frame is already the user's data, never the seed.
+  // first visible frame is already the user's data, never the seed. This is
+  // the one hydrate dated by the request's instant.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", result: dealsStorage.load(window.localStorage), nowMs })
-  }, [nowMs])
+    dispatch({ type: "hydrate", result: dealsStorage.load(window.localStorage), nowMs: requestNowMs })
+  }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
-  // moving edit count does. The result feeds the note.
+  // moving edit count does. The hook reads `now()` for a cross-tab re-seed.
   const onHydrate = React.useCallback(
-    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, nowMs }),
-    [nowMs]
+    (result: LoadResult<State>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
+    []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: dealsStorage, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(() => {
-    const at = new Date(nowMs).toISOString()
+    // An edit is a touch at the moment it happens: the shared clock, as on
+    // the Workplace's edit timestamps.
+    const at = () => now().toISOString()
     return {
       ...state,
       nowMs,
-      today: todayIn(new Date(nowMs)),
+      today,
       persisted,
       edited,
       saved,
       saveFailed,
-      addDeal: (input) => dispatch({ type: "add-deal", input, at }),
-      editDeal: (id, input) => dispatch({ type: "edit-deal", id, input, at }),
-      setStage: (id, stage) => dispatch({ type: "set-stage", id, stage, at }),
+      addDeal: (input) => dispatch({ type: "add-deal", input, at: at() }),
+      editDeal: (id, input) => dispatch({ type: "edit-deal", id, input, at: at() }),
+      setStage: (id, stage) => dispatch({ type: "set-stage", id, stage, at: at() }),
       completeNextStep: (id, nextStep, nextStepDue) =>
-        dispatch({ type: "complete-next-step", id, nextStep, nextStepDue, at }),
+        dispatch({ type: "complete-next-step", id, nextStep, nextStepDue, at: at() }),
       deleteDeal: (id) => dispatch({ type: "delete-deal", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate around the request's instant — never
-        // a client clock read, per the read-once rule: the browser returns
-        // to the never-edited state with the seed this page was served with.
+        // Clear first, then regenerate from now — the one post-mount clock
+        // read, shared by every screen — so the browser returns to the
+        // never-edited state with a seed dated today.
         clearState(window.localStorage)
-        dispatch({ type: "reset", nowMs })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
-  }, [state, nowMs, persisted, edited, saved, saveFailed])
+  }, [state, nowMs, today, persisted, edited, saved, saveFailed])
 
   return <DealsContext.Provider value={value}>{children}</DealsContext.Provider>
 }

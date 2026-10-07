@@ -14,7 +14,7 @@ import {
   reducer,
   saveState,
 } from "@/components/sales-opportunities/deals-store"
-import { FIXED_NOW_MS } from "@/test/clock"
+import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 beforeAll(() => {
   // Base UI menus and selects measure their anchors; jsdom has no layout or
@@ -101,9 +101,9 @@ describe("DealsScreen", () => {
     expect(within(r).getByText("$12,000")).toBeInTheDocument()
     expect(within(r).getByRole("button", { name: "Stage: Talking" })).toBeInTheDocument()
     expect(within(r).getByText("Rashad")).toBeInTheDocument()
-    expect(within(r).getByText("3 days ago")).toHaveAttribute("title", "24 Aug 2026, 12:00 PM CT")
+    expect(within(r).getByText("Mon, Aug 24")).toHaveAttribute("title", "24 Aug 2026, 12:00 PM CT")
     expect(within(row(/Hale/)).getByText("Value not known yet")).toBeInTheDocument()
-    expect(within(row(/Whitaker/)).getByText("yesterday")).toBeInTheDocument()
+    expect(within(row(/Whitaker/)).getByText("Yesterday")).toBeInTheDocument()
   })
 
   it("marks every seed row as sample data and the table strip too", () => {
@@ -176,7 +176,7 @@ describe("DealsScreen", () => {
       const added = row(/Jordan Reyes/)
       expect(within(added).getByText("Westlake HS")).toBeInTheDocument()
       expect(within(added).getByText("$1,800")).toBeInTheDocument()
-      expect(within(added).getByText("today")).toBeInTheDocument()
+      expect(within(added).getByText("just now")).toBeInTheDocument()
       expect(within(added).getByText("No date")).toBeInTheDocument()
       // A deal you add is yours: no sample tag.
       expect(within(added).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
@@ -226,7 +226,7 @@ describe("DealsScreen", () => {
       expect(within(r).getByText("$1,200")).toBeInTheDocument()
       expect(within(r).getByText("1 Sep 2026")).toBeInTheDocument()
       expect(within(r).getByText("Due in 5 days")).toBeInTheDocument()
-      expect(within(r).getByText("today")).toBeInTheDocument()
+      expect(within(r).getByText("just now")).toBeInTheDocument()
       // Still a seed row, still labelled.
       expect(within(r).getByTestId("sample-data-tag")).toBeInTheDocument()
     })
@@ -252,7 +252,7 @@ describe("DealsScreen", () => {
       expect(within(region()).getByText("1 overdue")).toBeInTheDocument()
       await user.click(filter("Won"))
       expect(within(row(/Pruitt/)).getByRole("button", { name: "Stage: Closed-won" })).toBeInTheDocument()
-      expect(within(row(/Pruitt/)).getByText("today")).toBeInTheDocument()
+      expect(within(row(/Pruitt/)).getByText("just now")).toBeInTheDocument()
     })
   })
 
@@ -320,11 +320,11 @@ describe("DealsScreen", () => {
   describe("clock", () => {
     it("every relative figure follows the instant the page was given", () => {
       // 23:30 CT on 7 Oct 2026: the seed must say the 7th, not the 8th.
-      renderScreen(Date.parse("2026-10-08T04:30:00.000Z"))
+      renderScreen(LATE_EVENING_CT_MS)
       expect(within(row(/Pruitt/)).getByText("5 Oct 2026")).toBeInTheDocument()
       expect(within(row(/Pruitt/)).getByText("Overdue 2 days")).toBeInTheDocument()
       expect(within(row(/Whitaker/)).getByText("9 Oct 2026")).toBeInTheDocument()
-      expect(within(row(/Treadwell/)).getByText("3 days ago")).toHaveAttribute("title", "4 Oct 2026, 12:00 PM CT")
+      expect(within(row(/Treadwell/)).getByText("Sun, Oct 4")).toHaveAttribute("title", "4 Oct 2026, 12:00 PM CT")
     })
   })
 

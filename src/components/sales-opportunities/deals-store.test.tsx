@@ -21,7 +21,7 @@ import {
   useDeals,
   type State,
 } from "@/components/sales-opportunities/deals-store"
-import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
+import { FIXED_NOW, FIXED_NOW_MS, LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const AT = FIXED_NOW.toISOString()
@@ -163,8 +163,11 @@ describe("reducer", () => {
   })
 
   it("hydrate (through the shell) takes a saved copy and re-seeds on empty or rejected", () => {
-    const shell = { ...initialShell(seed()), persisted: true }
-    const edited = shellReducer(shell, { type: "add-deal", input: WESTLAKE, at: AT })
+    const shell = { ...initialShell(seed(), FIXED_NOW_MS), persisted: true }
+    const edited = shellReducer(
+      shellReducer(shell, { type: "add-deal", input: WESTLAKE, at: AT }),
+      { type: "save-result", ok: true }
+    )
     const theirs = reducer(seed(), { type: "delete-deal", id: "deal-1" })
     expect(shellReducer(edited, hydrate(theirs)).data).toEqual(theirs)
     expect(shellReducer(edited, hydrate(null, "empty")).data).toEqual(seed())
@@ -172,7 +175,7 @@ describe("reducer", () => {
   })
 
   it("reset regenerates the seed for the instant given", () => {
-    const shell = shellReducer({ ...initialShell(seed()), persisted: true }, { type: "add-deal", input: WESTLAKE, at: AT })
+    const shell = shellReducer({ ...initialShell(seed(), FIXED_NOW_MS), persisted: true }, { type: "add-deal", input: WESTLAKE, at: AT })
     const later = Date.parse("2026-10-07T18:00:00.000Z")
     const after = shellReducer(shell, { type: "reset", nowMs: later })
     expect(after.data).toEqual(initialState(later))
@@ -181,7 +184,7 @@ describe("reducer", () => {
 })
 
 describe("shellReducer bookkeeping (the shared shell)", () => {
-  const fresh = () => ({ ...initialShell(seed()), persisted: true })
+  const fresh = () => ({ ...initialShell(seed(), FIXED_NOW_MS), persisted: true })
 
   it("a user edit marks edited and bumps the edit count; a no-op edit returns the same shell", () => {
     const shell = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
@@ -192,21 +195,39 @@ describe("shellReducer bookkeeping (the shared shell)", () => {
     expect(noop).toBe(before)
   })
 
+  /** An edit that has been written: the shell has nothing pending. */
+  const savedEdit = () =>
+    shellReducer(shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT }), { type: "save-result", ok: true })
+
   it("a hydrate never moves the edit count, so it can never cause a write", () => {
-    const edited = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
-    const after = shellReducer(edited, hydrate(seed()))
+    const after = shellReducer(savedEdit(), hydrate(seed()))
     expect(after.edits).toBe(1)
     expect(after.saved).toBe(true)
     expect(after.edited).toBe(false)
+    expect(after.data).toEqual(seed())
   })
 
-  it("an empty or removed key (Reset in another tab) re-seeds and clears edited", () => {
-    const edited = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
-    const after = shellReducer(edited, hydrate(null, "empty"))
-    expect(after.data).toEqual(seed())
+  it("a local edit that has not been saved yet wins over an incoming copy", () => {
+    const pending = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
+    const after = shellReducer(pending, hydrate(seed()))
+    expect(after.data).toBe(pending.data)
+    expect(after.edited).toBe(true)
+    expect(after.saved).toBe(true)
+  })
+
+  it("an empty or removed key (Reset in another tab) re-seeds from the event's clock and clears edited", () => {
+    const later = Date.parse("2026-10-07T18:00:00.000Z")
+    const after = shellReducer(savedEdit(), { type: "hydrate", result: { state: null, status: "empty" }, nowMs: later })
+    expect(after.data).toEqual(initialState(later))
+    expect(after.nowMs).toBe(later)
     expect(after.edited).toBe(false)
     expect(after.saved).toBe(false)
     expect(after.edits).toBe(1)
+  })
+
+  it("an adopted copy never moves the clock", () => {
+    const after = shellReducer(savedEdit(), { type: "hydrate", result: { state: seed(), status: "saved" }, nowMs: Date.parse("2026-10-07T18:00:00.000Z") })
+    expect(after.nowMs).toBe(FIXED_NOW_MS)
   })
 
   it("save-result records the outcome without ever un-saving", () => {
@@ -262,14 +283,19 @@ describe("isState rejects a bad saved copy", () => {
     expect(loaded).toEqual(fromSaved(good))
   })
 
-  it("a rejected copy is parked under <key>.rejected and the page gets the seed", () => {
+  it("a rejected copy gives the page the seed without writing; the first real save parks it", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ ...good, nextId: 1 })
     window.localStorage.setItem(STORAGE_KEY, raw)
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
     expect(loadState(window.localStorage)).toBeNull()
-    expect(dealsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    // load() is pure: the bad copy is still there and nothing was written.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(setItem).not.toHaveBeenCalled()
     expect(loadStateOrSeed(window.localStorage, FIXED_NOW_MS)).toEqual(seed())
+    saveState(window.localStorage, reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT }))
+    expect(dealsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
+    expect(loadState(window.localStorage)!.deals).toHaveLength(9)
   })
 })
 
@@ -349,15 +375,19 @@ describe("DealsProvider persistence", () => {
     expect(setItem).not.toHaveBeenCalled()
   })
 
-  it("derives today and every stamp from the instant it was given, never a client clock", () => {
-    // 23:30 CT on 7 Oct — already the 8th in UTC.
-    const late = Date.parse("2026-10-08T04:30:00.000Z")
-    mount(late)
+  it("derives today from the shell clock (the request's instant on mount) and stamps edits with the shared clock", () => {
+    // 23:30 CT on 7 Oct — already the 8th in UTC; the page says the 7th.
+    vi.useFakeTimers({ now: LATE_EVENING_CT, toFake: ["Date"] })
+    mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("now")).toHaveTextContent(String(late))
+    expect(screen.getByTestId("now")).toHaveTextContent(String(LATE_EVENING_CT_MS))
+    vi.setSystemTime(LATE_EVENING_CT_MS + 60_000)
     click("win")
-    // The stamp is the page's instant, not the real clock this test runs at.
-    expect(screen.getByTestId("touch-1")).toHaveTextContent("2026-10-08T04:30:00.000Z")
+    // A touch is stamped at the moment it happens, through the one shared clock.
+    expect(screen.getByTestId("touch-1")).toHaveTextContent("2026-10-08T04:31:00.000Z")
+    // …and the page's clock does not move for an edit.
+    expect(screen.getByTestId("now")).toHaveTextContent(String(LATE_EVENING_CT_MS))
+    vi.useRealTimers()
   })
 
   it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
@@ -376,7 +406,8 @@ describe("DealsProvider persistence", () => {
     expect(setItem).not.toHaveBeenCalled()
   })
 
-  it("persists real edits, skips no-op edits, rehydrates after a remount, and Reset clears the key and re-seeds around the request's instant", () => {
+  it("persists real edits, skips no-op edits, rehydrates after a remount, and Reset clears the key and re-seeds from now() via the shared clock", () => {
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     const first = mount()
     click("noop")
@@ -398,16 +429,20 @@ describe("DealsProvider persistence", () => {
     expect(screen.getByTestId("stage-1")).toHaveTextContent("closed-won")
     expect(setItem).toHaveBeenCalledTimes(2)
 
+    // Before Reset the page still measures from the request's instant.
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-08-27")
+
     click("reset")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    // Around the request's instant, not a client clock read.
-    expect(screen.getByTestId("today")).toHaveTextContent("2026-08-27")
-    expect(screen.getByTestId("now")).toHaveTextContent(String(FIXED_NOW_MS))
+    // Re-seeded from now() (reseedNowMs), and the clock moved with it.
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("now")).toHaveTextContent(String(Date.parse("2026-10-07T18:00:00.000Z")))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("stage-1")).toHaveTextContent("proposal")
-    expect(screen.getByTestId("touch-1")).toHaveTextContent(seed().deals[0].lastTouch)
+    expect(screen.getByTestId("touch-1")).toHaveTextContent("2026-10-06T17:00:00.000Z")
     expect(setItem).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 
   it("reports a failed save and never claims Saved", () => {
@@ -433,12 +468,16 @@ describe("DealsProvider persistence", () => {
     // Their copy is theirs: nothing of ours is pending, but the key is saved.
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
 
-    // Reset elsewhere: back to the seed here too, and nothing of ours is left.
+    // Reset elsewhere: back to the seed here too, dated from now() (the
+    // sync hook's clock read), and nothing of ours is left.
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
     window.localStorage.removeItem(STORAGE_KEY)
     act(() => fireStorageEvent(STORAGE_KEY, null))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("stage-1")).toHaveTextContent("proposal")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    vi.useRealTimers()
   })
 
   it("two providers on one key never ping-pong: a hydrate is not a save, and writes settle", async () => {

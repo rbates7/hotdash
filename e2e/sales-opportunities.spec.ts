@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
+import { addDays, formatDate, formatRelative, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 
@@ -16,7 +16,7 @@ const today = () => todayIn(now())
 // Every lookup is scoped to a landmark by role and name — the page region,
 // the Deals region inside it, the table, a named dialog or menu — so no
 // page-wide text match can ever hit two elements.
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
 const screen = (page: Page) => page.getByRole("region", { name: "Sales Opportunities", exact: true })
 const deals = (page: Page) => screen(page).getByRole("region", { name: "Deals", exact: true })
 const table = (page: Page) => deals(page).getByRole("table", { name: "Deals", exact: true })
@@ -39,7 +39,8 @@ async function fresh(page: Page) {
 }
 
 async function setTheme(page: Page, theme: "light" | "dark") {
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  // The theme toggle sits below the nav landmark; role + exact name is unique.
+  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 
@@ -97,9 +98,10 @@ test.describe("Sales Opportunities", () => {
     await expect(pruitt).toHaveAttribute("data-overdue", "true")
     await expect(pruitt).toContainText(formatDate(addDays(day, -2)))
     await expect(pruitt).toContainText("Overdue 2 days")
-    await expect(pruitt).toContainText("6 days ago")
+    // Last touch through the shared relative formatter: a weekday-date once it is older than yesterday.
+    await expect(pruitt).toContainText(formatRelative(Date.parse(`${addDays(day, -6)}T17:00:00.000Z`), now().getTime()))
     await expect(row(page, /Whitaker/)).toContainText(formatDate(addDays(day, 2)))
-    await expect(row(page, /Whitaker/)).toContainText("yesterday")
+    await expect(row(page, /Whitaker/)).toContainText("Yesterday")
     await expect(table(page).locator('tbody tr[data-overdue="true"]')).toHaveCount(2)
     await expect(deals(page).getByText("2 overdue")).toBeVisible()
     await expect(row(page, /Treadwell/)).toContainText("$12,000")
@@ -126,7 +128,7 @@ test.describe("Sales Opportunities", () => {
     await expect(reyes).toContainText("$1,800")
     await expect(reyes).toContainText(formatDate(addDays(day, 3)))
     await expect(reyes).toContainText("Due in 3 days")
-    await expect(reyes).toContainText("today")
+    await expect(reyes).toContainText("just now")
     // Added by the founder, so not sample data.
     await expect(reyes.getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(rows(page)).toHaveCount(7)
@@ -255,36 +257,35 @@ test.describe("Sales Opportunities", () => {
     expect(await writes(a)).toBe(0)
     expect(await writes(b)).toBe(0)
 
+    // Writes are counted after the other tab has visibly taken the change
+    // (web-first), then polled: a loop would overshoot and never match.
+    const settled = async (p: Page, n: number) =>
+      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+
     // Tab A edits: exactly one write, in A. B hears it and writes nothing.
     await addDeal(a, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote")
     await expect(row(b, /Jordan Reyes/)).toBeVisible()
     await expect(rows(b)).toHaveCount(7)
     await expect(note(b)).toHaveText(NOTE.saved)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(0)
+    await settled(a, 1)
+    await settled(b, 0)
 
     // B edits: one more write, in B. A takes it and stays quiet.
     await row(b, /Jordan Reyes/).getByRole("button", { name: "Stage: Talking" }).click()
     await b.getByRole("menu").getByRole("menuitemradio", { name: "Verbal" }).click()
     await expect(row(a, /Jordan Reyes/).getByRole("button", { name: "Stage: Verbal" })).toBeVisible()
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
 
-    // Writes have settled: nothing happens while nobody edits.
-    await a.waitForTimeout(750)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
-
-    // Reset in A: B goes back to the seed with nothing saved.
+    // Reset in A: B goes back to the seed with nothing saved; no new writes.
     await resetDemoData(a, screen(a))
     await expect(rows(a)).toHaveCount(6)
     await expect(rows(b)).toHaveCount(6)
     await expect(row(b, /Jordan Reyes/)).toHaveCount(0)
     await expect(note(b)).toHaveText(NOTE.unsaved)
     await expect(resetButton(b)).toBeDisabled()
-    await b.waitForTimeout(500)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
@@ -303,12 +304,17 @@ test.describe("Sales Opportunities", () => {
         await expect(tag).toHaveText("Sample data")
         await expectReadable(tag, `${theme}/row tag`, expect)
       }
-      // The closed seed rows too.
+      // Status text on the shared tokens: the overdue line and the overdue count.
+      await expectReadable(row(page, /Pruitt/).locator('[data-overdue="true"]'), `${theme}/overdue line`, expect)
+      await expectReadable(deals(page).getByText("2 overdue"), `${theme}/overdue count`, expect)
+      // The closed seed rows too, and their Won / Lost pills.
       await filter(page, "All").click()
       await expect(table(page).getByTestId("sample-data-tag")).toHaveCount(8)
       for (const tag of await table(page).getByTestId("sample-data-tag").all()) {
         await expectReadable(tag, `${theme}/row tag (all)`, expect)
       }
+      await expectReadable(row(page, /Castellano/).getByRole("button", { name: "Stage: Closed-won" }), `${theme}/won pill`, expect)
+      await expectReadable(row(page, /Fitch/).getByRole("button", { name: "Stage: Closed-lost" }), `${theme}/lost pill`, expect)
       await filter(page, "Open").click()
     }
     // Negative control: the probe must catch sabotaged text, in both themes.
