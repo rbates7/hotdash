@@ -43,8 +43,12 @@ export function SampleDataTag({
   )
 }
 
-/** The page-wide notice above the tabs; says what is and is not real. */
-export function SampleDataNotice() {
+/**
+ * The page-wide notice above the tabs; says what is and is not real. Pass
+ * `children` to replace the body with a screen's own wording; the default
+ * is the Metrics copy.
+ */
+export function SampleDataNotice({ children }: { children?: React.ReactNode }) {
   return (
     <div
       role="note"
@@ -57,10 +61,14 @@ export function SampleDataNotice() {
     >
       <FlaskConicalIcon className="mt-0.5 size-4 flex-none" aria-hidden />
       <p>
-        <strong className="font-semibold">{SAMPLE_DATA_LABEL}.</strong> Every number on
-        this page is illustrative. Nothing is connected to Stripe, Supabase or PostHog
-        yet — only the cards you add or remove and the expenses you enter are yours, and
-        those live in this browser.
+        <strong className="font-semibold">{SAMPLE_DATA_LABEL}.</strong>{" "}
+        {children ?? (
+          <>
+            Every number on this page is illustrative. Nothing is connected to Stripe,
+            Supabase or PostHog yet — only the cards you add or remove and the expenses
+            you enter are yours, and those live in this browser.
+          </>
+        )}
       </p>
     </div>
   )

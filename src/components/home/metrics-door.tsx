@@ -1,6 +1,6 @@
 import { ChartColumnIcon } from "lucide-react"
 
-import { formatMonthSpan, monthsEnding, type IsoDay } from "@/lib/clock"
+import { formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { compactDollars, sparklinePoints } from "@/lib/home"
 import { Door } from "@/components/home/door"
 import { SampleDataTag } from "@/components/sample-data"
@@ -17,7 +17,7 @@ export function MetricsDoor({ trend, today }: { trend: number[]; today: IsoDay }
   const last = trend[trend.length - 1]
   const points = sparklinePoints(trend, W, H)
   const hasTrend = trend.length > 1
-  const span = formatMonthSpan(monthsEnding(today, trend.length))
+  const span = formatWindowSpan(windowsEnding(today, trend.length))
 
   return (
     <Door
@@ -29,7 +29,7 @@ export function MetricsDoor({ trend, today }: { trend: number[]; today: IsoDay }
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between gap-2">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
-            MRR · last {trend.length} months
+            MRR · {trend.length} × 28 days
           </span>
           <SampleDataTag />
         </div>
@@ -43,7 +43,7 @@ export function MetricsDoor({ trend, today }: { trend: number[]; today: IsoDay }
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={`MRR over ${trend.length} months, ${span}, ${compactDollars(first)} to ${compactDollars(last)}`}
+            aria-label={`MRR over ${trend.length} 28-day windows, ${span}, ${compactDollars(first)} to ${compactDollars(last)}`}
             className="mt-3 h-14 w-full"
           >
             <polyline

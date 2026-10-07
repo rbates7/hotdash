@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 test.describe("Agent Workplace", () => {
   test("is reachable from the sidebar and shows the board", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("button", { name: "Project: Billing" })).toBeVisible()
     await page.keyboard.press("Escape")
 
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.saved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 
     await page.reload()
     await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()

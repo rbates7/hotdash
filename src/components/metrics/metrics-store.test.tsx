@@ -16,9 +16,15 @@ import {
   metricsStorage,
   reducer,
   saveState,
+  shellReducer,
   shiftSeed,
   useMetrics,
 } from "@/components/metrics/metrics-store"
+import { initialShell } from "@/lib/persistence"
+
+/** Drive the shell (hydrate/reset live there, not in the board reducer) and return its data. */
+const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1]) =>
+  shellReducer({ ...initialShell(state), persisted: true }, action).data
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const TODAY = MOCK_DAY
@@ -39,6 +45,17 @@ describe("reducer", () => {
     expect(s.expenses).toEqual(seedExpenses(TODAY))
     expect(s.nextExpenseId).toBe(9)
     expect(s.seededAt).toBe(TODAY)
+  })
+
+  it("a no-op edit returns the very same shell, so nothing is written for it", () => {
+    const shell = { ...initialShell(initialState(TODAY)), persisted: true }
+    expect(shellReducer(shell, { type: "add-metric", id: "mrr" })).toBe(shell) // already visible
+    expect(shellReducer(shell, { type: "remove-expense", id: "nope" })).toBe(shell)
+    const edited = shellReducer(shell, { type: "remove-metric", id: "mrr" })
+    expect(edited).not.toBe(shell)
+    expect(edited.edits).toBe(1)
+    expect(edited.edited).toBe(true)
+    expect(edited.saved).toBe(false) // until the write succeeds
   })
 
   it("adds a metric to the end and ignores duplicates", () => {
@@ -77,14 +94,14 @@ describe("reducer", () => {
 
   it("reset regenerates the seed relative to the day it is pressed", () => {
     let s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
-    s = reducer(s, { type: "reset", today: "2026-10-07" })
+    s = viaShell(s, { type: "reset", today: "2026-10-07" })
     expect(s).toEqual(initialState("2026-10-07"))
     expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-10-07")
   })
 
-  it("hydrate with an empty result keeps the seed", () => {
-    const seed = initialState(TODAY)
-    expect(reducer(seed, hydrate(null))).toBe(seed)
+  it("hydrate with an empty result re-seeds for today (nothing saved, or a Reset elsewhere)", () => {
+    const edited = reducer(initialState(TODAY), { type: "remove-metric", id: "mrr" })
+    expect(viaShell(edited, hydrate(null))).toEqual(initialState(TODAY))
   })
 })
 
@@ -112,7 +129,7 @@ describe("seed ageing on load", () => {
   })
 
   it("the hydrate action applies the shift", () => {
-    const s = reducer(initialState("2026-09-01"), hydrate(initialState("2026-08-21"), "2026-09-01"))
+    const s = viaShell(initialState("2026-09-01"), hydrate(initialState("2026-08-21"), "2026-09-01"))
     expect(s.seededAt).toBe("2026-09-01")
     expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-09-01")
   })
@@ -131,6 +148,8 @@ describe("isState rejects a bad saved copy", () => {
     ["non-canonical expense date", { ...good, expenses: [{ ...good.expenses[0], date: "2026-8-3" }] }],
     ["expense date with time", { ...good, expenses: [{ ...good.expenses[0], date: "2026-08-03T00:00:00Z" }] }],
     ["negative amount", { ...good, expenses: [{ ...good.expenses[0], amount: -5 }] }],
+    ["zero amount", { ...good, expenses: [{ ...good.expenses[0], amount: 0 }] }],
+    ["fractional amount", { ...good, expenses: [{ ...good.expenses[0], amount: 12.5 }] }],
     ["NaN amount", { ...good, expenses: [{ ...good.expenses[0], amount: Number.NaN }] }],
     ["duplicate expense ids", { ...good, expenses: [good.expenses[0], good.expenses[0]] }],
     ["nextExpenseId not above the highest id", { ...good, nextExpenseId: 8 }],
@@ -153,17 +172,19 @@ describe("isState rejects a bad saved copy", () => {
     const raw = JSON.stringify({ ...good, visible: ["mrr", "mrr"] })
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
-    expect(window.localStorage.getItem(metricsStorage.rejectedKey)).toBe(raw)
+    expect(metricsStorage.rejected(window.localStorage)[0].raw).toBe(raw)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
   })
 })
 
 describe("localStorage", () => {
-  it("uses the v2 key and drops v1", () => {
+  it("uses the v2 key; v1 is ignored on load and dropped on the first real save", () => {
     expect(STORAGE_KEY).toBe("hotdash.metrics.v2")
     window.localStorage.setItem(LEGACY_STORAGE_KEYS[0], "{}")
     expect(loadState(window.localStorage)).toBeNull()
+    expect(window.localStorage.getItem(LEGACY_STORAGE_KEYS[0])).toBe("{}")
+    saveState(window.localStorage, initialState(TODAY))
     expect(window.localStorage.getItem(LEGACY_STORAGE_KEYS[0])).toBeNull()
   })
 
@@ -178,7 +199,9 @@ describe("localStorage", () => {
     const s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
-    expect(saveState(quotaExceededStorage() as unknown as Storage, s)).toBe(false)
+    // A different copy (the identical one would be a no-op, not a write).
+    const changed = reducer(s, { type: "remove-metric", id: "mrr" })
+    expect(saveState(quotaExceededStorage() as unknown as Storage, changed)).toBe(false)
   })
 })
 
@@ -225,7 +248,9 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
   })
 
-  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-dates from now", () => {
+  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-seeds around the request's day", () => {
+    // A client clock that disagrees with the request must not leak into the
+    // reset: the page re-seeds around the day it was served with.
     vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
     const first = mount()
     act(() => screen.getByRole("button", { name: "edit" }).click())
@@ -241,9 +266,10 @@ describe("MetricsProvider persistence", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("today")).toHaveTextContent(TODAY)
     expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
-    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("dates")).toHaveTextContent(TODAY)
+    expect(screen.getByTestId("dates")).not.toHaveTextContent("2026-10-07")
     vi.useRealTimers()
   })
 
@@ -267,17 +293,64 @@ describe("MetricsProvider persistence", () => {
     spy.mockRestore()
   })
 
-  it("re-hydrates when another tab writes or clears the key", () => {
+  it("re-hydrates when another tab writes the key, and re-seeds when another tab Resets", () => {
     mount()
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true")
+
     const theirs = reducer(initialState(TODAY), { type: "remove-metric", id: "mrr" })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
     expect(screen.getByTestId("visible")).not.toHaveTextContent("mrr")
-    expect(screen.getByTestId("status")).toHaveTextContent("saved=true")
+    expect(screen.getByTestId("visible")).toHaveTextContent("arr") // theirs wins, ours is gone
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
 
+    // Their Reset: the key is gone, so this tab goes back to a fresh seed too.
     window.localStorage.removeItem(STORAGE_KEY)
     act(() => fireStorageEvent(STORAGE_KEY, null))
-    // Cleared elsewhere: our in-memory board stays, but nothing is saved any more.
-    expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
+    expect(screen.getByTestId("visible")).toHaveTextContent(DEFAULT_METRIC_IDS.join(","))
+    expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
+  })
+
+  it("two tabs on one storage: an edit in A reaches B and the writes settle at one", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    render(
+      <>
+        <MetricsProvider today={TODAY}>
+          <div data-tab="a"><Probe /></div>
+        </MetricsProvider>
+        <MetricsProvider today={TODAY}>
+          <div data-tab="b"><Probe /></div>
+        </MetricsProvider>
+      </>
+    )
+    const tab = (id: string) => document.querySelector(`[data-tab=${id}]`) as HTMLElement
+    const status = (id: string) => tab(id).querySelector("[data-testid=status]")!.textContent
+    const visible = (id: string) => tab(id).querySelector("[data-testid=visible]")!.textContent
+
+    expect(setItem).not.toHaveBeenCalled() // loading never writes
+
+    // A edits → exactly one write. The browser would now fire `storage` in B.
+    act(() => (tab("a").querySelector("button") as HTMLButtonElement).click())
+    expect(setItem).toHaveBeenCalledTimes(1)
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+
+    // B took A's copy without writing it back; A's own hydrate (jsdom fires
+    // the event in the same window) did not write either.
+    expect(visible("b")).not.toContain("arr")
+    expect(status("b")).toContain("saved=true")
+    expect(setItem).toHaveBeenCalledTimes(1)
+
+    // Settle: nothing else is written however many events bounce.
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    expect(setItem).toHaveBeenCalledTimes(1)
+
+    // B edits → one more write, and A follows the same way.
+    act(() => (tab("b").querySelector("button") as HTMLButtonElement).click())
+    expect(setItem).toHaveBeenCalledTimes(2)
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    expect(setItem).toHaveBeenCalledTimes(2)
   })
 })
