@@ -9,7 +9,13 @@
  * default date on a new expense — derives from that one day.
  */
 
-/** The founder's calendar. Days roll over at Chicago midnight, not UTC. */
+/**
+ * The founder's calendar. Days roll over at Chicago midnight, not UTC.
+ *
+ * Every helper that can take an instant resolves it in this zone, never via
+ * the machine's: a UTC server and a Central browser otherwise disagree about
+ * the date between roughly 7pm and midnight Central and hydration mismatches.
+ */
 export const TIME_ZONE = "America/Chicago"
 
 /** The real clock. Call it once per request; pass the result down. */
@@ -42,18 +48,31 @@ export function todayIn(instant: Date, timeZone = TIME_ZONE): IsoDay {
   return fmt.format(instant)
 }
 
+/** An instant becomes its Central calendar day; a day passes through. */
+export function toDay(value: IsoDay | Date): IsoDay {
+  return value instanceof Date ? todayIn(value, TIME_ZONE) : value
+}
+
 /** Shift a calendar day by whole days. Done in UTC so DST cannot skew it. */
-export function addDays(day: IsoDay, days: number): IsoDay {
-  const d = new Date(`${day}T00:00:00Z`)
+export function addDays(day: IsoDay | Date, days: number): IsoDay {
+  const d = new Date(`${toDay(day)}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+/** Whole days from `from` to `to` (positive when `to` is later). */
+export function daysBetween(from: IsoDay | Date, to: IsoDay | Date): number {
+  const a = new Date(`${toDay(from)}T00:00:00Z`).getTime()
+  const b = new Date(`${toDay(to)}T00:00:00Z`).getTime()
+  return Math.round((b - a) / 86_400_000)
 }
 
 export type Period = { start: IsoDay; end: IsoDay }
 
 /** The reporting window: the trailing four weeks (28 days) ending `today`. */
-export function periodEnding(today: IsoDay): Period {
-  return { start: addDays(today, -27), end: today }
+export function periodEnding(today: IsoDay | Date): Period {
+  const end = toDay(today)
+  return { start: addDays(end, -27), end }
 }
 
 // Hand-rolled rather than Intl: newer ICU data prints "Sept" for en-GB and
@@ -66,10 +85,11 @@ function parts(day: IsoDay): [y: number, m: number, d: number] | null {
   return [y, m, d]
 }
 
-/** "2026-08-18" → "18 Aug 2026". */
-export function formatDate(day: IsoDay) {
-  const p = parts(day)
-  if (!p) return day
+/** "2026-08-18" → "18 Aug 2026". An instant is read in `TIME_ZONE` first. */
+export function formatDate(day: IsoDay | Date) {
+  const iso = toDay(day)
+  const p = parts(iso)
+  if (!p) return iso
   const [y, m, d] = p
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
@@ -90,8 +110,8 @@ export function formatPeriod({ start, end }: Period) {
 export type MonthLabel = { label: string; year: number }
 
 /** The `count` calendar months ending in `today`'s month, oldest first. */
-export function monthsEnding(today: IsoDay, count: number): MonthLabel[] {
-  const p = parts(today)
+export function monthsEnding(today: IsoDay | Date, count: number): MonthLabel[] {
+  const p = parts(toDay(today))
   if (!p) return []
   const [y, m] = p
   const out: MonthLabel[] = []

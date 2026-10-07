@@ -3,12 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   TIME_ZONE,
   addDays,
+  daysBetween,
   formatDate,
   formatMonthSpan,
   formatPeriod,
   monthsEnding,
   now,
   periodEnding,
+  toDay,
   todayIn,
 } from "@/lib/metrics/clock"
 import {
@@ -50,6 +52,41 @@ describe("now → today", () => {
   })
 })
 
+describe("every formatter is Central, never the machine zone", () => {
+  // 23:30 CT on 7 Oct 2026 (CDT). In UTC it is already 04:30 on the 8th —
+  // the window where a UTC server and a Central browser used to disagree.
+  const LATE = new Date("2026-10-08T04:30:00.000Z")
+
+  it("23:30 CT is still the 7th everywhere an instant is accepted", () => {
+    vi.useFakeTimers({ now: LATE })
+    const instant = now()
+    // The naive reading (UTC getters) says the 8th; ours must not.
+    expect(instant.getUTCDate()).toBe(8)
+    expect(toDay(instant)).toBe("2026-10-07")
+    expect(formatDate(instant)).toBe("7 Oct 2026")
+    expect(periodEnding(instant)).toEqual({ start: "2026-09-10", end: "2026-10-07" })
+    expect(formatPeriod(periodEnding(instant))).toBe("10 Sep – 7 Oct 2026")
+    expect(monthsEnding(instant, 6).at(-1)).toEqual({ label: "Oct", year: 2026 })
+    expect(addDays(instant, -3)).toBe("2026-10-04")
+    expect(daysBetween("2026-10-01", instant)).toBe(6)
+  })
+
+  it("server (UTC) and browser (Central) render the same header for the same instant", () => {
+    // Both sides derive from the one `today` the server computed; neither
+    // reads its own clock, so the strings are byte-identical.
+    const server = formatPeriod(periodEnding(todayIn(LATE)))
+    const browser = formatPeriod(periodEnding(toDay(LATE)))
+    expect(server).toBe(browser)
+    expect(server).toBe("10 Sep – 7 Oct 2026")
+  })
+
+  it("23:30 CT on New Year's Eve stays in the old year (CST)", () => {
+    const nye = new Date("2026-01-01T05:30:00.000Z")
+    expect(formatDate(nye)).toBe("31 Dec 2025")
+    expect(formatMonthSpan(monthsEnding(nye, 6))).toBe("Jul – Dec 2025")
+  })
+})
+
 describe("period", () => {
   it.each(INSTANTS)("is the trailing four weeks ending $today", ({ at, today, label }) => {
     vi.useFakeTimers({ now: new Date(at) })
@@ -68,7 +105,13 @@ describe("period", () => {
   })
 })
 
-describe("addDays", () => {
+describe("addDays / daysBetween", () => {
+  it("counts whole days both ways", () => {
+    expect(daysBetween("2026-10-01", "2026-10-07")).toBe(6)
+    expect(daysBetween("2026-10-07", "2026-10-01")).toBe(-6)
+    expect(daysBetween("2025-12-31", "2026-01-01")).toBe(1)
+  })
+
   it("crosses month, year and DST boundaries by whole calendar days", () => {
     expect(addDays("2026-03-01", -1)).toBe("2026-02-28")
     expect(addDays("2026-01-01", -1)).toBe("2025-12-31")
