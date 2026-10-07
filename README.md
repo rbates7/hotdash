@@ -13,7 +13,15 @@ Issues board (five columns, All/Members/Agents/New, "agents working" pill),
 Backlog with sprints, ticket view, Agents roster, Autopilots, Inbox, and a
 Chat door. Board edits are saved to the browser's localStorage until a real
 datastore exists; use "Reset" in the page header to restore the demo data.
-The other 12 routes are intentional stubs; each gets its own build phase.
+
+**Phase 3 — Home** is built against the `home-v0` mock: the #1 strip, four
+KPI cards, and three doors (Metrics with an MRR trend, Agent Workplace with a
+live dev-board preview, Inbox with the "Needs you" rows). The two Workplace
+doors read the same browser-saved board state, so closing tickets or
+completing the sprint there changes Home. The Home requirements are still
+open; figures are dummy.
+
+The other 11 routes are intentional stubs; each gets its own build phase.
 
 ## Getting started
 
@@ -42,6 +50,8 @@ Open http://localhost:3000 — it redirects to `/home`.
 src/
 ├── app/          route per sidebar item, plus layout + globals
 ├── components/   app-sidebar, theme-provider, theme-toggle
+│   ├── agent-workplace/  board, backlog, ticket view, store
+│   ├── home/     #1 strip, KPI strip, doors
 │   └── ui/       shadcn primitives (vendored)
 ├── hooks/        use-mobile
 └── lib/          nav.ts (sidebar source of truth), utils.ts

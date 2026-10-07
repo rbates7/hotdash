@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
+    "screens:home": "SCREENSHOTS=1 playwright test e2e/home-screens.spec.ts",
     "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts"
   },
   "dependencies": {

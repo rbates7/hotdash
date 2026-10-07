@@ -37,7 +37,7 @@ async function setTheme(page: Page, theme: "light" | "dark") {
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Workplace state (${theme})`, async ({ page }) => {
     await page.goto("/agent-workplace")
-    await page.evaluate(() => localStorage.removeItem("hotdash.agent-workplace.v1"))
+    await page.evaluate(() => localStorage.removeItem("hotdash.agent-workplace.v2"))
     await page.reload()
     await setTheme(page, theme)
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
