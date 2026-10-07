@@ -69,6 +69,8 @@ describe("StatusScreen", () => {
     mount()
     expect(within(banner()).getByRole("heading", { level: 2, name: "All systems green" })).toBeInTheDocument()
     const preview = screen.getByRole("group", { name: "Preview" })
+    expect(preview.className).toContain("max-xl:h-11")
+    expect(preview.className).toContain("xl:h-8")
     expect(within(preview).getByRole("link", { name: "Green" })).toHaveAttribute("aria-current", "page")
     expect(within(preview).getByRole("link", { name: "Not green" })).not.toHaveAttribute("aria-current")
     expect(within(preview).getByRole("link", { name: "Not green" })).toHaveAttribute("href", "/system-status?preview=not-green")

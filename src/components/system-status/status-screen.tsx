@@ -28,6 +28,17 @@ import {
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
 import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
+import {
+  STATUS_BANNER,
+  STATUS_BANNER_META,
+  STATUS_HEADER,
+  STATUS_HEADER_CHIP,
+  STATUS_HEADER_META,
+  STATUS_INCIDENT,
+  STATUS_PREVIEW,
+  STATUS_PREVIEW_OPTION,
+  STATUS_ROW,
+} from "@/components/system-status/responsive"
 
 /* ------------------------------------------------------------------ tone */
 
@@ -110,11 +121,7 @@ function PreviewToggle({ scenario }: { scenario: Scenario }) {
     { value: "not-green", label: "Not green", href: `/system-status?${PREVIEW_PARAM}=not-green` },
   ]
   return (
-    <div
-      role="group"
-      aria-label="Preview"
-      className="bg-muted inline-flex h-8 items-center rounded-lg p-[3px]"
-    >
+    <div role="group" aria-label="Preview" className={STATUS_PREVIEW}>
       <span className="text-micro text-muted-foreground px-2 font-semibold tracking-[0.06em] uppercase select-none">
         Preview
       </span>
@@ -126,8 +133,7 @@ function PreviewToggle({ scenario }: { scenario: Scenario }) {
             href={o.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "text-caption flex h-full items-center rounded-[6px] px-2.5 font-medium tracking-tight transition-colors",
-              "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
+              STATUS_PREVIEW_OPTION,
               active
                 ? "bg-surface text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -163,12 +169,9 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
     <section
       aria-label="Current status"
       data-verdict={verdict.empty ? "empty" : verdict.green ? "green" : "not-green"}
-      className={cn(
-        "flex items-center justify-between gap-4 rounded-xl border px-6 py-[22px]",
-        tone.banner
-      )}
+      className={cn(STATUS_BANNER, tone.banner)}
     >
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-3 md:gap-4">
         <span
           className={cn("grid size-7 flex-none place-items-center rounded-full ring-[6px]", tone.text, tone.ring)}
         >
@@ -182,7 +185,7 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
           <p className="text-label text-muted-foreground mt-1 tracking-tight">{verdict.detail}</p>
         </div>
       </div>
-      <div className="text-caption text-muted-foreground flex-none text-right font-medium tracking-tight tabular-nums">
+      <div className={STATUS_BANNER_META}>
         {Number.isFinite(verdict.updatedAtMs) ? (
           <time dateTime={new Date(verdict.updatedAtMs).toISOString()}>{updated}</time>
         ) : (
@@ -204,23 +207,19 @@ function ServiceRow({ service, nowMs }: { service: Service; nowMs: number }) {
     <li
       aria-label={service.name}
       data-service={service.id}
-      className="border-border/70 hover:bg-surface-hover flex min-h-[56px] items-center justify-between gap-4 border-b px-5 py-2.5 last:border-b-0"
+      className={STATUS_ROW}
     >
-      <div className="min-w-0">
-        <div className="text-body font-semibold tracking-tight">
-          {service.href ? <OutLink href={service.href}>{service.name}</OutLink> : service.name}
-        </div>
-        <p className="text-caption text-muted-foreground mt-[3px] tracking-tight">{service.reason}</p>
+      <div className="text-body min-w-0 font-semibold tracking-tight [grid-area:name]">
+        {service.href ? <OutLink href={service.href}>{service.name}</OutLink> : service.name}
       </div>
-      <div className="flex flex-none flex-col items-end gap-[3px]">
-        <StatusLabel status={service.status} />
-        <time
-          dateTime={new Date(service.checkedAtMs).toISOString()}
-          className="text-micro text-muted-foreground tracking-tight tabular-nums"
-        >
-          {formatChecked(service.checkedAtMs, nowMs)}
-        </time>
-      </div>
+      <StatusLabel status={service.status} className="self-center justify-self-end [grid-area:status]" />
+      <p className="text-caption text-muted-foreground [grid-area:reason] tracking-tight">{service.reason}</p>
+      <time
+        dateTime={new Date(service.checkedAtMs).toISOString()}
+        className="text-micro text-muted-foreground [grid-area:time] tracking-tight tabular-nums md:justify-self-end"
+      >
+        {formatChecked(service.checkedAtMs, nowMs)}
+      </time>
     </li>
   )
 }
@@ -246,16 +245,16 @@ export function StatusScreen({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className={STATUS_HEADER}>
         <div className="min-w-0">
           <h1 className="text-display-sm font-semibold tracking-tight">System Status</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
             Health page · errors live in <OutLink href={SENTRY_HREF}>Sentry</OutLink>
           </p>
         </div>
-        <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5">
+        <div className={STATUS_HEADER_META}>
           <PreviewToggle scenario={scenario} />
-          <SampleDataTag className="h-6 px-2" />
+          <SampleDataTag className={STATUS_HEADER_CHIP} />
         </div>
       </header>
 
@@ -299,7 +298,7 @@ export function StatusScreen({
             </p>
             <SampleDataTag />
           </div>
-          <div className="flex items-baseline justify-between gap-4">
+          <div className={STATUS_INCIDENT}>
             <p className="text-label text-muted-foreground font-medium tracking-tight">{incident.summary}</p>
             <time
               dateTime={incident.day}
