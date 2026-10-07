@@ -2,17 +2,16 @@ import * as React from "react"
 import { act, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { type RejectedCopy } from "@/lib/persistence"
 import { buildSeed, seedState } from "@/lib/roadmap/fixture"
-import { inColumn, type RoadmapState } from "@/lib/roadmap/roadmap"
+import { inColumn, parseState, type RoadmapState } from "@/lib/roadmap/roadmap"
 import {
   REJECTED_KEY,
   RoadmapProvider,
   STORAGE_KEY,
   clearState,
   initialRoadmapShell,
-  isRoadmapState,
   loadState,
-  normalizeLoad,
   reducer,
   roadmapStorage,
   saveState,
@@ -21,6 +20,9 @@ import {
   type Edit,
 } from "@/components/product-roadmap/roadmap-store"
 import { fireStorageEvent } from "@/test/storage"
+
+/** The parked rejected copies, newest first. */
+const rejected = (): RejectedCopy[] => JSON.parse(window.localStorage.getItem(REJECTED_KEY) ?? "[]")
 
 const NOW = Date.parse("2026-10-07T15:00:00.000Z")
 const AT = "2026-10-07T15:00:00.000Z"
@@ -77,7 +79,7 @@ describe("reducer", () => {
     expect(added.title).toHaveLength(80)
     expect(added.why).toHaveLength(160)
     expect(added.window).toHaveLength(24)
-    expect(isRoadmapState(JSON.parse(JSON.stringify(state)))).toBe(true)
+    expect(parseState(JSON.parse(JSON.stringify(state)))).toEqual(state)
   })
 
   it("edits title, why, owner and window; rewriting the words drops the sample tag", () => {
@@ -169,7 +171,7 @@ describe("shell (through the shared persistence shell)", () => {
   const edit: Edit = { type: "add", input: { title: "Mine" }, at: AT }
 
   it("starts unhydrated, unsaved and never-edited, seeded from nowMs", () => {
-    expect(initialRoadmapShell(NOW)).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false })
+    expect(initialRoadmapShell(NOW)).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false, edits: 0 })
     expect(initialRoadmapShell(NOW).data).toEqual(seedState(NOW))
   })
 
@@ -183,17 +185,19 @@ describe("shell (through the shared persistence shell)", () => {
     expect(none.data).toEqual(seedState(later))
   })
 
-  it("hydrate strips unknown keys from a saved copy on the way in", () => {
+  it("the storage parses with the validator, so unknown keys never reach the board", () => {
     const saved = seedState(NOW)
-    const withExtras = { ...saved, version: 1, items: saved.items.map((i) => ({ ...i, extra: true })) } as unknown as RoadmapState
-    const shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: withExtras, status: "saved" } }, NOW)
-    expect(shell.data).toEqual(saved)
-    expect(normalizeLoad({ state: withExtras, status: "saved" })).toEqual({ state: saved, status: "saved" })
+    const withExtras = { ...saved, version: 1, items: saved.items.map((i) => ({ ...i, extra: true })) }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(withExtras))
+    expect(loadState(window.localStorage)).toEqual({ state: saved, status: "saved" })
   })
 
-  it("a real edit marks edited + saved; a no-op edit returns the same shell", () => {
+  it("a real edit marks edited and bumps the edit count; saved waits for the write; a no-op edit returns the same shell", () => {
     const shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
-    expect(shellReducer(shell, edit, NOW)).toMatchObject({ saved: true, edited: true })
+    const edited = shellReducer(shell, edit, NOW)
+    expect(edited).toMatchObject({ edited: true, edits: 1, saved: false })
+    expect(shellReducer(edited, { type: "save-result", ok: true }, NOW)).toMatchObject({ saved: true, saveFailed: false })
+    expect(shellReducer(edited, { type: "save-result", ok: false }, NOW)).toMatchObject({ saved: false, saveFailed: true })
     expect(shellReducer(shell, { type: "add", input: { title: " " }, at: AT }, NOW)).toBe(shell)
     expect(shellReducer(shell, { type: "move", id: "rm-1", column: "now", at: AT }, NOW)).toBe(shell)
     expect(shellReducer(shell, { type: "reorder", id: "rm-1", direction: -1, at: AT }, NOW)).toBe(shell)
@@ -205,8 +209,9 @@ describe("shell (through the shared persistence shell)", () => {
     let shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
     shell = shellReducer(shell, edit, NOW)
     const theirs: RoadmapState = { items: [], nextId: 1 }
+    const editsBefore = shell.edits
     shell = shellReducer(shell, { type: "hydrate", result: { state: theirs, status: "saved" } }, NOW)
-    expect(shell).toMatchObject({ data: theirs, edited: false, saved: true })
+    expect(shell).toMatchObject({ data: theirs, edited: false, saved: true, edits: editsBefore })
     // …and a removal elsewhere re-seeds this tab, never-edited.
     shell = shellReducer(shell, { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
     expect(shell).toMatchObject({ edited: false, saved: false })
@@ -221,7 +226,7 @@ describe("shell (through the shared persistence shell)", () => {
     shell = shellReducer(shell, { type: "save-result", ok: false }, NOW)
     const later = Date.parse("2027-03-01T15:00:00.000Z")
     const reset = shellReducer(shell, { type: "reset" }, later)
-    expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false })
+    expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false, edits: shell.edits })
     expect(reset.data).toEqual(seedState(later))
     expect(reset.data.items[0].window).toBe("Q1 2027")
     expect(spy).not.toHaveBeenCalled()
@@ -258,16 +263,25 @@ describe("storage (shared createStorage, roadmap key)", () => {
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toEqual({ state: null, status: "rejected" })
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
+    expect(rejected()).toHaveLength(1)
+    expect(rejected()[0]).toMatchObject({ raw, why: "failed validation" })
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
-  it("rejects garbage too", () => {
+  it("rejects garbage too, newest first", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     expect(loadState(window.localStorage).status).toBe("rejected")
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe("{not json")
+    expect(rejected()[0]).toMatchObject({ raw: "{not json", why: "is not JSON" })
+  })
+
+  it("does not re-write an identical copy", () => {
+    const state = seedState(NOW)
+    expect(saveState(window.localStorage, state)).toBe(true)
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    expect(saveState(window.localStorage, state)).toBe(true)
+    expect(setItem).not.toHaveBeenCalled()
   })
 
   it("clearState removes only our key", () => {
@@ -424,11 +438,13 @@ describe("RoadmapProvider", () => {
     })
     mount()
     click("add")
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
+    // Nothing landed, so the note must not claim "Saved" (and Reset stays off).
+    expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(screen.getByTestId("save-failed")).toHaveTextContent("true")
     expect(screen.getByTestId("count")).toHaveTextContent("9") // the edit still works for the session
     setItem.mockRestore()
     click("move-later")
+    expect(screen.getByTestId("saved")).toHaveTextContent("true")
     expect(screen.getByTestId("save-failed")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
   })
@@ -443,14 +459,14 @@ describe("RoadmapProvider", () => {
     expect(screen.getByTestId("persisted")).toHaveTextContent("true")
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
+    expect(rejected()[0].raw).toBe(raw)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
     // Nothing is written until the founder edits again; the parked copy stays.
     click("add")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
+    expect(rejected()[0].raw).toBe(raw)
   })
 
   it("follows a change made in another tab without writing anything back", () => {
@@ -518,7 +534,7 @@ describe("RoadmapProvider", () => {
     window.localStorage.setItem(STORAGE_KEY, "{broken")
     act(() => fireStorageEvent(STORAGE_KEY, "{broken"))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(window.localStorage.getItem(REJECTED_KEY)).toBe("{broken")
+    expect(rejected()[0].raw).toBe("{broken")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
   })

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { expectProbeCatchesBadText, expectReadable, textNodeContrasts } from "./support/contrast"
+import { expectProbeCatchesSabotage, expectReadable, textNodeContrasts } from "./support/contrast"
 import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.product-roadmap.v1"
@@ -26,6 +26,12 @@ const titlesIn = (page: Page, name: string) =>
   cardsIn(page, name).evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")))
 
 const savedCopy = (page: Page) => page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
+/** The parked rejected copies, newest first: `{ at, raw, why }[]`. */
+const rejectedCopies = (page: Page) =>
+  page.evaluate(
+    (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { at: string; raw: string; why: string }[],
+    REJECTED_KEY
+  )
 
 async function freshBoard(page: Page) {
   await page.goto("/product-roadmap")
@@ -132,13 +138,13 @@ test.describe("Product Roadmap", () => {
     await setTheme(page, "dark")
   })
 
-  test("negative control: the shared probe fails on low contrast, translucent text and opacity", async ({ page }) => {
+  test("negative control: the shared probe catches sabotaged sample-data text, in both themes", async ({ page }) => {
     await freshBoard(page)
-    await setTheme(page, "light")
-    await expectProbeCatchesBadText(page, sampleNote(page), expect)
-    // And the surface it was planted in is clean again.
-    await expectReadable(sampleNote(page), "light/notice after control", expect)
-    await setTheme(page, "dark")
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectProbeCatchesSabotage(sampleNote(page), `${theme}/notice`, expect)
+      await expectProbeCatchesSabotage(card(page, "Flag Football 2026").getByTestId("sample-data-tag"), `${theme}/card tag`, expect)
+    }
   })
 
   test("adds, moves and reorders a bet; reload keeps it; Reset asks, then clears", async ({ page }) => {
@@ -271,6 +277,7 @@ test.describe("Product Roadmap", () => {
 
   test("refuses a saved copy with one bad item: parks it raw under .rejected, drops the live key, shows the seed", async ({ page }) => {
     await page.goto("/product-roadmap")
+    await page.evaluate((key) => localStorage.removeItem(key), REJECTED_KEY)
     const raw = JSON.stringify({
       nextId: 3,
       items: [
@@ -283,13 +290,16 @@ test.describe("Product Roadmap", () => {
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
     await expect(card(page, "Fine")).toHaveCount(0)
     await expect(sampleTags(page)).toHaveCount(8)
-    expect(await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)).toBe(raw)
+    const parked = await rejectedCopies(page)
+    expect(parked).toHaveLength(1)
+    expect(parked[0]).toMatchObject({ raw, why: "failed validation" })
     expect(await savedCopy(page)).toBeNull()
     await expect(resetButton(page)).toBeDisabled()
     // The next edit saves the real board; the parked copy is left alone.
     await button(card(page, "Flag Football 2026"), "Move down").click()
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     expect(await savedCopy(page)).not.toContain("Broken")
-    expect(await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)).toBe(raw)
+    expect((await rejectedCopies(page))[0].raw).toBe(raw)
     await page.evaluate((key) => localStorage.removeItem(key), REJECTED_KEY)
     await resetDemoData(page)
   })
@@ -352,6 +362,8 @@ test.describe("Product Roadmap", () => {
     await expect(persistenceNote(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(persistenceNote(page)).toHaveCount(0)
     expect(await savedCopy(page)).toBeNull()
+    // Nothing landed, so there is nothing to reset: the note never claims "Saved".
+    await expect(resetButton(page)).toBeDisabled()
   })
 
   test("shows an empty board, per-column empties, and no sample labels when every bet is gone", async ({ page }) => {

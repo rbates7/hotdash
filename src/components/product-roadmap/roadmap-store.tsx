@@ -6,8 +6,8 @@ import {
   createStorage,
   initialShell,
   persistenceShellReducer,
+  usePersistenceSync,
   type LoadResult,
-  type PersistenceEvent,
   type PersistenceShell,
   type PersistenceStore,
 } from "@/lib/persistence"
@@ -152,36 +152,27 @@ export function reducer(state: RoadmapState, edit: Edit): RoadmapState {
 /**
  * Board state is saved to this browser's localStorage through the shared
  * persistence helper — from the first real edit on, never the untouched
- * seed, never on mount. Bump the version whenever the seed or the shape
- * changes so stale saves are discarded instead of half-applied. There is no
- * server copy and no API behind this page.
+ * seed, never on mount, never because another tab wrote. Bump the version
+ * whenever the seed or the shape changes so stale saves are discarded
+ * instead of half-applied. There is no server copy and no API behind this
+ * page.
  */
 export const STORAGE_KEY = "hotdash.product-roadmap.v1"
 
-/** Where a saved copy that failed validation is kept, raw, so nothing is silently lost. */
+/** Where saved copies that failed validation are parked, raw (last three). */
 export const REJECTED_KEY = `${STORAGE_KEY}.rejected`
 
-/** The shared helper wants a type guard; the validator proper is `parseState`. */
-export function isRoadmapState(value: unknown): value is RoadmapState {
-  return parseState(value) !== null
-}
-
+/**
+ * `parse` is the screen's validator proper: every item field-checked, ids
+ * unique, `nextId` above every id, unknown keys stripped — one bad item and
+ * the whole copy is refused (parked under `REJECTED_KEY`, seed shown).
+ */
 export const roadmapStorage = createStorage<RoadmapState>({
   key: STORAGE_KEY,
-  validate: isRoadmapState,
+  parse: parseState,
 })
 
-/**
- * A loaded copy, re-run through `parseState` so what reaches the board holds
- * only the known fields (the shared helper hands back the parsed JSON as is).
- */
-export function normalizeLoad(result: LoadResult<RoadmapState>): LoadResult<RoadmapState> {
-  if (result.status !== "saved") return result
-  const state = parseState(result.state)
-  return state ? { state, status: "saved" } : { state: null, status: "rejected" }
-}
-
-export const loadState = (storage: Storage | undefined) => normalizeLoad(roadmapStorage.load(storage))
+export const loadState = roadmapStorage.load
 export const saveState = roadmapStorage.save
 export const clearState = roadmapStorage.clear
 
@@ -199,24 +190,25 @@ export type Action =
  * Routes every action through the shared shell: hydrate / reset / save
  * results are the shared transitions; a screen edit becomes a shared `edit`
  * event carrying the reducer's output, so a no-op (same object back) leaves
- * the shell untouched — nothing marked edited, nothing written.
+ * the shell untouched — nothing marked edited, no write. The seed, for a
+ * hydrate with nothing saved and for Reset, is rebuilt from the request
+ * clock, never from a client read.
  */
 export function shellReducer(shell: Shell, action: Action, nowMs: number): Shell {
-  let event: PersistenceEvent<RoadmapState>
   switch (action.type) {
     case "hydrate":
-      event = { type: "hydrate", result: normalizeLoad(action.result), fallback: seedState(nowMs) }
-      break
-    case "reset":
-      event = { type: "reset", data: seedState(nowMs) }
-      break
+      return persistenceShellReducer(shell, {
+        type: "hydrate",
+        result: action.result,
+        fallback: seedState(nowMs),
+      })
     case "save-result":
-      event = action
-      break
+      return persistenceShellReducer(shell, action)
+    case "reset":
+      return persistenceShellReducer(shell, { type: "reset", data: seedState(nowMs) })
     default:
-      event = { type: "edit", data: reducer(shell.data, action) }
+      return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
-  return persistenceShellReducer(shell, event)
 }
 
 export function initialRoadmapShell(nowMs: number): Shell {
@@ -253,44 +245,24 @@ export function RoadmapProvider({
   )
   const { data, persisted, edited, saved, saveFailed } = shell
 
-  // The JSON last seen on disk — loaded or written by us. A write that would
-  // put back exactly what is there is skipped, so two tabs can never
-  // ping-pong, and a hydrate can never be mistaken for something to save.
-  const onDisk = React.useRef<string | null>(null)
-
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — before the browser paints — so the
   // first frame a user sees is already their data, never the seed.
   React.useLayoutEffect(() => {
-    const result = roadmapStorage.load(window.localStorage)
-    onDisk.current = result.status === "saved" ? JSON.stringify(result.state) : null
-    dispatch({ type: "hydrate", result })
+    dispatch({ type: "hydrate", result: roadmapStorage.load(window.localStorage) })
   }, [])
 
-  // Another tab (or DevTools) changed our key: follow it, the same way a
-  // load would. A removal means a reset elsewhere, so the seed comes back
-  // and this tab is no longer "edited" — nothing is written back either way.
-  React.useEffect(
-    () =>
-      roadmapStorage.subscribe((result) => {
-        onDisk.current = result.status === "saved" ? JSON.stringify(result.state) : null
-        dispatch({ type: "hydrate", result })
-      }),
+  // Other tabs and writes, the shared way: a hydrate never writes (another
+  // tab's copy is theirs; their Reset re-seeds this tab); only a moving edit
+  // count does, and an identical copy is never re-written. The write's
+  // result feeds the note.
+  const onHydrate = React.useCallback(
+    (result: LoadResult<RoadmapState>) => dispatch({ type: "hydrate", result }),
     []
   )
-
-  // Write only once there is something of the founder's to keep. Mount, a
-  // copy found on load, a copy taken from another tab, and no-op edits all
-  // leave localStorage untouched.
-  React.useEffect(() => {
-    if (!persisted || !edited) return
-    const json = JSON.stringify(data)
-    if (json === onDisk.current) return
-    const ok = roadmapStorage.save(window.localStorage, data)
-    if (ok) onDisk.current = json
-    dispatch({ type: "save-result", ok })
-  }, [persisted, edited, data])
+  const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
+  usePersistenceSync({ storage: roadmapStorage, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(() => {
     const at = new Date(nowMs).toISOString()
@@ -307,8 +279,9 @@ export function RoadmapProvider({
       reorderItem: (id, direction) => dispatch({ type: "reorder", id, direction, at }),
       removeItem: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
+        // Clear first, then regenerate around the request clock — never a
+        // client read, per the read-once rule.
         roadmapStorage.clear(window.localStorage)
-        onDisk.current = null
         dispatch({ type: "reset" })
       },
     }

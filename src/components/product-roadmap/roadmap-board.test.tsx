@@ -286,12 +286,13 @@ describe("board", () => {
   it("Reset is disabled until something is saved, asks first, then clears the copy", async () => {
     const user = userEvent.setup()
     render(<Screen />)
+    // Disabled but reachable (focusableWhenDisabled): aria-disabled, not the attribute.
     const reset = screen.getByRole("button", { name: "Reset" })
-    expect(reset).toBeDisabled()
+    expect(reset).toHaveAttribute("aria-disabled", "true")
     expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
 
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Move to Next" }))
-    expect(reset).toBeEnabled()
+    expect(reset).toHaveAttribute("aria-disabled", "false")
     expect(note()).toHaveTextContent(PERSISTENCE_COPY.saved)
     await user.click(reset)
     const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
@@ -308,7 +309,7 @@ describe("board", () => {
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
     expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
   })
 
   it("the note says when a save did not land", async () => {
@@ -322,6 +323,8 @@ describe("board", () => {
     const alert = screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })
     expect(alert).toHaveTextContent(PERSISTENCE_COPY.failed)
     expect(screen.queryByRole("status", { name: PERSISTENCE_NOTE_NAME })).toBeNull()
+    // Nothing landed, so there is nothing to reset.
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
     expect(titlesIn("Now")[1]).toBe("Flag Football 2026") // the edit still shows for the session
   })
 })
