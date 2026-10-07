@@ -1,7 +1,7 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   FeatureRequestsProvider,
@@ -19,7 +19,16 @@ import { ROADMAP_HINT_TITLE } from "@/components/feature-request/request-card"
 
 const TODAY = new Date("2026-08-24T15:00:00.000Z")
 
-afterEach(() => vi.restoreAllMocks())
+// Edit stamps come from the shared clock at the moment of the edit, so pin
+// it to the same instant the page was "requested" at.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] })
+  vi.setSystemTime(TODAY)
+})
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 function Screen() {
   return (
@@ -135,7 +144,10 @@ describe("board", () => {
     render(<Screen />)
     await user.click(card("Web import from a link"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Web import from a link" })
-    expect(dialog).toHaveTextContent("Added 2 days ago · 22 Aug 2026")
+    // Shared formatRelative: older than yesterday reads as a weekday date, the
+    // full date rides along as the <time> title.
+    expect(dialog).toHaveTextContent("Added Sat, Aug 22")
+    expect(within(dialog).getByText("Sat, Aug 22")).toHaveAttribute("title", "22 Aug 2026")
     expect(within(dialog).getByTestId("sample-data-tag")).toBeInTheDocument()
 
     const save = within(dialog).getByRole("button", { name: /Save/ })

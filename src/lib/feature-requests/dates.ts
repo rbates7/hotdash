@@ -1,15 +1,15 @@
 /**
  * Wall-clock date maths for the Feature Request seed, on top of the shared
- * clock (`@/lib/clock`): `formatDate`, `daysBetween` and `CENTRAL` come from
- * there. What lives here is the one thing the shared clock does not do —
- * move an *instant* back N Central calendar days while keeping its
- * wall-clock time, so the seed's "2 days ago" survives a DST change — plus
- * the relative wording this screen prints.
+ * clock (`@/lib/clock`): `formatDate`, `formatRelative`, `daysBetween` and
+ * `CENTRAL` come from there. What lives here is the one thing the shared
+ * clock does not do — move an *instant* back N Central calendar days while
+ * keeping its wall-clock time, so the seed's "2 days ago" survives a DST
+ * change.
  *
  * Pure: nothing here reads the clock. The instant "now" is read once per
  * request in the page and handed down as `nowMs`.
  */
-import { CENTRAL, daysBetween } from "@/lib/clock"
+import { CENTRAL } from "@/lib/clock"
 
 /** Wall-clock fields of an instant in Central. */
 export type Wall = {
@@ -65,19 +65,4 @@ export function instantAtCentralWall(wall: Wall): Date {
 export function calendarDaysBefore(days: number, from: Date): Date {
   const w = centralWall(from)
   return instantAtCentralWall({ ...w, d: w.d - days })
-}
-
-/** Whole Central calendar days from `iso` to `now`; negative if `iso` is later. */
-export function calendarDaysAgo(iso: string, now: Date): number {
-  return daysBetween(new Date(iso), now)
-}
-
-/** "today", "yesterday", "5 days ago", "3 weeks ago"… relative to `now`. */
-export function relativeLabel(iso: string, now: Date): string {
-  const days = calendarDaysAgo(iso, now)
-  if (days <= 0) return "today"
-  if (days === 1) return "yesterday"
-  if (days < 14) return `${days} days ago`
-  if (days < 60) return `${Math.floor(days / 7)} weeks ago`
-  return `${Math.floor(days / 30)} months ago`
 }

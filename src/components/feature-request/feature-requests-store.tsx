@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { now as clockNow } from "@/lib/clock"
 import {
   DEFAULT_FROM,
   LIMITS,
@@ -16,6 +17,7 @@ import {
   isIsoInstant,
   isString,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
@@ -38,14 +40,19 @@ export type NewRequestInput = {
 /** The fields a founder can rewrite on an existing card. */
 export type RequestPatch = Partial<Pick<FeatureRequest, "title" | "ask" | "from">>
 
-export type Action =
+/** What the founder can do to the board. `at` is the edit's own timestamp. */
+export type EditAction =
   | { type: "add"; input: NewRequestInput; at: string }
   | { type: "patch"; id: string; patch: RequestPatch; at: string }
   | { type: "set-status"; id: string; status: FeatureStatus; at: string }
   | { type: "remove"; id: string }
-  /** The saved copy as read on mount, or as another tab just left it. `at` seeds the fallback. */
-  | { type: "hydrate"; result: LoadResult<State>; at: string }
-  | { type: "reset"; at: string }
+
+export type Action =
+  | EditAction
+  /** localStorage was read: on mount (`nowMs` = the request's instant) or because another tab changed it (`nowMs` = `now()`). */
+  | { type: "hydrate"; result: LoadResult<State>; nowMs: number }
+  /** The key was cleared; re-seed from `nowMs` (`now()` at the click, via `reseedNowMs`). */
+  | { type: "reset"; nowMs: number }
   | { type: "save-result"; ok: boolean }
 
 const clip = (value: string, max: number) => value.trim().slice(0, max)
@@ -55,7 +62,7 @@ function clean(value: string | undefined, fallback: string, max: number): string
   return trimmed ? trimmed : fallback
 }
 
-export function reducer(state: State, action: Action): State {
+export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "add": {
       const title = clip(action.input.title, LIMITS.title)
@@ -113,26 +120,21 @@ export function reducer(state: State, action: Action): State {
         requests: state.requests.filter((r) => r.id !== action.id),
       }
     }
-
-    case "hydrate":
-      return action.result.state ?? initialState(new Date(action.at))
-
-    case "reset":
-      return initialState(new Date(action.at))
-
-    case "save-result":
-      return state
   }
 }
 
 /**
  * The shared persistence shell around the board (`@/lib/persistence`):
- * hydrates never count as edits and never write, no-op edits return the
- * same shell, `saved` follows a write's result, Reset returns to the
- * never-edited state. With no saved copy — nothing saved, or another tab's
- * Reset — hydrate falls back to a fresh seed dated from the request instant.
+ * hydrates never count as edits and never write, a local unsaved edit wins
+ * over an incoming copy, no-op edits return the same shell, `saved` follows
+ * a write's result. The shell also holds the clock (`nowMs`): the request's
+ * instant on mount, then the moment of a Reset or of a re-seed after another
+ * tab's Reset. With no saved copy, hydrate falls back to a seed built lazily
+ * from that instant.
  */
 type Shell = PersistenceShell<State>
+
+const seedAt = (nowMs: number) => initialState(new Date(nowMs))
 
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
@@ -140,15 +142,13 @@ export function shellReducer(shell: Shell, action: Action): Shell {
       return persistenceShellReducer(shell, {
         type: "hydrate",
         result: action.result,
-        fallback: initialState(new Date(action.at)),
+        nowMs: action.nowMs,
+        fallback: seedAt,
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, {
-        type: "reset",
-        data: initialState(new Date(action.at)),
-      })
+      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: seedAt })
     default:
       return persistenceShellReducer(shell, {
         type: "edit",
@@ -254,7 +254,7 @@ export const REJECTED_KEY = featureRequestsStorage.rejectedKey
 
 type Store = State &
   PersistenceStore & {
-    /** The request instant, as a Date. Every relative label is measured from it. */
+    /** The shell's clock as a Date: the request instant, or the last Reset. Relative labels measure from it. */
     now: Date
     addRequest: (input: NewRequestInput) => void
     patchRequest: (id: string, patch: RequestPatch) => void
@@ -265,67 +265,68 @@ type Store = State &
 const FeatureRequestsContext = React.createContext<Store | null>(null)
 
 export function FeatureRequestsProvider({
-  nowMs,
+  nowMs: requestNowMs,
   children,
 }: {
-  /** `now().getTime()` from the server component rendering this page. */
+  /** `now().getTime()` from the server component rendering this page — the first hydrate's clock. */
   nowMs: number
   children: React.ReactNode
 }) {
-  // The one clock for this page, as an ISO stamp. Every edit, the seed and
-  // every Reset re-seed use it; nothing below reads the clock.
-  const nowIso = React.useMemo(() => new Date(nowMs).toISOString(), [nowMs])
-  const [shell, dispatch] = React.useReducer(shellReducer, nowMs, (ms) =>
-    initialShell(initialState(new Date(ms)))
+  const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, (ms) =>
+    initialShell(seedAt(ms), ms)
   )
-  const { data: state, persisted, edited, saved, saveFailed } = shell
+  const { data: state, nowMs, persisted, edited, saved, saveFailed } = shell
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — it runs before the browser paints, so
-  // the first frame a user sees is already their data, never the seed.
+  // the first frame a user sees is already their data, never the seed. The
+  // request instant is used here, and only here.
   React.useLayoutEffect(() => {
     dispatch({
       type: "hydrate",
       result: featureRequestsStorage.load(window.localStorage),
-      at: nowIso,
+      nowMs: requestNowMs,
     })
-  }, [nowIso])
+  }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
-  // moving edit count does. The result feeds the note.
+  // moving edit count does. A cross-tab event arrives with `now()` so a
+  // re-seed after their Reset is dated from that moment. The result feeds
+  // the note.
   const onHydrate = React.useCallback(
-    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, at: nowIso }),
-    [nowIso]
+    (result: LoadResult<State>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
+    []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: featureRequestsStorage, shell, onHydrate, onSaved })
 
-  const now = React.useMemo(() => new Date(nowIso), [nowIso])
+  const now = React.useMemo(() => new Date(nowMs), [nowMs])
 
-  const value = React.useMemo<Store>(
-    () => ({
+  const value = React.useMemo<Store>(() => {
+    // Edit timestamps come from the one clock at the moment of the edit,
+    // never a bare `new Date()` and never the request instant.
+    const at = () => clockNow().toISOString()
+    return {
       ...state,
       now,
       persisted,
       edited,
       saved,
       saveFailed,
-      // Every stamp is the request instant: no client clock reads here.
-      addRequest: (input) => dispatch({ type: "add", input, at: nowIso }),
-      patchRequest: (id, patch) => dispatch({ type: "patch", id, patch, at: nowIso }),
-      setStatus: (id, status) => dispatch({ type: "set-status", id, status, at: nowIso }),
+      addRequest: (input) => dispatch({ type: "add", input, at: at() }),
+      patchRequest: (id, patch) => dispatch({ type: "patch", id, patch, at: at() }),
+      setStatus: (id, status) => dispatch({ type: "set-status", id, status, at: at() }),
       removeRequest: (id) => dispatch({ type: "remove", id }),
+      // Clear first, then regenerate from right now (the shared post-mount
+      // clock read): the browser returns to the never-edited state with a
+      // seed dated from this moment, and the shell's clock moves with it.
       resetDemoData: () => {
-        // Clear first, then regenerate around the request instant — never a
-        // client clock read: the browser returns to the never-edited state
-        // with the seed this page was served with.
         featureRequestsStorage.clear(window.localStorage)
-        dispatch({ type: "reset", at: nowIso })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
-    }),
-    [state, now, nowIso, persisted, edited, saved, saveFailed]
-  )
+    }
+  }, [state, now, persisted, edited, saved, saveFailed])
 
   return (
     <FeatureRequestsContext.Provider value={value}>

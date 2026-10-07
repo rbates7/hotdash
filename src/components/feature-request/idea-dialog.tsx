@@ -3,8 +3,7 @@
 import * as React from "react"
 import { ChevronRightIcon, MapIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { formatDate } from "@/lib/clock"
-import { relativeLabel } from "@/lib/feature-requests/dates"
+import { formatDate, formatRelative } from "@/lib/clock"
 import {
   DEFAULT_FROM,
   LIMITS,
@@ -308,8 +307,10 @@ function EditIdeaBody({
             />
           </Field>
           <p className="text-caption text-muted-foreground pb-1.5">
-            Added {relativeLabel(request.createdAt, now)} ·{" "}
-            <time dateTime={request.createdAt}>{formatDate(new Date(request.createdAt))}</time>
+            Added{" "}
+            <time dateTime={request.createdAt} title={formatDate(new Date(request.createdAt))}>
+              {formatRelative(Date.parse(request.createdAt), now.getTime())}
+            </time>
           </p>
         </div>
 
@@ -393,7 +394,7 @@ function EditIdeaBody({
           <Button
             variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            className="text-danger-text hover:text-danger-text"
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2Icon />

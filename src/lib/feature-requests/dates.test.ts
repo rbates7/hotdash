@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CENTRAL, formatDate } from "@/lib/clock"
+import { CENTRAL, daysBetween, formatDate } from "@/lib/clock"
+import { LATE_EVENING_CT } from "@/test/clock"
 
 type Dates = typeof import("@/lib/feature-requests/dates")
 
@@ -10,9 +11,8 @@ type Fixture = typeof import("@/lib/feature-requests/fixture")
 
 // 10:00 in Chicago on 24 Aug 2026 (CDT, UTC−5).
 const TODAY = new Date("2026-08-24T15:00:00.000Z")
-// 23:30 CDT on 24 Aug = 04:30 UTC on 25 Aug: UTC, and most of the world east
-// of Chicago, is already on the next day.
-const LATE = new Date("2026-08-25T04:30:00.000Z")
+// 23:30 CT on 7 Oct 2026: already 8 Oct in UTC (the shared late-evening instant).
+const LATE = LATE_EVENING_CT
 
 const originalTz = process.env.TZ
 
@@ -47,38 +47,21 @@ for (const tz of ["UTC", "America/Chicago"]) {
       expect(fmt("2026-08-25T03:00:00.000Z")).toBe("24 Aug 2026")
     })
 
-    it("at 23:30 CT prints the Central date, not the UTC one", () => {
-      expect(fmt(LATE.toISOString())).toBe("24 Aug 2026")
-      expect(LATE.getUTCDate()).toBe(25)
-      expect(dates.centralWall(LATE)).toEqual({ y: 2026, m: 8, d: 24, h: 23, min: 30, s: 0 })
+    it("at 23:30 CT reads the Central wall clock, not the UTC one", () => {
+      expect(fmt(LATE.toISOString())).toBe("7 Oct 2026")
+      expect(LATE.getUTCDate()).toBe(8)
+      expect(dates.centralWall(LATE)).toEqual({ y: 2026, m: 10, d: 7, h: 23, min: 30, s: 0 })
     })
 
-    it("counts Central calendar days, not 24-hour blocks", () => {
-      expect(dates.calendarDaysAgo("2026-08-24T04:30:00.000Z", TODAY)).toBe(1) // 23:30 on the 23rd
-      expect(dates.calendarDaysAgo("2026-08-24T14:00:00.000Z", TODAY)).toBe(0)
-      expect(dates.calendarDaysAgo("2026-08-22T15:00:00.000Z", TODAY)).toBe(2)
-      // At 23:30 CT, 00:30 CT the next morning is tomorrow even though it is
-      // the same UTC day.
-      expect(dates.calendarDaysAgo("2026-08-25T05:30:00.000Z", LATE)).toBe(-1)
-      expect(dates.calendarDaysAgo("2026-08-24T15:00:00.000Z", LATE)).toBe(0)
-    })
-
-    it("labels relative age in plain words", () => {
-      const ago = (n: number) => dates.calendarDaysBefore(n, TODAY).toISOString()
-      expect(dates.relativeLabel(ago(0), TODAY)).toBe("today")
-      expect(dates.relativeLabel(ago(1), TODAY)).toBe("yesterday")
-      expect(dates.relativeLabel(ago(5), TODAY)).toBe("5 days ago")
-      expect(dates.relativeLabel(ago(13), TODAY)).toBe("13 days ago")
-      expect(dates.relativeLabel(ago(20), TODAY)).toBe("2 weeks ago")
-      expect(dates.relativeLabel(ago(46), TODAY)).toBe("6 weeks ago")
-      expect(dates.relativeLabel(ago(95), TODAY)).toBe("3 months ago")
-      expect(dates.relativeLabel("2026-08-23T15:00:00.000Z", LATE)).toBe("yesterday")
-    })
-
-    it("calendarDaysBefore keeps the Central wall-clock time", () => {
+    it("calendarDaysBefore keeps the Central wall-clock time, and the shared day maths agree", () => {
       expect(dates.calendarDaysBefore(2, TODAY).toISOString()).toBe("2026-08-22T15:00:00.000Z")
       expect(dates.calendarDaysBefore(0, TODAY).toISOString()).toBe(TODAY.toISOString())
-      expect(dates.calendarDaysBefore(1, LATE).toISOString()).toBe("2026-08-24T04:30:00.000Z")
+      // A day before 23:30 CT on 7 Oct is 23:30 CT on 6 Oct — still the 7th in UTC.
+      const before = dates.calendarDaysBefore(1, LATE)
+      expect(before.toISOString()).toBe("2026-10-07T04:30:00.000Z")
+      expect(fmt(before.toISOString())).toBe("6 Oct 2026")
+      expect(daysBetween(before, LATE)).toBe(1)
+      expect(daysBetween(dates.calendarDaysBefore(46, TODAY), TODAY)).toBe(46)
     })
 
     describe("across DST", () => {
@@ -90,7 +73,7 @@ for (const tz of ["UTC", "America/Chicago"]) {
         expect(fmt(before.toISOString())).toBe("31 Oct 2026")
         // 24-hour maths would have landed on 00:30 CDT 1 Nov — the wrong day.
         expect(fmt(new Date(from.getTime() - 86_400_000).toISOString())).toBe("1 Nov 2026")
-        expect(dates.calendarDaysAgo(before.toISOString(), from)).toBe(1)
+        expect(daysBetween(before, from)).toBe(1)
       })
 
       it("spring forward: a day before 00:30 CDT on 9 Mar is 00:30 CST on 8 Mar", () => {
@@ -99,14 +82,14 @@ for (const tz of ["UTC", "America/Chicago"]) {
         expect(before.toISOString()).toBe("2026-03-08T06:30:00.000Z") // 00:30 CST, 8 Mar
         expect(fmt(before.toISOString())).toBe("8 Mar 2026")
         expect(fmt(new Date(from.getTime() - 86_400_000).toISOString())).toBe("7 Mar 2026")
-        expect(dates.calendarDaysAgo(before.toISOString(), from)).toBe(1)
+        expect(daysBetween(before, from)).toBe(1)
       })
 
-      it("counts the 25-hour day as one calendar day", () => {
+      it("the shared day maths counts the 25-hour day as one calendar day", () => {
         // 00:10 CDT on 1 Nov → 00:10 CST on 2 Nov is 25 hours, one day.
-        expect(dates.calendarDaysAgo("2026-11-01T05:10:00.000Z", new Date("2026-11-02T06:10:00.000Z"))).toBe(1)
+        expect(daysBetween(new Date("2026-11-01T05:10:00.000Z"), new Date("2026-11-02T06:10:00.000Z"))).toBe(1)
         // 23:50 CDT on 31 Oct → 00:10 CST on 2 Nov is 25h20m, two days.
-        expect(dates.calendarDaysAgo("2026-11-01T04:50:00.000Z", new Date("2026-11-02T06:10:00.000Z"))).toBe(2)
+        expect(daysBetween(new Date("2026-11-01T04:50:00.000Z"), new Date("2026-11-02T06:10:00.000Z"))).toBe(2)
       })
 
       it("round-trips any Central wall time, including overflowed days", () => {
@@ -135,10 +118,12 @@ for (const tz of ["UTC", "America/Chicago"]) {
         ])
       })
 
-      it("still dates today's card today when today is nearly over", () => {
+      it("still dates today's card today when today is nearly over (23:30 CT)", () => {
         const seed = fixture.buildSeed(LATE)
-        expect(fmt(seed[0].createdAt)).toBe("24 Aug 2026")
-        expect(fmt(seed[1].createdAt)).toBe("22 Aug 2026")
+        expect(fmt(seed[0].createdAt)).toBe("7 Oct 2026")
+        expect(fmt(seed[1].createdAt)).toBe("5 Oct 2026")
+        expect(fmt(seed[9].createdAt)).toBe("22 Aug 2026")
+        for (const r of seed) expect(daysBetween(new Date(r.createdAt), LATE)).toBe(fixture.SEED_ROWS[seed.indexOf(r)].age)
       })
 
       it("has ten cards, all from Dan, all tagged as sample data, none in the future", () => {

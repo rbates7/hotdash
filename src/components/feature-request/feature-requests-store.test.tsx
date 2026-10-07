@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 afterEach(() => vi.restoreAllMocks())
 
+import { formatDate } from "@/lib/clock"
+import { initialShell } from "@/lib/persistence"
 import { buildSeed } from "@/lib/feature-requests/fixture"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import { fireStorageEvent } from "@/test/storage"
 import {
   FeatureRequestsProvider,
@@ -12,6 +15,7 @@ import {
   STORAGE_KEY,
   featureRequestsStorage as storage,
   initialState,
+  shellReducer,
   isRequest,
   isState,
   reducer,
@@ -147,14 +151,28 @@ describe("reducer", () => {
     expect(reducer(before, { type: "remove", id: "fr-999" })).toBe(before)
   })
 
-  it("reset restores the seed, dated from the instant it is given", () => {
-    let state = reducer(seed(), { type: "remove", id: "fr-1" })
-    state = reducer(state, { type: "add", input: { title: "Mine" }, at: AT })
-    const later = "2026-09-01T15:00:00.000Z"
-    state = reducer(state, { type: "reset", at: later })
-    expect(state.requests).toEqual(buildSeed(new Date(later)))
-    expect(state.requests[0].createdAt).toBe(later)
-    expect(state.nextId).toBe(11)
+  it("reset (through the shell) restores the seed, dated from the instant it is given", () => {
+    let shell = initialShell(seed(), NOW_MS)
+    shell = shellReducer(shell, { type: "remove", id: "fr-1" })
+    shell = shellReducer(shell, { type: "add", input: { title: "Mine" }, at: AT })
+    expect(shell.edits).toBe(2)
+    shell = shellReducer(shell, { type: "reset", nowMs: LATE_EVENING_CT_MS })
+    expect(shell.data.requests).toEqual(buildSeed(LATE_EVENING_CT))
+    expect(shell.data.nextId).toBe(11)
+    expect(shell.nowMs).toBe(LATE_EVENING_CT_MS)
+    expect(shell.edited).toBe(false)
+    expect(shell.saved).toBe(false)
+  })
+
+  it("hydrate (through the shell) builds the fallback seed lazily from the event's nowMs", () => {
+    const shell = shellReducer(initialShell(seed(), NOW_MS), {
+      type: "hydrate",
+      result: { state: null, status: "empty" },
+      nowMs: LATE_EVENING_CT_MS,
+    })
+    expect(shell.persisted).toBe(true)
+    expect(shell.nowMs).toBe(LATE_EVENING_CT_MS)
+    expect(shell.data.requests[0].createdAt).toBe(LATE_EVENING_CT.toISOString())
   })
 })
 
@@ -257,22 +275,29 @@ describe("localStorage", () => {
     expect(isState(JSON.parse(JSON.stringify(good)))).toBe(true)
   })
 
-  it("parks a rejected copy verbatim under the .rejected key, drops the live key, and warns in dev", () => {
+  it("load() is pure: a bad copy is reported and left in place, then parked by the first save", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ requests: [{ id: "fr-1", title: "Mine" }], nextId: 2 })
     window.localStorage.setItem(STORAGE_KEY, raw)
-    expect(storage.load(window.localStorage)).toEqual({ state: null, status: "rejected" })
+    const result = storage.load(window.localStorage)
+    expect(result.status).toBe("rejected")
+    expect(result.status === "rejected" && result.rejected.raw).toBe(raw)
+    expect(result.status === "rejected" && result.rejected.why).toBe("failed validation")
+    // Nothing written: the live key still holds the bad copy, nothing is parked yet.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(storage.rejected(window.localStorage)).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    // The first real save parks it (newest first) and writes the good copy.
+    expect(saveState(window.localStorage, seed())).toBe(true)
     expect(rejectedRaw(window.localStorage)).toEqual([raw])
     expect(storage.rejected(window.localStorage)[0].why).toBe("failed validation")
-    // Shared policy: the live key is dropped so the next load does not trip again.
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(warn).toHaveBeenCalledTimes(1)
-    expect(warn.mock.calls[0][0]).toContain(REJECTED_KEY)
+    expect(loadState(window.localStorage)).toEqual(seed())
 
-    // Unparseable JSON is parked too, newest first.
+    // Unparseable JSON is reported the same way.
     window.localStorage.setItem(STORAGE_KEY, "{not json")
-    expect(loadState(window.localStorage)).toBeNull()
-    expect(rejectedRaw(window.localStorage)).toEqual(["{not json", raw])
+    expect(storage.load(window.localStorage).status).toBe("rejected")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("{not json")
     warn.mockRestore()
   })
 
@@ -329,18 +354,35 @@ describe("FeatureRequestsProvider", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("10")
   })
 
-  it("takes its clock from the page and stamps every edit with it — no client clock reads", () => {
+  it("seeds from the request's nowMs on the first hydrate; edits are stamped by the shared clock at the moment of the edit", () => {
     vi.useFakeTimers({ toFake: ["Date"] })
-    vi.setSystemTime(new Date("2031-01-01T00:00:00.000Z")) // a wildly different client clock
+    vi.setSystemTime(LATE_EVENING_CT) // the client clock, well after the request
     try {
       mount()
       expect(screen.getByTestId("now")).toHaveTextContent(TODAY.toISOString())
       expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
       act(() => screen.getByRole("button", { name: "add" }).click())
-      expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
+      expect(screen.getByTestId("first-created")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+      // The shell's clock has not moved: it only moves on a Reset or a re-seed.
+      expect(screen.getByTestId("now")).toHaveTextContent(TODAY.toISOString())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("Reset re-seeds from now() (the shared post-mount clock read), and the shell's clock moves with it", () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(LATE_EVENING_CT)
+    try {
+      mount()
+      act(() => screen.getByRole("button", { name: "add" }).click())
       act(() => screen.getByRole("button", { name: "reset" }).click())
-      expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
+      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("first-created")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+      expect(screen.getByTestId("now")).toHaveTextContent(LATE_EVENING_CT.toISOString())
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+      // Reset at 23:30 CT seeds "today" as 7 Oct in Central, not 8 Oct UTC.
+      expect(formatDate(new Date(LATE_EVENING_CT_MS))).toBe("7 Oct 2026")
     } finally {
       vi.useRealTimers()
     }
@@ -428,14 +470,15 @@ describe("FeatureRequestsProvider", () => {
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(screen.getByTestId("count")).toHaveTextContent("10")
     expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
-    expect(rejectedRaw(window.localStorage)).toEqual([raw])
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull() // dropped by the shared loader
+    // load() is pure: the bad copy stays put, unparked, until the first save.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(storage.rejected(window.localStorage)).toEqual([])
     expect(warn).toHaveBeenCalled()
 
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe idea")
-    expect(rejectedRaw(window.localStorage)).toEqual([raw]) // still parked
+    expect(rejectedRaw(window.localStorage)).toEqual([raw]) // parked by that save
     warn.mockRestore()
   })
 
@@ -465,7 +508,22 @@ describe("FeatureRequestsProvider", () => {
       fire(null)
       expect(screen.getByTestId("count")).toHaveTextContent("10")
       expect(screen.getByTestId("saved")).toHaveTextContent("false")
-      expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
+    })
+
+    it("another tab's Reset re-seeds this tab from now(), not from the request instant", () => {
+      vi.useFakeTimers({ toFake: ["Date"] })
+      vi.setSystemTime(LATE_EVENING_CT)
+      try {
+        mount()
+        expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
+        window.localStorage.removeItem(STORAGE_KEY)
+        fire(null)
+        expect(screen.getByTestId("count")).toHaveTextContent("10")
+        expect(screen.getByTestId("first-created")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+        expect(screen.getByTestId("now")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it("does not write back what it just synced", () => {
