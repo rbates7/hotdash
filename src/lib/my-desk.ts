@@ -6,8 +6,8 @@ import { isBoolean, isString } from "@/lib/persistence"
  * scratch note. Sample data until a datastore lands; the shapes are real so
  * the store can validate a saved copy field by field.
  *
- * There is no rollover of yesterday's list and no link to Agent Workplace
- * issues — this is a personal scratch space, not the agent board.
+ * To-dos have no date and stay until deleted. There is no link to Agent
+ * Workplace issues — this is a personal scratch space, not the agent board.
  */
 
 export type Todo = {
@@ -111,8 +111,9 @@ export function formatDeskDate(day: IsoDay): string {
 /* ------------------------------------------------------------------ seed */
 
 /**
- * The day Deke's founder mock was drawn. Seed to-dos do not move with the
- * calendar (no rollover); the chip next to Today does, via `formatDeskDate`.
+ * The day Deke's founder mock was drawn. Seed to-dos stay until deleted
+ * and are not tied to that calendar day; the chip next to Today does move
+ * with the clock, via `formatDeskDate`.
  */
 export const DESK_MOCK_DAY: IsoDay = "2026-08-26"
 

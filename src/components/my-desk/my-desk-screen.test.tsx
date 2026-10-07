@@ -1,10 +1,11 @@
 import * as React from "react"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { DESK_MOCK_DAY, SEED_SCRATCH, TODO_LIMITS, formatDeskDate, seedTodos } from "@/lib/my-desk"
 import {
+  EMPTY_COPY,
   LEDE,
   MyDeskScreen,
   NOTES_FOOTER,
@@ -201,9 +202,32 @@ describe("MyDeskScreen", () => {
       expect(within(notes()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
       expect(window.localStorage.getItem(STORAGE_KEY)).toContain("A personal thought.")
     })
+
+    it("writes a dirty draft on unmount without waiting for blur or the timer", () => {
+      const { unmount } = renderScreen()
+      fireEvent.change(screen.getByLabelText("Scratch"), {
+        target: { value: "typed then leave" },
+      })
+      unmount()
+      expect(window.localStorage.getItem(STORAGE_KEY)).toContain("typed then leave")
+    })
   })
 
   describe("empty states", () => {
+    it("empty-state copy does not claim yesterday's items drop off", () => {
+      saveState(window.localStorage, {
+        ...initialState(NOW_MS),
+        todos: [],
+        scratch: "",
+      })
+      renderScreen()
+      const empty = screen.getByRole("status", { name: "No to-dos" })
+      expect(empty).toHaveTextContent("Nothing on the list")
+      expect(empty).toHaveTextContent(EMPTY_COPY)
+      expect(empty).not.toHaveTextContent(/carry over/i)
+      expect(empty).not.toHaveTextContent(/Yesterday/)
+    })
+
     it("with no to-dos, Today shows one empty state that can add", async () => {
       const user = userEvent.setup()
       saveState(window.localStorage, {
@@ -214,6 +238,8 @@ describe("MyDeskScreen", () => {
       renderScreen()
       const empty = screen.getByRole("status", { name: "No to-dos" })
       expect(empty).toHaveTextContent("Nothing on the list")
+      expect(empty).toHaveTextContent(EMPTY_COPY)
+      expect(empty).not.toHaveTextContent(/carry over/i)
       expect(screen.getByTestId("open-count")).toHaveTextContent("0")
       expect(screen.getByLabelText("Scratch")).toHaveValue("")
       await user.click(within(empty).getByRole("button", { name: "Add to-do" }))

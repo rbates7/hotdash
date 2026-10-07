@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { formatDeskDate, SEED_SCRATCH } from "../src/lib/my-desk"
+import { EMPTY_COPY, SCRATCH_SAVE_MS } from "../src/components/my-desk/my-desk-screen"
+import { formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
 import { now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
@@ -168,6 +169,7 @@ test.describe("My Desk", () => {
       "Confirm Austin flight",
       "Sketch Aledo install notes",
     ]
+    expect(titles).toHaveLength(7)
     for (const title of titles) {
       await todayList(page).getByRole("button", { name: `Delete ${title}`, exact: true }).click()
       await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
@@ -175,6 +177,8 @@ test.describe("My Desk", () => {
     }
     const empty = page.getByRole("status", { name: "No to-dos", exact: true })
     await expect(empty).toContainText("Nothing on the list")
+    await expect(empty).toContainText(EMPTY_COPY)
+    await expect(empty).not.toContainText("carry over")
     await expect(page.getByTestId("open-count")).toHaveText("0")
 
     await notes(page).getByLabel("Scratch").fill("")
@@ -232,6 +236,201 @@ test.describe("My Desk", () => {
     await expect(todoBox(page, "Keyboard to-do")).toHaveCount(0)
 
     await resetDemoData(page, header(page))
+  })
+
+  test("Tab from a checkbox reaches Edit then Delete; Enter opens Add and Edit; Escape returns focus", async ({
+    page,
+  }) => {
+    await freshDesk(page)
+
+    await todoBox(page, "Call Aledo").focus()
+    await expect(todoBox(page, "Call Aledo")).toBeFocused()
+    await page.keyboard.press("Tab")
+    await expect(todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })).toBeFocused()
+    await page.keyboard.press("Tab")
+    await expect(todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })).toBeFocused()
+
+    await addButton(page).focus()
+    await page.keyboard.press("Enter")
+    const add = dialog(page, "Add to-do")
+    await expect(add).toBeVisible()
+    await expect(add.getByLabel("Title")).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(add).toBeHidden()
+    await expect(addButton(page)).toBeFocused()
+
+    const editButton = todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })
+    await editButton.focus()
+    await page.keyboard.press("Enter")
+    const edit = dialog(page, "Edit to-do")
+    await expect(edit).toBeVisible()
+    await expect(edit.getByLabel("Title")).toBeFocused()
+    await page.keyboard.press("Escape")
+    await expect(edit).toBeHidden()
+    await expect(editButton).toBeFocused()
+
+    const deleteButton = todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })
+    await deleteButton.focus()
+    await page.keyboard.press("Enter")
+    const confirm = dialog(page, "Delete this to-do?")
+    await expect(confirm).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(confirm).toBeHidden()
+    await expect(deleteButton).toBeFocused()
+  })
+
+  test("add, edit, delete, reset, empty+undo, and error copy is readable in light and dark", async ({
+    page,
+  }) => {
+    const themes = ["light", "dark"] as const
+    expect(themes).toHaveLength(2)
+    for (const theme of themes) {
+      await freshDesk(page)
+      await setTheme(page, theme)
+
+      await addButton(page).click()
+      const add = dialog(page, "Add to-do")
+      await add.getByLabel("Title").fill("Contrast check")
+      await expectReadable(add, `${theme}/add`, expect)
+      await page.keyboard.press("Escape")
+      await expect(add).toBeHidden()
+
+      await todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true }).click()
+      const edit = dialog(page, "Edit to-do")
+      await expectReadable(edit, `${theme}/edit`, expect)
+      await page.keyboard.press("Escape")
+      await expect(edit).toBeHidden()
+
+      await todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true }).click()
+      const remove = dialog(page, "Delete this to-do?")
+      await expectReadable(remove, `${theme}/delete`, expect)
+      await page.keyboard.press("Escape")
+      await expect(remove).toBeHidden()
+
+      await todoBox(page, "Call Aledo").click()
+      await resetButton(page).click()
+      const reset = dialog(page, "Reset demo data?")
+      await expectReadable(reset, `${theme}/reset`, expect)
+      await reset.getByRole("button", { name: "Keep my edits", exact: true }).click()
+      await expect(reset).toBeHidden()
+
+      const titles = [
+        "Call Aledo",
+        "Clinic follow-up",
+        "Look at Metrics",
+        "Reply to Dan",
+        "Text May — Dallas night",
+        "Confirm Austin flight",
+        "Sketch Aledo install notes",
+      ]
+      expect(titles).toHaveLength(7)
+      for (const title of titles) {
+        await todayList(page).getByRole("button", { name: `Delete ${title}`, exact: true }).click()
+        await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
+        await expect(dialog(page, "Delete this to-do?")).toBeHidden()
+      }
+      const empty = page.getByRole("status", { name: "No to-dos", exact: true })
+      const undo = page.getByRole("status", { name: "To-do removed", exact: true })
+      await expect(empty).toBeVisible()
+      await expect(undo).toBeVisible()
+      await expectReadable(empty, `${theme}/empty`, expect)
+      await expectReadable(undo, `${theme}/undo`, expect)
+
+      await page.goto("/my-desk?shot=error")
+      await setTheme(page, theme)
+      const error = page.getByRole("heading", { name: "My Desk couldn’t render" }).locator("xpath=ancestor::*[@role='alert'][1]")
+      await expect(error).toBeVisible()
+      await expectReadable(error, `${theme}/error`, expect)
+    }
+    await setTheme(page, "light")
+  })
+
+  test("Scratch typed with no blur is still there after an immediate reload", async ({ page }) => {
+    await freshDesk(page)
+    await notes(page).getByLabel("Scratch").fill("typed-no-blur-reload")
+    await page.reload()
+    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-no-blur-reload")
+  })
+
+  test("Scratch typed with no blur is still there after waiting past the timer and reloading", async ({
+    page,
+  }) => {
+    await freshDesk(page)
+    await notes(page).getByLabel("Scratch").fill("typed-wait-then-reload")
+    await expect(page.getByTestId("scratch-status")).toContainText("Saved", {
+      timeout: SCRATCH_SAVE_MS + 2_000,
+    })
+    await page.reload()
+    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-wait-then-reload")
+  })
+
+  test("Scratch typed with no blur is still there after a sidebar trip and back", async ({ page }) => {
+    await freshDesk(page)
+    await notes(page).getByLabel("Scratch").fill("typed-sidebar-and-back")
+    await rail(page).getByRole("link", { name: "Home", exact: true }).click()
+    await expect(page).toHaveURL(/\/home$/)
+    await rail(page).getByRole("link", { name: "My Desk", exact: true }).click()
+    await expect(page).toHaveURL(/\/my-desk$/)
+    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-sidebar-and-back")
+  })
+
+  test("an unbroken title and URL wrap; Edit and Delete stay in view and the delete dialog does not overflow", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await freshDesk(page)
+    const longTitle = "W".repeat(TODO_LIMITS.title)
+    const longNote = `https://example.com/${"p".repeat(TODO_LIMITS.note - "https://example.com/".length)}`
+    expect(longTitle).toHaveLength(80)
+    expect(longNote).toHaveLength(160)
+    expect(longTitle).not.toMatch(/\s/)
+    expect(longNote).not.toMatch(/\s/)
+
+    await addButton(page).click()
+    const add = dialog(page, "Add to-do")
+    await add.getByLabel("Title").fill(longTitle)
+    await add.getByLabel("Note").fill(longNote)
+    await add.getByRole("button", { name: "Add to-do", exact: true }).click()
+    await expect(add).toBeHidden()
+
+    const row = todoRow(page, longTitle)
+    await expect(row).toBeVisible()
+    const rowOverflow = await row.evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(rowOverflow).toBeLessThanOrEqual(1)
+    const pageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    )
+    expect(pageOverflow).toBeLessThanOrEqual(1)
+
+    const edit = row.getByRole("button", { name: `Edit ${longTitle}`, exact: true })
+    const remove = row.getByRole("button", { name: `Delete ${longTitle}`, exact: true })
+    await expect(edit).toBeVisible()
+    await expect(remove).toBeVisible()
+    await expect(edit).toBeInViewport()
+    await expect(remove).toBeInViewport()
+    const editBox = await edit.boundingBox()
+    const removeBox = await remove.boundingBox()
+    expect(editBox).toBeTruthy()
+    expect(removeBox).toBeTruthy()
+    const overlap =
+      editBox!.x < removeBox!.x + removeBox!.width &&
+      editBox!.x + editBox!.width > removeBox!.x &&
+      editBox!.y < removeBox!.y + removeBox!.height &&
+      editBox!.y + editBox!.height > removeBox!.y
+    expect(overlap).toBe(false)
+
+    await remove.click()
+    const confirm = dialog(page, "Delete this to-do?")
+    await expect(confirm).toBeVisible()
+    const dialogOverflow = await confirm.evaluate((el) => ({
+      x: el.scrollWidth - el.clientWidth,
+      y: el.scrollHeight - el.clientHeight,
+    }))
+    expect(dialogOverflow.x).toBeLessThanOrEqual(1)
+    const dialogPageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    )
+    expect(dialogPageOverflow).toBeLessThanOrEqual(1)
   })
 
   test("a save that fails is announced, never claimed, and Reset stays disabled", async ({ browser }) => {

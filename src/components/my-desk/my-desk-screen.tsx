@@ -29,13 +29,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
 import { TodoDialog } from "@/components/my-desk/todo-dialog"
-import { useMyDesk } from "@/components/my-desk/my-desk-store"
+import { saveState, useMyDesk } from "@/components/my-desk/my-desk-store"
 
 export const LEDE = "Personal — not the agent board"
 export const TODAY_FOOTER = "Personal list. Not Issues. Not agent work."
 export const NOTES_FOOTER = "One note. Scratchpad — not a docs product."
 export const SCRATCH_HINT = "jot, not an editor"
 export const SCRATCH_SAVE_MS = 300
+export const EMPTY_COPY =
+  "Every to-do has been removed. Add one, or Reset to bring the sample rows back."
 
 /**
  * Stands in for both cards until localStorage has been read. Showing the
@@ -74,7 +76,7 @@ function DeleteDialog({
       <DialogContent className="sm:max-w-sm!">
         <DialogHeader>
           <DialogTitle>Delete this to-do?</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="min-w-0 [overflow-wrap:anywhere]">
             {todo ? describeTodo(todo) : ""} comes off the list. There is no server copy to recover
             it from.
           </DialogDescription>
@@ -135,7 +137,7 @@ function TodoRow({
         <div className="flex flex-wrap items-start gap-2">
           <p
             className={cn(
-              "text-[13px] leading-snug font-medium tracking-tight",
+              "min-w-0 text-[13px] leading-snug font-medium tracking-tight [overflow-wrap:anywhere]",
               todo.done ? "text-foreground line-through decoration-foreground" : "text-foreground"
             )}
           >
@@ -146,7 +148,7 @@ function TodoRow({
         {todo.note ? (
           <p
             className={cn(
-              "text-caption mt-0.5 leading-snug tracking-tight",
+              "text-caption mt-0.5 min-w-0 leading-snug tracking-tight [overflow-wrap:anywhere]",
               todo.done ? "text-foreground" : "text-muted-foreground"
             )}
           >
@@ -187,6 +189,10 @@ function ScratchPane() {
   const [draft, setDraft] = React.useState(scratch)
   const [seenScratch, setSeenScratch] = React.useState(scratch)
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftRef = React.useRef(draft)
+  const storeRef = React.useRef(store)
+  draftRef.current = draft
+  storeRef.current = store
 
   // Store scratch is the source of truth after Reset, hydrate, or our own
   // save. Adjust during render rather than in an effect so a Reset cannot
@@ -194,13 +200,43 @@ function ScratchPane() {
   if (scratch !== seenScratch) {
     setSeenScratch(scratch)
     setDraft(scratch)
+    draftRef.current = scratch
   }
 
-  React.useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
+  const persistDraft = React.useCallback(() => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
     }
+    const next = draftRef.current
+    const { scratch: current, todos, nextId, setScratch: commit } = storeRef.current
+    if (next === current) return
+    const at = new Date().toISOString()
+    commit(next)
+    // The store write is effect-driven. A reload, close, or client
+    // navigation can kill the tree before that effect runs, so the
+    // draft also goes to localStorage in this same turn.
+    saveState(window.localStorage, {
+      todos,
+      nextId,
+      scratch: next,
+      scratchUpdatedAt: at,
+    })
   }, [])
+
+  React.useEffect(() => {
+    const onPageHide = () => persistDraft()
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") persistDraft()
+    }
+    window.addEventListener("pagehide", onPageHide)
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      persistDraft()
+      window.removeEventListener("pagehide", onPageHide)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [persistDraft])
 
   function flush(next: string) {
     if (timer.current) {
@@ -211,6 +247,7 @@ function ScratchPane() {
   }
 
   function onChange(value: string) {
+    draftRef.current = value
     setDraft(value)
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
@@ -332,10 +369,7 @@ export function MyDeskScreen() {
                 >
                   <NotebookPenIcon className="text-foreground size-6" aria-hidden />
                   <p className="text-body text-foreground font-medium">Nothing on the list</p>
-                  <p className="text-caption text-muted-foreground">
-                    Every to-do has been removed. Add one, or Reset to bring the sample rows back.
-                    Yesterday’s items do not carry over.
-                  </p>
+                  <p className="text-caption text-muted-foreground">{EMPTY_COPY}</p>
                   <Button size="sm" variant="outline" className="mt-1" onClick={() => setAdding(true)}>
                     <PlusIcon aria-hidden />
                     Add to-do
@@ -359,9 +393,9 @@ export function MyDeskScreen() {
               <div
                 role="status"
                 aria-label="To-do removed"
-                className="text-caption text-foreground flex items-center justify-between gap-2 border-t px-4 py-2"
+                className="text-caption text-foreground flex min-w-0 items-center justify-between gap-2 border-t px-4 py-2 [overflow-wrap:anywhere]"
               >
-                <p>
+                <p className="min-w-0 [overflow-wrap:anywhere]">
                   <span className="font-medium">{removed.title}</span> removed.
                 </p>
                 <Button
