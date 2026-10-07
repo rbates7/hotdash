@@ -20,12 +20,14 @@ import {
   parseAll,
   initialShell,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
   type PersistenceStore,
 } from "@/lib/persistence"
 import type { ActivityEntry, Comment } from "@/lib/issues"
+import { now as clockNow } from "@/lib/clock"
 
 export type State = {
   issues: Issue[]
@@ -58,10 +60,11 @@ export type Action =
   | { type: "create-sprint"; name: string; startDate: string; endDate: string }
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
-  | { type: "hydrate"; state: SavedState | null }
+  /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
+  | { type: "hydrate"; result: LoadResult<SavedState>; nowMs: number }
   | { type: "save-result"; ok: boolean }
-  /** Regenerates the seed relative to `at`, so its dates are fresh again. */
-  | { type: "reset"; at: string }
+  /** Regenerates the seed from `nowMs` (`now()` at the click), so its dates are fresh again. */
+  | { type: "reset"; nowMs: number }
 
 /** The founder's own edits, as opposed to persistence plumbing. */
 export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
@@ -199,19 +202,25 @@ type Shell = PersistenceShell<State>
 
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
-    case "hydrate": {
-      const now = shell.data.now
+    case "hydrate":
       return persistenceShellReducer<State, SavedState>(shell, {
         type: "hydrate",
-        result: action.state ? { state: action.state, status: "saved" } : { state: null, status: "empty" },
-        fallback: initialState(new Date(now)),
-        adopt: (saved) => ({ ...saved, now }),
+        result: action.result,
+        nowMs: action.nowMs,
+        // No copy (nothing saved, or another tab's Reset): a fresh seed dated
+        // from this moment, and the clock moves with it.
+        fallback: (nowMs) => initialState(new Date(nowMs)),
+        // A copy brings its board, never its clock: this page's instant stays.
+        adopt: (saved, current) => ({ data: { ...saved, now: current.data.now } }),
       })
-    }
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", data: initialState(new Date(action.at)) })
+      return persistenceShellReducer(shell, {
+        type: "reset",
+        nowMs: action.nowMs,
+        seed: (nowMs) => initialState(new Date(nowMs)),
+      })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
@@ -439,22 +448,24 @@ export function IssuesProvider({
   nowMs: number
   children: React.ReactNode
 }) {
-  const [shell, dispatch] = React.useReducer(shellReducer, undefined, () =>
-    initialShell(initialState(new Date(nowMs)))
+  const [shell, dispatch] = React.useReducer(shellReducer, nowMs, (ms) =>
+    initialShell(initialState(new Date(ms)), ms)
   )
   const { data: state, persisted, edited, saved, saveFailed } = shell
 
   // Server and first client paint both use the seed; the saved copy is
-  // applied after mount so the HTML never mismatches.
+  // applied after mount so the HTML never mismatches. This first hydrate is
+  // the only one dated from the request.
   React.useEffect(() => {
-    dispatch({ type: "hydrate", state: loadState(window.localStorage) })
-  }, [])
+    dispatch({ type: "hydrate", result: issuesStorage.load(window.localStorage), nowMs })
+  }, [nowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
   // moving edit count does (see the persistence policy above). The result
-  // feeds the note: "Saved" only when the write succeeded.
+  // feeds the note: "Saved" only when the write succeeded. The hook reads
+  // `now()` for a cross-tab re-seed.
   const onHydrate = React.useCallback(
-    (result: LoadResult<SavedState>) => dispatch({ type: "hydrate", state: result.state }),
+    (result: LoadResult<SavedState>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
     []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
@@ -463,7 +474,8 @@ export function IssuesProvider({
   const now = React.useMemo(() => new Date(state.now), [state.now])
 
   const value = React.useMemo<Store>(() => {
-    const at = () => new Date().toISOString()
+    // Edit timestamps come from the one clock too, never a bare `new Date()`.
+    const at = () => clockNow().toISOString()
     return {
       ...state,
       actors: seedActors,
@@ -486,7 +498,7 @@ export function IssuesProvider({
       // fresh and the browser returns to the never-edited state.
       resetDemoData: () => {
         clearState(window.localStorage)
-        dispatch({ type: "reset", at: at() })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
   }, [state, persisted, edited, saved, saveFailed, now])

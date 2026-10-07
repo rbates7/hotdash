@@ -60,8 +60,8 @@ export function TrendPill({
         trend.flat
           ? "bg-muted text-muted-foreground"
           : trend.good
-            ? "bg-success/10 text-success"
-            : "bg-destructive/10 text-destructive"
+            ? "bg-success/10 text-success-text"
+            : "bg-destructive/10 text-danger-text"
       )}
     >
       {!trend.flat && <Arrow className="size-[11px]" strokeWidth={2.25} aria-hidden />}
