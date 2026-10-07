@@ -21,7 +21,8 @@
     "screens:system-status": "CI=true SCREENSHOTS=1 playwright test e2e/system-status-screens.spec.ts",
     "screens:product-roadmap": "SCREENSHOTS=1 playwright test e2e/product-roadmap-screens.spec.ts",
     "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts",
-    "screens:bugs": "CI=true SCREENSHOTS=1 playwright test e2e/bugs-screens.spec.ts"
+    "screens:bugs": "CI=true SCREENSHOTS=1 playwright test e2e/bugs-screens.spec.ts",
+    "screens:clinics": "SCREENSHOTS=1 playwright test e2e/clinics-screens.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
