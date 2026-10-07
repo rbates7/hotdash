@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
  * Review screenshots for the Metrics page, every main state in both themes
@@ -38,9 +38,12 @@ async function setTheme(page: Page, theme: "light" | "dark") {
   )
 }
 
-// Role lookups are scoped by name, directly or through a named ancestor.
-const grid = (page: Page) => page.getByRole("region", { name: "Metric cards" })
-const card = (page: Page, name: string) => page.getByRole("article", { name, exact: true })
+// Role lookups are anchored to a named tab panel, so a sibling panel
+// mid-transition can never match. The Expenses card lives on two panels.
+const panel = (page: Page, name: string) => page.getByRole("tabpanel", { name, exact: true })
+const grid = (page: Page) => panel(page, "Overview").getByRole("region", { name: "Metric cards" })
+const card = (page: Page, name: string) => grid(page).getByRole("article", { name, exact: true })
+const expensesCard = (page: Page) => panel(page, "Expenses").getByRole("article", { name: "Expenses", exact: true })
 const tab = (page: Page, name: string) =>
   page.getByRole("tablist", { name: "Metrics views" }).getByRole("tab", { name, exact: true })
 
@@ -50,8 +53,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
-    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month bar chart, / })).toBeVisible()
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, bar chart of six 28-day windows, / })).toBeVisible()
 
     // Overview with data.
     await shoot(page, `metrics-overview-${theme}`)
@@ -64,7 +67,7 @@ for (const theme of ["light", "dark"] as const) {
     }
 
     // Add-metric picker open.
-    await page.getByRole("button", { name: "Add metric", exact: true }).click()
+    await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
     await expect(page.getByRole("dialog", { name: "Add a metric" })).toBeVisible()
     await shoot(page, `metrics-overview-add-metric-${theme}`)
 
@@ -91,20 +94,20 @@ for (const theme of ["light", "dark"] as const) {
 
     // Tables.
     await tab(page, "New Subscribers").click()
-    await expect(page.getByRole("table", { name: "New subscribers" })).toBeVisible()
+    await expect(panel(page, "New Subscribers").getByRole("table", { name: "New subscribers" })).toBeVisible()
     await shoot(page, `metrics-new-subscribers-${theme}`)
 
     await tab(page, "Churned Subscribers").click()
-    await expect(page.getByRole("table", { name: "Churned subscribers" })).toBeVisible()
+    await expect(panel(page, "Churned Subscribers").getByRole("table", { name: "Churned subscribers" })).toBeVisible()
     await shoot(page, `metrics-churned-subscribers-${theme}`)
 
     await tab(page, "Expenses").click()
-    await expect(page.getByRole("table", { name: "Expenses" })).toBeVisible()
-    await expect(card(page, "Expenses").getByRole("img", { name: /^Expenses, six-month bar chart, / })).toBeVisible()
+    await expect(panel(page, "Expenses").getByRole("table", { name: "Expenses", exact: true })).toBeVisible()
+    await expect(expensesCard(page).getByRole("img", { name: /^Expenses, bar chart of six 28-day windows, / })).toBeVisible()
     await shoot(page, `metrics-expenses-${theme}`)
 
     // Add-expense dialog, filled in.
-    await page.getByRole("button", { name: "Add expense", exact: true }).click()
+    await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
@@ -114,12 +117,12 @@ for (const theme of ["light", "dark"] as const) {
     await expect(dialog).toBeHidden()
 
     await page.reload()
-    await expect(page.getByRole("table", { name: "Expenses", exact: true }).getByRole("row", { name: /Vercel/ })).toBeVisible()
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(panel(page, "Expenses").getByRole("table", { name: "Expenses", exact: true }).getByRole("row", { name: /Vercel/ })).toBeVisible()
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
     await shoot(page, `metrics-expenses-persisted-after-reload-${theme}`)
 
     // Back to the seed for the next run.
     await resetDemoData(page)
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,240")
   })
 }

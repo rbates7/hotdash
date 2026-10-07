@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
  * Review screenshots for the Agent Workplace, every main state in both
@@ -42,7 +42,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate(() => localStorage.removeItem("hotdash.agent-workplace.v2"))
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 
     // With data.
     await shoot(page, `workplace-issues-${theme}`)

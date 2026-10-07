@@ -3,11 +3,16 @@
 import * as React from "react"
 import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon } from "lucide-react"
 
-import type { Sort } from "@/lib/metrics"
+import type { Sort } from "@/lib/sort"
 import { cn } from "@/lib/utils"
 import { TableHead } from "@/components/ui/table"
 import { SampleDataStrip } from "@/components/sample-data"
 
+/**
+ * Shared table furniture — the bordered card, sortable headers, the stacked
+ * Name/Email cell and the status pill — used by Metrics, Sales and Clinics
+ * so every table on the dashboard reads the same. Pair with `@/lib/sort`.
+ */
 export const HEAD =
   "text-micro text-muted-foreground h-auto px-[18px] py-3 font-medium tracking-[0.05em] uppercase"
 export const CELL = "text-label px-[18px] py-3.5 whitespace-normal"

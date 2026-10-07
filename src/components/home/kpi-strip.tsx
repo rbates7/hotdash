@@ -42,7 +42,7 @@ const SAMPLE_LABEL_ID = "kpi-sample-data"
 export function SampleDataLabel() {
   return (
     <p id={SAMPLE_LABEL_ID} role="note" data-testid="kpi-sample-label" className="inline-flex">
-      <SampleDataTag className="h-6 px-2">· figures are invented, not live</SampleDataTag>
+      <SampleDataTag className="text-caption h-6 px-2">· figures are invented, not live</SampleDataTag>
     </p>
   )
 }

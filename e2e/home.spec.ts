@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 test.describe("Home", () => {
   test("is the default screen and shows the day's pulse", async ({ page }) => {
@@ -32,14 +32,17 @@ test.describe("Home", () => {
     await expect(kpis.getByRole("heading", { name: "Truth strip" })).toBeVisible()
     await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/])
     await expect(kpis.getByText("186")).toBeVisible()
-    await expect(kpis.getByText("$7,103")).toBeVisible()
+    await expect(kpis.getByText(/\+3 vs previous 28 days/)).toBeVisible()
+    // A real trailing-7-day figure from the shared daily revenue spread.
+    await expect(kpis.getByText("$7,848")).toBeVisible()
+    await expect(kpis.getByText(/\+6\.8% vs previous 7 days/)).toBeVisible()
     // Two card chips + the strip label; plus the Metrics door's chip.
     await expect(kpis.getByTestId("sample-data-tag")).toHaveCount(3)
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(4)
 
     // Home reads the Workplace's browser-saved board and says so. Nothing
     // has been edited in this browser, so nothing is saved yet.
-    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 
     // Doors.
     const doors = page.getByRole("group", { name: "Doors" })
