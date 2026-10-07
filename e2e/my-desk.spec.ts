@@ -64,7 +64,10 @@ test.describe("My Desk", () => {
     await freshDesk(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(header(page), `${theme}/header`, expect)
+      await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/title`, expect)
+      await expectReadable(header(page).getByText("Personal — not the agent board"), `${theme}/lede`, expect)
+      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
+      await expectReadable(header(page).getByTestId("persistence-note"), `${theme}/persistence note`, expect)
       await expectReadable(todayList(page), `${theme}/today`, expect)
       await expectReadable(notes(page), `${theme}/notes`, expect)
       await expectReadable(todoRow(page, "Text May — Dallas night"), `${theme}/done row`, expect)
