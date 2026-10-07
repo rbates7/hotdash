@@ -235,27 +235,31 @@ test.describe("CRM", () => {
     await expect(page.getByRole("link", { name: /Billing question about Annual seats/ })).toHaveCount(0)
 
     for (let i = 0; i < 16; i++) {
+      await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
+      const empty = page.getByRole("status", { name: "No cases" })
+      if (await empty.isVisible()) break
       const table = page.getByRole("table", { name: "Cases" })
-      if (!(await table.isVisible())) break
+      await expect(table).toBeVisible()
       await table.locator("tbody tr").first().locator("td").nth(1).getByRole("link").click()
       await page.getByRole("button", { name: /Delete case/ }).click()
       await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
       await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
       await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-      await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
     }
     await expect(page.getByRole("status", { name: "No cases" })).toBeVisible()
 
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
     for (let i = 0; i < 16; i++) {
+      await expect(page.getByRole("heading", { level: 2, name: "Contacts" })).toBeVisible()
+      const empty = page.getByRole("status", { name: "No contacts" })
+      if (await empty.isVisible()) break
       const table = page.getByRole("table", { name: "Contacts" })
-      if (!(await table.isVisible())) break
+      await expect(table).toBeVisible()
       await table.locator("tbody tr").first().getByRole("link").click()
       await page.getByRole("button", { name: /^Delete / }).click()
       await dialog(page, "Delete this contact?").getByRole("button", { name: "Delete", exact: true }).click()
       await expect(page.getByRole("status", { name: "Contact not found" })).toBeVisible()
       await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
-      await expect(page.getByRole("heading", { level: 2, name: "Contacts" })).toBeVisible()
     }
     await expect(page.getByRole("status", { name: "No contacts" })).toBeVisible()
 
