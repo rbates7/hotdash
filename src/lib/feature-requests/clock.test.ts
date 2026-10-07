@@ -38,6 +38,48 @@ describe("clock", () => {
     expect(formatDate("2026-08-25T03:00:00.000Z")).toBe("24 Aug 2026")
   })
 
+  describe("at 23:30 Central", () => {
+    // 23:30 CDT on 24 Aug = 04:30 UTC on 25 Aug: UTC, and most of the world
+    // east of Chicago, is already on the next day.
+    const LATE = "2026-08-25T04:30:00.000Z"
+    const originalTz = process.env.TZ
+
+    afterEach(() => {
+      if (originalTz === undefined) delete process.env.TZ
+      else process.env.TZ = originalTz
+    })
+
+    it("prints the Central date, not the UTC one", () => {
+      expect(formatDate(LATE)).toBe("24 Aug 2026")
+      expect(new Date(LATE).getUTCDate()).toBe(25)
+    })
+
+    it("prints the same date whatever zone the process runs in (server vs browser)", () => {
+      const seen = new Set<string>()
+      for (const tz of ["UTC", "Pacific/Kiritimati", "America/Los_Angeles", "Asia/Tokyo"]) {
+        process.env.TZ = tz
+        seen.add(formatDate(LATE))
+        expect(new Date(LATE).getDate()).toBeDefined() // exercise the local clock too
+      }
+      expect([...seen]).toEqual(["24 Aug 2026"])
+    })
+
+    it("counts days from the Central calendar at 23:30 CT", () => {
+      vi.setSystemTime(new Date(LATE))
+      expect(relativeLabel("2026-08-24T15:00:00.000Z")).toBe("today")
+      expect(relativeLabel("2026-08-23T15:00:00.000Z")).toBe("yesterday")
+      // 00:30 CDT the next morning is tomorrow in Central, even though it is
+      // the same UTC day as LATE.
+      expect(calendarDaysAgo("2026-08-25T05:30:00.000Z")).toBe(-1)
+    })
+
+    it("still seeds today's card for today when today is nearly over", () => {
+      const seed = buildSeed(new Date(LATE))
+      expect(formatDate(seed[0].createdAt)).toBe("24 Aug 2026")
+      expect(formatDate(seed[1].createdAt)).toBe("22 Aug 2026")
+    })
+  })
+
   it("counts calendar days, not 24-hour blocks", () => {
     expect(calendarDaysAgo("2026-08-24T04:30:00.000Z")).toBe(1) // 23:30 on the 23rd in Chicago
     expect(calendarDaysAgo("2026-08-24T14:00:00.000Z")).toBe(0)

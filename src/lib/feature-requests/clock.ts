@@ -13,12 +13,16 @@ export function now(): Date {
   return new Date()
 }
 
-/** Where the founder is. Calendar-day maths and date labels use it. */
+/**
+ * Where the founder is. Every formatter in this file passes it as
+ * `timeZone`, so the server and the browser print the same calendar day
+ * whatever machine or locale they run on.
+ */
 export const CENTRAL = "America/Chicago"
 
 const DAY_MS = 86_400_000
 
-/** "2026-08-24" for any instant, as seen from Central. */
+/** "2026-08-24" for any instant, as seen from Central. The one formatter. */
 const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
   year: "numeric",
   month: "2-digit",
