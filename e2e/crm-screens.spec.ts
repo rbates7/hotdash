@@ -91,23 +91,17 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `crm-triage-empty-${theme}`)
 
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    for (const subject of [
-      "Can't invite teammates to workspace",
-      "Billing question about seats",
-      "CSV export times out on large ranges",
-      "Onboarding checklist stuck at step 3",
-      "API rate limits for reporting integration",
-      "Cancel subscription and export data",
-      "Login loop on Safari 18",
-      "Feature request: weekly digest email",
-      "Intro — Futurebridge <> Chlk",
-    ]) {
-      const link = page.getByRole("link", { name: new RegExp(subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) })
-      if ((await link.count()) === 0) continue
-      await link.first().click()
+    await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
+    for (let i = 0; i < 16; i++) {
+      const table = page.getByRole("table", { name: "Cases" })
+      if (!(await table.isVisible())) break
+      const subject = table.locator("tbody tr").first().locator("td").nth(1).getByRole("link")
+      await subject.click()
       await page.getByRole("button", { name: /Delete case/ }).click()
       await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
+      await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
       await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
+      await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
     }
     await expect(page.getByRole("status", { name: "No cases" })).toBeVisible()
     await shoot(page, `crm-empty-${theme}`)
