@@ -1,9 +1,11 @@
 "use client"
 
+import { isBug } from "@/lib/bugs"
 import type { Actor, Issue } from "@/lib/issues"
 import { actorById } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
+import { BugTag } from "@/components/bugs/bug-tag"
 
 export function WorkingBadge({ className }: { className?: string }) {
   return (
@@ -47,7 +49,10 @@ export function IssueCard({
         <span className="text-micro text-muted-foreground font-medium tracking-wide tabular-nums">
           {issue.key}
         </span>
-        {issue.isAgentWorking && <WorkingBadge />}
+        <span className="flex items-center gap-1">
+          {isBug(issue) && <BugTag issue={issue} />}
+          {issue.isAgentWorking && <WorkingBadge />}
+        </span>
       </div>
 
       <div className="flex min-w-0 items-center gap-[7px]">

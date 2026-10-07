@@ -159,22 +159,22 @@ describe("boardPreview", () => {
     const preview = boardPreview(issues, sprints, actors, NOW)
     expect(preview?.sprint.name).toBe("Sprint 4")
     expect(preview?.columns.map((c) => [c.label, c.count])).toEqual([
-      ["To Do", 3],
+      ["To Do", 4],
       ["In Progress", 3],
-      ["In Review", 2],
-      ["Done", 3],
+      ["In Review", 3],
+      ["Done", 4],
       ["Blocked", 2],
     ])
     expect(preview?.working).toBe(3)
-    expect(preview?.progress).toEqual({ done: 3, total: 13, pct: 23 })
+    expect(preview?.progress).toEqual({ done: 4, total: 16, pct: 25 })
     expect(preview?.daysLeft).toBe(9)
   })
 
   it("ignores backlog issues outside the sprint", () => {
     const preview = boardPreview(issues, sprints, actors, NOW)
     const total = preview!.columns.reduce((sum, c) => sum + c.count, 0)
-    expect(total).toBe(13)
-    expect(issues.length).toBeGreaterThan(13)
+    expect(total).toBe(16)
+    expect(issues.length).toBeGreaterThan(16)
   })
 
   it("is null when no sprint is running", () => {
@@ -201,9 +201,9 @@ describe("KPI card sets", () => {
   const TODAY = "2026-08-21"
   const KPI_SETS = kpiSets(TODAY)
 
-  it("ships the truth strip: paying coaches (the Metrics Subscribers number) and cash this week", () => {
+  it("ships the truth strip: subscribers (the Metrics Subscribers number) and cash this week", () => {
     expect(ACTIVE_KPI_SET).toBe("truth")
-    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Paying coaches", "Cash this week"])
+    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Subscribers", "Cash this week"])
     expect(kpiStripTitle).toBe("Truth strip")
   })
 

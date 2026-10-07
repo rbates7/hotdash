@@ -55,14 +55,14 @@ describe("HomeScreen", () => {
     )
   })
 
-  it("renders the truth strip: paying coaches and cash this week, from the shared KPI fixture, deltas toned", () => {
+  it("renders the truth strip: subscribers and cash this week, from the shared KPI fixture, deltas toned", () => {
     renderHome()
     const today = todayIn(FIXED_NOW)
     const [subs, cash] = truthStrip({ today })
     const strip = screen.getByRole("region", { name: "KPI strip" })
     expect(within(strip).getByRole("heading", { level: 2, name: "Truth strip" })).toBeInTheDocument()
     const cards = within(strip).getAllByRole("article")
-    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Paying coaches", "Cash this week"])
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Subscribers", "Cash this week"])
     expect(within(cards[0]).getByText(subs.value)).toBeInTheDocument()
     expect(within(cards[0]).getByText("186")).toBeInTheDocument()
     expect(within(cards[0]).getByText(/\+3 vs previous 28 days/)).toHaveAttribute("data-tone", "good")
@@ -77,7 +77,7 @@ describe("HomeScreen", () => {
     const today = todayIn(FIXED_NOW)
     const subsCard = snapshotFor("subscribers", { today })
     const strip = screen.getByRole("region", { name: "KPI strip" })
-    const subs = within(strip).getByRole("article", { name: "Paying coaches" })
+    const subs = within(strip).getByRole("article", { name: "Subscribers" })
     expect(within(subs).getByText(formatMetricValue(subsCard.value, subsCard.unit))).toBeInTheDocument()
 
     const door = screen.getByRole("region", { name: "Metrics" })
@@ -150,13 +150,13 @@ describe("HomeScreen", () => {
     expect(within(door).getByText("Dev board · Sprint 4")).toBeInTheDocument()
     const columns = within(within(door).getByRole("list", { name: "Columns" })).getAllByRole("listitem")
     expect(columns.map((c) => c.textContent)).toEqual([
-      "3To Do",
+      "4To Do",
       "3In Progress",
-      "2In Review",
-      "3Done",
+      "3In Review",
+      "4Done",
       "2Blocked",
     ])
-    expect(within(door).getByText("3/13 done")).toBeInTheDocument()
+    expect(within(door).getByText("4/16 done")).toBeInTheDocument()
     expect(within(door).getByText("Sprint 4 · 9 days left")).toBeInTheDocument()
   })
 
@@ -230,7 +230,7 @@ describe("HomeScreen before the saved board is read", () => {
     expect(html).not.toContain("Agent blocked")
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
-    expect(html).toContain("Paying coaches")
+    expect(html).toContain("Subscribers")
     expect(html).toContain("$7,848")
     // The sample caveat is in the first paint, not added after hydration.
     expect(html).toContain("Sample data")
