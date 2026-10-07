@@ -186,7 +186,7 @@ test.describe("Bugs", () => {
     await freshBugs(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(pageHeader(page), `${theme}/header`, expect)
+      await expectReadable(page.getByRole("heading", { level: 1, name: "Bugs" }), `${theme}/title`, expect)
       await expectReadable(crashCard(page), `${theme}/crash card`, expect)
       const nodes = await expectReadable(list(page), `${theme}/bug list`, expect)
       for (const heading of ["To Do", "In Progress", "In Review", "Done"]) {
@@ -196,8 +196,13 @@ test.describe("Bugs", () => {
       expect(nodes.some((n) => n.text === "Bug · Coach-reported")).toBe(true)
 
       await bug(page, "CHLK-419").click()
-      await expect(page.getByTestId("bug-tag")).toBeVisible()
-      await expectReadable(page.getByTestId("bug-tag"), `${theme}/ticket chip`, expect)
+      await expect(page).toHaveURL(/issue=CHLK-419/)
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })
+      ).toBeVisible()
+      const chip = page.getByTestId("bug-tag")
+      await expect(chip).toHaveCount(1)
+      await expectReadable(chip, `${theme}/ticket chip`, expect)
       await expectReadable(
         props(page).getByRole("button", { name: "Untag bug", exact: true }),
         `${theme}/bug toggle`,
