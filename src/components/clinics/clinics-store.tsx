@@ -170,11 +170,6 @@ export function loadState(storage: Storage | undefined): State | null {
   return clinicsStorage.load(storage).state
 }
 
-/** The saved copy, or a fresh seed around `today` when there is none. */
-export function loadStateOrSeed(storage: Storage | undefined, today: IsoDay): State {
-  return loadState(storage) ?? initialState(today)
-}
-
 export function saveState(storage: Storage | undefined, state: State): boolean {
   return clinicsStorage.save(storage, state)
 }

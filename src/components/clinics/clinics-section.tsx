@@ -3,13 +3,12 @@
 import * as React from "react"
 import { EllipsisIcon } from "lucide-react"
 
-import { formatDate, type IsoDay } from "@/lib/clock"
+import { formatDate, formatRelativeDay, type IsoDay } from "@/lib/clock"
 import {
   ATTENDANCES,
   ATTENDANCE_LABEL,
   formatCollected,
   isSeedClinic,
-  relativeDay,
   statusOf,
   type Attendance,
   type Clinic,
@@ -182,7 +181,7 @@ export function ClinicsSection({
                     <TableCell className={cn(CELL, "whitespace-nowrap", past && "text-muted-foreground")}>
                       <div className="flex flex-col gap-0.5 tabular-nums">
                         <span>{formatDate(c.date)}</span>
-                        <span className="text-micro text-muted-foreground">{relativeDay(c.date, today)}</span>
+                        <span className="text-micro text-muted-foreground">{formatRelativeDay(c.date, today)}</span>
                       </div>
                     </TableCell>
                     <TableCell className={cn(CELL, c.type === "zoom" && "text-muted-foreground")}>

@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { addDays, now, todayIn } from "../src/lib/clock"
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Clinics page, every main state in both themes
@@ -34,20 +35,12 @@ async function shoot(page: Page, name: string) {
 }
 
 // Role lookups are scoped by name, directly or through a named ancestor.
-const themeSwitch = (page: Page) =>
-  page.getByRole("group").filter({ has: page.getByRole("button", { name: "Light", exact: true }) })
 const header = (page: Page) => page.getByRole("main").locator("header").first()
 const table = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   page.getByRole("region", { name, exact: true }).getByRole("table", { name, exact: true })
 const bodyRows = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   table(page, name).locator("tbody").getByRole("row")
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await themeSwitch(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
-}
 
 async function openMenu(page: Page, section: "Upcoming clinics" | "Past clinics", clinic: string) {
   await table(page, section).getByRole("button", { name: `Actions for ${clinic}`, exact: true }).click()

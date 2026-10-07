@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.clinics.v1"
 
@@ -17,10 +18,6 @@ const today = () => todayIn(now())
 // header, a named region/table, a dialog or a menu — so a sibling element
 // with the same text can never match.
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
-// The theme switch sits in the sidebar footer, outside the nav landmark; its
-// group has no name, so it is found by role and by the buttons it holds.
-const themeSwitch = (page: Page) =>
-  page.getByRole("group").filter({ has: page.getByRole("button", { name: "Light", exact: true }) })
 // A <header> inside <main> is not a banner landmark, so it is reached through
 // the main landmark; everything inside it is then found by role and name.
 const header = (page: Page) => page.getByRole("main").locator("header").first()
@@ -50,13 +47,8 @@ async function freshClinics(page: Page) {
   await page.reload()
   // Nothing edited in this browser yet, so nothing is saved — and it says so.
   await expect(note(page)).toHaveText(NOTE.unsaved)
-  await expect(resetButton(page)).toBeDisabled()
+  await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
-}
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  await themeSwitch(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 
 /** Fill the add/edit form. Every field is looked up by its label inside the dialog. */
@@ -146,6 +138,29 @@ test.describe("Clinics", () => {
       }
     }
     await setTheme(page, "light")
+  })
+
+  test("the disabled Reset does not react to hover and keeps its own size", async ({ page }) => {
+    await freshClinics(page)
+    const reset = resetButton(page)
+    await expect(reset).toHaveAttribute("aria-disabled", "true")
+    const styles = () =>
+      reset.evaluate((el) => {
+        const cs = getComputedStyle(el)
+        return { background: cs.backgroundColor, color: cs.color, fontSize: cs.fontSize, paddingLeft: cs.paddingLeft, cursor: cs.cursor, opacity: cs.opacity }
+      })
+    const before = await styles()
+    expect(before.fontSize).toBe("11px") // text-micro, not Nova's text-xs (12px)
+    expect(before.paddingLeft).toBe("6px") // px-1.5, not Nova's px-2
+    expect(before.cursor).toBe("not-allowed")
+    expect(Number(before.opacity)).toBeCloseTo(0.5, 2)
+    await reset.hover()
+    await page.mouse.move(1, 1)
+    await reset.hover()
+    const during = await styles()
+    expect(during.background).toBe(before.background)
+    expect(during.color).toBe(before.color)
+    expect(during.fontSize).toBe("11px")
   })
 
   test("happy path: add → edit the date into the past → mark attended → record collected → survives reload → Reset via confirm", async ({ page }) => {
@@ -238,7 +253,7 @@ test.describe("Clinics", () => {
     await expect(table(page, "Past clinics").getByText("Katy spring install")).toHaveCount(0)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   })
 
   test("delete asks first, and emptying the list shows one empty state", async ({ page }) => {
@@ -311,6 +326,7 @@ test.describe("Clinics", () => {
     // The disabled Reset is a stop on purpose (focusable, with the shared
     // hint as its description), and nothing else sits between the h1 and Add.
     expect(seen, seen.join(" | ")).toEqual(["button:Reset", "button:Add clinic"])
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
     await expect(resetButton(page)).toHaveAccessibleDescription(/nothing to reset/)
 
     await page.keyboard.press("Enter")
@@ -380,7 +396,7 @@ test.describe("Clinics", () => {
     // …but the note says it could not be kept, as an alert, and Reset has nothing to reset.
     await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(note(page, { failed: true })).not.toContainText("Saved")
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
@@ -388,7 +404,6 @@ test.describe("Clinics", () => {
   test("two tabs stay in sync and the writes settle: one per edit, none for a hydrate", async ({ browser }) => {
     const context = await browser.newContext()
     await countWrites(context, STORAGE_KEY)
-    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
     const a = await context.newPage()
     const b = await context.newPage()
     await a.goto("/clinics")
@@ -397,13 +412,12 @@ test.describe("Clinics", () => {
     await b.goto("/clinics")
     await expect(note(a)).toHaveText(NOTE.unsaved)
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    expect(await writes(a)).toBe(0)
-    expect(await writes(b)).toBe(0)
-    // Write counts are checked after the other tab has visibly caught up
-    // (web-first), then polled, so an echo that arrived late would still
-    // fail the count rather than slip past a fixed sleep.
-    const settled = (p: Page, n: number) =>
-      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    // Writes are counted after the other tab has visibly taken the change
+    // (web-first), then must stay flat over a quiet window: a loop would
+    // move the count and the poll would never settle.
+    const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
+    await settled(a, 0)
+    await settled(b, 0)
 
     // Edit in A: one write in A; B hydrates and writes nothing.
     let menu = await openMenu(a, "Upcoming clinics", "Houston Offensive Staff Clinic")
@@ -428,7 +442,7 @@ test.describe("Clinics", () => {
     await expect(bodyRows(b, "Upcoming clinics")).toHaveCount(4)
     await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Planned")
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(b)).toBeDisabled()
+    await expect(resetButton(b)).toHaveAttribute("aria-disabled", "true")
     await settled(a, 1)
     await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()

@@ -14,7 +14,6 @@ import {
   isSeedClinic,
   isUpcoming,
   normalizeInput,
-  relativeDay,
   sameClinic,
   seedClinics,
   splitClinics,
@@ -22,7 +21,7 @@ import {
   stripClinic,
   type Clinic,
 } from "@/lib/clinics"
-import { daysBetween, formatDate, now, todayIn } from "@/lib/clock"
+import { daysBetween, formatDate, formatRelativeDay, now, todayIn } from "@/lib/clock"
 import { LATE_EVENING_CT } from "@/test/clock"
 
 afterEach(() => vi.useRealTimers())
@@ -97,25 +96,25 @@ describe("Upcoming vs Past is decided on Central calendar days", () => {
     expect(now().getUTCDate()).toBe(8)
     expect(isUpcoming(at("2026-10-07"), today)).toBe(true)
     expect(statusOf(at("2026-10-07"), today)).toBe("upcoming")
-    expect(relativeDay("2026-10-07", today)).toBe("Today")
+    expect(formatRelativeDay("2026-10-07", today)).toBe("Today")
     expect(isUpcoming(at("2026-10-06"), today)).toBe(false)
     expect(statusOf(at("2026-10-06"), today)).toBe("unconfirmed")
-    expect(relativeDay("2026-10-06", today)).toBe("Yesterday")
-    expect(relativeDay("2026-10-08", today)).toBe("Tomorrow")
+    expect(formatRelativeDay("2026-10-06", today)).toBe("Yesterday")
+    expect(formatRelativeDay("2026-10-08", today)).toBe("Tomorrow")
   })
 
   it("crossing the DST change is one calendar day, not 25 hours rounded somewhere", () => {
     vi.useFakeTimers({ now: LATE_DST_EVE })
     const today = todayIn(now())
     expect(today).toBe("2026-10-31")
-    expect(relativeDay("2026-11-01", today)).toBe("Tomorrow")
-    expect(relativeDay("2026-11-07", today)).toBe("in 7 days")
+    expect(formatRelativeDay("2026-11-01", today)).toBe("Tomorrow")
+    expect(formatRelativeDay("2026-11-07", today)).toBe("in 7 days")
     expect(daysBetween(today, "2026-11-01")).toBe(1)
 
     vi.setSystemTime(LATE_CST)
     const next = todayIn(now())
     expect(next).toBe("2026-11-01")
-    expect(relativeDay("2026-10-31", next)).toBe("Yesterday")
+    expect(formatRelativeDay("2026-10-31", next)).toBe("Yesterday")
     expect(statusOf(at("2026-10-31"), next)).toBe("unconfirmed")
     expect(isUpcoming(at("2026-11-01"), next)).toBe(true)
   })
@@ -125,7 +124,7 @@ describe("Upcoming vs Past is decided on Central calendar days", () => {
     const today = todayIn(now())
     expect(today).toBe("2025-12-31")
     expect(statusOf(at("2025-12-31"), today)).toBe("upcoming")
-    expect(relativeDay("2026-01-01", today)).toBe("Tomorrow")
+    expect(formatRelativeDay("2026-01-01", today)).toBe("Tomorrow")
   })
 
   it("the seed built from a late-evening instant splits around the Central day, same under any TZ", () => {
@@ -134,9 +133,9 @@ describe("Upcoming vs Past is decided on Central calendar days", () => {
     expect(upcoming).toHaveLength(4)
     expect(past).toHaveLength(4)
     expect(upcoming[0].date).toBe("2026-10-22")
-    expect(relativeDay(upcoming[0].date, today)).toBe("in 15 days")
+    expect(formatRelativeDay(upcoming[0].date, today)).toBe("in 15 days")
     expect(past[0].date).toBe("2026-07-18")
-    expect(relativeDay(past[0].date, today)).toBe("81 days ago")
+    expect(formatRelativeDay(past[0].date, today)).toBe("81 days ago")
   })
 })
 

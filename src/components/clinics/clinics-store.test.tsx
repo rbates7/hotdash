@@ -12,7 +12,6 @@ import {
   initialState,
   isState,
   loadState,
-  loadStateOrSeed,
   parseState,
   reducer,
   saveState,
@@ -206,7 +205,7 @@ describe("isState rejects a bad saved copy", () => {
     expect(setItem).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
     expect(clinicsStorage.rejected(window.localStorage)).toEqual([])
-    expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+    expect(loadState(window.localStorage) ?? initialState(TODAY)).toEqual(initialState(TODAY))
     setItem.mockRestore()
     saveState(window.localStorage, good)
     expect(clinicsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
@@ -219,11 +218,11 @@ describe("localStorage", () => {
     expect(STORAGE_KEY).toBe("hotdash.clinics.v1")
   })
 
-  it("loadStateOrSeed returns the seed when nothing is saved and the stripped copy when there is", () => {
-    expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+  it("loadState returns null when nothing is saved and the stripped copy when there is", () => {
+    expect(loadState(window.localStorage)).toBeNull()
     const edited = reducer(initialState(TODAY), { type: "add", input: KATY })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...edited, extra: 1 }))
-    expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(edited)
+    expect(loadState(window.localStorage)).toEqual(edited)
   })
 
   it("saves and loads the same state; a failed save returns false", () => {

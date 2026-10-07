@@ -1,4 +1,4 @@
-import { addDays, daysBetween, formatDate, isIsoDay, type IsoDay } from "@/lib/clock"
+import { addDays, formatDate, isIsoDay, type IsoDay } from "@/lib/clock"
 import { isFiniteNumber, isString } from "@/lib/persistence"
 
 /**
@@ -218,19 +218,6 @@ function byDate(sign: 1 | -1) {
     // Same day: keep a stable, meaningful order by id (older rows first).
     return clinicNumber(a.id) - clinicNumber(b.id)
   }
-}
-
-/**
- * "Today", "Tomorrow", "in 12 days", "Yesterday", "3 days ago" — whole
- * Central calendar days, never hours, so DST cannot turn one day into two.
- */
-export function relativeDay(date: IsoDay, today: IsoDay) {
-  const n = daysBetween(today, date)
-  if (n === 0) return "Today"
-  if (n === 1) return "Tomorrow"
-  if (n === -1) return "Yesterday"
-  if (n > 0) return `in ${n} days`
-  return `${-n} days ago`
 }
 
 export type Status = "upcoming" | "done" | "skipped" | "unconfirmed"
