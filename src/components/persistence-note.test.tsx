@@ -42,7 +42,7 @@ describe("PersistenceNote", () => {
     expect(reset).toHaveAttribute("aria-disabled", "true")
     expect(reset).toHaveAccessibleDescription(RESET_DISABLED_HINT)
     // No native `disabled` (it stays focusable), so the look comes from aria-disabled variants.
-    for (const c of ["aria-disabled:opacity-50", "aria-disabled:cursor-not-allowed", "aria-disabled:hover:bg-transparent"]) {
+    for (const c of ["aria-disabled:opacity-50", "aria-disabled:cursor-not-allowed", "aria-disabled:hover:bg-transparent!", "aria-disabled:hover:text-muted-foreground!", "text-micro!", "px-1.5!"]) {
       expect(reset.className.split(" ")).toContain(c)
     }
     // Keyboard users can still land on it and hear the hint.
