@@ -51,10 +51,13 @@ export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so the
 
 export function PersistenceNote({
   store,
+  className,
   resetClassName,
 }: {
   store: PersistenceStore
-  /** Extra classes on Reset — Home uses this to grow the tap target below `xl`. */
+  /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
+  className?: string
+  /** Extra classes on Reset — screens use this to grow the tap target below `xl`. */
   resetClassName?: string
 }) {
   const [confirming, setConfirming] = React.useState(false)
@@ -65,8 +68,9 @@ export function PersistenceNote({
   return (
     <span
       className={cn(
-        "text-micro inline-flex max-w-full shrink-0 flex-wrap items-center gap-1.5",
-        store.saveFailed ? "text-danger-text" : "text-muted-foreground"
+        "text-micro inline-flex items-center gap-1.5",
+        store.saveFailed ? "text-danger-text" : "text-muted-foreground",
+        className
       )}
     >
       {store.saveFailed ? (

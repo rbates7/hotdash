@@ -22,6 +22,9 @@ export const HOME_HEADER_META =
 export const HOME_DUMMY =
   "text-muted-foreground border-surface-border bg-surface shrink-0 rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] whitespace-nowrap uppercase"
 
+/** Extra root classes — Home is the screen that wraps the note. */
+export const HOME_NOTE = "max-w-full shrink-0 flex-wrap"
+
 /** Passed to PersistenceNote so Reset is 44px on phone/tablet. */
 export const HOME_RESET = "max-xl:h-11! max-xl:px-2.5!"
 
@@ -33,6 +36,14 @@ export const HOME_INBOX_DOOR = "md:col-span-2 xl:col-span-1"
 
 /** Dev-board counters wrap 3-up on phone/tablet; five columns at 1440. */
 export const HOME_BOARD_COLUMNS = "grid grid-cols-3 gap-1.5 xl:grid-cols-5"
+
+/** Tile clips its own label so “In Progress” cannot paint into “In Review”. */
+export const HOME_BOARD_TILE =
+  "flex w-full min-w-0 flex-col items-start gap-1.5 overflow-hidden rounded-lg px-2 py-2"
+
+/** Wrap inside the tile — `truncate` on an unbounded span was the 1180 collision. */
+export const HOME_BOARD_TILE_LABEL =
+  "text-micro text-muted-foreground w-full min-w-0 leading-tight font-medium [overflow-wrap:anywhere]"
 
 export const HOME_KPI_HEAD =
   "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-0.5"

@@ -18,6 +18,7 @@ import {
   HOME_HEADER,
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
+  HOME_NOTE,
   HOME_RESET,
 } from "@/components/home/responsive"
 
@@ -50,7 +51,11 @@ export function HomeScreen({ pulse }: { pulse: string }) {
         <div className={HOME_HEADER_META}>
           {/* Home reads the Workplace's browser-saved board, so it says so
               the same way the Workplace does. */}
-          <PersistenceNote store={store} resetClassName={HOME_RESET} />
+          <PersistenceNote
+            store={store}
+            className={HOME_NOTE}
+            resetClassName={HOME_RESET}
+          />
           <span className={HOME_DUMMY}>Dummy / design mock</span>
         </div>
       </header>

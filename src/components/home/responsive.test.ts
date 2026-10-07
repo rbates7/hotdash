@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest"
 
 import {
   HOME_BOARD_COLUMNS,
+  HOME_BOARD_TILE,
+  HOME_BOARD_TILE_LABEL,
   HOME_DOORS,
   HOME_DUMMY,
   HOME_HEADER,
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
   HOME_KPI_HEAD,
+  HOME_NOTE,
   HOME_RESET,
   HOME_TOUCH,
 } from "@/components/home/responsive"
@@ -23,6 +26,7 @@ describe("Home responsive layout", () => {
     expect(HOME_DUMMY).toContain("shrink-0")
     expect(HOME_DUMMY).toContain("whitespace-nowrap")
     expect(HOME_DUMMY).not.toContain("truncate")
+    expect(HOME_NOTE).toBe("max-w-full shrink-0 flex-wrap")
     expect(HOME_RESET).toBe("max-xl:h-11! max-xl:px-2.5!")
   })
 
@@ -37,6 +41,12 @@ describe("Home responsive layout", () => {
   it("wraps board counters 3-up below xl and keeps five columns on desktop", () => {
     expect(HOME_BOARD_COLUMNS).toContain("grid-cols-3")
     expect(HOME_BOARD_COLUMNS).toContain("xl:grid-cols-5")
+    expect(HOME_BOARD_TILE).toContain("overflow-hidden")
+    expect(HOME_BOARD_TILE).toContain("min-w-0")
+    expect(HOME_BOARD_TILE_LABEL).toContain("w-full")
+    expect(HOME_BOARD_TILE_LABEL).toContain("min-w-0")
+    expect(HOME_BOARD_TILE_LABEL).toContain("[overflow-wrap:anywhere]")
+    expect(HOME_BOARD_TILE_LABEL.split(/\s+/)).not.toContain("truncate")
   })
 
   it("lets the truth-strip label wrap and grows compact tap targets", () => {
