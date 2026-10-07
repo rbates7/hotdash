@@ -19,16 +19,26 @@ export function persistenceNote(page: Page, { failed = false } = {}) {
   return page.getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
 }
 
+/** The shared confirm's accessible name (its title). */
+export const RESET_CONFIRM_NAME = "Reset demo data?"
+
 /**
  * Reset is behind a confirm on every screen; click through it. Pass `scope`
  * (e.g. the page header) when more than one Reset button could be on the
- * page; the confirm dialog is always found on the page.
+ * page. The confirm is found by role and name — `dialog` "Reset demo
+ * data?" — inside `confirmScope` (defaults to the page, since the dialog
+ * is portalled out of the header), never as a bare page-wide dialog.
  */
-export async function resetDemoData(page: Page, scope: Locator | Page = page) {
+export async function resetDemoData(
+  page: Page,
+  scope: Locator | Page = page,
+  confirmScope: Locator | Page = page
+) {
   const reset = scope.getByRole("button", { name: "Reset", exact: true })
   await expect(reset).toBeEnabled()
   await reset.click()
-  const dialog = page.getByRole("dialog", { name: "Reset demo data?" })
+  const dialog = confirmScope.getByRole("dialog", { name: RESET_CONFIRM_NAME, exact: true })
+  await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: "Reset", exact: true }).click()
   await expect(dialog).toBeHidden()
 }
@@ -56,4 +66,24 @@ export function writesTo(page: Page, key: string) {
     (k) => (window as unknown as { __writes: Record<string, number> }).__writes?.[k] ?? 0,
     key
   )
+}
+
+/**
+ * Assert the write count for `key` is `expected` and then stays there for a
+ * quiet window: a write loop would move it and never settle, so the poll
+ * times out instead of passing on the first match.
+ */
+export async function expectWritesSettled(page: Page, key: string, expected: number, quietMs = 500) {
+  await expect.poll(() => writesTo(page, key), { intervals: [50, 100, 200], timeout: 3_000 }).toBe(expected)
+  const flatSince = Date.now()
+  await expect
+    .poll(
+      async () => {
+        const count = await writesTo(page, key)
+        if (count !== expected) return `moved to ${count}`
+        return Date.now() - flatSince >= quietMs ? "flat" : "waiting"
+      },
+      { intervals: [100], timeout: quietMs + 3_000 }
+    )
+    .toBe("flat")
 }

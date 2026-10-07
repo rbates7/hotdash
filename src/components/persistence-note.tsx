@@ -84,7 +84,9 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
             <Button
               variant="ghost"
               size="xs"
-              className="text-micro text-muted-foreground h-6 px-1.5 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent"
+              // `!` beats Nova's unlayered `.cn-button-variant-ghost` hover and
+              // `.cn-button-size-xs` (text-xs, px-2), as app-sidebar does.
+              className="text-micro! text-muted-foreground h-6 px-1.5! aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent! aria-disabled:hover:text-muted-foreground!"
               disabled={!canReset}
               focusableWhenDisabled
               aria-describedby={canReset ? undefined : hintId}
