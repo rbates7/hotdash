@@ -178,32 +178,64 @@ const WEEKDAY_DATE = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 })
 
+export type RelativeStyle = "ago" | "compact" | "long"
+
 /**
- * The one relative-time formatter for the dashboard (Workplace activity and
- * comments, Inbox rows, Home's Needs-you list, System Status).
+ * The one relative-time formatter for the dashboard. Three styles, all
+ * measured from `nowMs` (the page's instant, never a wall clock):
  *
- * Under an hour is arithmetic; from there it is calendar days in Central —
- * hours while `from` is still today, "Yesterday" when it fell on the Central
- * day before `now`'s, otherwise the weekday and date ("Mon, Oct 5"). So a
- * row from 11pm last night reads "Yesterday" at 1pm, never "14 h ago".
- *
- * `long` (default): "just now" · "5 min ago" · "3 h ago" · "Yesterday" · "Mon, Oct 5"
- * `compact`:        "now"      · "5m"        · "3h"      · "Yesterday" · "Mon, Oct 5"
+ * - `ago` (default) — ticket activity and comments, as the mock writes them:
+ *   "just now" · "5m ago" · "2h ago" · "1d ago". Arithmetic.
+ * - `compact` — Inbox rows and Home's Needs-you, as the mock writes them:
+ *   "now" · "18m" · "2h" · "Yesterday" (24–47 h) · "2d". Arithmetic.
+ * - `long` — opt-in, for System Status: "just now" · "5 min ago" ·
+ *   "3 h ago" · "Yesterday" · "Mon, Oct 5", with calendar days in Central
+ *   so a row from 11pm last night reads "Yesterday" at 1pm, not "14 h ago".
  */
 export function formatRelative(
   fromMs: number,
   nowMs: number,
-  { style = "long" }: { style?: "long" | "compact" } = {}
+  { style = "ago" }: { style?: RelativeStyle } = {}
 ) {
-  const compact = style === "compact"
   const mins = Math.round((nowMs - fromMs) / 60_000)
-  if (mins < 1) return compact ? "now" : "just now"
-  if (mins < 60) return compact ? `${mins}m` : `${mins} min ago`
-  const days = daysBetween(todayIn(new Date(fromMs)), todayIn(new Date(nowMs)))
-  if (days <= 0) {
-    const hours = Math.floor(mins / 60)
-    return compact ? `${hours}h` : `${hours} h ago`
+  switch (style) {
+    case "ago": {
+      if (mins < 1) return "just now"
+      if (mins < 60) return `${mins}m ago`
+      const hours = Math.round(mins / 60)
+      if (hours < 24) return `${hours}h ago`
+      return `${Math.round(hours / 24)}d ago`
+    }
+    case "compact": {
+      if (mins < 1) return "now"
+      if (mins < 60) return `${mins}m`
+      const hours = Math.floor(mins / 60)
+      if (hours < 24) return `${hours}h`
+      const days = Math.floor(hours / 24)
+      return days === 1 ? "Yesterday" : `${days}d`
+    }
+    case "long": {
+      if (mins < 1) return "just now"
+      if (mins < 60) return `${mins} min ago`
+      const days = daysBetween(todayIn(new Date(fromMs)), todayIn(new Date(nowMs)))
+      if (days <= 0) return `${Math.floor(mins / 60)} h ago`
+      if (days === 1) return "Yesterday"
+      return WEEKDAY_DATE.format(new Date(fromMs))
+    }
   }
-  if (days === 1) return "Yesterday"
-  return WEEKDAY_DATE.format(new Date(fromMs))
+}
+
+/**
+ * A calendar day relative to `today`, both read as Central days: "Today",
+ * "Tomorrow", "Yesterday", "in 15 days", "81 days ago". Built on
+ * `daysBetween`, so it is whole calendar days — a sprint ending at 00:30
+ * tomorrow is "Tomorrow" at 23:30 tonight, not "in 1 hour". For Clinics'
+ * schedule and anything else that talks about days rather than instants.
+ */
+export function formatRelativeDay(day: IsoDay | Date, today: IsoDay | Date) {
+  const delta = daysBetween(toDay(today), toDay(day))
+  if (delta === 0) return "Today"
+  if (delta === 1) return "Tomorrow"
+  if (delta === -1) return "Yesterday"
+  return delta > 0 ? `in ${delta} days` : `${-delta} days ago`
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { LATE_EVENING_CT } from "@/test/clock"
+
 /**
  * The suite runs twice in CI — `pnpm test` under TZ=UTC and `pnpm test:tz`
  * under TZ=America/Chicago — so every date test is exercised in a zone where
@@ -15,8 +17,7 @@ describe("process time zone", () => {
     )
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(expected)
     // Sanity: the two zones really do disagree about a late-evening Central instant.
-    const late = new Date("2026-10-08T04:30:00.000Z")
-    const localDay = late.getDate()
+    const localDay = LATE_EVENING_CT.getDate()
     expect(localDay).toBe(expected === "UTC" ? 8 : 7)
   })
 })

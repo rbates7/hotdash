@@ -253,7 +253,7 @@ export function TicketView({
                         </span>
                       </span>
                       <span className="text-caption text-faint-foreground ml-auto">
-                        {formatRelative(Date.parse(entry.at), now.getTime())}
+                        {formatRelative(Date.parse(entry.at), now.getTime(), { style: "ago" })}
                       </span>
                     </li>
                   )
@@ -269,7 +269,7 @@ export function TicketView({
                             {actor?.name ?? "Someone"}
                           </span>{" "}
                           <span className="text-caption text-faint-foreground">
-                            {formatRelative(Date.parse(comment.at), now.getTime())}
+                            {formatRelative(Date.parse(comment.at), now.getTime(), { style: "ago" })}
                           </span>
                         </p>
                         <p className="text-body mt-0.5">{comment.body}</p>

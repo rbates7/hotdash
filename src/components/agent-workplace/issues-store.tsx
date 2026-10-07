@@ -35,12 +35,6 @@ export type State = {
   sprints: Sprint[]
   /** Next number for a generated CHLK-n key. */
   nextKey: number
-  /**
-   * The instant every relative figure is measured from, as ISO. Set from
-   * the server's request time on load; moved to the moment of a Reset so
-   * the regenerated seed is fresh. Never taken from a saved copy.
-   */
-  now: string
 }
 
 export type NewIssueInput = {
@@ -211,8 +205,8 @@ export function shellReducer(shell: Shell, action: Action): Shell {
         // No copy (nothing saved, or another tab's Reset): a fresh seed dated
         // from this moment, and the clock moves with it.
         fallback: (nowMs) => initialState(new Date(nowMs)),
-        // A copy brings its board, never its clock: this page's instant stays.
-        adopt: (saved, current) => ({ data: { ...saved, now: current.data.now } }),
+        // A copy brings its board, never its clock: the shell's instant stays.
+        adopt: (saved) => ({ data: saved }),
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
@@ -242,7 +236,6 @@ export function initialState(now: Date): State {
     issues,
     sprints: buildSprints(now),
     nextKey: highest + 1,
-    now: now.toISOString(),
   }
 }
 
@@ -269,8 +262,8 @@ export function initialState(now: Date): State {
  */
 export const STORAGE_KEY = "hotdash.agent-workplace.v2"
 
-/** What is written: the board without this page's clock. */
-export type SavedState = Omit<State, "now">
+/** What is written. The clock lives in the shell, so none is ever saved. */
+export type SavedState = State
 
 const isStatus = (v: unknown): v is IssueStatus => (STATUS_ORDER as readonly string[]).includes(v as string)
 const isPriority = (v: unknown): v is IssuePriority =>
@@ -394,12 +387,12 @@ export function isState(value: unknown): boolean {
   return parseState(value) !== null
 }
 
-export const issuesStorage = createStorage<State, SavedState>({
+export const issuesStorage = createStorage<State>({
   key: STORAGE_KEY,
   legacyKeys: ["hotdash.agent-workplace.v1"],
   parse: parseState,
-  // The clock is this page's, never the copy's — leaving it out also keeps
-  // two tabs' copies byte-identical so neither re-writes the other's.
+  // No clock is written: it lives in the shell, so two tabs' copies stay
+  // byte-identical and neither re-writes the other's.
   serialize: ({ issues, sprints, nextKey }) => ({ issues, sprints, nextKey }),
 })
 
@@ -408,10 +401,9 @@ export function loadState(storage: Storage | undefined): SavedState | null {
   return issuesStorage.load(storage).state
 }
 
-/** The saved copy measured from `now`, or a fresh seed dated from it. */
+/** The saved copy, or a fresh seed dated from `now` when there is none. */
 export function loadStateOrSeed(storage: Storage | undefined, now: Date): State {
-  const saved = loadState(storage)
-  return saved ? { ...saved, now: now.toISOString() } : initialState(now)
+  return loadState(storage) ?? initialState(now)
 }
 
 export function saveState(storage: Storage | undefined, state: State): boolean {
@@ -422,13 +414,14 @@ export function clearState(storage: Storage | undefined) {
   issuesStorage.clear(storage)
 }
 
-type Store = Omit<State, "now"> &
+type Store = State &
   PersistenceStore & {
   actors: typeof seedActors
   /**
-   * `State.now` as a Date: the server's request instant, or the moment of
-   * the last Reset. Every relative figure is measured from it; a live
-   * client clock would hydrate mismatched against the server's HTML.
+   * The shell's clock as a Date: the server's request instant, or the
+   * moment of the last Reset (or of a re-seed after another tab's). Every
+   * relative figure is measured from it; a live client clock would hydrate
+   * mismatched against the server's HTML. There is no second clock.
    */
   now: Date
   createIssue: (input: NewIssueInput) => void
@@ -473,7 +466,7 @@ export function IssuesProvider({
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: issuesStorage, shell, onHydrate, onSaved })
 
-  const now = React.useMemo(() => new Date(state.now), [state.now])
+  const now = React.useMemo(() => new Date(shell.nowMs), [shell.nowMs])
 
   const value = React.useMemo<Store>(() => {
     // Edit timestamps come from the one clock too, never a bare `new Date()`.

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData } from "./support/persistence"
 
 test.describe("Agent Workplace", () => {
   test("is reachable from the sidebar and shows the board", async ({ page }) => {
@@ -91,8 +91,7 @@ test.describe("Agent Workplace", () => {
   test("two tabs: an edit in A shows in B, Reset in A re-seeds B, and the writes settle", async ({ context }) => {
     const KEY = "hotdash.agent-workplace.v2"
     await countWrites(context, KEY)
-    const settled = async (p: import("@playwright/test").Page, n: number) =>
-      expect.poll(() => writesTo(p, KEY), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    const settled = (p: import("@playwright/test").Page, n: number) => expectWritesSettled(p, KEY, n)
 
     const a = await context.newPage()
     const b = await context.newPage()
