@@ -15,12 +15,19 @@
  *   as a request clock, so copies compare equal across tabs.
  * - **Validate the whole copy, not the envelope.** `parse` (or the simpler
  *   `validate`) is the screen's guard; one malformed field drops the copy
- *   for the seed. Rejected copies are kept under `<key>.rejected` — the
- *   last three, timestamped — and warned about in development.
+ *   for the seed. `load()` is pure — it reports a rejected copy but writes
+ *   nothing, so a bad copy in one tab never makes the others re-seed. The
+ *   first real `save()` parks it under `<key>.rejected` (last three,
+ *   timestamped) before overwriting; `quarantine()` does the same on
+ *   demand. Rejections are warned about in development.
  * - **Saving can fail.** `save` returns false on quota or private-mode
  *   errors; the note then says so and never claims "Saved".
  * - **Other tabs are heard.** `subscribe` fires when another tab writes or
  *   clears the key. A write re-hydrates; a clear (their Reset) re-seeds.
+ *   A local edit that has not been saved yet wins over an incoming copy.
+ * - **One clock rule.** The request's instant seeds the first hydrate on
+ *   mount; a Reset, or the re-seed after another tab's Reset, reads
+ *   `now()` at that moment and the shell's clock moves with it.
  * - **Reset clears the key** and the screen regenerates its seed from now.
  * - **Legacy keys** are removed on the first real save, not on load.
  *
@@ -32,20 +39,26 @@
  *     parse: parseSaved,            // unknown → Saved | null (or `validate` type guard)
  *     serialize: (s) => omitNow(s), // optional; what actually gets written
  *   })
- *   store.load(window.localStorage)      // → { state, status: "saved" | "empty" | "rejected" | "error" }
- *   store.save(window.localStorage, s)   // → boolean; no-op when identical
+ *   store.load(window.localStorage)      // → { state, status: "saved" } | { state: null, status: "empty" | "rejected" | "error", rejected? }
+ *   store.save(window.localStorage, s)   // → boolean; no-op when identical; parks a rejected copy first
  *   store.clear(window.localStorage)
  *   store.subscribe((result) => …)       // other-tab changes; returns an unsubscribe
- *   usePersistenceSync({ storage, state, persisted, edits, onHydrate, onSaved })
+ *   usePersistenceSync({ storage, shell, onHydrate, onSaved })
  */
 
 import * as React from "react"
 
+import { now } from "@/lib/clock"
+
 export type LoadStatus = "saved" | "empty" | "rejected" | "error"
+
+export type RejectedCopy = { at: string; raw: string; why: string }
 
 export type LoadResult<T> =
   | { state: T; status: "saved" }
-  | { state: null; status: Exclude<LoadStatus, "saved"> }
+  | { state: null; status: "empty" | "error" }
+  /** The copy under the key did not parse; nothing was written — see `quarantine`. */
+  | { state: null; status: "rejected"; rejected: RejectedCopy }
 
 export type Storage = Pick<globalThis.Storage, "getItem" | "setItem" | "removeItem">
 
@@ -66,8 +79,6 @@ export type StorageDef<T, S = T> = {
   serialize?: (state: T) => S
 }
 
-export type RejectedCopy = { at: string; raw: string; why: string }
-
 /** How many rejected copies to keep under `<key>.rejected`. */
 export const REJECTED_KEEP = 3
 
@@ -75,9 +86,15 @@ export type ScreenStorage<T, S = T> = {
   key: string
   /** Where copies that failed to parse are parked (newest first, capped). */
   rejectedKey: string
+  /** Pure: reads and validates, never writes. */
   load: (storage: Storage | undefined) => LoadResult<S>
-  /** Write `state`; true when the key now holds it (including an identical no-op). */
+  /**
+   * Write `state`; true when the key now holds it (including an identical
+   * no-op). A copy under the key that does not parse is parked first.
+   */
   save: (storage: Storage | undefined, state: T) => boolean
+  /** Park a rejected copy under `<key>.rejected` and drop the live key. */
+  quarantine: (storage: Storage | undefined, rejected: RejectedCopy) => void
   clear: (storage: Storage | undefined) => void
   /** Whether the key currently holds anything (saved or not yet validated). */
   has: (storage: Storage | undefined) => boolean
@@ -109,19 +126,12 @@ export function createStorage<T, S = T>(def: StorageDef<T, S>): ScreenStorage<T,
     try {
       const raw = storage.getItem(key)
       if (raw === null || raw === "") return { state: null, status: "empty" }
-      let parsedJson: unknown
-      try {
-        parsedJson = JSON.parse(raw)
-      } catch (error) {
-        reject(storage, raw, "is not JSON", error)
-        return { state: null, status: "rejected" }
+      const rejected = inspect(raw)
+      if (rejected) {
+        warn(`saved copy under ${key} ${rejected.why}; it will be parked on the next save`)
+        return { state: null, status: "rejected", rejected }
       }
-      const state = parse(parsedJson)
-      if (state === null) {
-        reject(storage, raw, "failed validation")
-        return { state: null, status: "rejected" }
-      }
-      return { state, status: "saved" }
+      return { state: parse(JSON.parse(raw)) as S, status: "saved" }
     } catch (error) {
       // Storage itself threw (disabled, sandboxed); the page still works.
       warn(`could not read ${key}`, error)
@@ -144,29 +154,47 @@ export function createStorage<T, S = T>(def: StorageDef<T, S>): ScreenStorage<T,
     }
   }
 
-  function reject(storage: Storage, raw: string, why: string, error?: unknown) {
-    // Park the raw copy — newest first, capped — before anything overwrites
-    // it, then drop the live key so the next load does not trip again.
+  /** Why `raw` cannot be loaded, or null when it parses. Pure. */
+  function inspect(raw: string): RejectedCopy | null {
+    let parsedJson: unknown
     try {
-      const kept = [{ at: new Date().toISOString(), raw, why }, ...rejected(storage)].slice(
-        0,
-        REJECTED_KEEP
-      )
-      storage.setItem(rejectedKey, JSON.stringify(kept))
-      storage.removeItem(key)
+      parsedJson = JSON.parse(raw)
     } catch {
-      // Best effort: if we cannot park it we still refuse to load it.
+      return { at: new Date().toISOString(), raw, why: "is not JSON" }
     }
-    warn(`saved copy under ${key} ${why}; kept it under ${rejectedKey}`, error)
+    if (parse(parsedJson) === null) {
+      return { at: new Date().toISOString(), raw, why: "failed validation" }
+    }
+    return null
+  }
+
+  function quarantine(storage: Storage | undefined, copy: RejectedCopy) {
+    if (!storage) return
+    // Park the raw copy — newest first, capped — before anything overwrites
+    // it, then drop the live key.
+    try {
+      const kept = [copy, ...rejected(storage).filter((r) => r.raw !== copy.raw)].slice(0, REJECTED_KEEP)
+      storage.setItem(rejectedKey, JSON.stringify(kept))
+      if (storage.getItem(key) === copy.raw) storage.removeItem(key)
+    } catch {
+      // Best effort: if we cannot park it, the save below still overwrites it.
+    }
+    warn(`parked a rejected copy of ${key} under ${rejectedKey}`)
   }
 
   function save(storage: Storage | undefined, state: T): boolean {
     if (!storage) return false
     try {
       const next = JSON.stringify(serialize(state))
+      const current = storage.getItem(key)
       // Identical copy already there (this tab's earlier write, or another
       // tab's): nothing to do, and no storage event to bounce around.
-      if (storage.getItem(key) === next) return true
+      if (current === next) return true
+      // The first real save is when a bad copy gets backed up, not on load.
+      if (current !== null && current !== "") {
+        const bad = inspect(current)
+        if (bad) quarantine(storage, bad)
+      }
       storage.setItem(key, next)
       for (const legacy of legacyKeys) storage.removeItem(legacy)
       return true
@@ -209,14 +237,20 @@ export function createStorage<T, S = T>(def: StorageDef<T, S>): ScreenStorage<T,
     return () => win.removeEventListener("storage", handler)
   }
 
-  return { key, rejectedKey, load, save, clear, has, rejected, subscribe }
+  return { key, rejectedKey, load, save, quarantine, clear, has, rejected, subscribe }
 }
 
 /* ------------------------------------------------------------- the hook */
 
+/** The one place a store reads the clock after mount: Reset and cross-tab re-seeds. */
+export function reseedNowMs() {
+  return now().getTime()
+}
+
 /**
  * Wires a store to its storage the same way on every screen:
- * - hears other tabs and hands their copy (or their Reset) to `onHydrate`;
+ * - hears other tabs and hands their copy (or their Reset) to `onHydrate`,
+ *   together with `now()` read at that moment so a re-seed is dated today;
  * - writes **only when `shell.edits` moves** — a hydrate changes `data` but
  *   not `edits`, so it can never cause a write, and two tabs cannot loop;
  * - reports each write's outcome to `onSaved` for the note.
@@ -232,11 +266,14 @@ export function usePersistenceSync<T, S = T>({
 }: {
   storage: ScreenStorage<T, S>
   shell: Pick<PersistenceShell<T>, "data" | "persisted" | "edits">
-  onHydrate: (result: LoadResult<S>) => void
+  onHydrate: (result: LoadResult<S>, nowMs: number) => void
   onSaved: (ok: boolean) => void
 }) {
   const { data, persisted, edits } = shell
-  React.useEffect(() => storage.subscribe(onHydrate), [storage, onHydrate])
+  React.useEffect(
+    () => storage.subscribe((result) => onHydrate(result, reseedNowMs())),
+    [storage, onHydrate]
+  )
 
   const written = React.useRef(0)
   React.useEffect(() => {
@@ -311,45 +348,76 @@ export type PersistenceStore = PersistenceStatus & {
 
 /**
  * A screen's reducer state wrapped in the persistence bookkeeping above,
- * plus the monotonic edit counter the sync hook writes on.
+ * plus the monotonic edit counter the sync hook writes on and the clock
+ * every relative figure is measured from.
  */
 export type PersistenceShell<T> = PersistenceStatus & {
   data: T
   /** Count of real user edits; never reset, never moved by a hydrate. */
   edits: number
+  /** `edits` as of the last successful save; `edits > savedEdits` means unsaved local work. */
+  savedEdits: number
+  /**
+   * The instant the screen measures from: the request's on mount, then the
+   * moment of a Reset (or of a re-seed after another tab's Reset). A saved
+   * copy adopted from another tab never moves it.
+   */
+  nowMs: number
 }
 
 /**
  * The events every persisted screen goes through. The screen's own reducer
  * produces `data`; this layer only decides what each transition means for
- * the note, the Reset button and the write gate.
+ * the note, the Reset button, the write gate and the clock.
  */
 export type PersistenceEvent<T, S = T> =
-  /** localStorage was read (on mount, or because another tab changed it). */
-  | { type: "hydrate"; result: LoadResult<S>; fallback: T; adopt?: (saved: S) => T }
+  /**
+   * localStorage was read: on mount (`nowMs` = the request's instant) or
+   * because another tab changed it (`nowMs` = `now()` at that moment).
+   * `fallback` builds the seed lazily, only when no copy is adopted.
+   */
+  | {
+      type: "hydrate"
+      result: LoadResult<S>
+      nowMs: number
+      fallback: (nowMs: number) => T
+      adopt?: (saved: S, shell: PersistenceShell<T>) => { data: T; nowMs?: number }
+    }
   /** The user did something. `data` is the reducer's output for it. */
   | { type: "edit"; data: T }
   /** A write to the key finished. */
   | { type: "save-result"; ok: boolean }
-  /** The key was cleared and the seed regenerated. */
-  | { type: "reset"; data: T }
+  /** The key was cleared; regenerate the seed from `nowMs` (read via `reseedNowMs`). */
+  | { type: "reset"; nowMs: number; seed: (nowMs: number) => T }
 
-export function initialShell<T>(data: T): PersistenceShell<T> {
-  return { data, edits: 0, persisted: false, edited: false, saved: false, saveFailed: false }
+export function initialShell<T>(data: T, nowMs: number): PersistenceShell<T> {
+  return {
+    data,
+    edits: 0,
+    savedEdits: 0,
+    nowMs,
+    persisted: false,
+    edited: false,
+    saved: false,
+    saveFailed: false,
+  }
 }
 
 /**
  * Shared transitions, so every screen gets the same guarantees:
  * - a hydrate never counts as an edit: `edited` goes false and `edits` does
  *   not move, so nothing is written back — another tab's copy is theirs,
- *   and their Reset (no copy) re-seeds this tab with `fallback`;
+ *   and their Reset (no copy) re-seeds this tab with `fallback(nowMs)`,
+ *   moving the clock to `nowMs`;
+ * - **a local edit that has not been saved yet wins**: if `edits >
+ *   savedEdits` when a hydrate arrives, this tab keeps its data and stays
+ *   `edited`, so its pending save overwrites the incoming copy instead of
+ *   the incoming copy silently discarding the edit (same-render race);
  * - an edit that changed nothing (`data === shell.data`) returns the *same*
- *   shell, so it neither flips `edited` nor triggers a write — the screen's
- *   reducer must return its input for no-ops;
- * - `saved` reflects the write's result, never the intent: it flips on a
- *   successful save-result, so the note can never say "Saved" early;
+ *   shell, so it neither flips `edited` nor triggers a write;
+ * - `saved` reflects the write's result, never the intent;
  * - a save result that changes nothing returns the same shell too;
- * - reset returns to the never-edited state with the given seed.
+ * - reset returns to the never-edited state with `seed(nowMs)`, clock moved.
  */
 export function persistenceShellReducer<T, S = T>(
   shell: PersistenceShell<T>,
@@ -357,16 +425,33 @@ export function persistenceShellReducer<T, S = T>(
 ): PersistenceShell<T> {
   switch (event.type) {
     case "hydrate": {
-      const data =
-        event.result.state !== null
-          ? (event.adopt ?? ((saved: S) => saved as unknown as T))(event.result.state)
-          : event.fallback
+      const pendingLocalEdits = shell.edits > shell.savedEdits
+      if (pendingLocalEdits) {
+        // Ours is newer than anything we have written; keep it and let the
+        // pending save win. Only the "is there a copy" fact is taken.
+        return { ...shell, persisted: true, saved: event.result.status === "saved", saveFailed: false }
+      }
+      if (event.result.state !== null) {
+        const adopted = event.adopt
+          ? event.adopt(event.result.state, shell)
+          : { data: event.result.state as unknown as T }
+        return {
+          ...shell,
+          data: adopted.data,
+          nowMs: adopted.nowMs ?? shell.nowMs,
+          persisted: true,
+          edited: false,
+          saved: true,
+          saveFailed: false,
+        }
+      }
       return {
         ...shell,
-        data,
+        data: event.fallback(event.nowMs),
+        nowMs: event.nowMs,
         persisted: true,
         edited: false,
-        saved: event.result.status === "saved",
+        saved: false,
         saveFailed: false,
       }
     }
@@ -375,10 +460,22 @@ export function persistenceShellReducer<T, S = T>(
       return { ...shell, data: event.data, edits: shell.edits + 1, edited: true }
     case "save-result": {
       const saved = event.ok ? true : shell.saved
-      if (shell.saveFailed === !event.ok && shell.saved === saved) return shell
-      return { ...shell, saved, saveFailed: !event.ok }
+      const savedEdits = event.ok ? shell.edits : shell.savedEdits
+      if (shell.saveFailed === !event.ok && shell.saved === saved && shell.savedEdits === savedEdits) {
+        return shell
+      }
+      return { ...shell, saved, savedEdits, saveFailed: !event.ok }
     }
     case "reset":
-      return { ...shell, data: event.data, edited: false, saved: false, saveFailed: false }
+      return {
+        ...shell,
+        data: event.seed(event.nowMs),
+        nowMs: event.nowMs,
+        // Nothing of ours is pending after a reset; the key is cleared.
+        savedEdits: shell.edits,
+        edited: false,
+        saved: false,
+        saveFailed: false,
+      }
   }
 }

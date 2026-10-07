@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { addDays, daysBetween, isIsoDay, type IsoDay } from "@/lib/clock"
+import { addDays, daysBetween, isIsoDay, todayIn, type IsoDay } from "@/lib/clock"
 import { SEED_EXPENSE_IDS, seedExpenses } from "@/lib/kpis"
 import {
   DEFAULT_METRIC_IDS,
@@ -19,6 +19,7 @@ import {
   isString,
   initialShell,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
@@ -50,9 +51,11 @@ export type Action =
   | { type: "set-chart"; id: MetricId; chart: ChartType }
   | { type: "add-expense"; input: NewExpenseInput }
   | { type: "remove-expense"; id: string }
-  | { type: "hydrate"; result: LoadResult<State>; today: IsoDay }
+  /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
+  | { type: "hydrate"; result: LoadResult<State>; nowMs: number }
   | { type: "save-result"; ok: boolean }
-  | { type: "reset"; today: IsoDay }
+  /** `nowMs` is `now()` at the click (`reseedNowMs`), never the request's. */
+  | { type: "reset"; nowMs: number }
 
 /** The user's own edits, as opposed to persistence plumbing. */
 export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
@@ -100,27 +103,42 @@ export function reducer(state: State, action: EditAction): State {
 
 /**
  * Bring a saved seed up to date: its rows move forward by the days since
- * `seededAt`, capped at today. Rows the user added are left alone. A copy
- * that defeats the arithmetic falls back to a fresh seed rather than
- * crashing the page — the raw copy has already been parked by `load`.
+ * `seededAt`, capped at today. Rows the user added are left alone.
+ *
+ * A copy seeded *after* this tab's `today` means this tab is the stale one
+ * (opened before midnight, another tab saved today): the copy wins and the
+ * effective day moves forward to its `seededAt`, so its rows are not read
+ * as "tomorrow" and dropped from the period. Returns both.
+ *
+ * A copy that defeats the arithmetic falls back to a fresh seed rather than
+ * crashing the page.
  */
-export function shiftSeed(state: State, today: IsoDay): State {
+export function shiftSeed(state: State, today: IsoDay): { state: State; today: IsoDay } {
   try {
     const delta = daysBetween(state.seededAt, today)
-    if (!Number.isFinite(delta)) return initialState(today)
-    if (delta <= 0) return state
+    if (!Number.isFinite(delta)) return { state: initialState(today), today }
+    if (delta < 0) return { state, today: state.seededAt }
+    if (delta === 0) return { state, today }
     return {
-      ...state,
-      seededAt: today,
-      expenses: state.expenses.map((e) => {
-        if (!SEED_EXPENSE_IDS.has(e.id)) return e
-        const shifted = addDays(e.date, delta)
-        return { ...e, date: shifted > today ? today : shifted }
-      }),
+      today,
+      state: {
+        ...state,
+        seededAt: today,
+        expenses: state.expenses.map((e) => {
+          if (!SEED_EXPENSE_IDS.has(e.id)) return e
+          const shifted = addDays(e.date, delta)
+          return { ...e, date: shifted > today ? today : shifted }
+        }),
+      },
     }
   } catch {
-    return initialState(today)
+    return { state: initialState(today), today }
   }
+}
+
+/** Noon Central on `day`, as an instant: a clock for a day with no time of its own. */
+function noonCentral(day: IsoDay) {
+  return Date.parse(`${day}T18:00:00.000Z`)
 }
 
 /**
@@ -132,19 +150,31 @@ export function shiftSeed(state: State, today: IsoDay): State {
  */
 type Shell = PersistenceShell<State>
 
+/** The calendar day a shell measures from. */
+export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
+
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
     case "hydrate":
       return persistenceShellReducer(shell, {
         type: "hydrate",
         result: action.result,
-        fallback: initialState(action.today),
-        adopt: (saved) => shiftSeed(saved, action.today),
+        nowMs: action.nowMs,
+        fallback: (nowMs) => initialState(todayIn(new Date(nowMs))),
+        adopt: (saved, current) => {
+          const { state, today } = shiftSeed(saved, shellToday(current))
+          // A copy from a later day moves this tab's clock forward to it.
+          return today === shellToday(current) ? { data: state } : { data: state, nowMs: noonCentral(today) }
+        },
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", data: initialState(action.today) })
+      return persistenceShellReducer(shell, {
+        type: "reset",
+        nowMs: action.nowMs,
+        seed: (nowMs) => initialState(todayIn(new Date(nowMs))),
+      })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
@@ -210,31 +240,46 @@ function highestExpenseId(expenses: readonly Expense[]) {
 }
 
 /**
- * Every field is checked, not just the envelope: duplicate cards, an unknown
- * chart type, a date like 2026-13-45 or an id counter that would collide
- * all drop the copy for the seed rather than rendering half a page.
+ * Every field is checked, not just the envelope, and the copy is rebuilt
+ * from known keys only: duplicate cards, an unknown chart type, a date like
+ * 2026-13-45 or an id counter that would collide all drop the copy for the
+ * seed rather than rendering half a page.
  */
-export function isState(value: unknown): value is State {
-  if (!value || typeof value !== "object") return false
+export function parseState(value: unknown): State | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  if (!Array.isArray(v.visible) || !v.visible.every(isMetricId)) return false
-  if (dedupe(v.visible).length !== v.visible.length) return false
-  if (!v.charts || typeof v.charts !== "object" || Array.isArray(v.charts)) return false
+  if (!Array.isArray(v.visible) || !v.visible.every(isMetricId)) return null
+  if (dedupe(v.visible).length !== v.visible.length) return null
+  if (!v.charts || typeof v.charts !== "object" || Array.isArray(v.charts)) return null
+  const charts: Partial<Record<MetricId, ChartType>> = {}
   for (const [id, chart] of Object.entries(v.charts as Record<string, unknown>)) {
-    if (!isMetricId(id) || !isChartType(chart)) return false
+    if (!isMetricId(id) || !isChartType(chart)) return null
+    charts[id] = chart
   }
-  if (!Array.isArray(v.expenses) || !v.expenses.every(isExpense)) return false
-  if (dedupe(v.expenses.map((e) => e.id)).length !== v.expenses.length) return false
-  if (!isFiniteNumber(v.nextExpenseId) || !Number.isInteger(v.nextExpenseId)) return false
-  if (v.nextExpenseId <= highestExpenseId(v.expenses)) return false
-  if (!isIsoDay(v.seededAt)) return false
-  return true
+  if (!Array.isArray(v.expenses) || !v.expenses.every(isExpense)) return null
+  const expenses: Expense[] = v.expenses.map(({ id, category, amount, date, recurring }) => ({
+    id,
+    category,
+    amount,
+    date,
+    recurring,
+  }))
+  if (dedupe(expenses.map((e) => e.id)).length !== expenses.length) return null
+  if (!isFiniteNumber(v.nextExpenseId) || !Number.isInteger(v.nextExpenseId)) return null
+  if (v.nextExpenseId <= highestExpenseId(expenses)) return null
+  if (!isIsoDay(v.seededAt)) return null
+  return { visible: [...v.visible], charts, expenses, nextExpenseId: v.nextExpenseId, seededAt: v.seededAt }
+}
+
+/** Boolean form of `parseState`, for callers that only need yes/no. */
+export function isState(value: unknown): boolean {
+  return parseState(value) !== null
 }
 
 export const metricsStorage = createStorage<State>({
   key: STORAGE_KEY,
   legacyKeys: LEGACY_STORAGE_KEYS,
-  validate: isState,
+  parse: parseState,
 })
 
 /** Read the saved copy; `null` when there is none or it was rejected. */
@@ -245,7 +290,7 @@ export function loadState(storage: Storage | undefined): State | null {
 /** The saved copy brought up to `today`, or a fresh seed when there is none. */
 export function loadStateOrSeed(storage: Storage | undefined, today: IsoDay): State {
   const saved = loadState(storage)
-  return saved ? shiftSeed(saved, today) : initialState(today)
+  return saved ? shiftSeed(saved, today).state : initialState(today)
 }
 
 export function saveState(storage: Storage | undefined, state: State): boolean {
@@ -274,31 +319,33 @@ type Store = State &
 const MetricsContext = React.createContext<Store | null>(null)
 
 export function MetricsProvider({
-  today,
+  nowMs: requestNowMs,
   children,
 }: {
-  /** The request's Central calendar day — the one clock read for this page. */
-  today: IsoDay
+  /** `now().getTime()` from the server component — the one clock read for the first hydrate. */
+  nowMs: number
   children: React.ReactNode
 }) {
-  const [shell, dispatch] = React.useReducer(shellReducer, today, (day) =>
-    initialShell(initialState(day))
+  const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, (ms) =>
+    initialShell(initialState(todayIn(new Date(ms))), ms)
   )
   const { data: state, persisted, edited, saved, saveFailed } = shell
+  const today = shellToday(shell)
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — it runs before the browser paints, so
-  // the first frame a user sees is already their data, never the seed.
+  // the first frame a user sees is already their data, never the seed. This
+  // first hydrate is the only one dated from the request.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", result: metricsStorage.load(window.localStorage), today })
-  }, [today])
+    dispatch({ type: "hydrate", result: metricsStorage.load(window.localStorage), nowMs: requestNowMs })
+  }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
-  // moving edit count does. The result feeds the note.
+  // moving edit count does. The hook reads `now()` for a cross-tab re-seed.
   const onHydrate = React.useCallback(
-    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, today }),
-    [today]
+    (result: LoadResult<State>, nowMs: number) => dispatch({ type: "hydrate", result, nowMs }),
+    []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: metricsStorage, shell, onHydrate, onSaved })
@@ -317,11 +364,11 @@ export function MetricsProvider({
       addExpense: (input) => dispatch({ type: "add-expense", input }),
       removeExpense: (id) => dispatch({ type: "remove-expense", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate around the request's day — never a
-        // client clock read, per the read-once rule: the browser returns to
-        // the never-edited state with the seed this page was served with.
+        // Clear first, then regenerate from the moment of the click (the
+        // shared clock read every store uses for a reset): the browser
+        // returns to the never-edited state with a seed dated today.
         clearState(window.localStorage)
-        dispatch({ type: "reset", today })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }),
     [state, today, persisted, edited, saved, saveFailed]
