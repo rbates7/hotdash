@@ -9,6 +9,9 @@ export const metadata = {
   title: "Agent Workplace · Chlk",
 }
 
+// Rendered per request, never at build, so now() is the request's instant.
+export const dynamic = "force-dynamic"
+
 export default function AgentWorkplacePage() {
   return (
     <IssuesProvider nowMs={now().getTime()}>
