@@ -1,11 +1,11 @@
 import { now } from "@/lib/clock"
 import { CrmApp } from "@/components/crm/crm-app"
-import { OverviewScreen } from "@/components/crm/overview-screen"
+import { TriageScreen } from "@/components/crm/triage-screen"
 
-export default function CrmPage() {
+export default function CrmTriagePage() {
   return (
     <CrmApp nowMs={now().getTime()}>
-      <OverviewScreen />
+      <TriageScreen />
     </CrmApp>
   )
 }

@@ -1,0 +1,93 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { SearchIcon } from "lucide-react"
+
+import { countTriagePending } from "@/lib/crm/crm"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { PersistenceNote } from "@/components/persistence-note"
+import { SampleDataTag } from "@/components/sample-data"
+import { CommandPalette } from "@/components/crm/command-palette"
+import { useCrm } from "@/components/crm/crm-store"
+
+export const LEDE = "Conversations, contacts, and triage — sample data until Gmail and Stripe sync"
+
+const TABS = [
+  { href: "/crm", label: "Overview", match: (path: string) => path === "/crm" },
+  { href: "/crm/cases", label: "Cases", match: (path: string) => path.startsWith("/crm/cases") },
+  {
+    href: "/crm/contacts",
+    label: "Contacts",
+    match: (path: string) => path.startsWith("/crm/contacts"),
+  },
+  { href: "/crm/triage", label: "Triage", match: (path: string) => path.startsWith("/crm/triage") },
+] as const
+
+export function CrmShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const store = useCrm()
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const triageCount = countTriagePending(store.messages)
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
+          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
+        </div>
+        <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5">
+          <PersistenceNote store={store} />
+          <SampleDataTag className="h-6 px-2" />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 px-3.5"
+            onClick={() => setSearchOpen(true)}
+          >
+            <SearchIcon aria-hidden />
+            Search
+            <kbd className="text-micro text-muted-foreground ml-1 rounded border px-1 font-medium">
+              ⌘K
+            </kbd>
+          </Button>
+        </div>
+      </header>
+
+      <nav
+        aria-label="CRM sections"
+        className="bg-muted inline-flex w-fit items-center gap-0.5 rounded-lg p-0.5"
+      >
+        {TABS.map((tab) => {
+          const active = tab.match(pathname)
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                active
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              {tab.label === "Triage" && triageCount > 0 ? (
+                <span className="bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 rounded-full px-1.5 text-[0.65rem] font-semibold tabular-nums">
+                  {triageCount}
+                </span>
+              ) : null}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {children}
+      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+    </div>
+  )
+}
