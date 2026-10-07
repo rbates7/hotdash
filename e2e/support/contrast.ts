@@ -16,26 +16,32 @@ export type TextContrast = {
 export const MIN_CONTRAST = 4.5
 
 /**
- * The one animation-settle helper. Waits for every *finite* animation and
- * transition on the page to finish (dialogs fade in, popovers slide), so
- * colour and opacity are read at rest rather than mid-transition. Infinite
- * ones — skeleton pulses — are left alone, and a short ceiling keeps a stuck
- * animation from hanging the test.
+ * The one animation-settle helper. Lets two frames paint (so anything just
+ * mounted has started its transition), then waits until every *finite*
+ * animation and transition on the page has finished, re-checking because a
+ * finishing animation can start the next one (popover → its content).
+ * Infinite ones — skeleton pulses — are left alone, and a ceiling keeps a
+ * stuck animation from hanging the test.
  */
 export async function settleAnimations(page: Page, ceilingMs = 2_000) {
-  await page.evaluate(
-    (ceiling) =>
-      Promise.race([
-        Promise.all(
-          document
-            .getAnimations()
-            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-            .map((a) => a.finished.catch(() => undefined))
-        ),
-        new Promise((resolve) => setTimeout(resolve, ceiling)),
-      ]),
-    ceilingMs
-  )
+  await page.evaluate(async (ceiling) => {
+    const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()))
+    await frame()
+    await frame()
+    const deadline = performance.now() + ceiling
+    const pending = () =>
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity && a.playState !== "finished")
+    while (pending().length > 0 && performance.now() < deadline) {
+      const left = deadline - performance.now()
+      await Promise.race([
+        Promise.all(pending().map((a) => a.finished.catch(() => undefined))),
+        new Promise((r) => setTimeout(r, Math.max(0, left))),
+      ])
+      await frame()
+    }
+  }, ceilingMs)
 }
 
 /**

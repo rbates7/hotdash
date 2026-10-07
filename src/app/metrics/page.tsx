@@ -1,7 +1,7 @@
 import { Suspense } from "react"
-import { CalendarIcon } from "lucide-react"
 
-import { formatPeriod, now, periodEnding, todayIn } from "@/lib/clock"
+import { now } from "@/lib/clock"
+import { MetricsHeaderPeriod } from "@/components/metrics/metrics-header-period"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
@@ -16,32 +16,20 @@ export const metadata = {
 export const dynamic = "force-dynamic"
 
 export default function MetricsPage() {
-  // The one read of the clock for this request. Everything below receives
-  // the resulting calendar day, so the server HTML and the client's
-  // hydration describe the same "today" even across midnight.
-  const today = todayIn(now())
-  const period = periodEnding(today)
+  // The one read of the clock for this request. The store holds it as its
+  // clock, so the server HTML and the client's hydration describe the same
+  // "today" even across midnight; a Reset later moves the store's clock.
+  const nowMs = now().getTime()
 
   return (
-    <MetricsProvider today={today}>
+    <MetricsProvider nowMs={nowMs}>
       <div className="flex min-w-0 flex-col gap-2.5">
         <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
           <h1 className="text-display-sm font-semibold tracking-tight">Metrics</h1>
           <div className="flex flex-wrap items-center gap-2.5">
             <MetricsPersistenceNote />
             <SampleDataTag className="h-6 px-2" />
-            {/* Shows the real trailing four weeks, but is not a picker yet
-                (reqs: Open). Marked disabled rather than wired to a control
-                that would not filter anything. */}
-            <span
-              aria-disabled="true"
-              data-testid="date-range"
-              title="Trailing four weeks. Date range picker is not wired yet"
-              className="bg-surface border-surface-border text-label inline-flex h-9 items-center gap-2 rounded-lg border px-3 font-medium select-none"
-            >
-              <CalendarIcon className="text-muted-foreground size-[15px]" aria-hidden />
-              {formatPeriod(period)}
-            </span>
+            <MetricsHeaderPeriod />
           </div>
         </header>
         <SampleDataNotice />

@@ -301,28 +301,30 @@ test.describe("Metrics", () => {
     expect(await writes(a)).toBe(0)
     expect(await writes(b)).toBe(0)
 
+    // Writes are counted after the other tab has visibly taken the change
+    // (web-first), then polled: a loop would overshoot and never match.
+    const settled = async (p: Page, n: number) =>
+      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+
     // A edits: one write in A; B hears it and takes the copy without writing.
     await card(a, "ARR").getByRole("button", { name: "Remove ARR" }).click()
     await expect(card(b, "ARR")).toHaveCount(0)
     await expect(persistenceNote(b)).toHaveText(NOTE.saved)
-    await a.waitForTimeout(750) // let any echo land — there must be none
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(0)
+    await settled(a, 1)
+    await settled(b, 0)
 
     // B edits: one write in B; A follows the same way, still at one.
     await card(b, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
     await expect(card(a, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
-    await a.waitForTimeout(750)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
 
     // A Reset in B clears the key; A goes back to a fresh seed too.
     await resetDemoData(b)
     await expect(grid(a).getByRole("article")).toHaveCount(8)
     await expect(persistenceNote(a)).toHaveText(NOTE.unsaved)
-    await a.waitForTimeout(750)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
@@ -332,7 +334,7 @@ test.describe("Metrics", () => {
       await card(page, name).getByRole("button", { name: `Remove ${name}` }).click()
     }
     await expect(grid(page)).toHaveCount(0)
-    await expect(page.getByRole("status", { name: "Empty board" })).toContainText("No metrics on the board")
+    await expect(panel(page, "Overview").getByRole("status", { name: "Empty board" })).toContainText("No metrics on the board")
     await resetDemoData(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
   })

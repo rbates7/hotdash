@@ -201,9 +201,9 @@ describe("KPI card sets", () => {
   const TODAY = "2026-08-21"
   const KPI_SETS = kpiSets(TODAY)
 
-  it("ships the truth strip: subscribers and cash this week, named as Metrics names them", () => {
+  it("ships the truth strip: paying coaches (the Metrics Subscribers number) and cash this week", () => {
     expect(ACTIVE_KPI_SET).toBe("truth")
-    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Subscribers", "Cash this week"])
+    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Paying coaches", "Cash this week"])
     expect(kpiStripTitle).toBe("Truth strip")
   })
 

@@ -16,7 +16,7 @@ export function StatusPill({
     <span
       className={cn(
         "text-caption inline-flex h-[22px] shrink-0 items-center rounded-full px-2 font-semibold tracking-tight",
-        working ? "bg-success/10 text-success" : "bg-muted text-muted-foreground",
+        working ? "bg-success/10 text-success-text" : "bg-muted text-muted-foreground",
         className
       )}
     >
