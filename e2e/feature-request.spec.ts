@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { measureSampleDataText } from "./feature-request.contrast"
+
 const STORAGE_KEY = "hotdash.feature-requests.v1"
+const REJECTED_KEY = `${STORAGE_KEY}.rejected`
+const MOVE = "Move to On Roadmap"
 
 // Every role lookup below is scoped by name, directly or through a named
 // ancestor, so nothing else on the page can ever match by accident.
@@ -24,94 +28,17 @@ async function freshBoard(page: Page) {
   await expect(persistence(page)).toHaveText("Edits save in this browser")
 }
 
+/** Reset asks first: click it, then confirm. */
+async function resetBoard(page: Page) {
+  await page.getByRole("button", { name: "Reset", exact: true }).click()
+  await page.getByRole("button", { name: "Confirm reset", exact: true }).click()
+}
+
 async function setTheme(page: Page, theme: "light" | "dark") {
   await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
   )
-}
-
-type TextContrast = {
-  label: string
-  text: string
-  ratio: number
-  textAlpha: number
-  opacity: number
-}
-
-/**
- * WCAG contrast of every text node inside the sample-data labels, measured
- * in the browser: the node's computed colour against its *effective*
- * background (ancestor backgrounds composited until opaque). Any colour
- * syntax works because each value is rasterised through a canvas first.
- */
-async function measureSampleDataText(page: Page): Promise<TextContrast[]> {
-  return page.evaluate(() => {
-    const canvas = document.createElement("canvas")
-    canvas.width = canvas.height = 1
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!
-    const toRgba = (css: string): [number, number, number, number] => {
-      ctx.clearRect(0, 0, 1, 1)
-      ctx.fillStyle = css
-      ctx.fillRect(0, 0, 1, 1)
-      const d = ctx.getImageData(0, 0, 1, 1).data
-      return [d[0], d[1], d[2], d[3] / 255]
-    }
-    // `top` over `under`, both straight (non-premultiplied) RGBA.
-    const over = (
-      top: [number, number, number, number],
-      under: [number, number, number, number]
-    ): [number, number, number, number] => {
-      const a = top[3] + under[3] * (1 - top[3])
-      if (a === 0) return [0, 0, 0, 0]
-      const ch = (i: number) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / a
-      return [ch(0), ch(1), ch(2), a]
-    }
-    const luminance = ([r, g, b]: number[]) => {
-      const lin = (c: number) => {
-        const s = c / 255
-        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
-      }
-      return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-    }
-    const effectiveBackground = (start: Element) => {
-      let acc: [number, number, number, number] = [0, 0, 0, 0]
-      for (let el: Element | null = start; el && acc[3] < 1; el = el.parentElement) {
-        acc = over(acc, toRgba(getComputedStyle(el).backgroundColor))
-      }
-      return over(acc, [255, 255, 255, 1])
-    }
-    const chainOpacity = (start: Element) => {
-      let o = 1
-      for (let el: Element | null = start; el; el = el.parentElement) {
-        o *= Number(getComputedStyle(el).opacity)
-      }
-      return o
-    }
-
-    const roots = [
-      ...document.querySelectorAll(
-        '[data-testid="sample-data-tag"], [data-testid="sample-data-badge"], [role="note"][aria-label="Sample data"]'
-      ),
-    ]
-    const out: TextContrast[] = []
-    for (const root of roots) {
-      const label = root.getAttribute("data-testid") ?? "sample-data-notice"
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const text = node.textContent?.trim() ?? ""
-        if (!text) continue
-        const el = node.parentElement!
-        const fg = toRgba(getComputedStyle(el).color)
-        const bg = effectiveBackground(el)
-        const l1 = luminance(fg)
-        const l2 = luminance(bg)
-        const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
-        out.push({ label, text, ratio, textAlpha: fg[3], opacity: chainOpacity(el) })
-      }
-    }
-    return out
-  })
 }
 
 test.describe("Feature Request", () => {
@@ -169,6 +96,110 @@ test.describe("Feature Request", () => {
     await setTheme(page, "dark")
   })
 
+  test("negative control: the contrast probe fails on low contrast and on translucent text", async ({ page }) => {
+    await freshBoard(page)
+    // Push the tag text towards its background in each theme, fade the
+    // badge, and make the notice's bold text translucent.
+    const sabotage = {
+      light: "rgb(230 210 150)", // close to amber-100
+      dark: "rgb(100 60 20)", // close to amber-950
+    } as const
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      const before = await measureSampleDataText(page)
+      expect(before.every((n) => n.ratio >= 4.5 && n.textAlpha === 1 && n.opacity === 1)).toBe(true)
+
+      const style = await page.addStyleTag({
+        content: `
+          [data-testid="sample-data-tag"] { color: ${sabotage[theme]} !important; }
+          [data-testid="sample-data-badge"] { opacity: 0.6 !important; }
+          [role="note"][aria-label="Sample data"] strong { color: rgb(0 0 0 / 0.5) !important; }
+        `,
+      })
+      const after = await measureSampleDataText(page)
+      const tags = after.filter((n) => n.label === "sample-data-tag")
+      expect(tags).toHaveLength(10)
+      for (const n of tags) {
+        expect(n.ratio, `${theme} tag "${n.text}" ${n.ratio.toFixed(2)}:1`).toBeLessThan(4.5)
+      }
+      const badge = after.find((n) => n.label === "sample-data-badge")!
+      expect(badge.opacity).toBeCloseTo(0.6, 5)
+      // React renders the <strong> as two text nodes, "Sample data" and ".".
+      const strong = after.filter((n) => n.label === "sample-data-notice" && n.text === "Sample data")
+      expect(strong).toHaveLength(1)
+      expect(strong[0].textAlpha).toBeLessThan(1)
+      await style.evaluate((el) => (el as HTMLElement).remove())
+    }
+    await setTheme(page, "dark")
+  })
+
+  test("Reset is disabled until something is saved, and asks before it acts", async ({ page }) => {
+    await freshBoard(page)
+    const reset = page.getByRole("button", { name: "Reset", exact: true })
+    await expect(reset).toBeDisabled()
+    await expect(reset).toHaveAttribute("title", "Nothing is saved in this browser yet")
+
+    await card(page, "Play of the Day").click()
+    const d = dialog(page, "Idea: Play of the Day")
+    await d.getByRole("group", { name: "Status" }).getByRole("button", { name: "Parked", exact: true }).click()
+    await d.getByRole("button", { name: /Save/ }).click()
+    await expect(d).toBeHidden()
+    await expect(persistence(page)).toHaveText("Saved in this browser")
+    await expect(reset).toBeEnabled()
+
+    await reset.click()
+    await expect(page.getByRole("button", { name: "Confirm reset", exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "Keep edits", exact: true }).click()
+    await expect(cardsIn(page, "Parked")).toHaveCount(3)
+    expect(await savedCopy(page)).toContain('"status":"parked"')
+
+    await resetBoard(page)
+    await expect(cardsIn(page, "Parked")).toHaveCount(2)
+    expect(await savedCopy(page)).toBeNull()
+    await expect(reset).toBeDisabled()
+  })
+
+  test("says so when the browser refuses to save, and keeps the idea on the board", async ({ page }) => {
+    // Simulate quota / private mode for this key only.
+    await page.addInitScript((key) => {
+      const original = Storage.prototype.setItem
+      Storage.prototype.setItem = function (k: string, v: string) {
+        if (k === key) throw new DOMException("quota", "QuotaExceededError")
+        return original.call(this, k, v)
+      }
+    }, STORAGE_KEY)
+    await freshBoard(page)
+    await page.getByRole("button", { name: "New idea", exact: true }).click()
+    const d = dialog(page, "New idea")
+    await d.getByRole("textbox", { name: "Idea title" }).fill("Won't fit")
+    await d.getByRole("button", { name: /Add idea/ }).click()
+    await expect(d).toBeHidden()
+    await expect(card(page, "Won't fit")).toBeVisible()
+    await expect(persistence(page)).toHaveText("Couldn't save in this browser")
+    await expect(persistence(page)).toHaveAttribute("role", "alert")
+    expect(await savedCopy(page)).toBeNull()
+    await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled()
+  })
+
+  test("follows another tab's edits and resets through the storage event", async ({ context, page }) => {
+    await freshBoard(page)
+    const other = await context.newPage()
+    await other.goto("/feature-request")
+    await expect(persistence(other)).toHaveText("Edits save in this browser")
+
+    await other.getByRole("button", { name: "New idea", exact: true }).click()
+    await dialog(other, "New idea").getByRole("textbox", { name: "Idea title" }).fill("From tab two")
+    await dialog(other, "New idea").getByRole("button", { name: /Add idea/ }).click()
+    await expect(card(page, "From tab two")).toBeVisible()
+    await expect(persistence(page)).toHaveText("Saved in this browser")
+
+    await resetBoard(other)
+    await expect(card(page, "From tab two")).toHaveCount(0)
+    await expect(cardsIn(page, "Inbox")).toHaveCount(3)
+    await expect(persistence(page)).toHaveText("Edits save in this browser")
+    await other.close()
+  })
+
   test("does not write the untouched seed; the first edit does", async ({ page }) => {
     await freshBoard(page)
     expect(await savedCopy(page)).toBeNull()
@@ -203,6 +234,18 @@ test.describe("Feature Request", () => {
     await expect(persistence(page)).toHaveText("Edits save in this browser")
     await expect(card(page, "Fine")).toHaveCount(0)
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(10)
+    // The bad copy is parked verbatim, and the live key is untouched until an edit.
+    const raw = await savedCopy(page)
+    expect(raw).toContain('"Broken"')
+    expect(await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)).toBe(raw)
+
+    await card(page, "Play of the Day").click()
+    const d = dialog(page, "Idea: Play of the Day")
+    await d.getByRole("group", { name: "Status" }).getByRole("button", { name: "Parked", exact: true }).click()
+    await d.getByRole("button", { name: /Save/ }).click()
+    await expect(persistence(page)).toHaveText("Saved in this browser")
+    expect(await savedCopy(page)).not.toContain('"Broken"')
+    expect(await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)).toBe(raw)
   })
 
   test("adds an idea, reloads, and it is still there; Reset clears it", async ({ page }) => {
@@ -225,11 +268,12 @@ test.describe("Feature Request", () => {
     await expect(cardsIn(page, "Inbox")).toHaveCount(4)
     await expect(card(page, "Practice plan templates")).toContainText("Reusable weekly plans a coach can tweak.")
 
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await resetBoard(page)
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(card(page, "Practice plan templates")).toHaveCount(0)
     await expect(persistence(page)).toHaveText("Edits save in this browser")
     expect(await savedCopy(page)).toBeNull()
+    await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled()
   })
 
   test("edits a card, moves it between columns, and the edit survives reload", async ({ page }) => {
@@ -256,12 +300,12 @@ test.describe("Feature Request", () => {
     await expect(cardsIn(page, "Inbox")).toHaveCount(2)
   })
 
-  test("Send to Roadmap only moves the card on this board, and says so", async ({ page }) => {
+  test("Move to On Roadmap only moves the card on this board, and says so", async ({ page }) => {
     await freshBoard(page)
     await card(page, "Custom play headers").click()
     const d = dialog(page, "Idea: Custom play headers")
-    await expect(d).toContainText("The Product Roadmap page isn't wired yet, so nothing is sent anywhere.")
-    await d.getByRole("button", { name: "Send to Roadmap", exact: true }).click()
+    await expect(d).toContainText("Moves the card to the On Roadmap column on this board. The Product Roadmap page isn't wired yet, so nothing is sent anywhere.")
+    await d.getByRole("button", { name: MOVE, exact: true }).click()
     await expect(d).toBeHidden()
 
     const moved = column(page, "On Roadmap").getByRole("button", { name: "Open idea: Custom play headers" })
@@ -271,7 +315,7 @@ test.describe("Feature Request", () => {
 
     await moved.click()
     await expect(dialog(page, "Idea: Custom play headers")).toContainText("On Roadmap here only.")
-    await expect(dialog(page, "Idea: Custom play headers").getByRole("button", { name: "Send to Roadmap" })).toHaveCount(0)
+    await expect(dialog(page, "Idea: Custom play headers").getByRole("button", { name: MOVE })).toHaveCount(0)
     await page.keyboard.press("Escape")
   })
 
@@ -291,7 +335,7 @@ test.describe("Feature Request", () => {
     await expect(page.getByTestId("sample-data-badge")).toHaveCount(0)
     await expect(sampleNote(page)).toHaveCount(0)
 
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await resetBoard(page)
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(10)
   })
 })

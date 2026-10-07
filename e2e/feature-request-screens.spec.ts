@@ -82,9 +82,9 @@ for (const theme of ["light", "dark"] as const) {
     await edit.getByRole("button", { name: /Save/ }).click()
     await expect(edit).toBeHidden()
 
-    // Send to Roadmap, then the roadmap-side note.
+    // Move to On Roadmap, then the roadmap-side note.
     await card(page, "Custom play headers").click()
-    await dialog(page, "Idea: Custom play headers").getByRole("button", { name: "Send to Roadmap", exact: true }).click()
+    await dialog(page, "Idea: Custom play headers").getByRole("button", { name: "Move to On Roadmap", exact: true }).click()
     await expect(column(page, "On Roadmap").getByRole("button", { name: "Open idea: Custom play headers" })).toBeVisible()
     await card(page, "Custom play headers").click()
     await expect(dialog(page, "Idea: Custom play headers")).toContainText("On Roadmap here only.")
@@ -105,6 +105,16 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `feature-request-delete-confirm-${theme}`)
     await page.keyboard.press("Escape")
 
+    // Reset, asking first.
+    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await expect(page.getByRole("button", { name: "Confirm reset", exact: true })).toBeVisible()
+    for (const dir of OUT_DIRS) {
+      await page.locator("main header").first().screenshot({
+        path: path.join(dir, `feature-request-reset-confirm-${theme}.png`),
+      })
+    }
+    await page.getByRole("button", { name: "Keep edits", exact: true }).click()
+
     // Empty board.
     await page.evaluate(
       (key) => localStorage.setItem(key, JSON.stringify({ requests: [], nextId: 1 })),
@@ -116,6 +126,27 @@ for (const theme of ["light", "dark"] as const) {
 
     // Back to the seed for the next run.
     await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await page.getByRole("button", { name: "Confirm reset", exact: true }).click()
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(10)
+  })
+
+  test(`captures the save-failed state (${theme})`, async ({ page }) => {
+    await page.addInitScript((key) => {
+      const original = Storage.prototype.setItem
+      Storage.prototype.setItem = function (k: string, v: string) {
+        if (k === key) throw new DOMException("quota", "QuotaExceededError")
+        return original.call(this, k, v)
+      }
+    }, STORAGE_KEY)
+    await page.goto("/feature-request")
+    await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
+    await page.reload()
+    await setTheme(page, theme)
+    await page.getByRole("button", { name: "New idea", exact: true }).click()
+    const add = dialog(page, "New idea")
+    await add.getByRole("textbox", { name: "Idea title" }).fill("Won't fit in this browser")
+    await add.getByRole("button", { name: /Add idea/ }).click()
+    await expect(persistence(page)).toHaveText("Couldn't save in this browser")
+    await shoot(page, `feature-request-save-failed-${theme}`)
   })
 }
