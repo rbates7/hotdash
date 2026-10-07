@@ -102,7 +102,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader className="relative">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center">
           <FounderIdentity />
           {isMobile ? <DrawerClose /> : <CollapseToggle />}
         </div>
@@ -126,7 +126,7 @@ export function AppSidebar() {
                       tooltip={item.label}
                       className={cn(
                         (isMobile || isTablet) && "h-11!",
-                        "md:max-lg:group-data-[collapsible=icon]:size-11!"
+                        "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
                       )}
                       render={
                         item.external ? (
@@ -169,7 +169,7 @@ export function AppSidebar() {
               tooltip="Help"
               className={cn(
                 (isMobile || isTablet) && "h-11!",
-                "md:max-lg:group-data-[collapsible=icon]:size-11!"
+                "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
               )}
             >
               <CircleQuestionMarkIcon />
@@ -182,7 +182,7 @@ export function AppSidebar() {
               className={cn(
                 "text-destructive hover:text-destructive [&_svg]:text-destructive",
                 (isMobile || isTablet) && "h-11!",
-                "md:max-lg:group-data-[collapsible=icon]:size-11!"
+                "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
               )}
             >
               <LogOutIcon />
