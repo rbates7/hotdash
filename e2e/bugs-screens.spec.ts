@@ -9,9 +9,10 @@ import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Bugs page, every main state in both themes
- * at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
- * `pnpm screens:bugs`). Output goes to docs/screenshots/bugs and,
- * when SCREENSHOT_DIR is set, there as well.
+ * at desktop width. Opt-in: `pnpm screens:bugs` (CI=true so Playwright
+ * starts the production server — the Next.js dev badge must never cover
+ * Logout). Output goes to docs/screenshots/bugs and, when SCREENSHOT_DIR
+ * is set, there as well.
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
@@ -53,7 +54,14 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `bugs-list-${theme}`)
     await shoot(page, `bugs-crash-card-${theme}`, page.getByRole("article", { name: "Crashes", exact: true }))
 
-    // The Workplace's own ticket view, showing the bug tag.
+    // Ticket open on Bugs — the Workplace TicketView, editing in place.
+    await page.getByRole("region", { name: "Bug list" }).getByRole("link", { name: /CHLK-419/ }).click()
+    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-419/)
+    await expect(page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeVisible()
+    await expect(page.getByRole("complementary", { name: "Ticket properties" }).getByRole("button", { name: "Untag bug" })).toBeVisible()
+    await shoot(page, `bugs-ticket-${theme}`)
+
+    // The same ticket on the Workplace board, so the tag is visible there too.
     await page.goto("/agent-workplace?issue=CHLK-419")
     await expect(page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeVisible()
     await expect(page.getByTestId("bug-tag")).toHaveText("Bug · Crash")
