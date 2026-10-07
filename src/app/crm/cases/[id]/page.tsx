@@ -1,4 +1,6 @@
+import { now } from "@/lib/clock"
 import { CaseDetail } from "@/components/crm/case-detail"
+import { CrmApp } from "@/components/crm/crm-app"
 
 export default async function CrmCaseDetailPage({
   params,
@@ -6,5 +8,9 @@ export default async function CrmCaseDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  return <CaseDetail caseId={id} />
+  return (
+    <CrmApp nowMs={now().getTime()}>
+      <CaseDetail caseId={id} />
+    </CrmApp>
+  )
 }

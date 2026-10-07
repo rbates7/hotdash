@@ -1,16 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { CrmErrorAlert } from "@/components/crm/crm-error-alert"
 import { clearState } from "@/components/crm/crm-store"
 
 /**
- * Last line of defence for this route. The store validates every saved
- * copy and falls back to the seed on its own, so this should not fire; if
- * something still gets through, the founder can clear the browser copy and
- * try again rather than being stuck on a broken page.
+ * Last line of defence for this route. The store lives in the page
+ * (CrmApp), so a remount after Reset builds a fresh provider from empty
+ * storage and the seed. clearState first so hydrate cannot revive a
+ * broken copy.
  */
 export default function CrmError({
   error,
@@ -24,36 +23,13 @@ export default function CrmError({
   }, [error])
 
   return (
-    <div
-      role="alert"
-      className="border-destructive/30 bg-destructive/5 mx-auto mt-10 flex max-w-lg flex-col gap-3 rounded-xl border p-5"
-    >
-      <div className="flex items-center gap-2">
-        <AlertTriangleIcon className="text-destructive size-5" aria-hidden />
-        <h1 className="text-title-sm font-semibold tracking-tight">CRM couldn’t render</h1>
-      </div>
-      <p className="text-body text-muted-foreground">
-        Something in this browser’s saved copy of the CRM could not be read. Nothing is stored on a
-        server; resetting discards the saved copy and shows the sample conversations again.
-      </p>
-      {error.digest && (
-        <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>
-      )}
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={reset}>
-          Try again
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={() => {
-            clearState(window.localStorage)
-            reset()
-          }}
-        >
-          <RotateCcwIcon aria-hidden />
-          Reset and clear saved copy
-        </Button>
-      </div>
-    </div>
+    <CrmErrorAlert
+      error={error}
+      onRetry={reset}
+      onReset={() => {
+        clearState(window.localStorage)
+        reset()
+      }}
+    />
   )
 }

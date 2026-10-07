@@ -55,7 +55,7 @@ export function CommandPalette({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search cases and contacts… (#3, a name, an email)"
             aria-label="Search cases and contacts"
-            className="h-12 rounded-none border-0 bg-transparent pl-11 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="h-12! rounded-none border-0! bg-transparent! pl-11! shadow-none! focus-visible:ring-0 dark:bg-transparent!"
             autoFocus
           />
         </div>

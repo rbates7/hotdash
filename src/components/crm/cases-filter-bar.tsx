@@ -109,7 +109,7 @@ export function CasesFilterBar() {
           onChange={(event) => setQ(event.target.value)}
           placeholder="Search cases…"
           aria-label="Search cases"
-          className="h-8 w-56 pl-8"
+          className="h-8 w-56 pl-8!"
         />
       </div>
     </div>

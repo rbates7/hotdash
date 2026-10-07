@@ -1,4 +1,5 @@
 import { CENTRAL, formatRelative } from "@/lib/clock"
+import type { Plan } from "@/lib/metrics"
 import {
   isFiniteNumber,
   isIsoInstant,
@@ -7,6 +8,8 @@ import {
 } from "@/lib/persistence"
 
 import { normalizeEmail } from "./matching"
+
+export type { Plan }
 
 /**
  * CRM domain: cases, contacts, notes and a triage queue. Ported from the
@@ -25,6 +28,12 @@ export type NameSource = (typeof NAME_SOURCES)[number]
 
 export const CONTACT_SOURCES = ["gmail", "stripe", "manual"] as const
 export type ContactSource = (typeof CONTACT_SOURCES)[number]
+
+export const PLANS = ["Monthly", "Annual", "Staff"] as const
+
+export function isPlan(value: unknown): value is Plan {
+  return isString(value) && (PLANS as readonly string[]).includes(value)
+}
 
 export const NOTE_KINDS = ["user", "system"] as const
 export type NoteKind = (typeof NOTE_KINDS)[number]
@@ -78,7 +87,7 @@ export type Contact = {
   lastName: string | null
   nameSource: NameSource | null
   organizationId: string | null
-  plan: string | null
+  plan: Plan | null
   planStatus: string | null
   source: ContactSource
   createdAt: string
@@ -194,7 +203,7 @@ export function isContact(value: unknown): value is Contact {
     isOptionalText(v.lastName, CRM_LIMITS.name) &&
     (v.nameSource === null || isNameSource(v.nameSource)) &&
     (v.organizationId === null || (isString(v.organizationId) && ORG_ID.test(v.organizationId))) &&
-    isOptionalText(v.plan, CRM_LIMITS.plan) &&
+    (v.plan === null || isPlan(v.plan)) &&
     isOptionalText(v.planStatus, CRM_LIMITS.plan) &&
     isContactSource(v.source) &&
     isIsoInstant(v.createdAt)
@@ -590,6 +599,22 @@ export function formatCrmDateTime(iso: string) {
 }
 
 const clampText = (s: string, max: number) => s.trim().slice(0, max)
+
+export function isWellFormedEmail(email: string) {
+  const value = normalizeEmail(email)
+  if (!value || value.length > CRM_LIMITS.email) return false
+  if (value.indexOf("@") !== value.lastIndexOf("@")) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+export function newContactEmailError(email: string, existing: readonly string[]): string | null {
+  const normalized = normalizeEmail(email)
+  if (!isWellFormedEmail(normalized)) return "Enter a valid email address."
+  if (existing.some((row) => normalizeEmail(row) === normalized)) {
+    return "A contact with this email already exists."
+  }
+  return null
+}
 
 export function normalizeContactInput(input: ContactInput): {
   email: string

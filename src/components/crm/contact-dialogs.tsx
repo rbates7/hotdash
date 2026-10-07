@@ -3,7 +3,7 @@
 import * as React from "react"
 import { PlusIcon } from "lucide-react"
 
-import { CRM_LIMITS, type Contact } from "@/lib/crm/crm"
+import { CRM_LIMITS, newContactEmailError, type Contact } from "@/lib/crm/crm"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,6 +25,10 @@ function Field({
   type = "text",
   required = false,
   maxLength,
+  autoFocus = false,
+  inputRef,
+  describedBy,
+  invalid = false,
 }: {
   id: string
   label: string
@@ -33,6 +37,10 @@ function Field({
   type?: string
   required?: boolean
   maxLength?: number
+  autoFocus?: boolean
+  inputRef?: React.Ref<HTMLInputElement>
+  describedBy?: string
+  invalid?: boolean
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -41,11 +49,15 @@ function Field({
       </label>
       <Input
         id={id}
+        ref={inputRef}
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
         maxLength={maxLength}
+        autoFocus={autoFocus}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
       />
     </div>
   )
@@ -58,7 +70,7 @@ export function ContactNewDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 } = {}) {
-  const { addContact } = useCrm()
+  const { addContact, contacts } = useCrm()
   const [uncontrolled, setUncontrolled] = React.useState(false)
   const open = openProp ?? uncontrolled
   const setOpen = onOpenChange ?? setUncontrolled
@@ -66,12 +78,16 @@ export function ContactNewDialog({
   const [firstName, setFirstName] = React.useState("")
   const [lastName, setLastName] = React.useState("")
   const [organizationName, setOrganizationName] = React.useState("")
+  const [emailError, setEmailError] = React.useState<string | null>(null)
+  const emailRef = React.useRef<HTMLInputElement>(null)
+  const emailErrorId = "new-email-error"
 
   function reset() {
     setEmail("")
     setFirstName("")
     setLastName("")
     setOrganizationName("")
+    setEmailError(null)
   }
 
   return (
@@ -88,7 +104,7 @@ export function ContactNewDialog({
           New contact
         </DialogTrigger>
       )}
-      <DialogContent>
+      <DialogContent initialFocus={emailRef}>
         <DialogHeader>
           <DialogTitle>New contact</DialogTitle>
           <DialogDescription>
@@ -96,23 +112,46 @@ export function ContactNewDialog({
           </DialogDescription>
         </DialogHeader>
         <form
+          noValidate
           onSubmit={(event) => {
             event.preventDefault()
+            const error = newContactEmailError(
+              email,
+              contacts.map((c) => c.email)
+            )
+            if (error) {
+              setEmailError(error)
+              emailRef.current?.focus()
+              return
+            }
             addContact({ email, firstName, lastName, organizationName })
             setOpen(false)
             reset()
           }}
           className="flex flex-col gap-4"
         >
-          <Field
-            id="new-email"
-            label="Email"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            required
-            maxLength={CRM_LIMITS.email}
-          />
+          <div className="flex flex-col gap-2">
+            <Field
+              id="new-email"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(value) => {
+                setEmail(value)
+                if (emailError) setEmailError(null)
+              }}
+              required
+              maxLength={CRM_LIMITS.email}
+              inputRef={emailRef}
+              invalid={Boolean(emailError)}
+              describedBy={emailError ? emailErrorId : undefined}
+            />
+            {emailError ? (
+              <p id={emailErrorId} role="alert" className="text-destructive text-caption">
+                {emailError}
+              </p>
+            ) : null}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field
               id="new-first"

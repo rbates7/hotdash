@@ -65,7 +65,7 @@ export function ContactsScreen() {
           onChange={(event) => setQ(event.target.value)}
           placeholder="Search contacts…"
           aria-label="Search contacts"
-          className="h-8 pl-8"
+          className="h-8 pl-8!"
         />
       </div>
 
