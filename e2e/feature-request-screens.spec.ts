@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, NOTE_NAME, resetDemoData } from "./support/persistence"
 
 /**
  * Review screenshots for the Feature Request screen, every main state in
@@ -31,7 +31,8 @@ const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
 const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
 const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
-const persistence = (page: Page) => actions(page).getByTestId("persistence-note")
+const persistence = (page: Page, { failed = false } = {}) =>
+  actions(page).getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(250)
@@ -130,7 +131,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `feature-request-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await resetDemoData(page)
+    await resetDemoData(page, actions(page))
     await expect(page.getByRole("region").getByTestId("sample-data-tag")).toHaveCount(10)
   })
 
@@ -150,7 +151,7 @@ for (const theme of ["light", "dark"] as const) {
     const add = dialog(page, "New idea")
     await add.getByRole("textbox", { name: "Idea title" }).fill("Won't fit in this browser")
     await add.getByRole("button", { name: /Add idea/ }).click()
-    await expect(persistence(page)).toHaveText(NOTE.failed)
+    await expect(persistence(page, { failed: true })).toHaveText(NOTE.failed)
     await shoot(page, `feature-request-save-failed-${theme}`)
   })
 }

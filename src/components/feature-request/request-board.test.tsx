@@ -9,7 +9,7 @@ import {
 } from "@/components/feature-request/feature-requests-store"
 import { HeaderActions } from "@/components/feature-request/header-actions"
 import { MOVE_TO_ROADMAP, ROADMAP_HANDOFF_NOTE } from "@/components/feature-request/idea-dialog"
-import { PERSISTENCE_COPY } from "@/components/persistence-note"
+import { PERSISTENCE_COPY, RESET_DISABLED_HINT } from "@/components/persistence-note"
 
 const NOTE_FAILED = PERSISTENCE_COPY.failed
 const NOTE_SAVED = PERSISTENCE_COPY.saved
@@ -227,8 +227,8 @@ describe("board", () => {
     const note = screen.getByTestId("persistence-note")
     expect(note).toHaveTextContent(NOTE_UNSAVED)
     const reset = screen.getByRole("button", { name: "Reset" })
-    expect(reset).toBeDisabled()
-    expect(reset).toHaveAttribute("title", "Nothing is saved in this browser yet")
+    expect(reset).toHaveAttribute("aria-disabled", "true")
+    expect(reset).toHaveAttribute("title", RESET_DISABLED_HINT)
 
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
@@ -237,7 +237,7 @@ describe("board", () => {
     await user.click(within(dialog).getByRole("button", { name: /Save/ }))
     expect(note).toHaveTextContent(NOTE_SAVED)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"status":"triaged"')
-    expect(reset).toBeEnabled()
+    expect(reset).not.toHaveAttribute("aria-disabled", "true")
 
     // First click only asks (the shared confirm dialog).
     await user.click(reset)
@@ -255,7 +255,7 @@ describe("board", () => {
     expect(cardsIn("Inbox")).toHaveLength(3)
     expect(note).toHaveTextContent(NOTE_UNSAVED)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
   })
 
   it("Reset from an empty board brings the sample cards back", async () => {
@@ -287,7 +287,7 @@ describe("board", () => {
     expect(NOTE_FAILED).toBe("Couldn't save in this browser")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     // Nothing is saved, so there is nothing to reset.
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
   })
 
   it("caps what the inputs accept", async () => {

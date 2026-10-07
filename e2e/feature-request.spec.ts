@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, NOTE_NAME, countWrites, resetDemoData, writesTo } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.feature-requests.v1"
 const REJECTED_KEY = `${STORAGE_KEY}.rejected`
@@ -23,7 +23,10 @@ const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, ex
 const sampleNote = (page: Page) => page.getByRole("note", { name: "Sample data" })
 const headerTag = (page: Page) => actions(page).getByTestId("sample-data-tag")
 const cardTags = (page: Page) => board(page).getByTestId("sample-data-tag")
-const persistence = (page: Page) => actions(page).getByTestId("persistence-note")
+// The shared note is a `status` live region normally and an `alert` once a save failed.
+const persistence = (page: Page, { failed = false } = {}) =>
+  actions(page).getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
+const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
 
 const savedCopy = (page: Page) =>
   page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
@@ -107,7 +110,7 @@ test.describe("Feature Request", () => {
     await freshBoard(page)
     const reset = resetButton(page)
     await expect(reset).toBeDisabled()
-    await expect(reset).toHaveAttribute("title", "Nothing is saved in this browser yet")
+    await expect(reset).toHaveAttribute("title", RESET_DISABLED_HINT)
 
     await card(page, "Play of the Day").click()
     const d = dialog(page, "Idea: Play of the Day")
@@ -125,7 +128,7 @@ test.describe("Feature Request", () => {
     await expect(cardsIn(page, "Parked")).toHaveCount(3)
     expect(await savedCopy(page)).toContain('"status":"parked"')
 
-    await resetDemoData(page)
+    await resetDemoData(page, actions(page))
     await expect(cardsIn(page, "Parked")).toHaveCount(2)
     expect(await savedCopy(page)).toBeNull()
     await expect(reset).toBeDisabled()
@@ -147,8 +150,7 @@ test.describe("Feature Request", () => {
     await d.getByRole("button", { name: /Add idea/ }).click()
     await expect(d).toBeHidden()
     await expect(card(page, "Won't fit")).toBeVisible()
-    await expect(persistence(page)).toHaveText(NOTE.failed)
-    await expect(persistence(page)).toHaveAttribute("role", "alert")
+    await expect(persistence(page, { failed: true })).toHaveText(NOTE.failed)
     expect(await savedCopy(page)).toBeNull()
     await expect(resetButton(page)).toBeDisabled()
   })
@@ -156,15 +158,8 @@ test.describe("Feature Request", () => {
   test("follows another tab's edits and resets through the storage event, and the writes settle", async ({ context, page }) => {
     // Count every write to the key in both tabs. A hydrate must never save,
     // so after one edit exactly one write exists across the pair.
-    await context.addInitScript((key) => {
-      const original = Storage.prototype.setItem
-      ;(window as unknown as { __writes: number }).__writes = 0
-      Storage.prototype.setItem = function (k: string, v: string) {
-        if (k === key) (window as unknown as { __writes: number }).__writes++
-        return original.call(this, k, v)
-      }
-    }, STORAGE_KEY)
-    const writes = (p: Page) => p.evaluate(() => (window as unknown as { __writes: number }).__writes)
+    await countWrites(context, STORAGE_KEY)
+    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
 
     await freshBoard(page)
     const other = await context.newPage()
@@ -196,7 +191,7 @@ test.describe("Feature Request", () => {
     expect(await writes(other)).toBe(1)
 
     // Reset there: this tab re-seeds and forgets it edited anything.
-    await resetDemoData(other)
+    await resetDemoData(other, actions(other))
     await expect(card(page, "From tab two")).toHaveCount(0)
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
@@ -241,10 +236,16 @@ test.describe("Feature Request", () => {
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
     await expect(card(page, "Fine")).toHaveCount(0)
     await expect(cardTags(page)).toHaveCount(10)
-    // The bad copy is parked verbatim and the live key is dropped, so it
-    // cannot trip the next load; the next edit then writes a clean copy.
-    const raw = await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)
-    expect(raw).toContain('"Broken"')
+    // The bad copy is parked verbatim (newest first, with a reason) and the
+    // live key is dropped, so it cannot trip the next load; the next edit
+    // then writes a clean copy and the parked one stays.
+    const rejected = await page.evaluate(
+      (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { raw: string; why: string }[],
+      REJECTED_KEY
+    )
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].raw).toContain('"Broken"')
+    expect(rejected[0].why).toBe("failed validation")
     expect(await savedCopy(page)).toBeNull()
 
     await card(page, "Play of the Day").click()
@@ -253,7 +254,12 @@ test.describe("Feature Request", () => {
     await d.getByRole("button", { name: /Save/ }).click()
     await expect(persistence(page)).toHaveText(NOTE.saved)
     expect(await savedCopy(page)).not.toContain('"Broken"')
-    expect(await page.evaluate((key) => localStorage.getItem(key), REJECTED_KEY)).toBe(raw)
+    const stillParked = await page.evaluate(
+      (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { raw: string }[],
+      REJECTED_KEY
+    )
+    expect(stillParked).toHaveLength(1)
+    expect(stillParked[0].raw).toContain('"Broken"')
   })
 
   test("adds an idea, reloads, and it is still there; Reset clears it", async ({ page }) => {
@@ -276,7 +282,7 @@ test.describe("Feature Request", () => {
     await expect(cardsIn(page, "Inbox")).toHaveCount(4)
     await expect(card(page, "Practice plan templates")).toContainText("Reusable weekly plans a coach can tweak.")
 
-    await resetDemoData(page)
+    await resetDemoData(page, actions(page))
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(card(page, "Practice plan templates")).toHaveCount(0)
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
@@ -342,7 +348,7 @@ test.describe("Feature Request", () => {
     await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(sampleNote(page)).toHaveCount(0)
 
-    await resetDemoData(page)
+    await resetDemoData(page, actions(page))
     await expect(cardTags(page)).toHaveCount(10)
   })
 })
