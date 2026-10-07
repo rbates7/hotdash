@@ -487,14 +487,14 @@ describe("DealsProvider persistence", () => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
       act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
       expect(screen.getByTestId("count")).toHaveTextContent("9")
-      expect(screen.getByTestId("ids")).toContain("deal-9")
+      expect(screen.getByTestId("ids")).toHaveTextContent("deal-9")
       expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
 
       // Their Reset still re-seeds this tab.
       window.localStorage.removeItem(STORAGE_KEY)
       act(() => fireStorageEvent(STORAGE_KEY, null))
       expect(screen.getByTestId("count")).toHaveTextContent("8")
-      expect(screen.getByTestId("ids")).not.toContain("deal-9")
+      expect(screen.getByTestId("ids")).not.toHaveTextContent("deal-9")
       expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
 
       // And the next local edit retries the save — storage works again now.
