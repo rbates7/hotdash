@@ -11,6 +11,7 @@ import {
   daysEnding,
   formatDayShort,
   formatRelative,
+  formatRelativeDay,
   formatWindowSpan,
   formatPeriod,
   windowsEnding,
@@ -171,39 +172,79 @@ describe("periods", () => {
   })
 })
 
-describe("formatRelative — the one relative-time formatter", () => {
+describe("formatRelative — the one relative-time formatter, three styles", () => {
   // 13:00 CT on Wed 7 Oct 2026.
   const NOW = Date.parse("2026-10-07T18:00:00.000Z")
-  const ago = (ms: number) => NOW - ms
+  const ago = (ms: number, style?: "ago" | "compact" | "long") => formatRelative(NOW - ms, NOW, style ? { style } : undefined)
   const H = 3_600_000
 
-  it("is arithmetic under an hour, then Central calendar days", () => {
-    expect(formatRelative(ago(20_000), NOW)).toBe("just now")
-    expect(formatRelative(ago(5 * 60_000), NOW)).toBe("5 min ago")
-    expect(formatRelative(ago(3 * H), NOW)).toBe("3 h ago") // 10:00 today
-    expect(formatRelative(ago(12 * H), NOW)).toBe("12 h ago") // 01:00 today
-    expect(formatRelative(ago(14 * H), NOW)).toBe("Yesterday") // 23:00 yesterday — never "14 h ago"
-    expect(formatRelative(ago(36 * H), NOW)).toBe("Yesterday") // 01:00 yesterday
-    expect(formatRelative(ago(38 * H), NOW)).toBe("Mon, Oct 5") // 23:00 Monday
-    expect(formatRelative(ago(10 * 24 * H), NOW)).toBe("Sun, Sep 27")
+  it("`ago` (default) is the ticket view's exact copy", () => {
+    expect(ago(20_000)).toBe("just now")
+    expect(ago(5 * 60_000)).toBe("5m ago")
+    expect(ago(2 * H)).toBe("2h ago")
+    expect(ago(14 * H)).toBe("14h ago")
+    expect(ago(26 * H)).toBe("1d ago")
+    expect(ago(10 * 24 * H)).toBe("10d ago")
+    expect(ago(5 * 60_000, "ago")).toBe("5m ago")
   })
 
-  it("compact style for dense rows", () => {
-    expect(formatRelative(ago(20_000), NOW, { style: "compact" })).toBe("now")
-    expect(formatRelative(ago(18 * 60_000), NOW, { style: "compact" })).toBe("18m")
-    expect(formatRelative(ago(2 * H), NOW, { style: "compact" })).toBe("2h")
-    expect(formatRelative(ago(14 * H), NOW, { style: "compact" })).toBe("Yesterday")
-    expect(formatRelative(ago(38 * H), NOW, { style: "compact" })).toBe("Mon, Oct 5")
+  it("`compact` is the Inbox's exact copy", () => {
+    expect(ago(20_000, "compact")).toBe("now")
+    expect(ago(18 * 60_000, "compact")).toBe("18m")
+    expect(ago(2 * H, "compact")).toBe("2h")
+    expect(ago(10 * H, "compact")).toBe("10h")
+    expect(ago(24 * H, "compact")).toBe("Yesterday")
+    expect(ago(47 * H, "compact")).toBe("Yesterday")
+    expect(ago(48 * H, "compact")).toBe("2d")
   })
 
-  it("reads the calendar in Central even late in the evening (same answer in every process zone)", () => {
-    // 23:30 CT Wed 7 Oct: 22:00 CT is "1 h ago", 23:30 CT Tuesday is "Yesterday"
-    // even though in UTC both instants are on the 8th / the 7th.
-    expect(formatRelative(LATE_EVENING_CT_MS - 1.5 * H, LATE_EVENING_CT_MS)).toBe("1 h ago")
-    expect(formatRelative(LATE_EVENING_CT_MS - 24 * H, LATE_EVENING_CT_MS)).toBe("Yesterday")
-    expect(formatRelative(LATE_EVENING_CT_MS - 48 * H, LATE_EVENING_CT_MS)).toBe("Mon, Oct 5")
-    // And at 00:30 CT, 2 h ago was yesterday in Central (and today in UTC).
+  it("`long` is opt-in and uses Central calendar days", () => {
+    expect(ago(20_000, "long")).toBe("just now")
+    expect(ago(5 * 60_000, "long")).toBe("5 min ago")
+    expect(ago(3 * H, "long")).toBe("3 h ago") // 10:00 today
+    expect(ago(14 * H, "long")).toBe("Yesterday") // 23:00 yesterday — never "14 h ago"
+    expect(ago(36 * H, "long")).toBe("Yesterday") // 01:00 yesterday
+    expect(ago(38 * H, "long")).toBe("Mon, Oct 5") // 23:00 Monday
+    expect(ago(10 * 24 * H, "long")).toBe("Sun, Sep 27")
+  })
+
+  it("`long` reads the calendar in Central even late in the evening (same answer in every process zone)", () => {
+    expect(formatRelative(LATE_EVENING_CT_MS - 1.5 * H, LATE_EVENING_CT_MS, { style: "long" })).toBe("1 h ago")
+    expect(formatRelative(LATE_EVENING_CT_MS - 24 * H, LATE_EVENING_CT_MS, { style: "long" })).toBe("Yesterday")
+    expect(formatRelative(LATE_EVENING_CT_MS - 48 * H, LATE_EVENING_CT_MS, { style: "long" })).toBe("Mon, Oct 5")
     const justAfterMidnightCt = Date.parse("2026-10-08T05:30:00.000Z")
-    expect(formatRelative(justAfterMidnightCt - 2 * H, justAfterMidnightCt)).toBe("Yesterday")
+    expect(formatRelative(justAfterMidnightCt - 2 * H, justAfterMidnightCt, { style: "long" })).toBe("Yesterday")
+  })
+})
+
+describe("formatRelativeDay — calendar days in Central, both directions", () => {
+  it("names the near days and counts the rest", () => {
+    const today = "2026-10-07"
+    expect(formatRelativeDay("2026-10-07", today)).toBe("Today")
+    expect(formatRelativeDay("2026-10-08", today)).toBe("Tomorrow")
+    expect(formatRelativeDay("2026-10-06", today)).toBe("Yesterday")
+    expect(formatRelativeDay("2026-10-22", today)).toBe("in 15 days")
+    expect(formatRelativeDay("2026-07-18", today)).toBe("81 days ago")
+    expect(formatRelativeDay("2026-10-09", today)).toBe("in 2 days")
+    expect(formatRelativeDay("2026-10-05", today)).toBe("2 days ago")
+  })
+
+  it("reads instants as Central days: 23:30 CT is still today, and a date just past Central midnight is Tomorrow", () => {
+    // LATE_EVENING_CT is 23:30 CT on 7 Oct — already 8 Oct in UTC.
+    expect(formatRelativeDay(LATE_EVENING_CT, LATE_EVENING_CT)).toBe("Today")
+    expect(formatRelativeDay("2026-10-07", LATE_EVENING_CT)).toBe("Today")
+    expect(formatRelativeDay("2026-10-08", LATE_EVENING_CT)).toBe("Tomorrow")
+    // 00:30 CT on 8 Oct (05:30Z): the next Central day, one day after the late evening.
+    const justAfterMidnightCt = new Date("2026-10-08T05:30:00.000Z")
+    expect(formatRelativeDay(justAfterMidnightCt, LATE_EVENING_CT)).toBe("Tomorrow")
+    expect(formatRelativeDay(LATE_EVENING_CT, justAfterMidnightCt)).toBe("Yesterday")
+    // A sprint ending 24 Oct at 00:30 CT, seen at 23:30 CT on 7 Oct, is "in 17 days".
+    expect(formatRelativeDay(new Date("2026-10-24T05:30:00.000Z"), LATE_EVENING_CT)).toBe("in 17 days")
+  })
+
+  it("crosses DST and New Year by calendar days", () => {
+    expect(formatRelativeDay("2026-03-09", "2026-03-07")).toBe("in 2 days") // US spring-forward weekend
+    expect(formatRelativeDay("2026-01-01", "2025-12-31")).toBe("Tomorrow")
+    expect(formatRelativeDay("2025-12-31", "2026-01-01")).toBe("Yesterday")
   })
 })
