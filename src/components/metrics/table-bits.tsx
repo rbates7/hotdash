@@ -48,7 +48,7 @@ export function SortableHead<K extends string>({
   return (
     <TableHead
       aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-      className={cn(HEAD, align === "right" && "text-right", className)}
+      className={cn(HEAD, className)}
     >
       <button
         type="button"
@@ -56,6 +56,9 @@ export function SortableHead<K extends string>({
         className={cn(
           "hover:text-foreground inline-flex items-center gap-1.5 tracking-[0.05em] uppercase",
           "focus-visible:ring-ring/50 rounded-sm focus-visible:ring-[3px] focus-visible:outline-none",
+          // Nova's `.style-nova .cn-table-head` pins text-left with higher
+          // specificity than a utility, so right alignment happens here.
+          align === "right" && "flex w-full justify-end",
           active && "text-foreground"
         )}
       >
