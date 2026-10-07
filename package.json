@@ -10,9 +10,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "TZ=UTC vitest run",
-    "test:tz": "TZ=America/Chicago vitest run src/lib/clock.test.ts src/lib/kpis.test.ts src/components/metrics",
+    "test:tz": "TZ=America/Chicago vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "playwright test --fail-on-flaky-tests",
     "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
     "screens:home": "SCREENSHOTS=1 playwright test e2e/home-screens.spec.ts",
     "screens:metrics": "SCREENSHOTS=1 playwright test e2e/metrics-screens.spec.ts"
