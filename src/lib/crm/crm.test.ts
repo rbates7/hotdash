@@ -4,6 +4,7 @@ import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 import { todayIn } from "@/lib/clock"
 
 import {
+  PLANS,
   contactDisplayName,
   countByStatus,
   countTriagePending,
@@ -11,7 +12,9 @@ import {
   filterContacts,
   formatCrmDateTime,
   formatCrmRelative,
+  isPlan,
   listTriageThreads,
+  newContactEmailError,
   oldestUntouched,
   searchCrm,
   urgentOpenCount,
@@ -27,6 +30,13 @@ describe("seed", () => {
     expect(seedOrganizations(NOW)).toHaveLength(3)
     expect(listTriageThreads(seedMessages(NOW))).toHaveLength(2)
     expect(seedNotes(NOW)).toHaveLength(5)
+  })
+
+  it("puts every seed contact on a metrics Plan value", () => {
+    const plans = seedContacts(NOW).map((c) => c.plan)
+    expect(plans.every((plan) => plan !== null && isPlan(plan))).toBe(true)
+    expect(new Set(plans)).toEqual(new Set(PLANS))
+    expect(PLANS).toEqual(["Monthly", "Annual", "Staff"])
   })
 
   it("dates activity from the given instant so relative copy stays true", () => {
@@ -64,8 +74,8 @@ describe("counts and lists", () => {
     const orgs = seedOrganizations(NOW)
     expect(filterCases(cases, contacts, orgs, { status: "new" })).toHaveLength(1)
     expect(filterCases(cases, contacts, orgs, { priority: "urgent" })[0]!.caseNumber).toBe(5)
-    expect(filterCases(cases, contacts, orgs, { q: "#3" })[0]!.subject).toMatch(/CSV export/)
-    expect(filterCases(cases, contacts, orgs, { q: "dana" }).every((c) => c.contactId === "contact-1")).toBe(
+    expect(filterCases(cases, contacts, orgs, { q: "#3" })[0]!.subject).toMatch(/Playbook sync/)
+    expect(filterCases(cases, contacts, orgs, { q: "hale" }).every((c) => c.contactId === "contact-1")).toBe(
       true
     )
   })
@@ -73,18 +83,32 @@ describe("counts and lists", () => {
   it("searches contacts and cases together", () => {
     const hits = searchCrm("#4", seedCases(NOW), seedContacts(NOW), seedOrganizations(NOW))
     expect(hits.cases).toHaveLength(1)
-    expect(hits.cases[0]!.subject).toMatch(/Onboarding checklist/)
-    const people = filterContacts(seedContacts(NOW), seedOrganizations(NOW), "birchwood")
+    expect(hits.cases[0]!.subject).toMatch(/Install \/ plays/)
+    const people = filterContacts(seedContacts(NOW), seedOrganizations(NOW), "riverbend")
     expect(people).toHaveLength(1)
-    expect(contactDisplayName(people[0]!)).toBe("Priya Raman")
+    expect(contactDisplayName(people[0]!)).toBe("Priya Shah")
   })
 
   it("groups pending triage by thread, newest first", () => {
     const threads = listTriageThreads(seedMessages(NOW))
     expect(countTriagePending(seedMessages(NOW))).toBe(2)
-    expect(threads[0]!.senderName).toBe("Lena Ortiz")
+    expect(threads[0]!.senderName).toBe("Riley Nash")
     expect(threads[1]!.messageCount).toBe(2)
-    expect(threads[1]!.senderEmail).toBe("alex@contractorplus.app")
+    expect(threads[1]!.senderEmail).toBe("alex@oakmontcoaches.net")
+  })
+})
+
+describe("new-contact email", () => {
+  it("rejects malformed and duplicate addresses", () => {
+    const existing = seedContacts(NOW).map((c) => c.email)
+    expect(newContactEmailError("not-an-email", existing)).toBe("Enter a valid email address.")
+    expect(newContactEmailError("mhale@westfieldfb.org", existing)).toBe(
+      "A contact with this email already exists."
+    )
+    expect(newContactEmailError("  MHALE@westfieldfb.org ", existing)).toBe(
+      "A contact with this email already exists."
+    )
+    expect(newContactEmailError("pat@katyisd.org", existing)).toBeNull()
   })
 })
 

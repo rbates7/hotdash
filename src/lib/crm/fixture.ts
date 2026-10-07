@@ -15,15 +15,15 @@ const at = (nowMs: number, offsetMs: number) => new Date(nowMs - offsetMs).toISO
 
 /**
  * Seed dated from the request instant so "2h ago" and "5 days ago" stay
- * true no matter when the page is opened. The discovery app's sample
- * customers, cases, notes and triage threads.
+ * true no matter when the page is opened. Football coaches and schools on
+ * Monthly / Annual / Staff — the help-desk sample Rashad confirmed.
  */
 export function seedOrganizations(nowMs: number): Organization[] {
   void nowMs
   return [
-    { id: "org-1", name: "Acme Robotics", domain: "acme.com" },
-    { id: "org-2", name: "Birchwood Labs", domain: "birchwood.io" },
-    { id: "org-3", name: "Sunrise Media", domain: "sunrisemedia.co" },
+    { id: "org-1", name: "Westfield HS", domain: "westfieldfb.org" },
+    { id: "org-2", name: "Riverbend High", domain: "riverbendhs.org" },
+    { id: "org-3", name: "Highland Athletics", domain: "highlandathletics.com" },
   ]
 }
 
@@ -31,60 +31,60 @@ export function seedContacts(nowMs: number): Contact[] {
   return [
     {
       id: "contact-1",
-      email: "dana@acme.com",
-      firstName: "Dana",
-      lastName: "Whitfield",
+      email: "mhale@westfieldfb.org",
+      firstName: "Marcus",
+      lastName: "Hale",
       nameSource: "supabase",
       organizationId: "org-1",
-      plan: "Growth",
+      plan: "Annual",
       planStatus: "active",
       source: "stripe",
       createdAt: at(nowMs, 90 * DAY),
     },
     {
       id: "contact-2",
-      email: "marcus@acme.com",
-      firstName: "Marcus",
-      lastName: "Lee",
+      email: "jreeves@westfieldfb.org",
+      firstName: "Jamal",
+      lastName: "Reeves",
       nameSource: "supabase",
       organizationId: "org-1",
-      plan: "Growth",
+      plan: "Staff",
       planStatus: "active",
       source: "stripe",
       createdAt: at(nowMs, 88 * DAY),
     },
     {
       id: "contact-3",
-      email: "priya@birchwood.io",
+      email: "priya.shah@riverbendhs.org",
       firstName: "Priya",
-      lastName: "Raman",
+      lastName: "Shah",
       nameSource: "supabase",
       organizationId: "org-2",
-      plan: "Starter",
+      plan: "Monthly",
       planStatus: "trialing",
       source: "stripe",
       createdAt: at(nowMs, 60 * DAY),
     },
     {
       id: "contact-4",
-      email: "jonah@sunrisemedia.co",
-      firstName: "Jonah",
-      lastName: "Beck",
+      email: "cbrooks@highlandathletics.com",
+      firstName: "Colin",
+      lastName: "Brooks",
       nameSource: "stripe",
       organizationId: "org-3",
-      plan: "Pro",
+      plan: "Staff",
       planStatus: "active",
       source: "stripe",
       createdAt: at(nowMs, 45 * DAY),
     },
     {
       id: "contact-5",
-      email: "elena@sunrisemedia.co",
+      email: "elena.v@highlandathletics.com",
       firstName: "Elena",
-      lastName: "Souza",
+      lastName: "Vasquez",
       nameSource: "supabase",
       organizationId: "org-3",
-      plan: "Pro",
+      plan: "Annual",
       planStatus: "canceled",
       source: "stripe",
       createdAt: at(nowMs, 44 * DAY),
@@ -96,7 +96,7 @@ export function seedContacts(nowMs: number): Contact[] {
       lastName: "Alvarez",
       nameSource: "gmail",
       organizationId: null,
-      plan: "Starter",
+      plan: "Monthly",
       planStatus: "active",
       source: "stripe",
       createdAt: at(nowMs, 30 * DAY),
@@ -122,7 +122,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-1",
     n: 1,
-    subject: "Can't invite teammates to workspace",
+    subject: "Staff seats invite fails on the iPad",
     status: "open",
     priority: "high",
     contactId: "contact-1",
@@ -134,7 +134,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-2",
     n: 2,
-    subject: "Billing question about seats",
+    subject: "Billing question about Annual seats",
     status: "closed",
     priority: "normal",
     contactId: "contact-1",
@@ -147,7 +147,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-3",
     n: 3,
-    subject: "CSV export times out on large ranges",
+    subject: "Playbook sync times out on a full install",
     status: "waiting",
     priority: "normal",
     contactId: "contact-2",
@@ -159,7 +159,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-4",
     n: 4,
-    subject: "Onboarding checklist stuck at step 3",
+    subject: "Install / plays checklist stuck at step 3",
     status: "new",
     priority: "normal",
     contactId: "contact-3",
@@ -170,7 +170,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-5",
     n: 5,
-    subject: "API rate limits for reporting integration",
+    subject: "Apple Pencil skips strokes in the play editor",
     status: "open",
     priority: "urgent",
     contactId: "contact-4",
@@ -182,7 +182,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-6",
     n: 6,
-    subject: "Cancel subscription and export data",
+    subject: "Cancel Annual and export the playbook",
     status: "closed",
     priority: "low",
     contactId: "contact-5",
@@ -194,7 +194,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-7",
     n: 7,
-    subject: "Login loop on Safari 18",
+    subject: "iPad login loop after a forced update",
     status: "open",
     priority: "normal",
     contactId: "contact-6",
@@ -205,7 +205,7 @@ const CASE_SEEDS: CaseSeed[] = [
   {
     id: "case-8",
     n: 8,
-    subject: "Feature request: weekly digest email",
+    subject: "Weekly install recap for the staff",
     status: "waiting",
     priority: "low",
     contactId: "contact-3",
@@ -255,10 +255,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-1",
     thread: "thread-1",
     dir: "inbound",
-    from: "dana@acme.com",
-    fromName: "Dana Whitfield",
-    subject: "Can't invite teammates to workspace",
-    text: "Hey — when I try to invite my teammates from the workspace settings page, the invite button spins forever and nothing sends. We're trying to onboard three new people this week. Can you take a look?",
+    from: "mhale@westfieldfb.org",
+    fromName: "Marcus Hale",
+    subject: "Staff seats invite fails on the iPad",
+    text: "Hey — when I try to invite two assistant coaches to Staff seats from the iPad, the invite button spins forever and nothing sends. We need them in before Friday's install. Can you take a look?",
     sent: 1 * DAY,
   },
   {
@@ -267,8 +267,8 @@ const MSG_SEEDS: MsgSeed[] = [
     thread: "thread-1",
     dir: "outbound",
     from: FOUNDER,
-    subject: "Re: Can't invite teammates to workspace",
-    text: "Hi Dana, sorry about that! Quick question so I can dig in: are the teammates you're inviting on your acme.com domain, or external addresses? Also — roughly what time did you last try? I'll check the logs.",
+    subject: "Re: Staff seats invite fails on the iPad",
+    text: "Hi Marcus, sorry about that. Quick question so I can dig in: are the assistants on westfieldfb.org, or personal addresses? Also — were you on the iPad app or Safari? I'll check the logs.",
     sent: 5 * HOUR,
   },
   {
@@ -276,10 +276,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-1",
     thread: "thread-1",
     dir: "inbound",
-    from: "dana@acme.com",
-    fromName: "Dana Whitfield",
-    subject: "Re: Can't invite teammates to workspace",
-    text: "All three are on acme.com. Last try was about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
+    from: "mhale@westfieldfb.org",
+    fromName: "Marcus Hale",
+    subject: "Re: Staff seats invite fails on the iPad",
+    text: "Both are on westfieldfb.org. Last try was on the iPad app about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
     sent: 2 * HOUR,
     attachments: [{ filename: "invite-spinner.png", mimeType: "image/png", size: 482133 }],
   },
@@ -288,10 +288,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-2",
     thread: "thread-2",
     dir: "inbound",
-    from: "dana@acme.com",
-    fromName: "Dana Whitfield",
-    subject: "Billing question about seats",
-    text: "If we add two more seats mid-cycle, do we get charged prorated or full month?",
+    from: "mhale@westfieldfb.org",
+    fromName: "Marcus Hale",
+    subject: "Billing question about Annual seats",
+    text: "If we add two more Staff seats mid-cycle on Annual, do we get charged prorated or the full year?",
     sent: 20 * DAY,
   },
   {
@@ -300,8 +300,8 @@ const MSG_SEEDS: MsgSeed[] = [
     thread: "thread-2",
     dir: "outbound",
     from: FOUNDER,
-    subject: "Re: Billing question about seats",
-    text: "Prorated automatically — you'll see the partial charge on the next invoice. Nothing you need to do.",
+    subject: "Re: Billing question about Annual seats",
+    text: "Prorated automatically against the Annual — you'll see the partial charge on the next invoice. Nothing you need to do.",
     sent: 20 * DAY - 2 * HOUR,
   },
   {
@@ -309,10 +309,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-3",
     thread: "thread-3",
     dir: "inbound",
-    from: "marcus@acme.com",
-    fromName: "Marcus Lee",
-    subject: "CSV export times out on large ranges",
-    text: "Exporting anything over ~90 days of data just hangs and eventually errors with a timeout. 30-day ranges work fine.",
+    from: "jreeves@westfieldfb.org",
+    fromName: "Jamal Reeves",
+    subject: "Playbook sync times out on a full install",
+    text: "Pushing a full install to the staff iPads just hangs and eventually errors with a timeout. Syncing a single game's plays works fine.",
     sent: 2 * DAY,
   },
   {
@@ -321,8 +321,8 @@ const MSG_SEEDS: MsgSeed[] = [
     thread: "thread-3",
     dir: "outbound",
     from: FOUNDER,
-    subject: "Re: CSV export times out on large ranges",
-    text: "Thanks Marcus — I can reproduce it. Working on chunking the export; will follow up when it's deployed. Should be a couple of days.",
+    subject: "Re: Playbook sync times out on a full install",
+    text: "Thanks Jamal — I can reproduce it on a 400-play book. Working on chunking the sync; will follow up when it's on the iPads. Should be a couple of days.",
     sent: 1 * DAY,
   },
   {
@@ -330,11 +330,11 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-4",
     thread: "thread-4",
     dir: "inbound",
-    from: "priya@birchwood.io",
-    fromName: "Priya Raman",
-    subject: "Onboarding checklist stuck at step 3",
-    text: "The 'connect your data source' step never completes even though the connection test passes. The checklist stays at step 3 of 5.",
-    html: "<p>The <b>connect your data source</b> step never completes even though the connection test passes.</p><p>The checklist stays at step 3 of 5.</p>",
+    from: "priya.shah@riverbendhs.org",
+    fromName: "Priya Shah",
+    subject: "Install / plays checklist stuck at step 3",
+    text: "The 'load this week's plays' step never completes even though the playbook test passes. The install checklist stays at step 3 of 5.",
+    html: "<p>The <b>load this week&apos;s plays</b> step never completes even though the playbook test passes.</p><p>The install checklist stays at step 3 of 5.</p>",
     sent: 3 * HOUR,
   },
   {
@@ -342,10 +342,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-5",
     thread: "thread-5",
     dir: "inbound",
-    from: "jonah@sunrisemedia.co",
-    fromName: "Jonah Beck",
-    subject: "API rate limits for reporting integration",
-    text: "We're hitting 429s pulling hourly metrics for our internal dashboard. What are the actual limits on the Pro plan, and can they be raised?",
+    from: "cbrooks@highlandathletics.com",
+    fromName: "Colin Brooks",
+    subject: "Apple Pencil skips strokes in the play editor",
+    text: "On the staff iPads the Apple Pencil skips strokes when we draw a route in the play editor. Finger drawing is fine. Happens on every iPad we tried.",
     sent: 8 * DAY,
   },
   {
@@ -354,8 +354,8 @@ const MSG_SEEDS: MsgSeed[] = [
     thread: "thread-5",
     dir: "outbound",
     from: FOUNDER,
-    subject: "Re: API rate limits for reporting integration",
-    text: "Pro is 600 requests/min today. Tell me a bit about your pull pattern — if it's bursty we can probably fit you under a batched endpoint instead of raising the cap.",
+    subject: "Re: Apple Pencil skips strokes in the play editor",
+    text: "Got it — likely the Pencil hover + our stroke coalescing. Can you send a 10-second clip from one of the Staff iPads? I'll match it against the play editor build.",
     sent: 6 * DAY,
   },
   {
@@ -363,10 +363,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-5",
     thread: "thread-5",
     dir: "inbound",
-    from: "jonah@sunrisemedia.co",
-    fromName: "Jonah Beck",
-    subject: "Re: API rate limits for reporting integration",
-    text: "It's one big pull at the top of every hour — about 2,000 requests over 3 minutes. Batching sounds right, where do we start?",
+    from: "cbrooks@highlandathletics.com",
+    fromName: "Colin Brooks",
+    subject: "Re: Apple Pencil skips strokes in the play editor",
+    text: "Clip's attached in the next email from our film guy. It's one long route at the start of install — about 8 seconds of skipped strokes.",
     sent: 5 * DAY,
   },
   {
@@ -374,10 +374,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-6",
     thread: "thread-6",
     dir: "inbound",
-    from: "elena@sunrisemedia.co",
-    fromName: "Elena Souza",
-    subject: "Cancel subscription and export data",
-    text: "We're consolidating tools — please cancel our subscription at the end of the cycle. Also, how do I export all our historical data first?",
+    from: "elena.v@highlandathletics.com",
+    fromName: "Elena Vasquez",
+    subject: "Cancel Annual and export the playbook",
+    text: "We're consolidating tools — please cancel our Annual at the end of the cycle. Also, how do I export the playbook and install history first?",
     sent: 30 * DAY,
   },
   {
@@ -387,8 +387,8 @@ const MSG_SEEDS: MsgSeed[] = [
     dir: "inbound",
     from: "tom.alvarez@gmail.com",
     fromName: "Tom Alvarez",
-    subject: "Login loop on Safari 18",
-    text: "On Safari 18 I sign in, get redirected to the dashboard for a second, then bounced back to the login page. Chrome works fine.",
+    subject: "iPad login loop after a forced update",
+    text: "After last night's forced update I sign in on the iPad, see the playbook for a second, then bounce back to the login screen. The staff MacBooks are fine.",
     sent: 26 * HOUR,
   },
   {
@@ -396,10 +396,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-8",
     thread: "thread-8",
     dir: "inbound",
-    from: "priya@birchwood.io",
-    fromName: "Priya Raman",
-    subject: "Feature request: weekly digest email",
-    text: "Would love a Monday-morning digest of the previous week's numbers so I don't have to log in for the basics.",
+    from: "priya.shah@riverbendhs.org",
+    fromName: "Priya Shah",
+    subject: "Weekly install recap for the staff",
+    text: "Would love a Monday-morning recap of last week's install — which plays the staff actually ran — so I don't have to open the iPad for the basics.",
     sent: 5 * DAY,
   },
   {
@@ -408,8 +408,8 @@ const MSG_SEEDS: MsgSeed[] = [
     thread: "thread-8",
     dir: "outbound",
     from: FOUNDER,
-    subject: "Re: Feature request: weekly digest email",
-    text: "Noted — it's on the shortlist. Curious: which 3 numbers would you want at the top of that email?",
+    subject: "Re: Weekly install recap for the staff",
+    text: "Noted — it's on the shortlist. Curious: which 3 numbers would you want at the top of that recap?",
     sent: 4 * DAY,
   },
   {
@@ -418,10 +418,10 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-9",
     dir: "inbound",
-    from: "lena@futurebridge.vc",
-    fromName: "Lena Ortiz",
-    subject: "Intro — Futurebridge <> Chlk",
-    text: "Hi Rashad, I lead early-stage investments at Futurebridge. We've been following Chlk and would love to hear where you're headed. Open to a 30-minute call in the next couple of weeks?",
+    from: "riley@lakeridgeathletics.com",
+    fromName: "Riley Nash",
+    subject: "Playbook sync after Friday's install",
+    text: "Hi Rashad — I'm the OC at Lakeridge. After Friday's install the playbook never finished syncing to the staff iPads. Is there a known fix, or should I send a screenshot?",
     sent: 3 * HOUR,
   },
   {
@@ -430,10 +430,10 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-10",
     dir: "inbound",
-    from: "alex@contractorplus.app",
+    from: "alex@oakmontcoaches.net",
     fromName: "Alex Kim",
-    subject: "Integration question",
-    text: "Hey — we build field-service software and a few shared customers asked about a Chlk integration. Is there a partner API or should we scrape the CSV exports?",
+    subject: "Staff seats for the Oakmont coaches",
+    text: "Hey — we need six Staff seats for Oakmont's coaches before next week's install. Is there a partner path, or do I just add them on Monthly?",
     sent: 22 * HOUR,
   },
   {
@@ -442,10 +442,10 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-10",
     dir: "inbound",
-    from: "alex@contractorplus.app",
+    from: "alex@oakmontcoaches.net",
     fromName: "Alex Kim",
-    subject: "Re: Integration question",
-    text: "Following up on the below — happy to sign an NDA if that helps.",
+    subject: "Re: Staff seats for the Oakmont coaches",
+    text: "Following up on the below — happy to jump on a call if billing for Staff vs Annual is the hold-up.",
     sent: 4 * HOUR,
   },
 ]
@@ -479,7 +479,7 @@ export function seedNotes(nowMs: number): Note[] {
       id: "note-1",
       caseId: "case-1",
       kind: "user",
-      body: "Reproduced on staging — invite POST 500s when the workspace has a pending invite for the same address.",
+      body: "Reproduced on the staff iPad — invite POST 500s when a Staff seat already has a pending invite for the same address.",
       createdAt: at(nowMs, 4 * HOUR),
     },
     {
@@ -507,7 +507,7 @@ export function seedNotes(nowMs: number): Note[] {
       id: "note-5",
       caseId: "case-5",
       kind: "user",
-      body: "Batched endpoint spec drafted — send to Jonah once reviewed.",
+      body: "Apple Pencil stroke-skip clip drafted — send to Colin once reviewed.",
       createdAt: at(nowMs, 5 * DAY),
     },
   ]
@@ -516,6 +516,8 @@ export function seedNotes(nowMs: number): Note[] {
 export const SEED_CONTACT_IDS: ReadonlySet<string> = new Set(seedContacts(0).map((c) => c.id))
 export const SEED_CASE_IDS: ReadonlySet<string> = new Set(seedCases(0).map((c) => c.id))
 export const SEED_NOTE_IDS: ReadonlySet<string> = new Set(seedNotes(0).map((n) => n.id))
+export const SEED_MESSAGE_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.id))
+export const SEED_THREAD_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.threadId))
 
 export function isSeedContact(id: string) {
   return SEED_CONTACT_IDS.has(id)
@@ -527,4 +529,12 @@ export function isSeedCase(id: string) {
 
 export function isSeedNote(id: string) {
   return SEED_NOTE_IDS.has(id)
+}
+
+export function isSeedMessage(id: string) {
+  return SEED_MESSAGE_IDS.has(id)
+}
+
+export function isSeedThread(id: string) {
+  return SEED_THREAD_IDS.has(id)
 }

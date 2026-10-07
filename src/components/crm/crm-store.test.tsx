@@ -98,12 +98,12 @@ describe("reducer", () => {
     const start = initialState(NOW)
     const next = reducer(start, { type: "promote-triage", threadId: "thread-9", at: AT })
     expect(listTriageThreads(next.messages)).toHaveLength(1)
-    const lena = next.contacts.find((c) => c.email === "lena@futurebridge.vc")!
-    expect(contactDisplayName(lena)).toBe("Lena Ortiz")
-    expect(lena.id).toBe("contact-7")
-    const opened = next.cases.find((c) => c.contactId === lena.id)!
+    const riley = next.contacts.find((c) => c.email === "riley@lakeridgeathletics.com")!
+    expect(contactDisplayName(riley)).toBe("Riley Nash")
+    expect(riley.id).toBe("contact-7")
+    const opened = next.cases.find((c) => c.contactId === riley.id)!
     expect(opened.caseNumber).toBe(9)
-    expect(opened.subject).toBe("Intro — Futurebridge <> Chlk")
+    expect(opened.subject).toBe("Playbook sync after Friday's install")
     expect(opened.status).toBe("new")
     expect(next.messages.filter((m) => m.threadId === "thread-9").every((m) => m.caseId === opened.id)).toBe(
       true
@@ -114,9 +114,9 @@ describe("reducer", () => {
     const start = initialState(NOW)
     const ignored = reducer(start, { type: "ignore-triage", threadId: "thread-9" })
     expect(listTriageThreads(ignored.messages)).toHaveLength(1)
-    const banned = reducer(ignored, { type: "ignore-sender", email: "alex@contractorplus.app" })
+    const banned = reducer(ignored, { type: "ignore-sender", email: "alex@oakmontcoaches.net" })
     expect(listTriageThreads(banned.messages)).toHaveLength(0)
-    expect(banned.ignoredSenders).toContain("alex@contractorplus.app")
+    expect(banned.ignoredSenders).toContain("alex@oakmontcoaches.net")
   })
 })
 

@@ -3,6 +3,8 @@
 import { CheckCircleIcon, FlameIcon } from "lucide-react"
 
 import { formatCrmRelative, listTriageThreads } from "@/lib/crm/crm"
+import { isSeedThread } from "@/lib/crm/fixture"
+import { SampleDataTag } from "@/components/sample-data"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
@@ -47,12 +49,13 @@ export function TriageScreen() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-center gap-2.5">
                   <CrmAvatar name={thread.senderName ?? thread.senderEmail} />
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-sm font-medium">
-                      {thread.senderName ?? thread.senderEmail}
+                    <span className="flex flex-col leading-tight">
+                      <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                        {thread.senderName ?? thread.senderEmail}
+                        {isSeedThread(thread.threadId) ? <SampleDataTag /> : null}
+                      </span>
+                      <span className="text-muted-foreground text-xs">{thread.senderEmail}</span>
                     </span>
-                    <span className="text-muted-foreground text-xs">{thread.senderEmail}</span>
-                  </span>
                 </span>
                 <span className="text-muted-foreground flex items-center gap-2 text-xs">
                   {thread.messageCount > 1 ? (

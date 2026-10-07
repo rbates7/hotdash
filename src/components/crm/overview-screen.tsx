@@ -12,7 +12,7 @@ import {
   recentActivity,
   urgentOpenCount,
 } from "@/lib/crm/crm"
-import { isSeedCase } from "@/lib/crm/fixture"
+import { isSeedCase, isSeedMessage, isSeedNote } from "@/lib/crm/fixture"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SampleDataTag } from "@/components/sample-data"
 import { StatusBadge } from "@/components/crm/case-badges"
@@ -89,14 +89,15 @@ export function OverviewScreen() {
         <Link
           href="/crm/triage"
           aria-label={`${triageCount} ${
-            triageCount === 1 ? "message" : "messages"
+            triageCount === 1 ? "conversation" : "conversations"
           } from unknown senders waiting in triage`}
           className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100/80 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm"
         >
           <FlameIcon className="size-4" aria-hidden />
           <span>
             <span className="font-medium">{triageCount}</span>{" "}
-            {triageCount === 1 ? "message" : "messages"} from unknown senders waiting in triage
+            {triageCount === 1 ? "conversation" : "conversations"} from unknown senders
+            waiting in triage
           </span>
           <ArrowRightIcon className="text-muted-foreground ml-auto size-4" aria-hidden />
         </Link>
@@ -173,6 +174,7 @@ export function OverviewScreen() {
                         <span className="text-muted-foreground">Note on</span> #{caseRow?.caseNumber}{" "}
                         — {note.body}
                       </span>
+                      {isSeedNote(note.id) ? <SampleDataTag /> : null}
                       <span className="text-muted-foreground shrink-0 text-xs">
                         {formatCrmRelative(note.createdAt, nowMs)}
                       </span>
@@ -195,13 +197,14 @@ export function OverviewScreen() {
                     className="hover:bg-muted -mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
                   >
                     <CrmAvatar name={who} />
-                    <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="min-w-0 flex-1 truncate text-sm">
                       <span className="font-medium">{who}</span>{" "}
                       <span className="text-muted-foreground">
                         {inbound ? "wrote on" : "replied on"} #{caseRow?.caseNumber}
                       </span>{" "}
                       {message.snippet}
                     </span>
+                    {isSeedMessage(message.id) ? <SampleDataTag /> : null}
                     <span className="text-muted-foreground shrink-0 text-xs">
                       {formatCrmRelative(message.sentAt, nowMs)}
                     </span>

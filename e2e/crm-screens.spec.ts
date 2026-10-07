@@ -51,14 +51,14 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("table", { name: "Cases" })).toBeVisible()
     await shoot(page, `crm-cases-list-${theme}`)
 
-    await page.getByRole("link", { name: /Can't invite teammates to workspace/ }).click()
-    await expect(page.getByRole("heading", { level: 2, name: /Can't invite teammates/ })).toBeVisible()
+    await page.getByRole("link", { name: /Staff seats invite fails on the iPad/ }).click()
+    await expect(page.getByRole("heading", { level: 2, name: /Staff seats invite fails/ })).toBeVisible()
     await shoot(page, `crm-case-detail-${theme}`)
 
     await page.getByRole("button", { name: "Waiting on customer" }).click()
-    await page.getByLabel("Internal note").fill("Called Dana, waiting on a screenshot.")
+    await page.getByLabel("Internal note").fill("Called Marcus, waiting on a screenshot.")
     await page.getByRole("button", { name: "Add note", exact: true }).click()
-    await expect(page.getByText("Called Dana, waiting on a screenshot.")).toBeVisible()
+    await expect(page.getByText("Called Marcus, waiting on a screenshot.")).toBeVisible()
     await shoot(page, `crm-case-note-added-${theme}`)
 
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
@@ -75,7 +75,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(add).toBeHidden()
 
     await crmNav(page).getByRole("link", { name: /Triage/ }).click()
-    await expect(page.getByText("Lena Ortiz")).toBeVisible()
+    await expect(page.getByText("Riley Nash")).toBeVisible()
     await shoot(page, `crm-triage-${theme}`)
 
     await header(page).getByRole("button", { name: "Reset", exact: true }).click()
@@ -83,7 +83,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `crm-reset-confirm-${theme}`)
     await dialog(page, "Reset demo data?").getByRole("button", { name: "Keep my edits", exact: true }).click()
 
-    await page.locator("[data-slot=triage-card]", { hasText: "Lena Ortiz" }).getByRole("button", { name: "Promote to case" }).click()
+    await page.locator("[data-slot=triage-card]", { hasText: "Riley Nash" }).getByRole("button", { name: "Promote to case" }).click()
     const alex = page.locator("[data-slot=triage-card]", { hasText: "Alex Kim" })
     await alex.getByRole("button", { name: "More actions" }).click()
     await page.getByRole("menuitem", { name: "Ignore this thread" }).click()
