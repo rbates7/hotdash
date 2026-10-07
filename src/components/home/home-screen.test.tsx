@@ -12,7 +12,10 @@ import {
 } from "@/components/agent-workplace/issues-store"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { HomeScreen } from "@/components/home/home-screen"
-import { KPI_SETS, KPI_SET_TITLES } from "@/lib/home-fixture"
+import { KPI_SET_TITLES, kpiSets } from "@/lib/home-fixture"
+import { todayIn } from "@/lib/clock"
+import { snapshotFor, truthStrip } from "@/lib/kpis"
+import { formatMetricValue } from "@/lib/metrics"
 import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
@@ -52,19 +55,38 @@ describe("HomeScreen", () => {
     )
   })
 
-  it("renders the truth strip: paying coaches and cash this week, deltas toned", () => {
+  it("renders the truth strip: paying coaches and cash this week, from the shared KPI fixture, deltas toned", () => {
     renderHome()
+    const today = todayIn(FIXED_NOW)
+    const [subs, cash] = truthStrip({ today })
     const strip = screen.getByRole("region", { name: "KPI strip" })
     expect(within(strip).getByRole("heading", { level: 2, name: "Truth strip" })).toBeInTheDocument()
     const cards = within(strip).getAllByRole("article")
-    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual([
-      "Paying coaches",
-      "Cash this week",
-    ])
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Paying coaches", "Cash this week"])
+    expect(within(cards[0]).getByText(subs.value)).toBeInTheDocument()
     expect(within(cards[0]).getByText("186")).toBeInTheDocument()
-    expect(within(cards[0]).getByText(/\+12 this week/)).toHaveAttribute("data-tone", "good")
-    expect(within(cards[1]).getByText("$4,860")).toBeInTheDocument()
-    expect(within(cards[1]).getByText(/\+9\.1% vs last week/)).toHaveAttribute("data-tone", "good")
+    expect(within(cards[0]).getByText(/\+3 vs previous 28 days/)).toHaveAttribute("data-tone", "good")
+    expect(within(cards[1]).getByText(cash.value)).toBeInTheDocument()
+    // A real trailing-7-day sum of the daily revenue spread, not Revenue ÷ 4.
+    expect(within(cards[1]).getByText("$7,848")).toBeInTheDocument()
+    expect(within(cards[1]).getByText(/\+6\.8% vs previous 7 days/)).toHaveAttribute("data-tone", "good")
+  })
+
+  it("shows exactly what the Metrics page shows for the same day", () => {
+    renderHome()
+    const today = todayIn(FIXED_NOW)
+    const subsCard = snapshotFor("subscribers", { today })
+    const strip = screen.getByRole("region", { name: "KPI strip" })
+    const subs = within(strip).getByRole("article", { name: "Paying coaches" })
+    expect(within(subs).getByText(formatMetricValue(subsCard.value, subsCard.unit))).toBeInTheDocument()
+
+    const door = screen.getByRole("region", { name: "Metrics" })
+    const mrr = snapshotFor("mrr", { today })
+    expect(within(door).getByText("MRR · 6 × 28 days")).toBeInTheDocument()
+    expect(within(door).getByText(/\$23\.8k → \$26\.2k/)).toBeInTheDocument()
+    expect(mrr.series[0]).toBe(23_800)
+    expect(mrr.series.at(-1)).toBe(26_190)
+    expect(within(door).getByText(/the same MRR card as \/metrics/)).toBeInTheDocument()
   })
 
   it("labels the strip as sample data and puts a visible Sample data chip on every card", () => {
@@ -77,7 +99,7 @@ describe("HomeScreen", () => {
     const cards = within(strip).getAllByRole("article")
     expect(cards.length).toBeGreaterThan(0)
     for (const card of cards) {
-      const chip = within(card).getByTestId("kpi-sample-chip")
+      const chip = within(card).getByTestId("sample-data-tag")
       expect(chip).toHaveTextContent("Sample data")
       expect(chip).toBeVisible()
       expect(card).toHaveAccessibleDescription(/Sample data/)
@@ -85,7 +107,7 @@ describe("HomeScreen", () => {
   })
 
   it("the growth set renders four cards, each still chipped", () => {
-    render(<KpiStrip kpis={KPI_SETS.growth} title={KPI_SET_TITLES.growth} />)
+    render(<KpiStrip kpis={kpiSets("2026-08-21").growth} title={KPI_SET_TITLES.growth} />)
     expect(screen.getByRole("heading", { level: 2, name: "KPIs" })).toBeInTheDocument()
     const cards = screen.getAllByRole("article")
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual([
@@ -94,10 +116,11 @@ describe("HomeScreen", () => {
       "Subscribers",
       "Churn Rate",
     ])
-    // Churn fell, which is the good direction for churn.
-    expect(within(cards[3]).getByText(/−0\.4 pts/)).toHaveAttribute("data-tone", "good")
+    // Churn fell (derived from the seed: 5 of 183), which is the good direction for churn.
+    expect(within(cards[3]).getByText(/−1\.5 pts vs previous 28 days/)).toHaveAttribute("data-tone", "good")
     expect(within(cards[3]).getByText("Down", { exact: false })).toBeInTheDocument()
-    expect(screen.getAllByTestId("kpi-sample-chip")).toHaveLength(4)
+    // Four card chips plus the strip-level label.
+    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(5)
   })
 
   it("has three doors, each opening its page", () => {
@@ -156,9 +179,10 @@ describe("HomeScreen", () => {
   it("previews metrics with a trend chart, stamped as sample data", () => {
     renderHome()
     const door = screen.getByRole("region", { name: "Metrics" })
-    expect(within(door).getByRole("img", { name: /MRR over 12 weeks/ })).toBeInTheDocument()
-    expect(within(door).getByText("$21.8k → $26.2k")).toBeInTheDocument()
-    expect(within(door).getByTestId("kpi-sample-chip")).toHaveTextContent("Sample data")
+    // FIXED_NOW is 27 Aug 2026: six 28-day windows reach back to 13 Mar.
+    expect(within(door).getByRole("img", { name: /MRR over 6 28-day windows, 13 Mar – 27 Aug 2026/ })).toBeInTheDocument()
+    expect(within(door).getByText(/\$23\.8k → \$26\.2k/)).toBeInTheDocument()
+    expect(within(door).getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
   })
 
   it("empties the dev board door once the sprint is complete", async () => {
@@ -207,17 +231,19 @@ describe("HomeScreen before the saved board is read", () => {
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
     expect(html).toContain("Paying coaches")
-    expect(html).toContain("$4,860")
+    expect(html).toContain("$7,848")
     // The sample caveat is in the first paint, not added after hydration.
     expect(html).toContain("Sample data")
     expect(html).toContain("figures are invented, not live")
-    expect(html.match(/data-testid="kpi-sample-chip"/g)).toHaveLength(3)
+    // Two card chips, the strip label, and the Metrics door.
+    expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(4)
   })
 
   it("swaps to the data and the persistence note once mounted", async () => {
     renderHome()
+    // Nothing has been edited in this browser yet, so nothing is saved.
     expect(await screen.findByTestId("persistence-note")).toHaveTextContent(
-      "Saved in this browser"
+      "Edits save in this browser"
     )
     expect(screen.queryByLabelText(/Loading/)).not.toBeInTheDocument()
     expect(screen.getByText("3 agents working")).toBeInTheDocument()

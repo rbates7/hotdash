@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import { needsYou } from "@/lib/home"
-import { formatAge, openInboxItems, pendingInboxItems } from "@/lib/inbox"
+import { formatRelative } from "@/lib/clock"
+import { openInboxItems, pendingInboxItems } from "@/lib/inbox"
+
+/** The Inbox's compact age, through the one shared formatter. */
+const formatAge = (at: string, now: Date) => formatRelative(Date.parse(at), now.getTime(), { style: "compact" })
 import { buildIssues } from "@/lib/issues-fixture"
 import { buildInbox } from "@/lib/workplace-fixture"
 import { FIXED_NOW } from "@/test/clock"
@@ -79,11 +83,12 @@ describe("buildInbox + formatAge", () => {
     expect(formatAge(inbox[0].at, later)).toMatch(/^\d+d$/)
   })
 
-  it("formatAge thresholds", () => {
+  it("formatAge thresholds — parity with the passed Inbox copy (compact style of the shared formatter)", () => {
     const at = (ms: number) => new Date(FIXED_NOW.getTime() - ms).toISOString()
     expect(formatAge(at(10_000), FIXED_NOW)).toBe("now")
     expect(formatAge(at(59 * 60_000), FIXED_NOW)).toBe("59m")
     expect(formatAge(at(60 * 60_000), FIXED_NOW)).toBe("1h")
+    expect(formatAge(at(10 * 3_600_000), FIXED_NOW)).toBe("10h")
     expect(formatAge(at(23.9 * 3_600_000), FIXED_NOW)).toBe("23h")
     expect(formatAge(at(24 * 3_600_000), FIXED_NOW)).toBe("Yesterday")
     expect(formatAge(at(47 * 3_600_000), FIXED_NOW)).toBe("Yesterday")

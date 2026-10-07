@@ -10,11 +10,22 @@ import {
   STORAGE_KEY,
   initialState,
   isState,
+  issuesStorage,
   loadState,
+  loadStateOrSeed,
+  parseIssue,
+  parseState,
   reducer,
   saveState,
+  shellReducer,
   useIssues,
 } from "@/components/agent-workplace/issues-store"
+import { initialShell } from "@/lib/persistence"
+
+/** Drive the shell (hydrate/reset live there, not in the board reducer) and return its data. */
+const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1], nowMs = FIXED_NOW_MS) =>
+  shellReducer({ ...initialShell(state, nowMs), persisted: true }, action).data
+import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const AT = "2026-08-27T15:00:00.000Z"
 
@@ -81,7 +92,7 @@ describe("reducer", () => {
       patch: { priority: "low" },
       at: AT,
     })
-    state = reducer(state, { type: "reset", at: FIXED_NOW.toISOString() })
+    state = viaShell(state, { type: "reset", nowMs: FIXED_NOW_MS })
     expect(state.issues).toEqual(buildIssues(FIXED_NOW))
   })
 
@@ -91,7 +102,7 @@ describe("reducer", () => {
     const stale = initialState(sixWeeksAgo)
     expect(daysUntil(activeSprint(stale.sprints)!.endDate, FIXED_NOW)).toBe(9 - 42)
 
-    const fresh = reducer(stale, { type: "reset", at: FIXED_NOW.toISOString() })
+    const fresh = viaShell(stale, { type: "reset", nowMs: FIXED_NOW_MS })
     const sprint = activeSprint(fresh.sprints)!
     expect(daysUntil(sprint.endDate, FIXED_NOW)).toBe(9)
     expect(fresh).toEqual(initialState(FIXED_NOW))
@@ -127,6 +138,7 @@ describe("localStorage round trip", () => {
     })
     saveState(window.localStorage, state)
     expect(loadState(window.localStorage)).toEqual(state)
+    expect(loadStateOrSeed(window.localStorage, FIXED_NOW)).toEqual(state)
   })
 
   it("ignores garbage and wrong shapes", () => {
@@ -138,12 +150,13 @@ describe("localStorage round trip", () => {
 })
 
 function Probe() {
-  const { issues, sprints, now, persisted, patchIssue, resetDemoData } = useIssues()
+  const { issues, sprints, now, persisted, edited, saved, saveFailed, patchIssue, resetDemoData } = useIssues()
   const issue = issues.find((i) => i.key === "CHLK-404")!
   const sprint = activeSprint(sprints)
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
+      <span data-testid="status">{`edited=${edited} saved=${saved} failed=${saveFailed}`}</span>
       <span data-testid="priority">{issue.priority}</span>
       <span data-testid="project">{issue.project ?? "none"}</span>
       <span data-testid="now">{now.toISOString()}</span>
@@ -296,11 +309,15 @@ describe("now lives in store state (L1)", () => {
     }
   })
 
-  it("a saved copy never brings its own clock", () => {
+  it("a saved copy never brings its own clock (there is none in it: the clock lives in the shell)", () => {
     const saved = initialState(new Date(FIXED_NOW_MS - 3 * DAY))
-    const state = reducer(initialState(FIXED_NOW), { type: "hydrate", state: saved })
-    expect(state.now).toBe(FIXED_NOW.toISOString())
-    expect(state.sprints).toEqual(saved.sprints)
+    const shell = shellReducer(
+      { ...initialShell(initialState(FIXED_NOW), FIXED_NOW_MS), persisted: true },
+      { type: "hydrate", result: { state: saved, status: "saved" }, nowMs: FIXED_NOW_MS - 3 * DAY }
+    )
+    expect(shell.nowMs).toBe(FIXED_NOW_MS)
+    expect(shell.data.sprints).toEqual(saved.sprints)
+    expect(shell.data).not.toHaveProperty("now")
   })
 })
 
@@ -328,14 +345,69 @@ describe("saved items are validated one by one (L2)", () => {
     }
   })
 
-  it("rejects a malformed sprint or clock", () => {
+  it("rejects a malformed sprint; the clock is not part of the copy at all", () => {
     const s1 = good()
     s1.sprints[0] = { ...s1.sprints[0], status: "paused" } as never
     expect(isState(s1)).toBe(false)
     const s2 = good()
     s2.sprints[0] = { ...s2.sprints[0], endDate: "soon" }
     expect(isState(s2)).toBe(false)
-    expect(isState({ ...good(), now: "later" })).toBe(false)
+    // A stray `now` is ignored, never read: the page keeps its own instant.
+    expect(isState({ ...good(), now: "later" })).toBe(true)
+    expect(parseState({ ...good(), now: "later" })).not.toHaveProperty("now")
+  })
+
+  it("dates must be strict ISO instants that round-trip, not merely parseable", () => {
+    const s1 = good()
+    s1.issues[0] = { ...s1.issues[0], createdAt: "2026-08-27" } // a day, not an instant
+    expect(isState(s1)).toBe(false)
+    const s2 = good()
+    s2.sprints[0] = { ...s2.sprints[0], startDate: "2026-08-27T14:00:00Z" } // no millis → not canonical
+    expect(isState(s2)).toBe(false)
+    const s3 = good()
+    s3.issues[0].activity[0] = { ...s3.issues[0].activity[0], at: "yesterday" }
+    expect(isState(s3)).toBe(false)
+  })
+
+  it("validates every activity entry and comment, and strips unknown fields", () => {
+    const base = good().issues[0]
+    const withComment = {
+      ...base,
+      comments: [{ id: "c1", actorId: "rashad", body: "ok", at: "2026-08-27T15:00:00.000Z", extra: "dropped" }],
+      activity: [...base.activity, { id: "a9", actorId: "may", verb: "closed", at: "2026-08-27T15:00:00.000Z" }],
+      mystery: 42,
+    }
+    const parsed = parseIssue(withComment)!
+    expect(parsed).not.toBeNull()
+    expect(parsed).not.toHaveProperty("mystery")
+    expect(parsed.comments[0]).toEqual({ id: "c1", actorId: "rashad", body: "ok", at: "2026-08-27T15:00:00.000Z" })
+    expect(parsed.activity.at(-1)).toEqual({ id: "a9", actorId: "may", verb: "closed", at: "2026-08-27T15:00:00.000Z" })
+
+    for (const bad of [
+      { comments: [{ id: "c1", actorId: "rashad", at: "2026-08-27T15:00:00.000Z" }] }, // no body
+      { comments: [{ id: "c1", actorId: 7, body: "x", at: "2026-08-27T15:00:00.000Z" }] },
+      { comments: [{ id: "c1", actorId: "rashad", body: "x", at: "soon" }] },
+      { comments: [null] },
+      { comments: "none" },
+      { activity: [{ id: "a1", actorId: "rashad", at: "2026-08-27T15:00:00.000Z" }] }, // no verb
+      { activity: [{ id: "a1", actorId: "rashad", verb: 1, at: "2026-08-27T15:00:00.000Z" }] },
+      { description: 12 },
+      { project: ["Billing"] },
+      { blockerReason: false },
+    ]) {
+      expect(parseIssue({ ...base, ...bad }), JSON.stringify(bad)).toBeNull()
+    }
+  })
+
+  it("rejects a copy whose counter would collide, duplicate keys, or two active sprints", () => {
+    const s1 = good()
+    expect(parseState({ ...s1, nextKey: 1 })).toBeNull()
+    const s2 = good()
+    s2.issues[1] = { ...s2.issues[1], key: s2.issues[0].key }
+    expect(parseState(s2)).toBeNull()
+    const s3 = good()
+    s3.sprints = s3.sprints.map((sp) => ({ ...sp, status: "active" as const }))
+    expect(parseState(s3)).toBeNull()
   })
 
   it("falls back to the seed when a saved issue is bad", async () => {
@@ -349,3 +421,132 @@ describe("saved items are validated one by one (L2)", () => {
   })
 })
 
+
+describe("shared persistence policy (Workplace)", () => {
+  it("exposes edited / saved / saveFailed: nothing saved until the first edit", async () => {
+    mount()
+    await hydrated()
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
+  })
+
+  it("reports a failed save and never claims Saved", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(quotaExceededStorage().setItem)
+    try {
+      mount()
+      await hydrated()
+      act(() => screen.getByRole("button", { name: "edit" }).click())
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+      expect(screen.getByTestId("priority")).toHaveTextContent("low") // the edit still works this session
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("a copy that fails validation loads as the seed without writing; the first real save parks it", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const raw = JSON.stringify({ issues: "nope" })
+    window.localStorage.setItem(STORAGE_KEY, raw)
+    expect(loadState(window.localStorage)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw) // load() is pure
+    expect(loadStateOrSeed(window.localStorage, FIXED_NOW)).toEqual(initialState(FIXED_NOW))
+    saveState(window.localStorage, initialState(FIXED_NOW))
+    expect(issuesStorage.rejected(window.localStorage)[0].raw).toBe(raw)
+    expect(loadState(window.localStorage)).not.toBeNull()
+  })
+
+  it("Reset reads the shared clock, not the request's: the seed is dated from the click", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
+    try {
+      mount() // served at FIXED_NOW (27 Aug)
+      await hydrated()
+      expect(screen.getByTestId("now")).toHaveTextContent(FIXED_NOW.toISOString())
+      act(() => screen.getByRole("button", { name: "reset" }).click())
+      expect(screen.getByTestId("now")).toHaveTextContent("2026-10-07T18:00:00.000Z")
+      expect(screen.getByTestId("days-left")).toHaveTextContent("9")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("another tab's Reset re-seeds this tab from now(), not from the request", async () => {
+    mount()
+    await hydrated()
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+      act(() => fireStorageEvent(STORAGE_KEY, null))
+      expect(screen.getByTestId("now")).toHaveTextContent("2026-10-07T18:00:00.000Z")
+      expect(screen.getByTestId("days-left")).toHaveTextContent("9")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("the saved copy carries no clock", async () => {
+    mount()
+    await hydrated()
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY)!)
+    expect(saved).not.toHaveProperty("now")
+    expect(Object.keys(saved).sort()).toEqual(["issues", "nextKey", "sprints"])
+  })
+
+  it("re-hydrates when another tab writes the key, keeping this page's clock; re-seeds when another tab Resets", async () => {
+    mount()
+    await hydrated()
+    act(() => screen.getByRole("button", { name: "edit" }).click())
+    expect(screen.getByTestId("project")).toHaveTextContent("Billing")
+
+    const theirs = reducer(initialState(new Date(FIXED_NOW_MS - DAY)), {
+      type: "patch-issue",
+      key: "CHLK-404",
+      patch: { priority: "low" },
+      at: AT,
+    })
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
+    act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
+    expect(screen.getByTestId("priority")).toHaveTextContent("low")
+    expect(screen.getByTestId("project")).toHaveTextContent("none") // theirs wins, ours is gone
+    expect(screen.getByTestId("now")).toHaveTextContent(FIXED_NOW.toISOString())
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
+
+    window.localStorage.removeItem(STORAGE_KEY)
+    act(() => fireStorageEvent(STORAGE_KEY, null))
+    expect(screen.getByTestId("priority")).toHaveTextContent("urgent")
+    expect(screen.getByTestId("days-left")).toHaveTextContent("9")
+    expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
+  })
+
+  it("two tabs on one storage: an edit in A reaches B and the writes settle at one", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    render(
+      <>
+        <IssuesProvider nowMs={FIXED_NOW_MS}>
+          <div data-tab="a"><Probe /></div>
+        </IssuesProvider>
+        <IssuesProvider nowMs={FIXED_NOW_MS + 60_000}>
+          <div data-tab="b"><Probe /></div>
+        </IssuesProvider>
+      </>
+    )
+    const tab = (id: string) => document.querySelector(`[data-tab=${id}]`) as HTMLElement
+    const text = (id: string, testId: string) => tab(id).querySelector(`[data-testid=${testId}]`)!.textContent
+    await screen.findAllByText("true", { selector: "[data-testid=persisted]" })
+    expect(setItem).not.toHaveBeenCalled()
+
+    act(() => (tab("a").querySelector("button") as HTMLButtonElement).click())
+    expect(setItem).toHaveBeenCalledTimes(1)
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    expect(text("b", "priority")).toBe("low")
+    // B keeps its own clock and writes nothing back — even though its `now`
+    // differs from A's, the saved copy has no clock to disagree about.
+    expect(text("b", "now")).toBe(new Date(FIXED_NOW_MS + 60_000).toISOString())
+    expect(setItem).toHaveBeenCalledTimes(1)
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    act(() => fireStorageEvent(STORAGE_KEY, window.localStorage.getItem(STORAGE_KEY)))
+    expect(setItem).toHaveBeenCalledTimes(1)
+  })
+})

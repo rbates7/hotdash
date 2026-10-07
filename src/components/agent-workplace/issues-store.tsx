@@ -10,18 +10,30 @@ import {
   buildSprints,
   RASHAD,
 } from "@/lib/issues-fixture"
+import {
+  createStorage,
+  isBoolean,
+  isIsoInstant,
+  isOptionalString,
+  isString,
+  isStringOrNull,
+  parseAll,
+  initialShell,
+  persistenceShellReducer,
+  reseedNowMs,
+  usePersistenceSync,
+  type LoadResult,
+  type PersistenceShell,
+  type PersistenceStore,
+} from "@/lib/persistence"
+import type { ActivityEntry, Comment } from "@/lib/issues"
+import { now as clockNow } from "@/lib/clock"
 
 export type State = {
   issues: Issue[]
   sprints: Sprint[]
   /** Next number for a generated CHLK-n key. */
   nextKey: number
-  /**
-   * The instant every relative figure is measured from, as ISO. Set from
-   * the server's request time on load; moved to the moment of a Reset so
-   * the regenerated seed is fresh. Never taken from a saved copy.
-   */
-  now: string
 }
 
 export type NewIssueInput = {
@@ -42,15 +54,21 @@ export type Action =
   | { type: "create-sprint"; name: string; startDate: string; endDate: string }
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
-  | { type: "hydrate"; state: State | null }
-  /** Regenerates the seed relative to `at`, so its dates are fresh again. */
-  | { type: "reset"; at: string }
+  /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
+  | { type: "hydrate"; result: LoadResult<SavedState>; nowMs: number }
+  | { type: "save-result"; ok: boolean }
+  /** Regenerates the seed from `nowMs` (`now()` at the click), so its dates are fresh again. */
+  | { type: "reset"; nowMs: number }
+
+/** The founder's own edits, as opposed to persistence plumbing. */
+export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
 }
 
-export function reducer(state: State, action: Action): State {
+/** The board's own transitions. Returns its input for a no-op. */
+export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "create-issue": {
       const key = `CHLK-${state.nextKey}`
@@ -163,42 +181,42 @@ export function reducer(state: State, action: Action): State {
         ),
       }
 
-    case "hydrate":
-      // A saved copy brings its board, never its clock: this page's instant
-      // stays so the saved sprint is measured against today.
-      return action.state ? { ...action.state, now: state.now } : state
-
-    case "reset":
-      return initialState(new Date(action.at))
   }
 }
 
-/** Actions that are the founder's own edits, as opposed to plumbing. */
-const USER_EDITS = new Set<Action["type"]>([
-  "create-issue",
-  "patch-issue",
-  "add-comment",
-  "create-sprint",
-  "start-sprint",
-  "complete-sprint",
-])
-
 /**
- * Reducer state plus persistence bookkeeping: whether localStorage has been
- * consulted yet, and whether this browser holds edits worth saving.
+ * The shared persistence shell around the board. A saved copy brings its
+ * board, never its clock: this page's instant stays so the saved sprint is
+ * measured against today. No copy — nothing saved, or another tab's Reset —
+ * means a fresh seed here too. Everything else is the shared reducer's
+ * business (no-op edits return the same shell, hydrates never write,
+ * `saved` follows the write's result).
  */
-type Shell = { data: State; hydrated: boolean; dirty: boolean }
+type Shell = PersistenceShell<State>
 
-function shellReducer(shell: Shell, action: Action): Shell {
-  return {
-    data: reducer(shell.data, action),
-    hydrated: shell.hydrated || action.type === "hydrate",
-    dirty:
-      action.type === "reset"
-        ? false
-        : action.type === "hydrate"
-          ? action.state !== null
-          : shell.dirty || USER_EDITS.has(action.type),
+export function shellReducer(shell: Shell, action: Action): Shell {
+  switch (action.type) {
+    case "hydrate":
+      return persistenceShellReducer<State, SavedState>(shell, {
+        type: "hydrate",
+        result: action.result,
+        nowMs: action.nowMs,
+        // No copy (nothing saved, or another tab's Reset): a fresh seed dated
+        // from this moment, and the clock moves with it.
+        fallback: (nowMs) => initialState(new Date(nowMs)),
+        // A copy brings its board, never its clock: the shell's instant stays.
+        adopt: (saved) => ({ data: saved }),
+      })
+    case "save-result":
+      return persistenceShellReducer(shell, action)
+    case "reset":
+      return persistenceShellReducer(shell, {
+        type: "reset",
+        nowMs: action.nowMs,
+        seed: (nowMs) => initialState(new Date(nowMs)),
+      })
+    default:
+      return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
@@ -217,7 +235,6 @@ export function initialState(now: Date): State {
     issues,
     sprints: buildSprints(now),
     nextKey: highest + 1,
-    now: now.toISOString(),
   }
 }
 
@@ -244,98 +261,167 @@ export function initialState(now: Date): State {
  */
 export const STORAGE_KEY = "hotdash.agent-workplace.v2"
 
-const isString = (v: unknown): v is string => typeof v === "string"
-const isStringOrNull = (v: unknown): v is string | null => v === null || isString(v)
-const isIsoDate = (v: unknown): v is string => isString(v) && !Number.isNaN(Date.parse(v))
+/** What is written. The clock lives in the shell, so none is ever saved. */
+export type SavedState = State
 
-function isIssue(value: unknown): value is Issue {
-  if (!value || typeof value !== "object") return false
+const isStatus = (v: unknown): v is IssueStatus => (STATUS_ORDER as readonly string[]).includes(v as string)
+const isPriority = (v: unknown): v is IssuePriority =>
+  (PRIORITY_ORDER as readonly string[]).includes(v as string)
+const isSprintStatus = (v: unknown): v is Sprint["status"] =>
+  v === "planned" || v === "active" || v === "completed"
+
+/** Known keys only; anything else a saved copy carries is dropped. */
+function parseActivity(value: unknown): ActivityEntry | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    isString(v.key) &&
-    isString(v.title) &&
-    (STATUS_ORDER as string[]).includes(v.status as string) &&
-    (PRIORITY_ORDER as string[]).includes(v.priority as string) &&
-    isStringOrNull(v.assigneeId) &&
-    isStringOrNull(v.sprintId) &&
-    Array.isArray(v.labels) &&
-    v.labels.every(isString) &&
-    isString(v.createdById) &&
-    isIsoDate(v.createdAt) &&
-    isIsoDate(v.updatedAt) &&
-    typeof v.isAgentWorking === "boolean" &&
-    Array.isArray(v.activity) &&
-    Array.isArray(v.comments)
-  )
+  if (!isString(v.id) || !isString(v.actorId) || !isString(v.verb) || !isIsoInstant(v.at)) return null
+  return { id: v.id, actorId: v.actorId, verb: v.verb, at: v.at }
 }
 
-function isSprint(value: unknown): value is Sprint {
-  if (!value || typeof value !== "object") return false
+function parseComment(value: unknown): Comment | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    isString(v.id) &&
-    isString(v.name) &&
-    isIsoDate(v.startDate) &&
-    isIsoDate(v.endDate) &&
-    (v.status === "planned" || v.status === "active" || v.status === "completed")
-  )
+  if (!isString(v.id) || !isString(v.actorId) || !isString(v.body) || !isIsoInstant(v.at)) return null
+  return { id: v.id, actorId: v.actorId, body: v.body, at: v.at }
+}
+
+export function parseIssue(value: unknown): Issue | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+  if (
+    !isString(v.key) ||
+    !isString(v.title) ||
+    !isOptionalString(v.description) ||
+    !isStatus(v.status) ||
+    !isPriority(v.priority) ||
+    !isStringOrNull(v.assigneeId) ||
+    !isStringOrNull(v.sprintId) ||
+    !Array.isArray(v.labels) ||
+    !v.labels.every(isString) ||
+    !isOptionalString(v.project) ||
+    !isString(v.createdById) ||
+    !isIsoInstant(v.createdAt) ||
+    !isIsoInstant(v.updatedAt) ||
+    !isBoolean(v.isAgentWorking) ||
+    !isOptionalString(v.blockerReason)
+  ) {
+    return null
+  }
+  const activity = parseAll(v.activity, parseActivity)
+  const comments = parseAll(v.comments, parseComment)
+  if (!activity || !comments) return null
+  const issue: Issue = {
+    key: v.key,
+    title: v.title,
+    status: v.status,
+    priority: v.priority,
+    assigneeId: v.assigneeId,
+    sprintId: v.sprintId,
+    labels: v.labels,
+    createdById: v.createdById,
+    createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    isAgentWorking: v.isAgentWorking,
+    activity,
+    comments,
+  }
+  if (v.description !== undefined) issue.description = v.description
+  if (v.project !== undefined) issue.project = v.project
+  if (v.blockerReason !== undefined) issue.blockerReason = v.blockerReason
+  return issue
+}
+
+export function parseSprint(value: unknown): Sprint | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+  if (
+    !isString(v.id) ||
+    !isString(v.name) ||
+    !isOptionalString(v.goal) ||
+    !isIsoInstant(v.startDate) ||
+    !isIsoInstant(v.endDate) ||
+    !isSprintStatus(v.status)
+  ) {
+    return null
+  }
+  const sprint: Sprint = {
+    id: v.id,
+    name: v.name,
+    startDate: v.startDate,
+    endDate: v.endDate,
+    status: v.status,
+  }
+  if (v.goal !== undefined) sprint.goal = v.goal
+  return sprint
 }
 
 /**
- * Every issue and sprint is checked, not just the envelope: one malformed
- * item means the whole copy is dropped in favour of the seed, rather than
- * rendering half a board.
+ * Every issue, sprint, activity entry and comment is checked field by
+ * field and rebuilt from known keys only, so a bad saved comment cannot
+ * reach the ticket view. One malformed item drops the whole copy for the
+ * seed rather than rendering half a board. The page's clock (`now`) is
+ * never read from a copy; it is not saved either.
  */
-export function isState(value: unknown): value is State {
-  if (!value || typeof value !== "object") return false
+export function parseState(value: unknown): SavedState | null {
+  if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  return (
-    Array.isArray(v.issues) &&
-    v.issues.every(isIssue) &&
-    Array.isArray(v.sprints) &&
-    v.sprints.every(isSprint) &&
-    typeof v.nextKey === "number" &&
-    isIsoDate(v.now)
-  )
+  const issues = parseAll(v.issues, parseIssue)
+  const sprints = parseAll(v.sprints, parseSprint)
+  if (!issues || !sprints) return null
+  if (typeof v.nextKey !== "number" || !Number.isInteger(v.nextKey)) return null
+  const highest = issues.reduce((max, i) => {
+    const n = Number(i.key.split("-")[1])
+    return Number.isFinite(n) && n > max ? n : max
+  }, 0)
+  if (v.nextKey <= highest) return null
+  if (new Set(issues.map((i) => i.key)).size !== issues.length) return null
+  if (new Set(sprints.map((s) => s.id)).size !== sprints.length) return null
+  if (sprints.filter((s) => s.status === "active").length > 1) return null
+  return { issues, sprints, nextKey: v.nextKey }
 }
 
-export function loadState(storage: Storage | undefined): State | null {
-  try {
-    const raw = storage?.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isState(parsed) ? parsed : null
-  } catch {
-    return null
-  }
+/** Boolean form of `parseState`, for callers that only need yes/no. */
+export function isState(value: unknown): boolean {
+  return parseState(value) !== null
 }
 
-export function saveState(storage: Storage | undefined, state: State) {
-  try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // Quota or private mode: edits still work for the session.
-  }
+export const issuesStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: ["hotdash.agent-workplace.v1"],
+  parse: parseState,
+  // No clock is written: it lives in the shell, so two tabs' copies stay
+  // byte-identical and neither re-writes the other's.
+  serialize: ({ issues, sprints, nextKey }) => ({ issues, sprints, nextKey }),
+})
+
+/** Read the saved copy; `null` when there is none or it was rejected. */
+export function loadState(storage: Storage | undefined): SavedState | null {
+  return issuesStorage.load(storage).state
+}
+
+/** The saved copy, or a fresh seed dated from `now` when there is none. */
+export function loadStateOrSeed(storage: Storage | undefined, now: Date): State {
+  return loadState(storage) ?? initialState(now)
+}
+
+export function saveState(storage: Storage | undefined, state: State): boolean {
+  return issuesStorage.save(storage, state)
 }
 
 export function clearState(storage: Storage | undefined) {
-  try {
-    storage?.removeItem(STORAGE_KEY)
-  } catch {
-    // Nothing to do; the next load falls back to the seed anyway.
-  }
+  issuesStorage.clear(storage)
 }
 
-type Store = Omit<State, "now"> & {
+type Store = State &
+  PersistenceStore & {
   actors: typeof seedActors
   /**
-   * `State.now` as a Date: the server's request instant, or the moment of
-   * the last Reset. Every relative figure is measured from it; a live
-   * client clock would hydrate mismatched against the server's HTML.
+   * The shell's clock as a Date: the server's request instant, or the
+   * moment of the last Reset (or of a re-seed after another tab's). Every
+   * relative figure is measured from it; a live client clock would hydrate
+   * mismatched against the server's HTML. There is no second clock.
    */
   now: Date
-  /** True once localStorage has been read; edits made after this are saved. */
-  persisted: boolean
   createIssue: (input: NewIssueInput) => void
   patchIssue: (key: string, patch: Partial<Issue>) => void
   addComment: (key: string, body: string) => void
@@ -355,35 +441,42 @@ export function IssuesProvider({
   nowMs: number
   children: React.ReactNode
 }) {
-  const [{ data: state, hydrated: persisted, dirty }, dispatch] = React.useReducer(
-    shellReducer,
-    undefined,
-    () => ({ data: initialState(new Date(nowMs)), hydrated: false, dirty: false })
+  const [shell, dispatch] = React.useReducer(shellReducer, nowMs, (ms) =>
+    initialShell(initialState(new Date(ms)), ms)
   )
+  const { data: state, persisted, edited, saved, saveFailed } = shell
 
   // Server and first client paint both use the seed; the saved copy is
-  // applied after mount so the HTML never mismatches.
+  // applied after mount so the HTML never mismatches. This first hydrate is
+  // the only one dated from the request.
   React.useEffect(() => {
-    dispatch({ type: "hydrate", state: loadState(window.localStorage) })
-  }, [])
+    dispatch({ type: "hydrate", result: issuesStorage.load(window.localStorage), nowMs })
+  }, [nowMs])
 
-  // Write only once there is something of the founder's to keep (see the
-  // persistence policy above); a Reset clears the copy instead.
-  React.useEffect(() => {
-    if (!persisted) return
-    if (dirty) saveState(window.localStorage, state)
-    else clearState(window.localStorage)
-  }, [persisted, dirty, state])
+  // Other tabs and writes, the shared way: a hydrate never writes; only a
+  // moving edit count does (see the persistence policy above). The result
+  // feeds the note: "Saved" only when the write succeeded. The hook reads
+  // `now()` for a cross-tab re-seed.
+  const onHydrate = React.useCallback(
+    (result: LoadResult<SavedState>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
+    []
+  )
+  const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
+  usePersistenceSync({ storage: issuesStorage, shell, onHydrate, onSaved })
 
-  const now = React.useMemo(() => new Date(state.now), [state.now])
+  const now = React.useMemo(() => new Date(shell.nowMs), [shell.nowMs])
 
   const value = React.useMemo<Store>(() => {
-    const at = () => new Date().toISOString()
+    // Edit timestamps come from the one clock too, never a bare `new Date()`.
+    const at = () => clockNow().toISOString()
     return {
       ...state,
       actors: seedActors,
       now,
       persisted,
+      edited,
+      saved,
+      saveFailed,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
       patchIssue: (key, patch) =>
         dispatch({ type: "patch-issue", key, patch, at: at() }),
@@ -393,11 +486,15 @@ export function IssuesProvider({
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
-      // Reset re-dates the seed from right now, not from the page load, so a
-      // save left over from an older session comes back fresh.
-      resetDemoData: () => dispatch({ type: "reset", at: at() }),
+      // Reset clears the copy and re-dates the seed from right now, not from
+      // the page load, so a save left over from an older session comes back
+      // fresh and the browser returns to the never-edited state.
+      resetDemoData: () => {
+        clearState(window.localStorage)
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
+      },
     }
-  }, [state, persisted, now])
+  }, [state, persisted, edited, saved, saveFailed, now])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>

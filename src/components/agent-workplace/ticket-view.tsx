@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { formatRelative } from "@/lib/clock"
 import {
   ArrowLeftIcon,
   ArrowUpIcon,
@@ -21,7 +22,6 @@ import {
   STATUS_ORDER,
   actorById,
   formatDay,
-  formatRelative,
 } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -174,7 +174,7 @@ export function TicketView({
           )}
 
           {issue.blockerReason && (
-            <p className="text-body text-destructive bg-destructive/10 mt-3 rounded-lg px-3 py-2">
+            <p className="text-body text-danger-text bg-destructive/10 mt-3 rounded-lg px-3 py-2">
               {issue.blockerReason}
             </p>
           )}
@@ -238,7 +238,7 @@ export function TicketView({
                         </span>
                       </span>
                       <span className="text-caption text-faint-foreground ml-auto">
-                        {formatRelative(entry.at, now)}
+                        {formatRelative(Date.parse(entry.at), now.getTime(), { style: "ago" })}
                       </span>
                     </li>
                   )
@@ -254,7 +254,7 @@ export function TicketView({
                             {actor?.name ?? "Someone"}
                           </span>{" "}
                           <span className="text-caption text-faint-foreground">
-                            {formatRelative(comment.at, now)}
+                            {formatRelative(Date.parse(comment.at), now.getTime(), { style: "ago" })}
                           </span>
                         </p>
                         <p className="text-body mt-0.5">{comment.body}</p>
@@ -306,7 +306,10 @@ export function TicketView({
       </div>
 
       {railOpen && (
-        <aside className="border-border w-72 shrink-0 border-l pt-14 pl-6">
+        <aside
+          aria-label="Ticket properties"
+          className="border-border w-72 shrink-0 border-l pt-14 pl-6"
+        >
           <div className="flex flex-col gap-6">
             <RailSection title="Properties">
               <RailRow label="Status">
@@ -464,12 +467,10 @@ export function TicketView({
                       <button
                         type="button"
                         aria-label={`Project: ${issue.project ?? "No project"}`}
-                        // Not `cn()`: tailwind-merge reads the role-named
-                        // `text-body` as a colour and drops it next to
-                        // `text-muted-foreground`.
-                        className={`text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ${
-                          issue.project ? "" : "text-muted-foreground"
-                        }`}
+                        className={cn(
+                          "text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5",
+                          !issue.project && "text-muted-foreground"
+                        )}
                       >
                         <FolderIcon className="size-3.5" aria-hidden />
                         {issue.project ?? "No project"}

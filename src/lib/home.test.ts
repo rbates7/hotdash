@@ -12,7 +12,7 @@ import {
 import { CENTRAL, now } from "@/lib/clock"
 import {
   ACTIVE_KPI_SET,
-  KPI_SETS,
+  kpiSets,
   KPI_SET_TITLES,
   kpiStripTitle,
   kpis,
@@ -197,9 +197,13 @@ describe("sparklinePoints", () => {
 })
 
 describe("KPI card sets", () => {
-  it("ships the truth strip: paying coaches and cash this week", () => {
+  // The day the Metrics mock was drawn; the shared fixture reproduces it.
+  const TODAY = "2026-08-21"
+  const KPI_SETS = kpiSets(TODAY)
+
+  it("ships the truth strip: paying coaches (the Metrics Subscribers number) and cash this week", () => {
     expect(ACTIVE_KPI_SET).toBe("truth")
-    expect(kpis.map((k) => k.label)).toEqual(["Paying coaches", "Cash this week"])
+    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Paying coaches", "Cash this week"])
     expect(kpiStripTitle).toBe("Truth strip")
   })
 

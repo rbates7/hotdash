@@ -76,10 +76,13 @@ export function AppSidebar() {
 
       <SidebarSeparator />
 
+      {/* The one named navigation landmark for the rail, so tests and
+          assistive tech can scope to it by name instead of a data-slot. */}
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+        <nav aria-label="Founder dashboard" className="flex min-h-0 flex-1 flex-col">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
               {navItems.map((item) => {
                 const active = !item.external && isActiveRoute(pathname, item.href)
                 return (
@@ -108,14 +111,20 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        </nav>
       </SidebarContent>
 
       <SidebarSeparator />
 
       <SidebarFooter>
-        <div className="flex group-data-[collapsible=icon]:justify-center">
+        {/* A named region, so the theme control has a landmark of its own
+            and tests can scope to it instead of searching the page. */}
+        <section
+          aria-label="Appearance"
+          className="flex group-data-[collapsible=icon]:justify-center"
+        >
           <ThemeToggle />
-        </div>
+        </section>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Help">

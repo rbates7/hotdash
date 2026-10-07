@@ -1,39 +1,41 @@
 import { ChartColumnIcon } from "lucide-react"
 
+import { formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { compactDollars, sparklinePoints } from "@/lib/home"
 import { Door } from "@/components/home/door"
-import { SampleChip } from "@/components/home/kpi-strip"
+import { SampleDataTag } from "@/components/sample-data"
 
 const W = 240
 const H = 56
 
 /**
- * Preview of the Metrics page: one small MRR trend. The page itself is a
- * later phase; this is only the door.
+ * Preview of the Metrics page: the MRR card's own series of six 28-day
+ * windows, so the door and the page can never show different numbers.
  */
-export function MetricsDoor({ trend }: { trend: number[] }) {
+export function MetricsDoor({ trend, today }: { trend: number[]; today: IsoDay }) {
   const first = trend[0]
   const last = trend[trend.length - 1]
   const points = sparklinePoints(trend, W, H)
   const hasTrend = trend.length > 1
+  const span = formatWindowSpan(windowsEnding(today, trend.length))
 
   return (
     <Door
       name="Metrics"
       href="/metrics"
       icon={ChartColumnIcon}
-      caption="Sample series. The full page lands with the Metrics phase."
+      caption="Sample series — the same MRR card as /metrics."
     >
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between gap-2">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
-            MRR · last {trend.length} weeks
+            MRR · {trend.length} × 28 days
           </span>
-          <SampleChip />
+          <SampleDataTag />
         </div>
         {hasTrend && (
           <span className="text-caption text-muted-foreground mt-1.5 tracking-tight tabular-nums">
-            {compactDollars(first)} → {compactDollars(last)}
+            {compactDollars(first)} → {compactDollars(last)} · {span}
           </span>
         )}
         {hasTrend ? (
@@ -41,7 +43,7 @@ export function MetricsDoor({ trend }: { trend: number[] }) {
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={`MRR over ${trend.length} weeks, ${compactDollars(first)} to ${compactDollars(last)}`}
+            aria-label={`MRR over ${trend.length} 28-day windows, ${span}, ${compactDollars(first)} to ${compactDollars(last)}`}
             className="mt-3 h-14 w-full"
           >
             <polyline

@@ -3,6 +3,9 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
+
 /**
  * Review screenshots for the Agent Workplace, every main state in both
  * themes at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
@@ -26,13 +29,6 @@ async function shoot(page: Page, name: string) {
   }
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByText(theme === "dark" ? "Dark" : "Light", { exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
-}
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Workplace state (${theme})`, async ({ page }) => {
@@ -40,7 +36,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate(() => localStorage.removeItem("hotdash.agent-workplace.v2"))
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 
     // With data.
     await shoot(page, `workplace-issues-${theme}`)
@@ -99,7 +95,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `workplace-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset" }).click()
+    await resetDemoData(page)
     await expect(page.getByText("3 agents working")).toBeVisible()
   })
 }
