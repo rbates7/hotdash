@@ -90,26 +90,26 @@ export function WorkplaceTabs() {
         ))}
       </TabsList>
 
-      <TabsContent value="issues">
+      <TabsContent value="issues" className="min-w-0">
         <IssuesBoard
           onOpenIssue={openIssue}
           statusView={statusView}
           onStatusViewChange={setStatusView}
         />
       </TabsContent>
-      <TabsContent value="backlog">
+      <TabsContent value="backlog" className="min-w-0">
         <BacklogPanel onOpenIssue={openIssue} />
       </TabsContent>
-      <TabsContent value="agents">
+      <TabsContent value="agents" className="min-w-0">
         <AgentsRoster onOpenIssue={openIssue} />
       </TabsContent>
-      <TabsContent value="chat">
+      <TabsContent value="chat" className="min-w-0">
         <ChatDoor onOpenAgents={() => setParam({ tab: "agents" })} />
       </TabsContent>
-      <TabsContent value="autopilots">
+      <TabsContent value="autopilots" className="min-w-0">
         <AutopilotsPanel />
       </TabsContent>
-      <TabsContent value="inbox">
+      <TabsContent value="inbox" className="min-w-0">
         <InboxPanel onOpenIssue={openIssue} />
       </TabsContent>
     </Tabs>
