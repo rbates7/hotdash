@@ -49,9 +49,9 @@ export type State = {
 }
 
 export type Action =
-  | { type: "add"; input: TodoInput }
-  | { type: "update"; id: string; input: TodoInput }
-  | { type: "toggle"; id: string }
+  | { type: "add"; input: TodoInput; today: IsoDay }
+  | { type: "update"; id: string; input: TodoInput; today: IsoDay }
+  | { type: "toggle"; id: string; today: IsoDay }
   | { type: "remove"; id: string }
   | { type: "restore"; todo: Todo }
   | { type: "set-scratch"; text: string; at: string }
@@ -66,15 +66,27 @@ export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "re
 export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "add": {
-      const todo: Todo = { id: `todo-${state.nextId}`, ...normalizeTodoInput(action.input) }
-      if (!todo.title) return state
+      const input = normalizeTodoInput(action.input)
+      if (!input.title) return state
+      const todo: Todo = {
+        id: `todo-${state.nextId}`,
+        ...input,
+        createdOn: action.today,
+        doneOn: input.done ? action.today : null,
+      }
       return { ...state, todos: [...state.todos, todo], nextId: state.nextId + 1 }
     }
 
     case "update": {
       const current = state.todos.find((t) => t.id === action.id)
       if (!current) return state
-      const next: Todo = { id: current.id, ...normalizeTodoInput(action.input) }
+      const input = normalizeTodoInput(action.input)
+      const next: Todo = {
+        id: current.id,
+        ...input,
+        createdOn: current.createdOn,
+        doneOn: input.done ? (current.done ? current.doneOn : action.today) : null,
+      }
       if (!next.title || sameTodo(current, next)) return state
       return { ...state, todos: state.todos.map((t) => (t.id === action.id ? next : t)) }
     }
@@ -82,9 +94,12 @@ export function reducer(state: State, action: EditAction): State {
     case "toggle": {
       const current = state.todos.find((t) => t.id === action.id)
       if (!current) return state
+      const done = !current.done
       return {
         ...state,
-        todos: state.todos.map((t) => (t.id === action.id ? { ...t, done: !t.done } : t)),
+        todos: state.todos.map((t) =>
+          t.id === action.id ? { ...t, done, doneOn: done ? action.today : null } : t
+        ),
       }
     }
 
@@ -137,7 +152,7 @@ export function shellReducer(shell: Shell, action: Action): Shell {
 
 /** The seed: the mock's seven to-dos and one scratch note, dated from `nowMs`. */
 export function initialState(nowMs: number): State {
-  const todos = seedTodos()
+  const todos = seedTodos(todayIn(new Date(nowMs)))
   return {
     todos,
     nextId: highestId(todos) + 1,
@@ -158,7 +173,7 @@ function highestId(todos: readonly Todo[]) {
  * in `@/lib/persistence`: only after a real edit, validated whole on load,
  * Reset clears the key. Bump the version when the seed or shape changes.
  */
-export const STORAGE_KEY = "hotdash.my-desk.v1"
+export const STORAGE_KEY = "hotdash.my-desk.v2"
 
 /**
  * Every row is checked, not just the envelope: a bad type, a blank title,
@@ -192,7 +207,11 @@ export function parseState(value: unknown): State | null {
   return isState(value) ? stripState(value) : null
 }
 
-export const deskStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
+export const deskStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: ["hotdash.my-desk.v1"],
+  parse: parseState,
+})
 
 /** Read the saved copy; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
@@ -277,9 +296,9 @@ export function MyDeskProvider({
       edited,
       saved,
       saveFailed,
-      addTodo: (input) => dispatch({ type: "add", input }),
-      updateTodo: (id, input) => dispatch({ type: "update", id, input }),
-      toggleTodo: (id) => dispatch({ type: "toggle", id }),
+      addTodo: (input) => dispatch({ type: "add", input, today }),
+      updateTodo: (id, input) => dispatch({ type: "update", id, input, today }),
+      toggleTodo: (id) => dispatch({ type: "toggle", id, today }),
       removeTodo: (id) => dispatch({ type: "remove", id }),
       restoreTodo: (todo) => dispatch({ type: "restore", todo }),
       setScratch: (text) =>

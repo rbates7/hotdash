@@ -33,6 +33,9 @@ const WALK: TodoInput = {
   done: false,
 }
 
+const addWalk = (state: State, today = TODAY) =>
+  reducer(state, { type: "add", input: WALK, today })
+
 /** Noon Central on `day`, as an instant. */
 const noonMs = (day: string) => Date.parse(`${day}T17:00:00.000Z`)
 const hydrate = (state: State | null, nowMs = NOW_MS) => {
@@ -54,46 +57,57 @@ describe("reducer", () => {
   })
 
   it("adds a normalised to-do with the next id and bumps the counter", () => {
-    const s = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const s = addWalk(initialState(NOW_MS))
     expect(s.todos).toHaveLength(8)
     expect(s.todos.at(-1)).toEqual({
       id: "todo-8",
       title: "Walk the dog",
       note: "after clinic",
       done: false,
+      createdOn: TODAY,
+      doneOn: null,
     })
     expect(s.nextId).toBe(9)
   })
 
   it("refuses to add a blank title", () => {
     const start = initialState(NOW_MS)
-    expect(reducer(start, { type: "add", input: { title: "   ", note: "", done: false } })).toBe(start)
+    expect(reducer(start, { type: "add", input: { title: "   ", note: "", done: false }, today: TODAY })).toBe(start)
   })
 
   it("updates a to-do in place and is a no-op when nothing changed", () => {
-    const start = reducer(initialState(NOW_MS), { type: "add", input: WALK })
-    const same = reducer(start, { type: "update", id: "todo-8", input: WALK })
+    const start = addWalk(initialState(NOW_MS))
+    const same = reducer(start, { type: "update", id: "todo-8", input: WALK, today: TODAY })
     expect(same).toBe(start)
     const changed = reducer(start, {
       type: "update",
       id: "todo-8",
       input: { ...WALK, note: "before dinner", done: true },
+      today: TODAY,
     })
     expect(changed).not.toBe(start)
-    expect(changed.todos.at(-1)).toMatchObject({ note: "before dinner", done: true, id: "todo-8" })
-    expect(reducer(start, { type: "update", id: "todo-404", input: WALK })).toBe(start)
+    expect(changed.todos.at(-1)).toMatchObject({
+      note: "before dinner",
+      done: true,
+      id: "todo-8",
+      createdOn: TODAY,
+      doneOn: TODAY,
+    })
+    expect(reducer(start, { type: "update", id: "todo-404", input: WALK, today: TODAY })).toBe(start)
   })
 
   it("toggles done and is a no-op for an unknown id", () => {
     const start = initialState(NOW_MS)
-    const s = reducer(start, { type: "toggle", id: "todo-1" })
+    const s = reducer(start, { type: "toggle", id: "todo-1", today: TODAY })
     expect(s.todos[0].done).toBe(true)
-    expect(reducer(s, { type: "toggle", id: "todo-1" }).todos[0].done).toBe(false)
-    expect(reducer(start, { type: "toggle", id: "nope" })).toBe(start)
+    expect(s.todos[0].doneOn).toBe(TODAY)
+    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].done).toBe(false)
+    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].doneOn).toBeNull()
+    expect(reducer(start, { type: "toggle", id: "nope", today: TODAY })).toBe(start)
   })
 
   it("removes by id and is a no-op for an unknown id; the counter never goes back", () => {
-    const start = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const start = addWalk(initialState(NOW_MS))
     const s = reducer(start, { type: "remove", id: "todo-8" })
     expect(s.todos).toHaveLength(7)
     expect(s.nextId).toBe(9)
@@ -139,12 +153,12 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
     expect(shellToday({ nowMs: LATE_EVENING_CT_MS })).toBe("2026-10-07")
     expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
     const s = shellReducer(fresh, hydrate(null, LATE_EVENING_CT_MS))
-    expect(s.data.todos).toEqual(seedTodos())
+    expect(s.data.todos).toEqual(seedTodos("2026-10-07"))
     expect(shellToday(s)).toBe("2026-10-07")
   })
 
   it("a hydrate never moves the edit counter; a local unsaved edit wins over an incoming copy", () => {
-    const edited = shellReducer(fresh, { type: "add", input: WALK })
+    const edited = shellReducer(fresh, { type: "add", input: WALK, today: TODAY })
     const racing = shellReducer(edited, hydrate(initialState(NOW_MS)))
     expect(racing.edits).toBe(1)
     expect(racing.data).toBe(edited.data)
@@ -156,7 +170,7 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
   })
 
   it("reset regenerates the seed around the given instant and returns to the never-edited state", () => {
-    const s = shellReducer(shellReducer(fresh, { type: "add", input: WALK }), {
+    const s = shellReducer(shellReducer(fresh, { type: "add", input: WALK, today: TODAY }), {
       type: "reset",
       nowMs: noonMs("2026-10-07"),
     })
@@ -190,6 +204,8 @@ describe("isState rejects a bad saved copy", () => {
     ["todos not an array", { ...good, todos: {} }],
     ["a malformed row", { ...good, todos: [{ ...good.todos[0], done: "yes" }] }],
     ["a row with a blank title", { ...good, todos: [{ ...good.todos[0], title: "" }] }],
+    ["a row missing createdOn", { ...good, todos: [{ ...good.todos[0], createdOn: undefined }] }],
+    ["a done row with no doneOn", { ...good, todos: [{ ...good.todos[0], done: true, doneOn: null }] }],
     ["duplicate ids", { ...good, todos: [good.todos[0], good.todos[0]] }],
     ["nextId not above the highest id", { ...good, nextId: 7 }],
     ["nextId fractional", { ...good, nextId: 8.5 }],
@@ -204,7 +220,7 @@ describe("isState rejects a bad saved copy", () => {
 
   it("accepts the seed, an edited copy and an empty list", () => {
     expect(isState(good)).toBe(true)
-    expect(isState(reducer(good, { type: "add", input: WALK }))).toBe(true)
+    expect(isState(addWalk(good))).toBe(true)
     expect(
       isState({
         todos: [],
@@ -243,20 +259,20 @@ describe("isState rejects a bad saved copy", () => {
 })
 
 describe("localStorage", () => {
-  it("uses the v1 key", () => {
-    expect(STORAGE_KEY).toBe("hotdash.my-desk.v1")
+  it("uses the v2 key", () => {
+    expect(STORAGE_KEY).toBe("hotdash.my-desk.v2")
   })
 
   it("loadState returns null when nothing is saved and the stripped copy when there is", () => {
     expect(loadState(window.localStorage)).toBeNull()
-    const edited = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const edited = addWalk(initialState(NOW_MS))
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...edited, extra: 1 }))
     expect(loadState(window.localStorage)).toEqual(edited)
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    const s = reducer(initialState(NOW_MS), { type: "add", input: WALK })
+    const s = addWalk(initialState(NOW_MS))
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
     const other = reducer(s, { type: "remove", id: "todo-1" })

@@ -3,13 +3,15 @@
 import * as React from "react"
 import { CheckIcon, NotebookPenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { formatRelative } from "@/lib/clock"
+import { formatRelative, type IsoDay } from "@/lib/clock"
 import {
+  carryFromLabel,
   describeTodo,
   formatDeskDate,
   isSeedTodo,
   openCount,
   TODO_LIMITS,
+  todaysTodos,
   type Todo,
 } from "@/lib/my-desk"
 import { cn } from "@/lib/utils"
@@ -101,15 +103,18 @@ function DeleteDialog({
 
 function TodoRow({
   todo,
+  today,
   onEdit,
   onDelete,
   onToggle,
 }: {
   todo: Todo
+  today: IsoDay
   onEdit: (todo: Todo) => void
   onDelete: (todo: Todo) => void
   onToggle: (todo: Todo) => void
 }) {
+  const carryFrom = carryFromLabel(todo.createdOn, today)
   return (
     <li
       data-todo={todo.id}
@@ -143,6 +148,14 @@ function TodoRow({
           >
             {todo.title}
           </p>
+          {carryFrom ? (
+            <span
+              data-testid="carry-from"
+              className="text-micro text-muted-foreground tracking-tight"
+            >
+              {carryFrom}
+            </span>
+          ) : null}
           {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
         </div>
         {todo.note ? (
@@ -320,7 +333,8 @@ export function MyDeskScreen() {
   const [deleting, setDeleting] = React.useState<Target<object> | null>(null)
   const [removed, setRemoved] = React.useState<Todo | null>(null)
 
-  const open = openCount(todos)
+  const visible = todaysTodos(todos, today)
+  const open = openCount(visible)
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
@@ -363,7 +377,7 @@ export function MyDeskScreen() {
               </div>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 px-2 pt-1">
-              {todos.length === 0 ? (
+              {visible.length === 0 ? (
                 <div
                   role="status"
                   aria-label="No to-dos"
@@ -379,10 +393,11 @@ export function MyDeskScreen() {
                 </div>
               ) : (
                 <ul>
-                  {todos.map((todo) => (
+                  {visible.map((todo) => (
                     <TodoRow
                       key={todo.id}
                       todo={todo}
+                      today={today}
                       onEdit={(t) => setEditing({ todo: t, open: true })}
                       onDelete={(t) => setDeleting({ todo: t, open: true })}
                       onToggle={(t) => toggleTodo(t.id)}

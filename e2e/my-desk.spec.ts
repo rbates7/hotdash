@@ -1,13 +1,13 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { EMPTY_COPY, SCRATCH_SAVE_MS } from "../src/components/my-desk/my-desk-screen"
-import { formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
-import { now, todayIn } from "../src/lib/clock"
+import { carryFromLabel, formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
+import { addDays, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
-const STORAGE_KEY = "hotdash.my-desk.v1"
+const STORAGE_KEY = "hotdash.my-desk.v2"
 
 const today = () => todayIn(now())
 
@@ -32,6 +32,70 @@ async function freshDesk(page: Page) {
 }
 
 test.describe("My Desk", () => {
+  test("yesterday's unfinished item carries over with its day label; a finished one does not", async ({
+    page,
+  }) => {
+    const today = todayIn(now())
+    const yesterday = addDays(today, -1)
+    const label = carryFromLabel(yesterday, today)
+    expect(label).toMatch(/^from [A-Z][a-z]{2}$/)
+
+    await page.goto("/my-desk")
+    await page.evaluate(
+      ([key, day, prior]) => {
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            todos: [
+              {
+                id: "todo-20",
+                title: "Finish the packet",
+                note: "Aledo",
+                done: false,
+                createdOn: prior,
+                doneOn: null,
+              },
+              {
+                id: "todo-21",
+                title: "Already filed",
+                note: "",
+                done: true,
+                createdOn: prior,
+                doneOn: prior,
+              },
+              {
+                id: "todo-22",
+                title: "Call today",
+                note: "",
+                done: false,
+                createdOn: day,
+                doneOn: null,
+              },
+            ],
+            nextId: 23,
+            scratch: "",
+            scratchUpdatedAt: new Date().toISOString(),
+          })
+        )
+      },
+      [STORAGE_KEY, today, yesterday] as const
+    )
+    await page.reload()
+    await expect(note(page)).toHaveText(NOTE.saved)
+
+    const carried = todoRow(page, "Finish the packet")
+    await expect(carried).toBeVisible()
+    await expect(carried.getByTestId("carry-from")).toHaveText(label!)
+    await expect(todoBox(page, "Already filed")).toHaveCount(0)
+    await expect(todoBox(page, "Call today")).toBeVisible()
+    await expect(todoRow(page, "Call today").getByTestId("carry-from")).toHaveCount(0)
+    await expect(page.getByTestId("open-count")).toHaveText("2")
+
+    await page.reload()
+    await expect(todoBox(page, "Finish the packet")).toHaveCount(1)
+    await expect(todayList(page).getByTestId("carry-from")).toHaveCount(1)
+  })
+
   test("is reachable from the sidebar and shows the mock's two cards", async ({ page }) => {
     await page.goto("/home")
     await rail(page).getByRole("link", { name: "My Desk", exact: true }).click()

@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { addDays, now, todayIn } from "../src/lib/clock"
+import { carryFromLabel } from "../src/lib/my-desk"
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 import { setTheme } from "./support/theme"
@@ -20,7 +22,7 @@ const OUT_DIRS = [
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
-const STORAGE_KEY = "hotdash.my-desk.v1"
+const STORAGE_KEY = "hotdash.my-desk.v2"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -116,5 +118,60 @@ for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme)
     await expect(page.getByRole("heading", { name: "My Desk couldn’t render" })).toBeVisible()
     await shoot(page, `my-desk-error-${theme}`)
+  })
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`captures a carried-over row next to today's items (${theme})`, async ({ page }) => {
+    const today = todayIn(now())
+    const yesterday = addDays(today, -1)
+    const label = carryFromLabel(yesterday, today)
+    await page.goto("/my-desk")
+    await page.evaluate(
+      ([key, day, prior]) => {
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            todos: [
+              {
+                id: "todo-20",
+                title: "Finish the packet",
+                note: "Aledo",
+                done: false,
+                createdOn: prior,
+                doneOn: null,
+              },
+              {
+                id: "todo-21",
+                title: "Already filed",
+                note: "",
+                done: true,
+                createdOn: prior,
+                doneOn: prior,
+              },
+              {
+                id: "todo-22",
+                title: "Call today",
+                note: "on the list with the carry-over",
+                done: false,
+                createdOn: day,
+                doneOn: null,
+              },
+            ],
+            nextId: 23,
+            scratch: "Keep this off Workplace. Personal only.",
+            scratchUpdatedAt: new Date().toISOString(),
+          })
+        )
+      },
+      [STORAGE_KEY, today, yesterday] as const
+    )
+    await page.reload()
+    await setTheme(page, theme)
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+    await expect(todayList(page).getByRole("checkbox", { name: "Finish the packet", exact: true })).toBeVisible()
+    await expect(todayList(page).getByTestId("carry-from")).toHaveText(label ?? "")
+    await expect(todayList(page).getByRole("checkbox", { name: "Call today", exact: true })).toBeVisible()
+    await shoot(page, `my-desk-carryover-${theme}`)
   })
 }

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -127,7 +127,7 @@ describe("MyDeskScreen", () => {
       await user.click(screen.getByRole("button", { name: "Add to-do" }))
       const dialog = await screen.findByRole("dialog", { name: "Add to-do" })
       const title = within(dialog).getByLabelText("Title")
-      expect(title).toHaveFocus()
+      await waitFor(() => expect(title).toHaveFocus())
       expect(title).toHaveAttribute("maxlength", String(TODO_LIMITS.title))
       expect(within(dialog).getByLabelText(/Note/)).toHaveAttribute("maxlength", String(TODO_LIMITS.note))
       const submit = within(dialog).getByRole("button", { name: "Add to-do" })
@@ -210,6 +210,50 @@ describe("MyDeskScreen", () => {
       })
       unmount()
       expect(window.localStorage.getItem(STORAGE_KEY)).toContain("typed then leave")
+    })
+  })
+
+  describe("carry-over", () => {
+    const yesterday = "2026-08-25"
+
+    it("shows yesterday's unfinished row with a from-day label and hides yesterday's done row", () => {
+      saveState(window.localStorage, {
+        ...initialState(NOW_MS),
+        todos: [
+          {
+            id: "todo-20",
+            title: "Finish the packet",
+            note: "Aledo",
+            done: false,
+            createdOn: yesterday,
+            doneOn: null,
+          },
+          {
+            id: "todo-21",
+            title: "Already filed",
+            note: "",
+            done: true,
+            createdOn: yesterday,
+            doneOn: yesterday,
+          },
+          {
+            id: "todo-22",
+            title: "Call today",
+            note: "",
+            done: false,
+            createdOn: DESK_MOCK_DAY,
+            doneOn: null,
+          },
+        ],
+        nextId: 23,
+      })
+      renderScreen()
+      const carried = screen.getByRole("checkbox", { name: "Finish the packet" }).closest("li")!
+      expect(within(carried).getByTestId("carry-from")).toHaveTextContent("from Tue")
+      expect(screen.queryByRole("checkbox", { name: "Already filed" })).not.toBeInTheDocument()
+      const fresh = screen.getByRole("checkbox", { name: "Call today" }).closest("li")!
+      expect(within(fresh).queryByTestId("carry-from")).not.toBeInTheDocument()
+      expect(screen.getByTestId("open-count")).toHaveTextContent("2")
     })
   })
 

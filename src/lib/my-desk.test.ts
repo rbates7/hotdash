@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { todayIn } from "@/lib/clock"
+import { addDays, todayIn } from "@/lib/clock"
 import {
   DESK_MOCK_DAY,
   SEED_SCRATCH,
   SEED_TODO_IDS,
   TODO_LIMITS,
+  carryFromLabel,
   describeTodo,
   formatDeskDate,
   isSeedScratch,
@@ -18,6 +19,7 @@ import {
   seedTodos,
   stripTodo,
   todoNumber,
+  todaysTodos,
   type Todo,
 } from "@/lib/my-desk"
 import { LATE_EVENING_CT } from "@/test/clock"
@@ -79,7 +81,7 @@ describe("guards and normalising", () => {
   it("stripTodo / normalize drop extras and clamp; sameTodo is field-by-field", () => {
     const dirty = { ...one, extra: true } as Todo & { extra: boolean }
     const clean = stripTodo(dirty)
-    expect(Object.keys(clean)).toEqual(["id", "title", "note", "done"])
+    expect(Object.keys(clean)).toEqual(["id", "title", "note", "done", "createdOn", "doneOn"])
     expect(normalizeTodoInput({ title: "  Call  ", note: "  note  ", done: false })).toEqual({
       title: "Call",
       note: "note",
@@ -90,5 +92,78 @@ describe("guards and normalising", () => {
     expect(sameTodo(one, { ...one, done: true })).toBe(false)
     expect(describeTodo(one)).toBe("Call Aledo — HC — Friday walk-through")
     expect(describeTodo({ title: "Just a title", note: "" })).toBe("Just a title")
+    expect(isTodo({ ...one, createdOn: "2026-13-45" })).toBe(false)
+    expect(isTodo({ ...one, done: true, doneOn: null })).toBe(false)
+    expect(isTodo({ ...one, done: false, doneOn: DESK_MOCK_DAY })).toBe(false)
+  })
+})
+
+describe("todaysTodos carries unfinished rows and hides earlier-day completions", () => {
+  const tue = "2026-10-06"
+  const wed = "2026-10-07"
+  const thu = "2026-10-08"
+  const openFromTue: Todo = {
+    id: "todo-10",
+    title: "Finish the packet",
+    note: "",
+    done: false,
+    createdOn: tue,
+    doneOn: null,
+  }
+  const doneOnTue: Todo = {
+    id: "todo-11",
+    title: "Already filed",
+    note: "",
+    done: true,
+    createdOn: tue,
+    doneOn: tue,
+  }
+  const doneToday: Todo = {
+    id: "todo-12",
+    title: "Checked off today",
+    note: "",
+    done: true,
+    createdOn: tue,
+    doneOn: wed,
+  }
+  const addedToday: Todo = {
+    id: "todo-13",
+    title: "New today",
+    note: "",
+    done: false,
+    createdOn: wed,
+    doneOn: null,
+  }
+
+  it("23:30 CT on Wed is still Wed: unfinished from Tue shows, Tue's done item does not", () => {
+    const today = todayIn(LATE_EVENING_CT)
+    expect(today).toBe(wed)
+    expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
+    const visible = todaysTodos([openFromTue, doneOnTue, doneToday, addedToday], today)
+    expect(visible.map((t) => t.id)).toEqual(["todo-10", "todo-12", "todo-13"])
+    expect(carryFromLabel(openFromTue.createdOn, today)).toBe("from Tue")
+    expect(carryFromLabel(addedToday.createdOn, today)).toBeNull()
+  })
+
+  it("00:01 CT on Thu is the next Central day; the same unfinished row still shows once", () => {
+    const afterMidnight = new Date("2026-10-08T05:01:00.000Z")
+    const today = todayIn(afterMidnight)
+    expect(today).toBe(thu)
+    expect(addDays(wed, 1)).toBe(thu)
+    const stored = [openFromTue, doneOnTue, doneToday, addedToday]
+    const first = todaysTodos(stored, today)
+    const second = todaysTodos(stored, today)
+    const again = todaysTodos(first, today)
+    expect(first.map((t) => t.id)).toEqual(["todo-10", "todo-13"])
+    expect(second.map((t) => t.id)).toEqual(first.map((t) => t.id))
+    expect(again.map((t) => t.id)).toEqual(first.map((t) => t.id))
+    expect(carryFromLabel(openFromTue.createdOn, today)).toBe("from Tue")
+    expect(carryFromLabel(addedToday.createdOn, today)).toBe("from Wed")
+    expect(first.filter((t) => t.id === "todo-10")).toHaveLength(1)
+  })
+
+  it("a row completed today stays visible; a row completed yesterday does not", () => {
+    expect(todaysTodos([doneToday, doneOnTue], wed).map((t) => t.id)).toEqual(["todo-12"])
+    expect(todaysTodos([doneToday, doneOnTue], thu)).toEqual([])
   })
 })
