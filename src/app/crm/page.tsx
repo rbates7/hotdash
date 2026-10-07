@@ -1,3 +1,5 @@
+import { OverviewScreen } from "@/components/crm/overview-screen"
+
 export default function CrmPage() {
-  return <h1 className="text-2xl font-semibold">CRM</h1>
+  return <OverviewScreen />
 }
