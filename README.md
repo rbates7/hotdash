@@ -5,9 +5,15 @@ Chlk founder dashboard — a Next.js App Router dashboard built with shadcn/ui
 
 ## Status
 
-**Phase 1 — sidebar shell.** The 14-item sidebar is complete: collapsible
-icon rail, light/dark toggle, pinned footer, and active-state highlighting.
-The 13 routes it links to are intentional stubs; each gets its own build phase.
+**Phase 1 — sidebar shell** is complete: collapsible icon rail, light/dark
+toggle, pinned footer, and active-state highlighting.
+
+**Phase 2 — Agent Workplace** is built against the `workplace-v0` mock:
+Issues board (five columns, All/Members/Agents/New, "agents working" pill),
+Backlog with sprints, ticket view, Agents roster, Autopilots, Inbox, and a
+Chat door. Board edits are saved to the browser's localStorage until a real
+datastore exists; use "Reset" in the page header to restore the demo data.
+The other 12 routes are intentional stubs; each gets its own build phase.
 
 ## Getting started
 
@@ -27,6 +33,8 @@ Open http://localhost:3000 — it redirects to `/home`.
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm test` | Vitest unit + component tests |
+| `pnpm test:e2e` | Playwright smoke (`pnpm exec playwright install chromium` once) |
 
 ## Layout
 
