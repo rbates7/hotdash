@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import {
   STATUS_BANNER,
+  STATUS_BANNER_META,
   STATUS_HEADER,
+  STATUS_HEADER_META,
   STATUS_INCIDENT,
   STATUS_PREVIEW,
   STATUS_PREVIEW_OPTION,
   STATUS_ROW,
+  STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
 
 describe("System Status responsive layout", () => {
@@ -20,7 +23,14 @@ describe("System Status responsive layout", () => {
     expect(STATUS_PREVIEW).toContain("max-md:w-full")
     expect(STATUS_PREVIEW).toContain("xl:h-8")
     expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-h-11")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:flex-1")
+    expect(STATUS_PREVIEW_OPTION).toContain("max-md:flex-1")
+    expect(STATUS_PREVIEW_OPTION).toContain("max-md:justify-center")
+    expect(STATUS_PREVIEW_OPTION).toContain("whitespace-nowrap")
+    expect(STATUS_PREVIEW_OPTION).not.toContain("max-xl:flex-1")
+    expect(STATUS_HEADER_META).toContain("max-md:items-start")
+    expect(STATUS_BANNER_META).toContain("max-md:pl-10")
+    expect(STATUS_BANNER_META).not.toContain("pl-11")
+    expect(STATUS_ROW_LINK).toBe("max-md:min-h-11")
   })
 
   it("stacks the banner and service rows on phone only", () => {

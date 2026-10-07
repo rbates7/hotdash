@@ -38,6 +38,7 @@ import {
   STATUS_PREVIEW,
   STATUS_PREVIEW_OPTION,
   STATUS_ROW,
+  STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
 
 /* ------------------------------------------------------------------ tone */
@@ -210,7 +211,13 @@ function ServiceRow({ service, nowMs }: { service: Service; nowMs: number }) {
       className={STATUS_ROW}
     >
       <div className="text-body min-w-0 font-semibold tracking-tight [grid-area:name]">
-        {service.href ? <OutLink href={service.href}>{service.name}</OutLink> : service.name}
+        {service.href ? (
+          <OutLink href={service.href} className={STATUS_ROW_LINK}>
+            {service.name}
+          </OutLink>
+        ) : (
+          service.name
+        )}
       </div>
       <StatusLabel status={service.status} className="self-center justify-self-end [grid-area:status]" />
       <p className="text-caption text-muted-foreground [grid-area:reason] tracking-tight">{service.reason}</p>
