@@ -114,7 +114,7 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.goto("/my-desk?shot=error")
     await setTheme(page, theme)
-    await expect(page.getByRole("alert")).toContainText("My Desk couldn’t render")
+    await expect(page.getByRole("heading", { name: "My Desk couldn’t render" })).toBeVisible()
     await shoot(page, `my-desk-error-${theme}`)
   })
 }

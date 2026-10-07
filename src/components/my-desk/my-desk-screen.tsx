@@ -43,7 +43,7 @@ export const SCRATCH_SAVE_MS = 300
  */
 function ScreenSkeleton() {
   return (
-    <div role="status" aria-label="Loading saved desk" className="grid min-h-[420px] grid-cols-1 gap-4 lg:grid-cols-2">
+    <div role="status" aria-label="Loading saved desk" className="grid min-h-[min(560px,calc(100svh-10rem))] grid-cols-1 gap-4 lg:grid-cols-2">
       {[0, 1].map((i) => (
         <div key={i} className="flex flex-col gap-3 rounded-xl ring-1 ring-foreground/10 p-4">
           <div className="flex items-center justify-between">
@@ -231,7 +231,7 @@ function ScratchPane() {
           : SCRATCH_HINT
 
   return (
-    <Card className="min-h-[420px] flex-1" size="sm" role="region" aria-label="Notes">
+    <Card className="flex h-full min-h-[min(560px,calc(100svh-10rem))] flex-1" size="sm" role="region" aria-label="Notes">
       <CardHeader className="border-b">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -303,8 +303,8 @@ export function MyDeskScreen() {
       {!persisted ? (
         <ScreenSkeleton />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-          <Card className="min-h-[420px] flex-1" size="sm" role="region" aria-label="Today list">
+        <div className="grid min-h-[min(560px,calc(100svh-10rem))] flex-1 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+          <Card className="flex h-full min-h-[min(560px,calc(100svh-10rem))] flex-1" size="sm" role="region" aria-label="Today list">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-[13px] font-semibold tracking-tight">Today</CardTitle>
