@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
+import { setTheme } from "./support/theme"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 test.describe("Home", () => {
@@ -113,10 +114,7 @@ test.describe("Home", () => {
     await expect(chips).toHaveCount(4)
 
     for (const theme of ["Light", "Dark"] as const) {
-      await page.getByRole("button", { name: theme, exact: true }).click()
-      await expect(page.locator("html")).toHaveClass(
-        theme === "Dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-      )
+      await setTheme(page, theme === "Dark" ? "dark" : "light")
       await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
 
       await expect(label).toBeVisible()
