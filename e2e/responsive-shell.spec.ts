@@ -36,21 +36,40 @@ async function gotoHydrated(page: import("@playwright/test").Page, path = "/home
   await waitForHydration(page)
 }
 
+async function expectMinHit(
+  locator: import("@playwright/test").Locator,
+  label: string,
+  min = 44
+) {
+  const box = await locator.boundingBox()
+  expect(box, label).toBeTruthy()
+  expect(box!.width, `${label} width`).toBeGreaterThanOrEqual(min)
+  expect(box!.height, `${label} height`).toBeGreaterThanOrEqual(min)
+}
+
 test.describe("responsive shell (phone 390)", () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
   test("top bar shows founder identity and opens the overlay drawer", async ({ page }) => {
     await gotoHydrated(page)
-    await expect(openMenuButton(page)).toBeVisible()
+    const menu = openMenuButton(page)
+    await expect(menu).toBeVisible()
+    await expectMinHit(menu, "phone menu")
+    await expectMinHit(
+      page.getByRole("region", { name: APP_HEADER_NAME }).getByRole("button", {
+        name: /Switch to/,
+      }),
+      "phone theme icon"
+    )
     await expect(
       page.getByRole("region", { name: APP_HEADER_NAME }).getByText(FOUNDER_NAME)
     ).toBeVisible()
     await expect(founderNavDrawer(page)).toHaveCount(0)
 
     const rail = await openFounderNav(page)
-    await expect(
-      founderNavDrawer(page).getByRole("button", { name: CLOSE_DRAWER_NAME })
-    ).toBeVisible()
+    const close = founderNavDrawer(page).getByRole("button", { name: CLOSE_DRAWER_NAME })
+    await expect(close).toBeVisible()
+    await expectMinHit(close, "drawer X")
     const links = rail.getByRole("link")
     await expect(links).toHaveCount(NAV_LINK_COUNT)
     await rail.getByRole("link", { name: "Metrics", exact: true }).click()
@@ -240,6 +259,12 @@ test.describe("responsive shell (tablet landscape 1180)", () => {
     const links = founderNav(page).getByRole("link")
     await expect(links).toHaveCount(NAV_LINK_COUNT)
     await expectNavLinkHeights(page, { min: 44 })
+    await expectMinHit(
+      page.getByRole("button", { name: COLLAPSE_SIDEBAR_NAME }),
+      "1180 chevron"
+    )
+    await expectMinHit(page.getByRole("button", { name: "Light" }), "1180 Light toggle")
+    await expectMinHit(page.getByRole("button", { name: "Dark" }), "1180 Dark toggle")
     await expectOneAriaCurrent(page)
     await expectNoOverflowX(page)
     await founderNav(page).getByRole("link", { name: "Home", exact: true }).click()
@@ -258,6 +283,17 @@ test.describe("responsive shell (desktop 1440)", () => {
     const links = founderNav(page).getByRole("link")
     await expect(links).toHaveCount(NAV_LINK_COUNT)
     await expectNavLinkHeights(page, { exact: 32 })
+    const chevron = page.getByRole("button", { name: COLLAPSE_SIDEBAR_NAME })
+    const chevronBox = await chevron.boundingBox()
+    expect(chevronBox, "1440 chevron").toBeTruthy()
+    expect(chevronBox!.width).toBe(24)
+    expect(chevronBox!.height).toBe(24)
+    const light = await page.getByRole("button", { name: "Light" }).boundingBox()
+    const dark = await page.getByRole("button", { name: "Dark" }).boundingBox()
+    expect(light, "1440 Light").toBeTruthy()
+    expect(dark, "1440 Dark").toBeTruthy()
+    expect(light!.height).toBeLessThan(44)
+    expect(dark!.height).toBeLessThan(44)
     await expectOneAriaCurrent(page)
     await expectNoOverflowX(page)
     await founderNav(page).getByRole("link", { name: "Home", exact: true }).click()

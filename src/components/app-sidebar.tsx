@@ -60,8 +60,8 @@ function CollapseToggle() {
       onClick={toggleSidebar}
       className={cn(
         "bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm",
-        "md:max-lg:top-1.5 md:max-lg:-right-5 md:max-lg:size-11 md:max-lg:border-0 md:max-lg:bg-transparent md:max-lg:shadow-none md:max-lg:hover:bg-transparent",
-        "lg:max-xl:top-1.5 lg:max-xl:size-11"
+        "md:max-lg:top-1.5 md:max-lg:-right-5 md:max-lg:size-11! md:max-lg:border-0 md:max-lg:bg-transparent md:max-lg:shadow-none md:max-lg:hover:bg-transparent",
+        "lg:max-xl:top-1.5 lg:max-xl:size-11!"
       )}
     >
       <span
@@ -86,7 +86,7 @@ function DrawerClose() {
       type="button"
       variant="ghost"
       size="icon"
-      className="size-11 shrink-0"
+      className="size-11! shrink-0"
       onClick={() => setOpenMobile(false)}
     >
       <XIcon aria-hidden />

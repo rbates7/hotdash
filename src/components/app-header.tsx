@@ -31,7 +31,7 @@ export function AppHeader() {
         data-slot="sidebar-trigger"
         variant="ghost"
         size="icon"
-        className="size-11"
+        className="size-11!"
         aria-expanded={openMobile}
         aria-controls="founder-nav-drawer"
         onClick={toggleSidebar}
@@ -40,7 +40,7 @@ export function AppHeader() {
         <span className="sr-only">{openMobile ? CLOSE_MENU_NAME : OPEN_MENU_NAME}</span>
       </Button>
       <FounderIdentity />
-      <ThemeToggle appearance="icon" className="size-11" />
+      <ThemeToggle appearance="icon" className="size-11!" />
     </div>
   )
 }

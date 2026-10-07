@@ -75,7 +75,7 @@ export function ThemeToggle({
       aria-label="Theme"
       variant="outline"
       spacing={0}
-      className={cn("bg-muted w-full max-xl:h-11", className)}
+      className={cn("bg-muted w-full", className)}
       value={[theme === "light" ? "light" : "dark"]}
       onValueChange={(value) => {
         // Single-select group: ignore the empty array when the pressed item
@@ -83,11 +83,11 @@ export function ThemeToggle({
         if (value[0]) setTheme(value[0])
       }}
     >
-      <ToggleGroupItem value="light" className={cn("flex-1", PRESSED)}>
+      <ToggleGroupItem value="light" className={cn("max-xl:h-11! flex-1", PRESSED)}>
         <SunIcon />
         Light
       </ToggleGroupItem>
-      <ToggleGroupItem value="dark" className={cn("flex-1", PRESSED)}>
+      <ToggleGroupItem value="dark" className={cn("max-xl:h-11! flex-1", PRESSED)}>
         <MoonIcon />
         Dark
       </ToggleGroupItem>
