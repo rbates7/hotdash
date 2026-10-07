@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { NOTE, resetDemoData } from "./support/persistence"
+
 /**
  * Review screenshots for the Metrics page, every main state in both themes
  * at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
@@ -48,7 +50,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
+    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
     await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month bar chart, / })).toBeVisible()
 
     // Overview with data.
@@ -84,7 +86,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     await expect(page.getByRole("status", { name: "Empty board" })).toBeVisible()
     await shoot(page, `metrics-overview-empty-${theme}`)
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await resetDemoData(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
 
     // Tables.
@@ -117,7 +119,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `metrics-expenses-persisted-after-reload-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
+    await resetDemoData(page)
     await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
   })
 }

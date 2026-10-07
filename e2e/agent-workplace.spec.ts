@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+import { NOTE, resetDemoData } from "./support/persistence"
+
 test.describe("Agent Workplace", () => {
   test("is reachable from the sidebar and shows the board", async ({ page }) => {
     await page.goto("/home")
@@ -47,7 +49,7 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("button", { name: "Project: Billing" })).toBeVisible()
     await page.keyboard.press("Escape")
 
-    await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
+    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.saved)
 
     await page.reload()
     await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()
@@ -55,7 +57,7 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("button", { name: "Project: Billing" })).toBeVisible()
 
     // Reset puts the seed back.
-    await page.getByRole("button", { name: "Reset" }).click()
+    await resetDemoData(page)
     await expect(page.getByRole("button", { name: "Priority: Urgent" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Project: No project" })).toBeVisible()
   })
