@@ -12,7 +12,10 @@ import { RoadmapProvider, STORAGE_KEY } from "@/components/product-roadmap/roadm
 
 const NOW = Date.parse("2026-10-07T15:00:00.000Z")
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 function Screen({ nowMs = NOW }: { nowMs?: number }) {
   return (
@@ -181,7 +184,8 @@ describe("board", () => {
   })
 
   it("edits a bet; rewriting drops the sample tag; a no-op edit cannot be saved", async () => {
-    const user = userEvent.setup()
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<Screen />)
     await user.click(within(card("Web import from a link")).getByRole("button", { name: "Edit" }))
     const dialog = await screen.findByRole("dialog", { name: "Bet: Web import from a link" })
@@ -210,9 +214,16 @@ describe("board", () => {
     const edited = card("Import a play from a HUDL link")
     expect(edited).toHaveTextContent("Dec 2026")
     expect(within(edited).queryByTestId("sample-data-tag")).toBeNull()
+    expect(within(edited).getByTitle(TICKETS_TITLE)).toHaveTextContent("No tickets")
+    expect(within(edited).queryByTitle(SOURCE_CHIP_TITLE)).toBeNull()
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(7)
     expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("7 bets")
     expect(titlesIn("Next")[0]).toBe("Import a play from a HUDL link") // same place in the sequence
+
+    await user.click(within(edited).getByRole("button", { name: "Edit" }))
+    const after = await screen.findByRole("dialog", { name: "Bet: Import a play from a HUDL link" })
+    expect(after).toHaveTextContent("Signed just now")
+    expect(after).not.toHaveTextContent("from Feature Request")
   })
 
   it("re-owning from the dialog keeps the sample tag", async () => {

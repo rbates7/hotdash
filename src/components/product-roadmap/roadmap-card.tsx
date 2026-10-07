@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -16,6 +17,17 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
 import { SampleDataTag } from "@/components/sample-data"
+
+/** Sequencing control that just ran; the board asks the moved card to refocus it. */
+export type CardControl = "up" | "down" | "left" | "right"
+export type FocusRequest = { id: string; control: CardControl }
+
+function isEnabled(el: HTMLElement | null): el is HTMLElement {
+  if (!el) return false
+  if ((el as HTMLButtonElement).disabled) return false
+  if (el.getAttribute("aria-disabled") === "true") return false
+  return true
+}
 
 export const SOURCE_CHIP_TITLE =
   "Came in through the Feature Request intake. Shown for context; the two pages are not linked yet."
@@ -39,7 +51,7 @@ export function OwnerChip({ owner, className }: { owner: string; className?: str
     >
       <span
         aria-hidden
-        className="bg-brand text-brand-foreground grid size-4 place-items-center rounded-full text-[9px] leading-none font-semibold"
+        className="bg-foreground text-background grid size-4 place-items-center rounded-full text-[9px] leading-none font-semibold"
       >
         {owner.charAt(0)}
       </span>
@@ -59,6 +71,9 @@ export function RoadmapCard({
   index,
   count,
   onEdit,
+  focusRequest,
+  onMoved,
+  onFocusConsumed,
 }: {
   item: RoadmapItem
   /** Position within its column, 0-based. */
@@ -66,14 +81,31 @@ export function RoadmapCard({
   /** Cards in its column. */
   count: number
   onEdit: (id: string) => void
+  focusRequest: FocusRequest | null
+  onMoved: (request: FocusRequest) => void
+  onFocusConsumed: () => void
 }) {
   const { moveItem, reorderItem } = useRoadmap()
+  const articleRef = React.useRef<HTMLElement>(null)
   const columnIndex = COLUMN_ORDER.indexOf(item.column)
   const left = columnIndex > 0 ? COLUMN_ORDER[columnIndex - 1] : null
   const right = columnIndex < COLUMN_ORDER.length - 1 ? COLUMN_ORDER[columnIndex + 1] : null
 
+  React.useLayoutEffect(() => {
+    if (!focusRequest || focusRequest.id !== item.id) return
+    const root = articleRef.current
+    if (!root) return
+    const wanted = root.querySelector<HTMLElement>(`[data-control="${focusRequest.control}"]`)
+    const fallback = Array.from(root.querySelectorAll<HTMLElement>("[data-control]")).find(isEnabled)
+    const target = isEnabled(wanted) ? wanted : fallback ?? root
+    target.focus()
+    onFocusConsumed()
+  }, [focusRequest, item.id, onFocusConsumed])
+
   return (
     <article
+      ref={articleRef}
+      tabIndex={-1}
       aria-label={item.title}
       className={cn(
         "bg-surface border-surface-border flex w-full min-w-0 flex-col gap-2 rounded-xl border px-3.5 pt-3.5 pb-2.5",
@@ -104,7 +136,7 @@ export function RoadmapCard({
         {item.fromFeatureRequest && (
           <span
             title={SOURCE_CHIP_TITLE}
-            className="bg-brand/10 text-brand dark:bg-brand/20 inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[10px] leading-none font-semibold whitespace-nowrap"
+            className="bg-brand/10 text-foreground dark:bg-brand/20 border-brand/40 inline-flex h-5 items-center gap-1 rounded-full border px-1.5 text-[10px] leading-none font-semibold whitespace-nowrap"
           >
             <LightbulbIcon className="size-2.5" aria-hidden />
             From Feature Request
@@ -123,20 +155,28 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="icon-xs"
+          data-control="up"
           aria-label="Move up"
           title="Move up within this column"
           disabled={index === 0}
-          onClick={() => reorderItem(item.id, -1)}
+          onClick={() => {
+            reorderItem(item.id, -1)
+            onMoved({ id: item.id, control: "up" })
+          }}
         >
           <ChevronUpIcon />
         </Button>
         <Button
           variant="ghost"
           size="icon-xs"
+          data-control="down"
           aria-label="Move down"
           title="Move down within this column"
           disabled={index >= count - 1}
-          onClick={() => reorderItem(item.id, 1)}
+          onClick={() => {
+            reorderItem(item.id, 1)
+            onMoved({ id: item.id, control: "down" })
+          }}
         >
           <ChevronDownIcon />
         </Button>
@@ -144,20 +184,30 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="icon-xs"
+          data-control="left"
           aria-label={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already first column"}
           title={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already in the first column"}
           disabled={!left}
-          onClick={() => left && moveItem(item.id, left)}
+          onClick={() => {
+            if (!left) return
+            moveItem(item.id, left)
+            onMoved({ id: item.id, control: "left" })
+          }}
         >
           <ChevronLeftIcon />
         </Button>
         <Button
           variant="ghost"
           size="icon-xs"
+          data-control="right"
           aria-label={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already last column"}
           title={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already in the last column"}
           disabled={!right}
-          onClick={() => right && moveItem(item.id, right)}
+          onClick={() => {
+            if (!right) return
+            moveItem(item.id, right)
+            onMoved({ id: item.id, control: "right" })
+          }}
         >
           <ChevronRightIcon />
         </Button>

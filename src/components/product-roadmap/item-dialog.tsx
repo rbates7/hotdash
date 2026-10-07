@@ -44,7 +44,7 @@ const DIALOG_CLASS =
 const INPUT =
   "border-border text-body bg-background rounded-lg border px-2.5 py-1.5 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
 
-const PRESSED = "aria-pressed:bg-brand/12! aria-pressed:text-brand! aria-pressed:border-brand/40!"
+const PRESSED = "aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!"
 
 function Crumbs({ children }: { children: React.ReactNode }) {
   return (

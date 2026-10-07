@@ -133,6 +133,56 @@ test.describe("Product Roadmap", () => {
     await setTheme(page, "dark")
   })
 
+  test("columns, enabled Reset, and pressed New-bet toggles clear 4.5:1 in both themes", async ({ page }) => {
+    await freshBoard(page)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      for (const name of ["Now", "Next", "Later"] as const) {
+        await expectReadable(column(page, name), `${theme}/${name}`, expect)
+      }
+      await button(card(page, "Flag Football 2026"), "Move down").click()
+      await expect(resetButton(page)).toBeEnabled()
+      await expectReadable(header(page), `${theme}/header after edit`, expect)
+      await button(header(page), "New bet").click()
+      const add = dialog(page, "New bet")
+      await button(add.getByRole("group", { name: "Owner", exact: true }), "Mace").click()
+      await button(add.getByRole("group", { name: "Column", exact: true }), "Next").click()
+      await expectReadable(add.getByRole("group", { name: "Owner", exact: true }), `${theme}/Owner pressed`, expect)
+      await expectReadable(add.getByRole("group", { name: "Column", exact: true }), `${theme}/Column pressed`, expect)
+      await page.keyboard.press("Escape")
+      await expect(add).toBeHidden()
+      await resetDemoData(page, header(page), page)
+    }
+  })
+
+  test("keyboard: a column move and a reorder keep focus on the card", async ({ page }) => {
+    await freshBoard(page)
+    const staff = card(page, "Staff seats")
+    await button(staff, "Move to Now").focus()
+    await page.keyboard.press("Enter")
+    const inNow = column(page, "Now").getByRole("article", { name: "Staff seats", exact: true })
+    await expect(inNow).toBeVisible()
+    expect(await inNow.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+
+    const up = button(inNow, "Move up")
+    await up.focus()
+    while (await up.isEnabled()) {
+      await page.keyboard.press("Enter")
+      expect(await inNow.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+    }
+    await expect(up).toBeDisabled()
+    expect(await inNow.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+
+    const down = button(inNow, "Move down")
+    await down.focus()
+    while (await down.isEnabled()) {
+      await page.keyboard.press("Enter")
+      expect(await inNow.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+    }
+    await expect(down).toBeDisabled()
+    expect(await inNow.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+  })
+
   test("negative control: the shared probe catches sabotaged sample-data text, in both themes", async ({ page }) => {
     await freshBoard(page)
     for (const theme of ["light", "dark"] as const) {
@@ -221,6 +271,8 @@ test.describe("Product Roadmap", () => {
     await expect(edited).toBeVisible()
     await expect(edited).toContainText("Dec 2026")
     await expect(edited.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(edited).toContainText("No tickets")
+    await expect(edited).not.toContainText("From Feature Request")
     await expect(sampleNote(page)).toContainText("7 bets")
 
     await page.reload()

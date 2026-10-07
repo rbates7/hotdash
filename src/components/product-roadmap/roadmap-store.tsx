@@ -96,7 +96,13 @@ export function reducer(state: RoadmapState, edit: Edit): RoadmapState {
       if (!rewritten && next.owner === target.owner) return state
       // Rewriting the words makes the bet the founder's; a sample tag on
       // text we did not write would be a lie. Re-owning keeps the tag.
-      if (rewritten && next.sample) delete next.sample
+      // The invented ticket count, source flag and signed date go with it.
+      if (rewritten && next.sample) {
+        delete next.sample
+        delete next.fromFeatureRequest
+        next.linkedTickets = 0
+        next.signedAt = edit.at
+      }
       next.updatedAt = edit.at
       return { ...state, items: state.items.map((i) => (i === target ? next : i)) }
     }

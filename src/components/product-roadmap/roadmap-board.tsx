@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EditBetDialog } from "@/components/product-roadmap/item-dialog"
-import { RoadmapCard } from "@/components/product-roadmap/roadmap-card"
+import { RoadmapCard, type FocusRequest } from "@/components/product-roadmap/roadmap-card"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
 
@@ -103,6 +103,9 @@ export function BoardSkeleton() {
 export function RoadmapBoard() {
   const { items, persisted } = useRoadmap()
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [focusRequest, setFocusRequest] = React.useState<FocusRequest | null>(null)
+  const onMoved = React.useCallback((request: FocusRequest) => setFocusRequest(request), [])
+  const onFocusConsumed = React.useCallback(() => setFocusRequest(null), [])
 
   if (!persisted) return <BoardSkeleton />
 
@@ -151,6 +154,9 @@ export function RoadmapBoard() {
                     index={index}
                     count={cards.length}
                     onEdit={setEditingId}
+                    focusRequest={focusRequest}
+                    onMoved={onMoved}
+                    onFocusConsumed={onFocusConsumed}
                   />
                 ))
               )}

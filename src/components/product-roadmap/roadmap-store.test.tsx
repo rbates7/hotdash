@@ -100,6 +100,24 @@ describe("reducer", () => {
     expect(i.sample).toBeUndefined()
   })
 
+  it("rewriting rm-4's title drops the sample leftovers: no tag, 0 tickets, no source, signedAt = at", () => {
+    const seed = seedState(NOW).items.find((x) => x.id === "rm-4")!
+    expect(seed).toMatchObject({ sample: true, fromFeatureRequest: true, linkedTickets: 1 })
+    expect(seed.signedAt).not.toBe(AT)
+    const state = reducer(seedState(NOW), {
+      type: "patch",
+      id: "rm-4",
+      patch: { title: "Import a play from a HUDL link" },
+      at: AT,
+    })
+    const i = state.items.find((x) => x.id === "rm-4")!
+    expect(i.sample).toBeUndefined()
+    expect(i.fromFeatureRequest).toBeUndefined()
+    expect(i.linkedTickets).toBe(0)
+    expect(i.signedAt).toBe(AT)
+    expect(i.title).toBe("Import a play from a HUDL link")
+  })
+
   it("re-owning a bet keeps the sample tag; it is still our words", () => {
     const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { owner: "Mace" }, at: AT })
     const i = state.items.find((x) => x.id === "rm-1")!
