@@ -49,8 +49,8 @@ function BugRow({ issue, actors, now }: { issue: Issue; actors: Actor[]; now: Da
             </span>
           </span>
         </span>
-        {/* Age since the report, from the page's one clock — the same
-            helper and style the Workplace ticket view uses. */}
+        {/* Age since the report, from the page's one clock — default
+            `ago` style, same as the Workplace ticket view. */}
         <span
           data-testid="bug-age"
           className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap"

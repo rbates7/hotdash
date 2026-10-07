@@ -297,8 +297,6 @@ export function parseIssue(value: unknown): Issue | null {
     !isPriority(v.priority) ||
     !isStringOrNull(v.assigneeId) ||
     !isStringOrNull(v.sprintId) ||
-    !Array.isArray(v.labels) ||
-    !v.labels.every(isString) ||
     !isOptionalString(v.project) ||
     !isString(v.createdById) ||
     !isIsoInstant(v.createdAt) ||
@@ -308,6 +306,11 @@ export function parseIssue(value: unknown): Issue | null {
   ) {
     return null
   }
+  // Labels already lived on the Workplace model. A missing field (an older
+  // copy) is no labels; a present non-array is a bad copy; unknown entries
+  // inside an array are stripped so a stray number cannot drop the board.
+  if (v.labels !== undefined && !Array.isArray(v.labels)) return null
+  const labels = Array.isArray(v.labels) ? dedupe(v.labels.filter(isString)) : []
   const activity = parseAll(v.activity, parseActivity)
   const comments = parseAll(v.comments, parseComment)
   if (!activity || !comments) return null
@@ -318,8 +321,7 @@ export function parseIssue(value: unknown): Issue | null {
     priority: v.priority,
     assigneeId: v.assigneeId,
     sprintId: v.sprintId,
-    // Labels are a set: a copy that says `bug` twice reads as one bug.
-    labels: dedupe(v.labels),
+    labels,
     createdById: v.createdById,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,

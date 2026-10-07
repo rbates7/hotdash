@@ -63,8 +63,8 @@ describe("Bugs screen", () => {
     const coach = within(group("In Review")).getByRole("link", { name: /Route arrows/ })
     expect(within(coach).getByTestId("bug-tag")).toHaveTextContent("Bug · Coach-reported")
 
-    // Age is `formatRelative(createdAt, nowMs)` with the ticket view's style:
-    // the expectation goes through the same helper, never a literal string.
+    // Age is `formatRelative(createdAt, nowMs)` in the default `ago` style
+    // the ticket view uses: the expectation goes through the same helper.
     for (const key of ["CHLK-419", "CHLK-420", "CHLK-404", "CHLK-421"]) {
       const issue = seed.find((i) => i.key === key)!
       const row = within(list()).getByRole("link", { name: new RegExp(key) })

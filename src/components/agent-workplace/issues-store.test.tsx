@@ -334,13 +334,22 @@ describe("saved items are validated one by one (L2)", () => {
     expect(parseState(state)!.issues[3].labels).toEqual(["bug", "editor"])
   })
 
+  it("strips unknown label values and treats a missing field as none", () => {
+    const state = good()
+    state.issues[3] = { ...state.issues[3], labels: ["bug", 7, "editor"] as unknown as string[] }
+    expect(parseState(state)!.issues[3].labels).toEqual(["bug", "editor"])
+    const stripped = { ...state.issues[3] }
+    delete (stripped as { labels?: string[] }).labels
+    state.issues[3] = stripped
+    expect(parseState(state)!.issues[3].labels).toEqual([])
+  })
+
   it("rejects the whole copy when one issue is malformed", () => {
     for (const bad of [
       { status: "shipped" },
       { priority: "p0" },
       { key: 404 },
       { labels: "billing" },
-      { labels: ["bug", 7] },
       { createdAt: "yesterday" },
       { assigneeId: 7 },
       { isAgentWorking: "yes" },
