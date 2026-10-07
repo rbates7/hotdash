@@ -13,7 +13,10 @@ export function FounderIdentity() {
           {FOUNDER_INITIALS}
         </AvatarFallback>
       </Avatar>
-      <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden md:max-lg:hidden">
+      <div
+        data-founder-copy
+        className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden"
+      >
         <span className="text-muted-foreground text-[0.625rem] font-medium tracking-widest uppercase">
           {FOUNDER_ROLE}
         </span>

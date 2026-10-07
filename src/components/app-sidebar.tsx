@@ -42,8 +42,6 @@ export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
 const TABLET_PORTRAIT_ICON =
   "md:max-lg:size-11! md:max-lg:justify-center md:max-lg:p-0! md:max-lg:group-data-[collapsible=icon]:size-11!"
 
-const TABLET_PORTRAIT_LABEL = "md:max-lg:sr-only"
-
 /**
  * Deke tablet including 1180 (768–1279): 44px rows. Desktop ≥1280 keeps h-8.
  */
@@ -160,7 +158,7 @@ export function AppSidebar() {
                         }
                       >
                         <item.icon />
-                        <span className={TABLET_PORTRAIT_LABEL}>{item.label}</span>
+                        <span>{item.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
@@ -189,7 +187,7 @@ export function AppSidebar() {
               className={cn(TABLET_ROW, TABLET_PORTRAIT_ICON)}
             >
               <CircleQuestionMarkIcon />
-              <span className={TABLET_PORTRAIT_LABEL}>Help</span>
+              <span>Help</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -202,7 +200,7 @@ export function AppSidebar() {
               )}
             >
               <LogOutIcon />
-              <span className={TABLET_PORTRAIT_LABEL}>Logout</span>
+              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

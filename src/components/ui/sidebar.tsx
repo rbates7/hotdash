@@ -330,6 +330,10 @@ function Sidebar({
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
             "md:max-lg:w-[76px]!",
+            // Hide copy on the icon rail only — the overlay sheet is portaled
+            // out of this node, so it keeps labels (Deke 6:660).
+            "md:max-lg:[&_[data-slot=sidebar-menu-button]_span]:sr-only",
+            "md:max-lg:[&_[data-founder-copy]]:hidden",
             className
           )}
           {...props}
