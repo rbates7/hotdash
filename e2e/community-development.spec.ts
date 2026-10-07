@@ -95,11 +95,12 @@ test.describe("Community Development", () => {
     await fresh(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(header(page), `${theme}/header`, expect)
+      await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/title`, expect)
+      await expectReadable(header(page).getByText("Giving and foundation work"), `${theme}/lede`, expect)
+      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
       await expectReadable(summary(page), `${theme}/summary`, expect)
       await expectReadable(page.getByRole("group", { name: "Filter by type" }), `${theme}/type filter`, expect)
       await expectReadable(page.getByRole("group", { name: "Filter by status" }), `${theme}/status filter`, expect)
-      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
       const tags = table(page).getByTestId("sample-data-tag")
       await expect(tags).toHaveCount(8)
       for (const tag of await tags.all()) {
