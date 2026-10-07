@@ -7,9 +7,11 @@ import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for System Status: both seeded states and the preview
- * toggle, in both themes, at desktop width. Opt-in: `SCREENSHOTS=1` (or
- * `pnpm screens:system-status`). Output goes to docs/screenshots/system-status
- * and, when SCREENSHOT_DIR is set, there as well.
+ * toggle, in both themes, at desktop width. Opt-in: `pnpm screens:system-status`
+ * (or `SCREENSHOTS=1`). That script sets CI so Playwright starts `next start`
+ * against the production bundle — same as the smoke — and never reuses a
+ * leftover `next dev` (whose "N" badge sat on Logout). Output goes to
+ * docs/screenshots/system-status and, when SCREENSHOT_DIR is set, there too.
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
