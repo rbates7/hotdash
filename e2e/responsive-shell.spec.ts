@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-import { CLOSE_MENU_NAME } from "../src/components/app-header"
+import { APP_HEADER_NAME, CLOSE_MENU_NAME } from "../src/components/app-header"
 import { CLOSE_DRAWER_NAME, COLLAPSE_SIDEBAR_NAME } from "../src/components/app-sidebar"
 import { FOUNDER_NAME } from "../src/components/founder-identity"
 import {
@@ -21,7 +21,9 @@ test.describe("responsive shell (phone 390)", () => {
   test("top bar shows founder identity and opens the overlay drawer", async ({ page }) => {
     await page.goto("/home")
     await expect(openMenuButton(page)).toBeVisible()
-    await expect(page.getByText(FOUNDER_NAME)).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: APP_HEADER_NAME }).getByText(FOUNDER_NAME)
+    ).toBeVisible()
     await expect(founderNavDrawer(page)).toHaveCount(0)
 
     const rail = await openFounderNav(page)

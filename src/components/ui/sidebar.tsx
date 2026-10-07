@@ -240,14 +240,16 @@ function Sidebar({
           <SheetDescription>Founder dashboard sections</SheetDescription>
         </SheetHeader>
         <SidebarSurfaceContext.Provider value="sheet">
-          <div
-            className={cn(
-              "flex h-full w-full flex-col",
-              isTablet && "cn-sidebar-inner overflow-hidden"
-            )}
-          >
-            {children}
-          </div>
+          {openMobile ? (
+            <div
+              className={cn(
+                "flex h-full w-full flex-col",
+                isTablet && "cn-sidebar-inner overflow-hidden"
+              )}
+            >
+              {children}
+            </div>
+          ) : null}
         </SidebarSurfaceContext.Provider>
       </SheetContent>
     </Sheet>
