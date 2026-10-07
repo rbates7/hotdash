@@ -3,13 +3,16 @@
 import * as React from "react"
 import { CheckIcon, NotebookPenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { formatRelative } from "@/lib/clock"
+import { formatRelative, type IsoDay } from "@/lib/clock"
 import {
+  carryFromLabel,
+  carryFromSpoken,
   describeTodo,
   formatDeskDate,
   isSeedTodo,
   openCount,
   TODO_LIMITS,
+  todaysTodos,
   type Todo,
 } from "@/lib/my-desk"
 import { cn } from "@/lib/utils"
@@ -38,6 +41,8 @@ export const SCRATCH_HINT = "jot, not an editor"
 export const SCRATCH_SAVE_MS = 300
 export const EMPTY_COPY =
   "Every to-do has been removed. Add one, or Reset to bring the sample rows back."
+export const FINISHED_EARLIER_COPY =
+  "Nothing open today. To-dos you finished on earlier days drop off this list. Add one, or Reset to bring the sample rows back."
 
 /**
  * Stands in for both cards until localStorage has been read. Showing the
@@ -101,15 +106,20 @@ function DeleteDialog({
 
 function TodoRow({
   todo,
+  today,
   onEdit,
   onDelete,
   onToggle,
 }: {
   todo: Todo
+  today: IsoDay
   onEdit: (todo: Todo) => void
   onDelete: (todo: Todo) => void
   onToggle: (todo: Todo) => void
 }) {
+  const carryFrom = carryFromLabel(todo.createdOn, today)
+  const carrySpoken = carryFromSpoken(todo.createdOn, today)
+  const carryId = `${todo.id}-carry`
   return (
     <li
       data-todo={todo.id}
@@ -123,6 +133,7 @@ function TodoRow({
         role="checkbox"
         aria-checked={todo.done}
         aria-label={todo.title}
+        aria-describedby={carrySpoken ? carryId : undefined}
         className={cn(
           "mt-0.5 size-4 rounded-[4px] border",
           todo.done
@@ -143,6 +154,16 @@ function TodoRow({
           >
             {todo.title}
           </p>
+          {carryFrom && carrySpoken ? (
+            <span
+              id={carryId}
+              data-testid="carry-from"
+              className="text-micro text-muted-foreground tracking-tight"
+            >
+              <span aria-hidden="true">{carryFrom}</span>
+              <span className="sr-only">{carrySpoken}</span>
+            </span>
+          ) : null}
           {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
         </div>
         {todo.note ? (
@@ -320,7 +341,8 @@ export function MyDeskScreen() {
   const [deleting, setDeleting] = React.useState<Target<object> | null>(null)
   const [removed, setRemoved] = React.useState<Todo | null>(null)
 
-  const open = openCount(todos)
+  const visible = todaysTodos(todos, today)
+  const open = openCount(visible)
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
@@ -363,7 +385,7 @@ export function MyDeskScreen() {
               </div>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 px-2 pt-1">
-              {todos.length === 0 ? (
+              {visible.length === 0 ? (
                 <div
                   role="status"
                   aria-label="No to-dos"
@@ -371,7 +393,9 @@ export function MyDeskScreen() {
                 >
                   <NotebookPenIcon className="text-foreground size-6" aria-hidden />
                   <p className="text-body text-foreground font-medium">Nothing on the list</p>
-                  <p className="text-caption text-muted-foreground">{EMPTY_COPY}</p>
+                  <p className="text-caption text-muted-foreground">
+                    {todos.length === 0 ? EMPTY_COPY : FINISHED_EARLIER_COPY}
+                  </p>
                   <Button size="sm" variant="outline" className="mt-1" onClick={() => setAdding(true)}>
                     <PlusIcon aria-hidden />
                     Add to-do
@@ -379,10 +403,11 @@ export function MyDeskScreen() {
                 </div>
               ) : (
                 <ul>
-                  {todos.map((todo) => (
+                  {visible.map((todo) => (
                     <TodoRow
                       key={todo.id}
                       todo={todo}
+                      today={today}
                       onEdit={(t) => setEditing({ todo: t, open: true })}
                       onDelete={(t) => setDeleting({ todo: t, open: true })}
                       onToggle={(t) => toggleTodo(t.id)}
