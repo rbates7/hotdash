@@ -1,7 +1,7 @@
 "use client"
 
 import { boardPreview, needsYou } from "@/lib/home"
-import { kpis, mrrTrend, numberOne } from "@/lib/home-fixture"
+import { kpiStripTitle, kpis, mrrTrend, numberOne } from "@/lib/home-fixture"
 import { inbox } from "@/lib/workplace-fixture"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
@@ -45,7 +45,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
 
       <div className="flex flex-1 flex-col gap-4">
         <NumberOneStrip item={numberOne} />
-        <KpiStrip kpis={kpis} />
+        <KpiStrip kpis={kpis} title={kpiStripTitle} />
         <div
           role="group"
           aria-label="Doors"

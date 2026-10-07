@@ -11,7 +11,8 @@ import {
 } from "@/components/agent-workplace/issues-store"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { HomeScreen } from "@/components/home/home-screen"
-import { KpiCard } from "@/components/home/kpi-strip"
+import { KPI_SETS, KPI_SET_TITLES } from "@/lib/home-fixture"
+import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 
@@ -50,34 +51,52 @@ describe("HomeScreen", () => {
     )
   })
 
-  it("renders the four KPI cards with their deltas toned", () => {
+  it("renders the truth strip: paying coaches and cash this week, deltas toned", () => {
     renderHome()
     const strip = screen.getByRole("region", { name: "KPI strip" })
+    expect(within(strip).getByRole("heading", { level: 2, name: "Truth strip" })).toBeInTheDocument()
     const cards = within(strip).getAllByRole("article")
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual([
-      "MRR",
-      "ARR",
-      "Subscribers",
-      "Churn Rate",
+      "Paying coaches",
+      "Cash this week",
     ])
-    expect(within(cards[0]).getByText("$26,190")).toBeInTheDocument()
-    expect(within(cards[0]).getByText(/\+4\.2%/)).toHaveAttribute("data-tone", "good")
-    expect(within(cards[2]).getByText("186")).toBeInTheDocument()
-    // Churn fell, which is the good direction for churn.
-    expect(within(cards[3]).getByText(/−0\.4 pts/)).toHaveAttribute("data-tone", "good")
-    expect(within(cards[3]).getByText("Down", { exact: false })).toBeInTheDocument()
+    expect(within(cards[0]).getByText("186")).toBeInTheDocument()
+    expect(within(cards[0]).getByText(/\+12 this week/)).toHaveAttribute("data-tone", "good")
+    expect(within(cards[1]).getByText("$4,860")).toBeInTheDocument()
+    expect(within(cards[1]).getByText(/\+9\.1% vs last week/)).toHaveAttribute("data-tone", "good")
   })
 
-  it("labels the KPI strip as sample data and ties every card to the label", () => {
+  it("labels the strip as sample data and puts a visible Sample data chip on every card", () => {
     renderHome()
     const strip = screen.getByRole("region", { name: "KPI strip" })
     const note = within(strip).getByRole("note")
     expect(note).toHaveTextContent(/^Sample data/)
     expect(note).toHaveTextContent("figures are invented, not live")
     expect(note).toBeVisible()
-    for (const card of within(strip).getAllByRole("article")) {
+    const cards = within(strip).getAllByRole("article")
+    expect(cards.length).toBeGreaterThan(0)
+    for (const card of cards) {
+      const chip = within(card).getByTestId("kpi-sample-chip")
+      expect(chip).toHaveTextContent("Sample data")
+      expect(chip).toBeVisible()
       expect(card).toHaveAccessibleDescription(/Sample data/)
     }
+  })
+
+  it("the growth set renders four cards, each still chipped", () => {
+    render(<KpiStrip kpis={KPI_SETS.growth} title={KPI_SET_TITLES.growth} />)
+    expect(screen.getByRole("heading", { level: 2, name: "KPIs" })).toBeInTheDocument()
+    const cards = screen.getAllByRole("article")
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual([
+      "MRR",
+      "ARR",
+      "Subscribers",
+      "Churn Rate",
+    ])
+    // Churn fell, which is the good direction for churn.
+    expect(within(cards[3]).getByText(/−0\.4 pts/)).toHaveAttribute("data-tone", "good")
+    expect(within(cards[3]).getByText("Down", { exact: false })).toBeInTheDocument()
+    expect(screen.getAllByTestId("kpi-sample-chip")).toHaveLength(4)
   })
 
   it("has three doors, each opening its page", () => {
@@ -185,7 +204,8 @@ describe("HomeScreen before the saved board is read", () => {
     expect(html).not.toContain("Agent blocked")
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
-    expect(html).toContain("$26,190")
+    expect(html).toContain("Paying coaches")
+    expect(html).toContain("$4,860")
   })
 
   it("swaps to the data and the persistence note once mounted", async () => {

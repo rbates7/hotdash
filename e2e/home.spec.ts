@@ -18,11 +18,13 @@ test.describe("Home", () => {
     await expect(one.getByRole("heading", { level: 2, name: "Call Aledo before Friday" })).toBeVisible()
     await expect(one.getByRole("link", { name: "My Desk" })).toHaveAttribute("href", "/my-desk")
 
-    // KPI strip.
+    // Truth strip: paying coaches + cash this week, each stamped as sample.
     const kpis = page.getByRole("region", { name: "KPI strip" })
-    await expect(kpis.getByRole("article")).toHaveCount(4)
-    await expect(kpis.getByText("$26,190")).toBeVisible()
-    await expect(kpis.getByText("3.8%")).toBeVisible()
+    await expect(kpis.getByRole("heading", { name: "Truth strip" })).toBeVisible()
+    await expect(kpis.getByRole("article")).toHaveText([/Paying coaches/, /Cash this week/])
+    await expect(kpis.getByText("186")).toBeVisible()
+    await expect(kpis.getByText("$4,860")).toBeVisible()
+    await expect(kpis.getByTestId("kpi-sample-chip")).toHaveCount(2)
 
     // Home reads the Workplace's browser-saved board and says so.
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
@@ -87,23 +89,29 @@ test.describe("Home", () => {
     await expect(page.getByText("2 waiting")).toBeVisible()
   })
 
-  test("renders in light and dark, with a readable sample-data label in both", async ({ page }) => {
+  test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {
     await page.goto("/home")
     const label = page.getByTestId("kpi-sample-label")
+    const chips = page.getByTestId("kpi-sample-chip")
+    await expect(chips).toHaveCount(2)
 
-    await page.getByText("Light", { exact: true }).click()
-    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/)
-    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-    await expect(label).toBeVisible()
-    await expect(label).toContainText("Sample data")
-    expect(await contrastRatio(page, label)).toBeGreaterThanOrEqual(4.5)
+    for (const theme of ["Light", "Dark"] as const) {
+      await page.getByText(theme, { exact: true }).click()
+      await expect(page.locator("html")).toHaveClass(
+        theme === "Dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
+      )
+      await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
 
-    await page.getByText("Dark", { exact: true }).click()
-    await expect(page.locator("html")).toHaveClass(/\bdark\b/)
-    await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-    await expect(label).toBeVisible()
-    await expect(label).toContainText("Sample data")
-    expect(await contrastRatio(page, label)).toBeGreaterThanOrEqual(4.5)
+      await expect(label).toBeVisible()
+      await expect(label).toContainText("Sample data")
+      expect(await contrastRatio(page, label), `${theme} strip label`).toBeGreaterThanOrEqual(4.5)
+
+      for (const chip of await chips.all()) {
+        await expect(chip).toBeVisible()
+        await expect(chip).toHaveText("Sample data")
+        expect(await contrastRatio(page, chip), `${theme} card chip`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 })
 

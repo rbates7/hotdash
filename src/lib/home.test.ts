@@ -10,6 +10,13 @@ import {
   sparklinePoints,
 } from "@/lib/home"
 import { now } from "@/lib/clock"
+import {
+  ACTIVE_KPI_SET,
+  KPI_SETS,
+  KPI_SET_TITLES,
+  kpiStripTitle,
+  kpis,
+} from "@/lib/home-fixture"
 import { activeSprint, daysUntil } from "@/lib/issues"
 import { NOW, actors, issues, sprints } from "@/lib/issues-fixture"
 import { inbox } from "@/lib/workplace-fixture"
@@ -146,6 +153,38 @@ describe("sparklinePoints", () => {
   it("keeps a flat series in the middle instead of on an edge", () => {
     expect(sparklinePoints([3, 3], 10, 10, 0)).toBe("0,5 10,5")
     expect(sparklinePoints([], 10, 10)).toBe("")
+  })
+})
+
+describe("KPI card sets", () => {
+  it("ships the truth strip: paying coaches and cash this week", () => {
+    expect(ACTIVE_KPI_SET).toBe("truth")
+    expect(kpis.map((k) => k.label)).toEqual(["Paying coaches", "Cash this week"])
+    expect(kpiStripTitle).toBe("Truth strip")
+  })
+
+  it("keeps the growth set ready to switch back to", () => {
+    expect(KPI_SETS.growth.map((k) => k.label)).toEqual([
+      "MRR",
+      "ARR",
+      "Subscribers",
+      "Churn Rate",
+    ])
+    expect(KPI_SET_TITLES.growth).toBe("KPIs")
+  })
+
+  it("every card in every set is well-formed with a unique id", () => {
+    for (const set of Object.values(KPI_SETS)) {
+      const ids = set.map((k) => k.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      for (const k of set) {
+        expect(k.label).not.toBe("")
+        expect(k.value).not.toBe("")
+        expect(k.delta).not.toBe("")
+        expect(["up", "down", "flat"]).toContain(k.direction)
+        expect(["good", "bad", "flat"]).toContain(kpiTone(k))
+      }
+    }
   })
 })
 
