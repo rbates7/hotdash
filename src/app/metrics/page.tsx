@@ -11,6 +11,10 @@ export const metadata = {
   title: "Metrics · Chlk",
 }
 
+// Render per request, never at build time: `now()` below must be the time
+// of the visit, not of the deploy.
+export const dynamic = "force-dynamic"
+
 export default function MetricsPage() {
   // The one read of the clock for this request. Everything below receives
   // the resulting calendar day, so the server HTML and the client's
