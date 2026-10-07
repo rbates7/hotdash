@@ -76,7 +76,7 @@ test.describe("Home", () => {
 
     // The Workplace Inbox agrees: only the dismissed digest is left.
     await page.goto("/agent-workplace?tab=inbox")
-    const panel = page.getByRole("tabpanel")
+    const panel = page.getByRole("tabpanel", { name: "Inbox" })
     await expect(panel.getByRole("listitem")).toHaveCount(1)
     await expect(panel.getByText("Daily standup summary")).toBeVisible()
 
