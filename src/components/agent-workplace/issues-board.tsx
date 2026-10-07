@@ -25,7 +25,7 @@ import { useIssues } from "@/components/agent-workplace/issues-store"
 /** Green "3 agents working" pill with a pulsing dot, as in the mock. */
 export function AgentsWorkingPill({ count }: { count: number }) {
   return (
-    <span className="bg-success/10 text-success inline-flex h-7 shrink-0 items-center gap-[7px] rounded-full pr-2.5 pl-2 text-caption font-semibold">
+    <span className="bg-success/10 text-success-text inline-flex h-7 shrink-0 items-center gap-[7px] rounded-full pr-2.5 pl-2 text-caption font-semibold">
       <span
         aria-hidden
         className={cn(

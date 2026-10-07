@@ -12,6 +12,8 @@ import {
   type LoadResult,
   type PersistenceShell,
 } from "@/lib/persistence"
+
+const T0 = Date.parse("2026-10-07T12:00:00.000Z")
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 type Thing = { n: number; name: string }
@@ -73,28 +75,56 @@ describe("createStorage", () => {
     expect(s.load(window.localStorage)).toEqual({ state: { n: 1, name: "a" }, status: "saved" })
   })
 
-  it("parks a copy that fails validation under <key>.rejected (timestamped), warns in dev, and clears the live key", () => {
+  it("load() is pure: a copy that fails validation is reported, warned about in dev, and left in place", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem")
     const raw = JSON.stringify({ n: "not a number", name: "x" })
     window.localStorage.setItem(store.key, raw)
-    expect(store.load(window.localStorage)).toEqual({ state: null, status: "rejected" })
+    setItem.mockClear()
+    const result = store.load(window.localStorage)
+    expect(result.status).toBe("rejected")
+    if (result.status !== "rejected") throw new Error("unreachable")
+    expect(result.rejected.raw).toBe(raw)
+    expect(result.rejected.why).toBe("failed validation")
+    expect(isIsoInstant(result.rejected.at)).toBe(true)
+    expect(setItem).not.toHaveBeenCalled()
+    expect(removeItem).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(store.key)).toBe(raw) // still there — other tabs are not told to re-seed
+    expect(store.rejected(window.localStorage)).toEqual([])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("failed validation"), "")
+  })
+
+  it("the first real save parks the bad copy under <key>.rejected (timestamped) before overwriting it", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const raw = JSON.stringify({ n: "not a number", name: "x" })
+    window.localStorage.setItem(store.key, raw)
+    expect(store.save(window.localStorage, { n: 2, name: "b" })).toBe(true)
     const parked = store.rejected(window.localStorage)
     expect(parked).toHaveLength(1)
     expect(parked[0].raw).toBe(raw)
     expect(parked[0].why).toBe("failed validation")
-    expect(isIsoInstant(parked[0].at)).toBe(true)
-    expect(window.localStorage.getItem(store.key)).toBeNull()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("failed validation"), "")
-    // A later save does not disturb the parked copy.
-    store.save(window.localStorage, { n: 2, name: "b" })
+    expect(store.load(window.localStorage)).toEqual({ state: { n: 2, name: "b" }, status: "saved" })
+    // Later saves leave the parked copy alone.
+    store.save(window.localStorage, { n: 3, name: "c" })
     expect(store.rejected(window.localStorage)[0].raw).toBe(raw)
+  })
+
+  it("quarantine() is the explicit step: parks and clears the live key", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    window.localStorage.setItem(store.key, "{bad")
+    const result = store.load(window.localStorage)
+    if (result.status !== "rejected") throw new Error("unreachable")
+    store.quarantine(window.localStorage, result.rejected)
+    expect(window.localStorage.getItem(store.key)).toBeNull()
+    expect(store.rejected(window.localStorage)[0].raw).toBe("{bad")
   })
 
   it("keeps the last three rejected copies, newest first; a second one never overwrites the first", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     for (let i = 1; i <= REJECTED_KEEP + 1; i++) {
       window.localStorage.setItem(store.key, `{bad ${i}`)
-      store.load(window.localStorage)
+      store.save(window.localStorage, { n: i, name: "ok" })
     }
     const parked = store.rejected(window.localStorage)
     expect(parked).toHaveLength(REJECTED_KEEP)
@@ -168,49 +198,66 @@ describe("createStorage · other storage areas", () => {
 
 describe("persistenceShellReducer", () => {
   const seed: Thing = { n: 0, name: "seed" }
+  const seedAt = (nowMs: number): Thing => ({ n: 0, name: `seed@${nowMs}` })
   const empty: LoadResult<Thing> = { state: null, status: "empty" }
   const found = (state: Thing): LoadResult<Thing> => ({ state, status: "saved" })
   const edit = (shell: PersistenceShell<Thing>, data: Thing) =>
     persistenceShellReducer(shell, { type: "edit", data })
-  const hydrate = (shell: PersistenceShell<Thing>, result: LoadResult<Thing>) =>
-    persistenceShellReducer(shell, { type: "hydrate", result, fallback: seed })
+  const hydrate = (shell: PersistenceShell<Thing>, result: LoadResult<Thing>, nowMs = T0) =>
+    persistenceShellReducer(shell, { type: "hydrate", result, nowMs, fallback: seedAt })
+  const saved = (shell: PersistenceShell<Thing>, ok = true) =>
+    persistenceShellReducer(shell, { type: "save-result", ok })
 
-  it("starts unhydrated and never-edited, with no edits counted", () => {
-    expect(initialShell(seed)).toEqual({
-      data: seed, edits: 0, persisted: false, edited: false, saved: false, saveFailed: false,
+  it("starts unhydrated and never-edited, with the request clock and no edits counted", () => {
+    expect(initialShell(seed, T0)).toEqual({
+      data: seed, edits: 0, savedEdits: 0, nowMs: T0, persisted: false, edited: false, saved: false, saveFailed: false,
     })
   })
 
-  it("hydrate applies a saved copy (saved, not edited) or the fallback (neither), via adopt when given", () => {
-    const applied = hydrate(initialShell(seed), found({ n: 1, name: "a" }))
-    expect(applied).toEqual({ data: { n: 1, name: "a" }, edits: 0, persisted: true, edited: false, saved: true, saveFailed: false })
-    for (const status of ["empty", "rejected", "error"] as const) {
-      const none = hydrate(initialShell(seed), { state: null, status })
-      expect(none).toEqual({ data: seed, edits: 0, persisted: true, edited: false, saved: false, saveFailed: false })
+  it("hydrate adopts a saved copy (saved, not edited, clock untouched) or builds the fallback lazily from nowMs", () => {
+    const fallback = vi.fn(seedAt)
+    const applied = persistenceShellReducer(initialShell(seed, T0), { type: "hydrate", result: found({ n: 1, name: "a" }), nowMs: T0 + 5, fallback })
+    expect(applied).toMatchObject({ data: { n: 1, name: "a" }, nowMs: T0, persisted: true, edited: false, saved: true, saveFailed: false })
+    expect(fallback).not.toHaveBeenCalled()
+    for (const result of [empty, { state: null, status: "error" } as LoadResult<Thing>, { state: null, status: "rejected", rejected: { at: "x", raw: "{", why: "is not JSON" } } as LoadResult<Thing>]) {
+      const none = hydrate(initialShell(seed, T0), result, T0 + 9)
+      expect(none).toMatchObject({ data: seedAt(T0 + 9), nowMs: T0 + 9, persisted: true, edited: false, saved: false })
     }
-    const adopted = persistenceShellReducer<Thing, { n: number }>(initialShell(seed), {
+    const adopted = persistenceShellReducer<Thing, { n: number }>(initialShell(seed, T0), {
       type: "hydrate",
       result: { state: { n: 5 }, status: "saved" },
-      fallback: seed,
-      adopt: (saved) => ({ n: saved.n, name: "adopted" }),
+      nowMs: T0,
+      fallback: seedAt,
+      adopt: (s) => ({ data: { n: s.n, name: "adopted" }, nowMs: T0 + 1 }),
     })
     expect(adopted.data).toEqual({ n: 5, name: "adopted" })
+    expect(adopted.nowMs).toBe(T0 + 1)
   })
 
-  it("a hydrate after edits is not an edit: another tab's copy is theirs, the edit counter does not move", () => {
-    let shell = hydrate(initialShell(seed), empty)
-    shell = edit(shell, { n: 1, name: "mine" })
-    expect(shell.edited).toBe(true)
-    expect(shell.edits).toBe(1)
+  it("a hydrate after a *saved* edit is not an edit: another tab's copy is theirs, the edit counter does not move", () => {
+    let shell = hydrate(initialShell(seed, T0), empty)
+    shell = saved(edit(shell, { n: 1, name: "mine" }))
+    expect(shell).toMatchObject({ edited: true, edits: 1, savedEdits: 1 })
     shell = hydrate(shell, found({ n: 2, name: "theirs" }))
     expect(shell).toMatchObject({ data: { n: 2, name: "theirs" }, edits: 1, edited: false, saved: true })
-    // Their Reset (no copy) re-seeds this tab with the fallback.
-    shell = hydrate(shell, empty)
-    expect(shell).toMatchObject({ data: seed, edits: 1, edited: false, saved: false })
+    // Their Reset (no copy) re-seeds this tab from the moment it hears it.
+    shell = hydrate(shell, empty, T0 + 60_000)
+    expect(shell).toMatchObject({ data: seedAt(T0 + 60_000), nowMs: T0 + 60_000, edits: 1, edited: false, saved: false })
+  })
+
+  it("a local edit that has not been saved yet wins over an incoming copy (same-render race)", () => {
+    let shell = hydrate(initialShell(seed, T0), empty)
+    shell = edit(shell, { n: 1, name: "mine, unsaved" })
+    const raced = hydrate(shell, found({ n: 2, name: "theirs" }))
+    expect(raced.data).toEqual({ n: 1, name: "mine, unsaved" })
+    expect(raced).toMatchObject({ edited: true, edits: 1, savedEdits: 0, saved: true })
+    // Once the pending save lands, the next copy is adopted as usual.
+    const settled = hydrate(saved(raced), found({ n: 3, name: "later" }))
+    expect(settled.data).toEqual({ n: 3, name: "later" })
   })
 
   it("a real edit flips edited and counts; a no-op edit returns the very same shell; saved waits for the write", () => {
-    const shell = hydrate(initialShell(seed), empty)
+    const shell = hydrate(initialShell(seed, T0), empty)
     expect(edit(shell, shell.data)).toBe(shell)
     const changed = edit(shell, { n: 1, name: "changed" })
     expect(changed).toMatchObject({ data: { n: 1, name: "changed" }, edits: 1, edited: true, saved: false, persisted: true })
@@ -218,24 +265,24 @@ describe("persistenceShellReducer", () => {
     expect(edit(changed, { n: 2, name: "again" }).edits).toBe(2)
   })
 
-  it("save-result sets saved on success, saveFailed on failure, and is identity when nothing changes", () => {
-    const shell = edit(initialShell(seed), { n: 1, name: "a" })
-    const ok = persistenceShellReducer(shell, { type: "save-result", ok: true })
-    expect(ok).toMatchObject({ saved: true, saveFailed: false })
-    expect(persistenceShellReducer(ok, { type: "save-result", ok: true })).toBe(ok)
-    const failed = persistenceShellReducer(ok, { type: "save-result", ok: false })
-    expect(failed).toMatchObject({ saved: true, saveFailed: true }) // an earlier copy may still be there
-    expect(persistenceShellReducer(failed, { type: "save-result", ok: false })).toBe(failed)
-    expect(persistenceShellReducer(failed, { type: "save-result", ok: true }).saveFailed).toBe(false)
+  it("save-result sets saved and savedEdits on success, saveFailed on failure, and is identity when nothing changes", () => {
+    const shell = edit(initialShell(seed, T0), { n: 1, name: "a" })
+    const ok = saved(shell)
+    expect(ok).toMatchObject({ saved: true, saveFailed: false, savedEdits: 1 })
+    expect(saved(ok)).toBe(ok)
+    const failed = saved(ok, false)
+    expect(failed).toMatchObject({ saved: true, saveFailed: true })
+    expect(saved(failed, false)).toBe(failed)
+    expect(saved(failed).saveFailed).toBe(false)
   })
 
-  it("reset returns to never-edited with the given seed, keeping persisted and the counter", () => {
-    let shell = hydrate(initialShell(seed), empty)
+  it("reset re-seeds from its own nowMs, moves the clock, and returns to never-edited", () => {
+    let shell = hydrate(initialShell(seed, T0), empty)
     shell = edit(shell, { n: 1, name: "a" })
-    shell = persistenceShellReducer(shell, { type: "save-result", ok: false })
-    const fresh: Thing = { n: 0, name: "fresh seed" }
-    expect(persistenceShellReducer(shell, { type: "reset", data: fresh })).toEqual({
-      data: fresh, edits: 1, persisted: true, edited: false, saved: false, saveFailed: false,
+    shell = saved(shell, false)
+    const later = T0 + 86_400_000
+    expect(persistenceShellReducer(shell, { type: "reset", nowMs: later, seed: seedAt })).toEqual({
+      data: seedAt(later), nowMs: later, edits: 1, savedEdits: 1, persisted: true, edited: false, saved: false, saveFailed: false,
     })
   })
 })

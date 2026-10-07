@@ -58,6 +58,12 @@
   --color-info-foreground: var(--info-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  /* Text-safe status colours: for status *text* on a card surface, ≥ 4.5:1
+     in both themes. The plain --success/--warning/--destructive tokens are
+     fills and marks; their text contrast is not guaranteed. */
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-danger-text: var(--danger-text);
   /* Role-named type scale, after Multica: name sizes by what they are for,
      not how big they are. `text-body` is the workhorse. */
   --text-micro: 11px;
@@ -139,6 +145,11 @@
   --info: oklch(0.55 0.18 250);
   --info-foreground: oklch(0.985 0 0);
 
+  /* Status text on --surface (white): green-800 / amber-800 / red-700 territory. */
+  --success-text: oklch(0.45 0.14 145);
+  --warning-text: oklch(0.47 0.12 70);
+  --danger-text: oklch(0.50 0.19 28);
+
   /* Chlk brand — the blue on the founder avatar and the active nav item. */
   --brand: oklch(0.588 0.166 253);
   --brand-foreground: oklch(0.985 0 0);
@@ -196,6 +207,11 @@
   --warning-foreground: oklch(0.205 0 0);
   --info: oklch(0.65 0.16 250);
   --info-foreground: oklch(0.145 0 0);
+
+  /* Status text on --surface (oklch 0.21): green-300 / amber-300 / red-300 territory. */
+  --success-text: oklch(0.82 0.16 145);
+  --warning-text: oklch(0.86 0.15 85);
+  --danger-text: oklch(0.80 0.14 25);
 
   --brand: oklch(0.588 0.166 253);
   --brand-foreground: oklch(0.985 0 0);

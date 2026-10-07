@@ -24,7 +24,7 @@ import { initialShell } from "@/lib/persistence"
 
 /** Drive the shell (hydrate/reset live there, not in the board reducer) and return its data. */
 const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1]) =>
-  shellReducer({ ...initialShell(state), persisted: true }, action).data
+  shellReducer({ ...initialShell(state, Date.parse(state.now)), persisted: true }, action).data
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const AT = "2026-08-27T15:00:00.000Z"
@@ -92,7 +92,7 @@ describe("reducer", () => {
       patch: { priority: "low" },
       at: AT,
     })
-    state = viaShell(state, { type: "reset", at: FIXED_NOW.toISOString() })
+    state = viaShell(state, { type: "reset", nowMs: FIXED_NOW_MS })
     expect(state.issues).toEqual(buildIssues(FIXED_NOW))
   })
 
@@ -102,7 +102,7 @@ describe("reducer", () => {
     const stale = initialState(sixWeeksAgo)
     expect(daysUntil(activeSprint(stale.sprints)!.endDate, FIXED_NOW)).toBe(9 - 42)
 
-    const fresh = viaShell(stale, { type: "reset", at: FIXED_NOW.toISOString() })
+    const fresh = viaShell(stale, { type: "reset", nowMs: FIXED_NOW_MS })
     const sprint = activeSprint(fresh.sprints)!
     expect(daysUntil(sprint.endDate, FIXED_NOW)).toBe(9)
     expect(fresh).toEqual(initialState(FIXED_NOW))
@@ -314,7 +314,7 @@ describe("now lives in store state (L1)", () => {
 
   it("a saved copy never brings its own clock", () => {
     const saved = initialState(new Date(FIXED_NOW_MS - 3 * DAY))
-    const state = viaShell(initialState(FIXED_NOW), { type: "hydrate", state: saved })
+    const state = viaShell(initialState(FIXED_NOW), { type: "hydrate", result: { state: saved, status: "saved" }, nowMs: FIXED_NOW_MS })
     expect(state.now).toBe(FIXED_NOW.toISOString())
     expect(state.sprints).toEqual(saved.sprints)
   })
@@ -444,14 +444,44 @@ describe("shared persistence policy (Workplace)", () => {
     }
   })
 
-  it("parks a copy that fails validation under <key>.rejected and loads the seed", () => {
+  it("a copy that fails validation loads as the seed without writing; the first real save parks it", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ issues: "nope" })
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
-    expect(issuesStorage.rejected(window.localStorage)[0].raw).toBe(raw)
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw) // load() is pure
     expect(loadStateOrSeed(window.localStorage, FIXED_NOW)).toEqual(initialState(FIXED_NOW))
+    saveState(window.localStorage, initialState(FIXED_NOW))
+    expect(issuesStorage.rejected(window.localStorage)[0].raw).toBe(raw)
+    expect(loadState(window.localStorage)).not.toBeNull()
+  })
+
+  it("Reset reads the shared clock, not the request's: the seed is dated from the click", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
+    try {
+      mount() // served at FIXED_NOW (27 Aug)
+      await hydrated()
+      expect(screen.getByTestId("now")).toHaveTextContent(FIXED_NOW.toISOString())
+      act(() => screen.getByRole("button", { name: "reset" }).click())
+      expect(screen.getByTestId("now")).toHaveTextContent("2026-10-07T18:00:00.000Z")
+      expect(screen.getByTestId("days-left")).toHaveTextContent("9")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("another tab's Reset re-seeds this tab from now(), not from the request", async () => {
+    mount()
+    await hydrated()
+    vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+      act(() => fireStorageEvent(STORAGE_KEY, null))
+      expect(screen.getByTestId("now")).toHaveTextContent("2026-10-07T18:00:00.000Z")
+      expect(screen.getByTestId("days-left")).toHaveTextContent("9")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("the saved copy carries no clock", async () => {

@@ -76,10 +76,13 @@ export function AppSidebar() {
 
       <SidebarSeparator />
 
+      {/* The one named navigation landmark for the rail, so tests and
+          assistive tech can scope to it by name instead of a data-slot. */}
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+        <nav aria-label="Founder dashboard" className="flex min-h-0 flex-1 flex-col">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
               {navItems.map((item) => {
                 const active = !item.external && isActiveRoute(pathname, item.href)
                 return (
@@ -108,6 +111,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        </nav>
       </SidebarContent>
 
       <SidebarSeparator />

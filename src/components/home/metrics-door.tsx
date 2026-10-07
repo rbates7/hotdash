@@ -9,8 +9,8 @@ const W = 240
 const H = 56
 
 /**
- * Preview of the Metrics page: the MRR card's own six-month series, so the
- * door and the page can never show different numbers.
+ * Preview of the Metrics page: the MRR card's own series of six 28-day
+ * windows, so the door and the page can never show different numbers.
  */
 export function MetricsDoor({ trend, today }: { trend: number[]; today: IsoDay }) {
   const first = trend[0]

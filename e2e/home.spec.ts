@@ -17,7 +17,7 @@ test.describe("Home", () => {
     await expect(page.getByText(`${weekday} pulse`)).toBeVisible()
 
     // Sidebar marks Home as the current page.
-    const rail = page.locator('[data-slot="sidebar"]').first()
+    const rail = page.getByRole("navigation", { name: "Founder dashboard" })
     await expect(rail.getByRole("link", { name: "Home" })).toHaveAttribute("data-active")
     await expect(rail.getByRole("link", { name: "Metrics" })).not.toHaveAttribute("data-active")
 
@@ -30,7 +30,8 @@ test.describe("Home", () => {
     // numbers (shared KPI fixture) — each stamped as sample.
     const kpis = page.getByRole("region", { name: "KPI strip" })
     await expect(kpis.getByRole("heading", { name: "Truth strip" })).toBeVisible()
-    await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/])
+    // Label per founder-dashboard-screens.md; the number is the Metrics Subscribers card's.
+    await expect(kpis.getByRole("article")).toHaveText([/Paying coaches/, /Cash this week/])
     await expect(kpis.getByText("186")).toBeVisible()
     await expect(kpis.getByText(/\+3 vs previous 28 days/)).toBeVisible()
     // A real trailing-7-day figure from the shared daily revenue spread.
@@ -68,7 +69,8 @@ test.describe("Home", () => {
 
   test("reflects the board: closing the linked tickets clears Needs you", async ({ page }) => {
     await page.goto("/home")
-    await expect(page.getByText("2 waiting")).toBeVisible()
+    const inboxDoor = page.getByRole("region", { name: "Inbox" })
+    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
 
     // The three Needs-you rows and the column each ticket currently sits in.
     const linked = [
@@ -78,12 +80,11 @@ test.describe("Home", () => {
     ] as const
     for (const [key, status] of linked) {
       await page.goto(`/agent-workplace?issue=${key}`)
-      await page.getByRole("button", { name: status, exact: true }).click()
-      await page.getByRole("button", { name: "Done", exact: true }).click()
+      const props = page.getByRole("complementary", { name: "Ticket properties" })
+      await props.getByRole("button", { name: status, exact: true }).click()
+      await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click()
       await page.keyboard.press("Escape")
-      await expect(
-        page.locator('[data-slot="popover-trigger"]').filter({ hasText: /^Done$/ })
-      ).toBeVisible()
+      await expect(props.getByRole("button", { name: "Done", exact: true })).toBeVisible()
     }
 
     await page.goto("/home")
@@ -99,9 +100,9 @@ test.describe("Home", () => {
 
     // Reset the browser copy so other tests see the seed.
     await page.goto("/agent-workplace")
-    await resetDemoData(page)
+    await resetDemoData(page, page.locator("main header").first())
     await page.goto("/home")
-    await expect(page.getByText("2 waiting")).toBeVisible()
+    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
   })
 
   test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {
