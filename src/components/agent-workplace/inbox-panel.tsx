@@ -25,56 +25,56 @@ export function InboxPanel({
           Nothing in the Inbox.
         </p>
       ) : (
-      <ul className="bg-surface border-surface-border max-w-[1100px] overflow-hidden rounded-xl border">
-        {rows.map((item) => {
-          const Row = item.issueKey ? "button" : "div"
-          return (
-            <li
-              key={item.id}
-              className={cn(
-                "border-border border-b last:border-b-0",
-                item.dismissed && "opacity-[0.42]"
-              )}
-            >
-              <Row
-                {...(item.issueKey
-                  ? {
-                      type: "button" as const,
-                      onClick: () => onOpenIssue(item.issueKey!),
-                    }
-                  : {})}
+        <ul className="bg-surface border-surface-border max-w-[1100px] overflow-hidden rounded-xl border">
+          {rows.map((item) => {
+            const Row = item.issueKey ? "button" : "div"
+            return (
+              <li
+                key={item.id}
                 className={cn(
-                  "flex w-full items-start gap-3 px-[18px] py-4 text-left",
-                  item.issueKey &&
-                    "hover:bg-surface-hover focus-visible:ring-ring/50 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+                  "border-border border-b last:border-b-0",
+                  item.dismissed && "opacity-[0.42]"
                 )}
               >
-                <span
-                  aria-hidden
+                <Row
+                  {...(item.issueKey
+                    ? {
+                        type: "button" as const,
+                        onClick: () => onOpenIssue(item.issueKey!),
+                      }
+                    : {})}
                   className={cn(
-                    "mt-1.5 size-2 shrink-0 rounded-full",
-                    item.unread
-                      ? "bg-success"
-                      : "ring-surface-border bg-transparent ring-1 ring-inset"
+                    "flex w-full items-start gap-3 px-[18px] py-4 text-left",
+                    item.issueKey &&
+                      "hover:bg-surface-hover focus-visible:ring-ring/50 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
                   )}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="text-label block leading-[1.35] font-semibold tracking-tight">
-                    {item.title}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-1.5 size-2 shrink-0 rounded-full",
+                      item.unread
+                        ? "bg-success"
+                        : "ring-surface-border bg-transparent ring-1 ring-inset"
+                    )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-label block leading-[1.35] font-semibold tracking-tight">
+                      {item.title}
+                    </span>
+                    <span className="text-caption text-muted-foreground mt-[3px] block leading-[1.4]">
+                      {item.snippet}
+                      {item.issueKey && ` · ${item.issueKey}`}
+                    </span>
                   </span>
-                  <span className="text-caption text-muted-foreground mt-[3px] block leading-[1.4]">
-                    {item.snippet}
-                    {item.issueKey && ` · ${item.issueKey}`}
+                  <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
+                    {formatAge(item.at, now)}
                   </span>
-                </span>
-                <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
-                  {formatAge(item.at, now)}
-                </span>
-              </Row>
-            </li>
-          )
-        })}
-      </ul>
+                </Row>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )
