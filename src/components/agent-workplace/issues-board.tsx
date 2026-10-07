@@ -60,7 +60,7 @@ export function FilterChips({
     <div
       role="group"
       aria-label="Issue filters"
-      className="flex items-center gap-1.5 overflow-x-auto max-md:flex-nowrap md:flex-wrap"
+      className="flex flex-wrap items-center gap-1.5"
     >
       {BOARD_FILTERS.map((f) => {
         const on = value === f.value
@@ -87,12 +87,15 @@ export function FilterChips({
 
 export function IssuesBoard({
   onOpenIssue,
+  statusView,
+  onStatusViewChange,
 }: {
   onOpenIssue: (key: string) => void
+  statusView: IssueStatus
+  onStatusViewChange: (status: IssueStatus) => void
 }) {
   const { issues, sprints, actors, now } = useIssues()
   const [filter, setFilter] = React.useState<BoardFilter>("all")
-  const [statusView, setStatusView] = React.useState<IssueStatus>("todo")
 
   const sprint = activeSprint(sprints)
   const sprintIssues = issuesInSprint(issues, sprint?.id ?? null)
@@ -120,7 +123,7 @@ export function IssuesBoard({
   ) as Record<IssueStatus, number>
 
   return (
-    <div className="flex min-w-0 flex-col gap-3.5 overflow-x-hidden">
+    <div className="flex min-w-0 flex-col gap-3.5">
       <div className={WORKPLACE_BOARD_TOOLBAR}>
         <FilterChips value={filter} onChange={setFilter} />
 
@@ -152,10 +155,10 @@ export function IssuesBoard({
       <StatusSwitcher
         value={statusView}
         counts={counts}
-        onChange={setStatusView}
+        onChange={onStatusViewChange}
       />
 
-      <div className={WORKPLACE_BOARD}>
+      <div data-testid="workplace-board" className={WORKPLACE_BOARD}>
         <div className={WORKPLACE_BOARD_TRACK}>
           {STATUS_ORDER.map((status) => {
             const config = STATUS_CONFIG[status]

@@ -64,6 +64,41 @@ describe("WorkplaceTabs", () => {
     expect(within(todo).queryByText("Copy-link expires after 7 days")).not.toBeInTheDocument()
   })
 
+  it("keeps the selected status after opening a ticket and going Back", async () => {
+    const user = userEvent.setup()
+    function TabsWithUrl() {
+      const [qs, setQs] = React.useState("")
+      navigation.params = new URLSearchParams(qs)
+      navigation.push.mockImplementation((href: string) => {
+        setQs(String(href).replace(/^\?/, ""))
+      })
+      return (
+        <IssuesProvider nowMs={FIXED_NOW_MS}>
+          <WorkplaceTabs />
+        </IssuesProvider>
+      )
+    }
+    render(<TabsWithUrl />)
+    await user.click(screen.getByRole("button", { name: /In Progress/ }))
+    expect(screen.getByRole("button", { name: /In Progress/ })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+    await user.click(screen.getByText("Undo stack for iPad canvas"))
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Back to the board" }))
+    expect(screen.getByRole("button", { name: /In Progress/ })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+    expect(screen.getByRole("button", { name: /To Do/ })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    )
+  })
+
   it("pushes the ticket into the URL when a card is opened", async () => {
     const user = userEvent.setup()
     renderTabs()

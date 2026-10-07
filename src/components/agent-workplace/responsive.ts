@@ -9,7 +9,7 @@
  */
 
 export const WORKPLACE_HEADER =
-  "flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4"
+  "flex flex-col items-stretch gap-3 md:min-h-10 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4"
 
 export const WORKPLACE_HEADER_META =
   "flex w-full min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 xl:w-auto"
@@ -44,17 +44,17 @@ export const WORKPLACE_BOARD_META =
  * made tablet 820 scroll the document). Desktop drops the trick.
  */
 export const WORKPLACE_BOARD =
-  "w-0 min-w-full overflow-x-auto overflow-y-hidden [contain:paint] xl:w-auto xl:min-w-0 xl:overflow-visible xl:[contain:none]"
+  "w-0 min-w-full overflow-x-auto p-[3px] xl:w-auto xl:min-w-0 xl:overflow-visible xl:p-0"
 
 /** Phone: one column. Tablet: 240px columns that scroll sideways. Desktop: 5-col grid. */
 export const WORKPLACE_BOARD_TRACK =
-  "flex flex-col items-start gap-2 md:w-max md:flex-row md:gap-3 xl:grid xl:w-full xl:grid-cols-5"
+  "flex flex-col gap-2 md:w-max md:flex-row md:items-start md:gap-3 xl:grid xl:w-full xl:grid-cols-5"
 
 export const WORKPLACE_BOARD_COLUMN =
-  "flex min-w-0 flex-col gap-2 md:w-[240px] md:shrink-0 xl:w-auto xl:min-w-0"
+  "flex min-w-0 flex-col gap-2 max-md:w-full md:w-[240px] md:shrink-0 xl:w-auto xl:min-w-0"
 
 export const WORKPLACE_SWITCHER =
-  "flex w-full items-center gap-2 overflow-x-auto md:hidden"
+  "flex w-full items-center gap-2 overflow-x-auto p-[3px] md:hidden"
 
 export const WORKPLACE_SWITCHER_CHIP =
   "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-label font-medium tracking-tight transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
@@ -74,4 +74,5 @@ export const WORKPLACE_AUTOPILOT_BODY = "max-md:block"
 export const WORKPLACE_AUTOPILOT_ROW =
   "hover:bg-transparent max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:items-start max-md:gap-x-3 max-md:px-4 max-md:py-3"
 
-export const WORKPLACE_AUTOPILOT_CELL = "max-md:block max-md:border-0 max-md:p-0"
+export const WORKPLACE_AUTOPILOT_CELL =
+  "max-md:block max-md:border-0 max-md:p-0! max-md:whitespace-normal!"

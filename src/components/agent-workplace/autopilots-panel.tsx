@@ -50,8 +50,8 @@ export function AutopilotsPanel() {
           <TableHeader className={WORKPLACE_AUTOPILOT_HEAD}>
             <TableRow className="hover:bg-transparent">
               <TableHead className={HEAD}>Autopilot</TableHead>
-              <TableHead className={HEAD}>Schedule</TableHead>
-              <TableHead className={HEAD}>Next run</TableHead>
+              <TableHead className={cn(HEAD, "max-lg:hidden")}>Schedule</TableHead>
+              <TableHead className={cn(HEAD, "max-lg:hidden")}>Next run</TableHead>
               <TableHead className={HEAD}>Last run</TableHead>
             </TableRow>
           </TableHeader>
@@ -62,23 +62,23 @@ export function AutopilotsPanel() {
                 <TableRow key={ap.id} className={WORKPLACE_AUTOPILOT_ROW}>
                   <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL)}>
                     <p className="font-semibold tracking-tight">{ap.name}</p>
-                    <p className="text-caption text-muted-foreground mt-[3px] max-md:hidden">
+                    <p className="text-caption text-muted-foreground mt-[3px] max-lg:hidden">
                       {ap.note}
                     </p>
-                    <p className="text-caption text-muted-foreground mt-[3px] md:hidden">
+                    <p className="text-caption text-muted-foreground mt-[3px] lg:hidden">
                       {ap.scheduleLabel} · {ap.note}
                     </p>
-                    <p className="text-caption text-muted-foreground mt-[3px] md:hidden">
+                    <p className="text-caption text-muted-foreground mt-[3px] lg:hidden">
                       Next run {next} · Last run {ap.lastRun}
                     </p>
                   </TableCell>
-                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:hidden")}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden")}>
                     {ap.scheduleLabel}
                   </TableCell>
-                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:hidden")}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden")}>
                     {next}
                   </TableCell>
-                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:pt-0.5")}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:pt-0.5!")}>
                     <RunPill state={ap.lastRun} />
                   </TableCell>
                 </TableRow>

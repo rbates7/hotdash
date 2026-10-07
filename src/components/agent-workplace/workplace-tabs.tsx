@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
+import type { IssueStatus } from "@/lib/issues"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   WORKPLACE_TAB,
@@ -44,6 +45,7 @@ export function WorkplaceTabs() {
   const requested = params.get("tab")
   const tab: WorkplaceTab = isTab(requested) ? requested : DEFAULT_TAB
   const issueKey = params.get("issue")
+  const [statusView, setStatusView] = React.useState<IssueStatus>("todo")
 
   // Tab and open ticket live in the URL so both are linkable and the back
   // button steps through them.
@@ -78,7 +80,7 @@ export function WorkplaceTabs() {
     <Tabs
       value={tab}
       onValueChange={(value) => setParam({ tab: String(value), issue: null })}
-      className="min-w-0 gap-4 overflow-x-clip"
+      className="min-w-0 gap-4"
     >
       <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
         {WORKPLACE_TABS.map((t) => (
@@ -89,7 +91,11 @@ export function WorkplaceTabs() {
       </TabsList>
 
       <TabsContent value="issues">
-        <IssuesBoard onOpenIssue={openIssue} />
+        <IssuesBoard
+          onOpenIssue={openIssue}
+          statusView={statusView}
+          onStatusViewChange={setStatusView}
+        />
       </TabsContent>
       <TabsContent value="backlog">
         <BacklogPanel onOpenIssue={openIssue} />
