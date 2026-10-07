@@ -65,10 +65,11 @@ describe("HomeScreen", () => {
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Subscribers", "Cash this week"])
     expect(within(cards[0]).getByText(subs.value)).toBeInTheDocument()
     expect(within(cards[0]).getByText("186")).toBeInTheDocument()
-    expect(within(cards[0]).getByText(/\+3 vs last month/)).toHaveAttribute("data-tone", "good")
+    expect(within(cards[0]).getByText(/\+3 vs previous 28 days/)).toHaveAttribute("data-tone", "good")
     expect(within(cards[1]).getByText(cash.value)).toBeInTheDocument()
-    expect(within(cards[1]).getByText("$7,103")).toBeInTheDocument()
-    expect(within(cards[1]).getByText(/\+6\.1% vs last week/)).toHaveAttribute("data-tone", "good")
+    // A real trailing-7-day sum of the daily revenue spread, not Revenue ÷ 4.
+    expect(within(cards[1]).getByText("$7,848")).toBeInTheDocument()
+    expect(within(cards[1]).getByText(/\+6\.8% vs previous 7 days/)).toHaveAttribute("data-tone", "good")
   })
 
   it("shows exactly what the Metrics page shows for the same day", () => {
@@ -81,7 +82,7 @@ describe("HomeScreen", () => {
 
     const door = screen.getByRole("region", { name: "Metrics" })
     const mrr = snapshotFor("mrr", { today })
-    expect(within(door).getByText("MRR · last 6 months")).toBeInTheDocument()
+    expect(within(door).getByText("MRR · 6 × 28 days")).toBeInTheDocument()
     expect(within(door).getByText(/\$23\.8k → \$26\.2k/)).toBeInTheDocument()
     expect(mrr.series[0]).toBe(23_800)
     expect(mrr.series.at(-1)).toBe(26_190)
@@ -115,8 +116,8 @@ describe("HomeScreen", () => {
       "Subscribers",
       "Churn Rate",
     ])
-    // Churn fell, which is the good direction for churn.
-    expect(within(cards[3]).getByText(/−0\.4 pts/)).toHaveAttribute("data-tone", "good")
+    // Churn fell (derived from the seed: 5 of 183), which is the good direction for churn.
+    expect(within(cards[3]).getByText(/−1\.5 pts vs previous 28 days/)).toHaveAttribute("data-tone", "good")
     expect(within(cards[3]).getByText("Down", { exact: false })).toBeInTheDocument()
     // Four card chips plus the strip-level label.
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(5)
@@ -178,7 +179,8 @@ describe("HomeScreen", () => {
   it("previews metrics with a trend chart, stamped as sample data", () => {
     renderHome()
     const door = screen.getByRole("region", { name: "Metrics" })
-    expect(within(door).getByRole("img", { name: /MRR over 6 months, Mar – Aug 2026/ })).toBeInTheDocument()
+    // FIXED_NOW is 27 Aug 2026: six 28-day windows reach back to 13 Mar.
+    expect(within(door).getByRole("img", { name: /MRR over 6 28-day windows, 13 Mar – 27 Aug 2026/ })).toBeInTheDocument()
     expect(within(door).getByText(/\$23\.8k → \$26\.2k/)).toBeInTheDocument()
     expect(within(door).getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
   })
@@ -229,7 +231,7 @@ describe("HomeScreen before the saved board is read", () => {
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
     expect(html).toContain("Subscribers")
-    expect(html).toContain("$7,103")
+    expect(html).toContain("$7,848")
     // The sample caveat is in the first paint, not added after hydration.
     expect(html).toContain("Sample data")
     expect(html).toContain("figures are invented, not live")
