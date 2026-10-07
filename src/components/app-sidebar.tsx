@@ -36,14 +36,9 @@ export const EXPAND_SIDEBAR_NAME = "Expand sidebar"
 export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
 
 /**
- * Deke tablet portrait (768–1023): 44×44 icon-rail hit, labels for AT only.
- * Driven by CSS so SSR / JS-disabled match hydration (Mack B3).
- */
-const TABLET_PORTRAIT_ICON =
-  "md:max-lg:size-11! md:max-lg:justify-center md:max-lg:p-0! md:max-lg:group-data-[collapsible=icon]:size-11!"
-
-/**
  * Deke tablet including 1180 (768–1279): 44px rows. Desktop ≥1280 keeps h-8.
+ * Portrait icon-rail squares are applied on the rail container, not here,
+ * so the 256 overlay can show full labels.
  */
 const TABLET_ROW = "max-xl:h-11!"
 
@@ -143,7 +138,7 @@ export function AppSidebar() {
                         isActive={active}
                         tooltip={item.label}
                         aria-current={active ? "page" : undefined}
-                        className={cn(TABLET_ROW, TABLET_PORTRAIT_ICON)}
+                        className={TABLET_ROW}
                         render={
                           item.external ? (
                             <a
@@ -184,7 +179,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Help"
-              className={cn(TABLET_ROW, TABLET_PORTRAIT_ICON)}
+              className={TABLET_ROW}
             >
               <CircleQuestionMarkIcon />
               <span>Help</span>
@@ -195,8 +190,7 @@ export function AppSidebar() {
               tooltip="Logout"
               className={cn(
                 "text-destructive hover:text-destructive [&_svg]:text-destructive",
-                TABLET_ROW,
-                TABLET_PORTRAIT_ICON
+                TABLET_ROW
               )}
             >
               <LogOutIcon />
