@@ -12,6 +12,7 @@ import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
 import { NeedsYouDoor } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
+import { HOME_DOORS, HOME_HEADER, HOME_HEADER_META, HOME_INBOX_DOOR } from "@/components/home/responsive"
 
 /**
  * The founder's pulse for the day: one thing, four numbers, three doors.
@@ -32,14 +33,14 @@ export function HomeScreen({ pulse }: { pulse: string }) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
-      <header className="flex items-start justify-between gap-4">
+      <header className={HOME_HEADER}>
         <div className="min-w-0">
           <h1 className="text-display-sm font-semibold tracking-tight">Home</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
             {pulse}
           </p>
         </div>
-        <div className="mt-1 flex shrink-0 items-center gap-2.5">
+        <div className={HOME_HEADER_META}>
           {/* Home reads the Workplace's browser-saved board, so it says so
               the same way the Workplace does. */}
           <PersistenceNote store={store} />
@@ -52,14 +53,15 @@ export function HomeScreen({ pulse }: { pulse: string }) {
       <div className="flex flex-1 flex-col gap-4">
         <NumberOneStrip item={numberOne} />
         <KpiStrip kpis={kpis(today)} title={kpiStripTitle} />
-        <div
-          role="group"
-          aria-label="Doors"
-          className="grid min-h-[200px] flex-1 grid-cols-1 gap-4 lg:grid-cols-3"
-        >
+        <div role="group" aria-label="Doors" className={HOME_DOORS}>
           <MetricsDoor trend={mrrTrend({ today })} today={today} />
           <DevBoardDoor preview={board} loading={loading} />
-          <NeedsYouDoor needs={needs} now={now} loading={loading} />
+          <NeedsYouDoor
+            className={HOME_INBOX_DOOR}
+            needs={needs}
+            now={now}
+            loading={loading}
+          />
         </div>
       </div>
     </div>

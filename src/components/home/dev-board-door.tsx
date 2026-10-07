@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import { HOME_BOARD_COLUMNS } from "@/components/home/responsive"
 
 /**
  * Preview of the Agent Workplace issues board — the dev board. Column
@@ -41,7 +42,7 @@ export function DevBoardDoor({
       {loading ? (
         <div aria-busy="true" aria-label="Loading the board" className="flex flex-col gap-4">
           <Skeleton className="h-3 w-28" />
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className={HOME_BOARD_COLUMNS}>
             {[0, 1, 2, 3, 4].map((n) => (
               <Skeleton key={n} className="h-[66px] rounded-lg" />
             ))}
@@ -55,7 +56,7 @@ export function DevBoardDoor({
           </span>
           <ul
             aria-label="Columns"
-            className="grid grid-cols-5 gap-1.5"
+            className={HOME_BOARD_COLUMNS}
           >
             {preview.columns.map((col) => {
               const Icon = STATUS_CONFIG[col.status].icon

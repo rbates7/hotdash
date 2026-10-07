@@ -1,0 +1,34 @@
+/**
+ * Home-only layout classes. The shell PR owns shared compact helpers;
+ * these stay next to the screen so this PR can land without that one.
+ *
+ * Breakpoints (Tailwind):
+ * - default: phone (390 / 360)
+ * - md (768+): tablet 2-up / 2+1 doors
+ * - xl (1280+): unchanged 1440 desktop
+ */
+export const HOME_HEADER =
+  "flex flex-col items-stretch gap-3 xl:flex-row xl:items-start xl:justify-between xl:gap-4"
+
+/**
+ * Persistence + dummy chip wrap under the title on phone. Reset grows to
+ * 44px below `xl` via the shared PersistenceNote's button — we do not
+ * edit PersistenceNote itself.
+ */
+export const HOME_HEADER_META =
+  "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 xl:mt-1 xl:shrink-0 xl:gap-2.5 max-xl:[&_[data-slot=button]]:h-11! max-xl:[&_[data-slot=button]]:px-2.5!"
+
+export const HOME_DOORS =
+  "grid min-h-[200px] flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+
+/** Inbox sits full-width under the first two doors on tablet. */
+export const HOME_INBOX_DOOR = "md:col-span-2 xl:col-span-1"
+
+/** Dev-board counters wrap 3-up on phone/tablet; five columns at 1440. */
+export const HOME_BOARD_COLUMNS = "grid grid-cols-3 gap-1.5 xl:grid-cols-5"
+
+export const HOME_KPI_HEAD =
+  "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-0.5"
+
+/** 44px tap target on phone + tablet; desktop chrome stays as-is. */
+export const HOME_TOUCH = "max-xl:min-h-11"
