@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { formatRelative } from "@/lib/clock"
 import {
   FeatureRequestsProvider,
   STORAGE_KEY,
@@ -144,8 +145,9 @@ describe("board", () => {
     render(<Screen />)
     await user.click(card("Web import from a link"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Web import from a link" })
-    // Shared formatRelative: older than yesterday reads as a weekday date, the
-    // full date rides along as the <time> title.
+    // Shared formatRelative long: older than yesterday reads as a weekday
+    // date (the passed copy); the full date rides along as the <time> title.
+    expect(formatRelative(Date.parse("2026-08-22T15:00:00.000Z"), TODAY.getTime(), { style: "long" })).toBe("Sat, Aug 22")
     expect(dialog).toHaveTextContent("Added Sat, Aug 22")
     expect(within(dialog).getByText("Sat, Aug 22")).toHaveAttribute("title", "22 Aug 2026")
     expect(within(dialog).getByTestId("sample-data-tag")).toBeInTheDocument()

@@ -12,9 +12,10 @@ export const metadata = {
 export const dynamic = "force-dynamic"
 
 export default function FeatureRequestPage() {
-  // One instant per request. The seed's dates, every "Added 2 days ago" and
-  // every stamp on an edit are measured from it, and the client hydrates
-  // against the same value. Nothing below reads the clock again.
+  // One instant per request. The seed's dates, every "Added Sat, Aug 22"
+  // (`formatRelative` long), and every stamp on an edit are measured from
+  // it, and the client hydrates against the same value. Edit stamps then
+  // read `now()` at the click; Reset and cross-tab re-seeds use reseedNowMs.
   const at = now()
 
   return (

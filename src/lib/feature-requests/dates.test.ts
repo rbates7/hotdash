@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CENTRAL, daysBetween, formatDate } from "@/lib/clock"
+import { CENTRAL, daysBetween, formatDate, formatRelativeDay } from "@/lib/clock"
 import { LATE_EVENING_CT } from "@/test/clock"
 
 type Dates = typeof import("@/lib/feature-requests/dates")
@@ -62,6 +62,11 @@ for (const tz of ["UTC", "America/Chicago"]) {
       expect(fmt(before.toISOString())).toBe("6 Oct 2026")
       expect(daysBetween(before, LATE)).toBe(1)
       expect(daysBetween(dates.calendarDaysBefore(46, TODAY), TODAY)).toBe(46)
+      // Shared formatRelativeDay: whole Central days, both directions.
+      expect(formatRelativeDay(dates.calendarDaysBefore(0, TODAY), TODAY)).toBe("Today")
+      expect(formatRelativeDay(dates.calendarDaysBefore(1, TODAY), TODAY)).toBe("Yesterday")
+      expect(formatRelativeDay(dates.calendarDaysBefore(2, TODAY), TODAY)).toBe("2 days ago")
+      expect(formatRelativeDay(dates.calendarDaysBefore(1, LATE), LATE)).toBe("Yesterday")
     })
 
     describe("across DST", () => {

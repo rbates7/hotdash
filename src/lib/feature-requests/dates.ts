@@ -1,10 +1,10 @@
 /**
  * Wall-clock date maths for the Feature Request seed, on top of the shared
- * clock (`@/lib/clock`): `formatDate`, `formatRelative`, `daysBetween` and
- * `CENTRAL` come from there. What lives here is the one thing the shared
- * clock does not do — move an *instant* back N Central calendar days while
- * keeping its wall-clock time, so the seed's "2 days ago" survives a DST
- * change.
+ * clock (`@/lib/clock`): `formatDate`, `formatRelative`, `formatRelativeDay`,
+ * `daysBetween` and `CENTRAL` come from there. What lives here is the one
+ * thing the shared clock does not do — move an *instant* back N Central
+ * calendar days while keeping its wall-clock time, so the seed's
+ * "2 days ago" (`formatRelativeDay`) survives a DST change.
  *
  * Pure: nothing here reads the clock. The instant "now" is read once per
  * request in the page and handed down as `nowMs`.

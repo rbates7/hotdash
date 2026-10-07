@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, NOTE_NAME, countWrites, resetDemoData, writesTo } from "./support/persistence"
+import { NOTE, NOTE_NAME, countWrites, expectWritesSettled, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.feature-requests.v1"
 const REJECTED_KEY = `${STORAGE_KEY}.rejected`
@@ -15,7 +16,6 @@ const card = (page: Page, title: string) =>
   board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
 const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
-const themeToggle = (page: Page) => page.getByRole("group", { name: "Color theme", exact: true })
 const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
 const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const cardsIn = (page: Page, name: string) =>
@@ -38,13 +38,6 @@ async function freshBoard(page: Page) {
   await page.reload()
   // Hydrated, but nothing of the founder's to save yet.
   await expect(persistence(page)).toHaveText(NOTE.unsaved)
-}
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  await themeToggle(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
 }
 
 test.describe("Feature Request", () => {
@@ -110,8 +103,18 @@ test.describe("Feature Request", () => {
   test("Reset is disabled until something is saved, and asks before it acts", async ({ page }) => {
     await freshBoard(page)
     const reset = resetButton(page)
-    await expect(reset).toBeDisabled()
+    await expect(reset).toHaveAttribute("aria-disabled", "true")
     await expect(reset).toHaveAttribute("title", RESET_DISABLED_HINT)
+    const styles = () =>
+      reset.evaluate((el) => {
+        const cs = getComputedStyle(el)
+        return { background: cs.backgroundColor, color: cs.color, cursor: cs.cursor, opacity: cs.opacity }
+      })
+    const before = await styles()
+    expect(before.cursor).toBe("not-allowed")
+    expect(Number(before.opacity)).toBeCloseTo(0.5, 2)
+    await reset.hover()
+    expect(await styles()).toEqual(before)
 
     await card(page, "Play of the Day").click()
     const d = dialog(page, "Idea: Play of the Day")
@@ -119,7 +122,7 @@ test.describe("Feature Request", () => {
     await d.getByRole("button", { name: /Save/ }).click()
     await expect(d).toBeHidden()
     await expect(persistence(page)).toHaveText(NOTE.saved)
-    await expect(reset).toBeEnabled()
+    await expect(reset).not.toHaveAttribute("aria-disabled", "true")
 
     await reset.click()
     const confirm = page.getByRole("dialog", { name: "Reset demo data?" })
@@ -132,7 +135,7 @@ test.describe("Feature Request", () => {
     await resetDemoData(page, actions(page))
     await expect(cardsIn(page, "Parked")).toHaveCount(2)
     expect(await savedCopy(page)).toBeNull()
-    await expect(reset).toBeDisabled()
+    await expect(reset).toHaveAttribute("aria-disabled", "true")
   })
 
   test("says so when the browser refuses to save, and keeps the idea on the board", async ({ page }) => {
@@ -153,25 +156,24 @@ test.describe("Feature Request", () => {
     await expect(card(page, "Won't fit")).toBeVisible()
     await expect(persistence(page, { failed: true })).toHaveText(NOTE.failed)
     expect(await savedCopy(page)).toBeNull()
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   })
 
   test("follows another tab's edits and resets through the storage event, and the writes settle", async ({ context, page }) => {
     // Count every write to the key in both tabs. A hydrate must never save,
     // so after one edit exactly one write exists across the pair.
     await countWrites(context, STORAGE_KEY)
-    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
     // Counted after the other tab has visibly taken the change (web-first),
-    // then polled until quiet: no fixed sleeps.
-    const settled = (p: Page, n: number) =>
-      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    // then must stay flat over a quiet window: a loop would move the count
+    // and the poll would never settle.
+    const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
 
     await freshBoard(page)
     const other = await context.newPage()
     await other.goto("/feature-request")
     await expect(persistence(other)).toHaveText(NOTE.unsaved)
-    expect(await writes(page)).toBe(0)
-    expect(await writes(other)).toBe(0)
+    await settled(page, 0)
+    await settled(other, 0)
 
     await newIdea(other).click()
     await dialog(other, "New idea").getByRole("textbox", { name: "Idea title" }).fill("From tab two")
@@ -198,7 +200,7 @@ test.describe("Feature Request", () => {
     await expect(card(page, "From tab two")).toHaveCount(0)
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
     await settled(page, 1)
     await settled(other, 1)
     await other.close()
@@ -286,14 +288,14 @@ test.describe("Feature Request", () => {
     await expect(card(page, "Practice plan templates")).toHaveCount(0)
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
     expect(await savedCopy(page)).toBeNull()
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   })
 
   test("edits a card, moves it between columns, and the edit survives reload", async ({ page }) => {
     await freshBoard(page)
     await card(page, "Web import from a link").click()
     const d = dialog(page, "Idea: Web import from a link")
-    // Shared formatRelative: two days back reads as a weekday date.
+    // Shared formatRelative long: two days back reads as a weekday date.
     await expect(d.getByText(/^Added/)).toContainText(/^Added \w{3}, \w{3} \d{1,2}$/)
     await expect(d.getByRole("button", { name: /Save/ })).toBeDisabled()
 

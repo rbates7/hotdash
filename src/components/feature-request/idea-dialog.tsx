@@ -216,7 +216,7 @@ function EditIdeaBody({
   onDelete,
 }: {
   request: FeatureRequest
-  /** The request instant from the store; "Added 2 days ago" is measured from it. */
+  /** The request instant from the store; "Added Sat, Aug 22" (`formatRelative` long) is measured from it. */
   now: Date
   onClose: () => void
   onSave: (
@@ -309,7 +309,7 @@ function EditIdeaBody({
           <p className="text-caption text-muted-foreground pb-1.5">
             Added{" "}
             <time dateTime={request.createdAt} title={formatDate(new Date(request.createdAt))}>
-              {formatRelative(Date.parse(request.createdAt), now.getTime())}
+              {formatRelative(Date.parse(request.createdAt), now.getTime(), { style: "long" })}
             </time>
           </p>
         </div>

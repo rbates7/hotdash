@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { settleAnimations } from "./support/contrast"
 import { NOTE, NOTE_NAME, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Feature Request screen, every main state in
@@ -28,7 +29,6 @@ const board = (page: Page) => page.getByRole("region", { name: "Feature request 
 const card = (page: Page, title: string) =>
   board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
 const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
-const themeToggle = (page: Page) => page.getByRole("group", { name: "Color theme", exact: true })
 const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
 const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
@@ -42,14 +42,6 @@ async function shoot(page: Page, name: string) {
     fs.mkdirSync(dir, { recursive: true })
     await page.screenshot({ path: path.join(dir, `${name}.png`) })
   }
-}
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await themeToggle(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
 }
 
 for (const theme of ["light", "dark"] as const) {

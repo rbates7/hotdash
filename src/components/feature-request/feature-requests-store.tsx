@@ -254,7 +254,7 @@ export const REJECTED_KEY = featureRequestsStorage.rejectedKey
 
 type Store = State &
   PersistenceStore & {
-    /** The shell's clock as a Date: the request instant, or the last Reset. Relative labels measure from it. */
+    /** `new Date(shell.nowMs)`: the request instant, or the last Reset. Relative labels measure from it. */
     now: Date
     addRequest: (input: NewRequestInput) => void
     patchRequest: (id: string, patch: RequestPatch) => void
