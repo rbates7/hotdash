@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
 import { NewIdeaDialog } from "@/components/feature-request/idea-dialog"
 import { PersistenceNote } from "@/components/feature-request/persistence-note"
-import { SAMPLE_DATA_LABEL } from "@/components/feature-request/sample-data"
+import { SAMPLE_DATA_LABEL, SAMPLE_PALETTE } from "@/components/feature-request/sample-data"
+import { cn } from "@/lib/utils"
 
 /**
  * Right side of the page header: where edits live, the mock's dashed badge
@@ -23,7 +24,10 @@ export function HeaderActions() {
       {hasSample && (
         <span
           data-testid="sample-data-badge"
-          className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase"
+          className={cn(
+            "rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase",
+            SAMPLE_PALETTE
+          )}
         >
           {SAMPLE_DATA_LABEL}
         </span>

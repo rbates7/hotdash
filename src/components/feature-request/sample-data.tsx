@@ -5,15 +5,22 @@ import { cn } from "@/lib/utils"
 export const SAMPLE_DATA_LABEL = "Sample data"
 
 /**
- * Sits on every invented card. Warning tint on foreground text so it reads
- * in both themes; a single dashed page badge alone is too easy to miss.
+ * One palette for every sample-data label, chosen for text contrast rather
+ * than tint: amber-800 on amber-100 in light (≈7:1), amber-200 on amber-950
+ * in dark (≈12:1). Solid colours, no opacity on the text — the e2e measures
+ * each text node against its real background.
  */
+export const SAMPLE_PALETTE =
+  "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800"
+
+/** Sits on every invented card. */
 export function SampleDataTag({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-testid="sample-data-tag"
       className={cn(
-        "text-micro border-warning/70 bg-warning/20 text-foreground inline-flex h-5 flex-none items-center gap-1 rounded-full border px-1.5 font-semibold tracking-tight",
+        "text-micro inline-flex h-5 flex-none items-center gap-1 rounded-full border px-1.5 font-semibold tracking-tight",
+        SAMPLE_PALETTE,
         className
       )}
       {...props}
@@ -30,7 +37,10 @@ export function SampleDataNotice({ count }: { count: number }) {
     <div
       role="note"
       aria-label={SAMPLE_DATA_LABEL}
-      className="border-warning/60 bg-warning/15 text-body text-foreground flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5"
+      className={cn(
+        "text-body flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5",
+        SAMPLE_PALETTE
+      )}
     >
       <FlaskConicalIcon className="mt-0.5 size-4 flex-none" aria-hidden />
       <p>
