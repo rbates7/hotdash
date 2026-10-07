@@ -11,7 +11,7 @@ import {
   type Expense,
   type Sort,
 } from "@/lib/metrics"
-import { METRIC_DEFS, snapshotFor } from "@/lib/metrics-fixture"
+import { METRIC_DEFS, PERIOD, snapshotFor } from "@/lib/metrics-fixture"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -41,8 +41,8 @@ import {
   TableCard,
 } from "@/components/metrics/table-bits"
 
-/** Last day of the decorative date range; a sensible default for a new row. */
-const DEFAULT_DATE = "2026-08-21"
+/** "Today" on the page's frozen clock, not the machine's. */
+const DEFAULT_DATE = PERIOD.end
 
 function AddExpenseDialog() {
   const { addExpense } = useMetrics()
@@ -191,7 +191,7 @@ export function ExpensesPanel() {
         <AddExpenseDialog />
       </div>
 
-      <TableCard>
+      <TableCard note="Seed rows are illustrative; rows you add are saved in this browser.">
         <Table aria-label="Expenses">
           <TableHeader>
             <TableRow className="hover:bg-transparent">

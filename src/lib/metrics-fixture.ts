@@ -1,5 +1,7 @@
 import {
   expensesTotal,
+  formatDate,
+  isoDay,
   valuationFromArr,
   type ChurnedSubscriber,
   type Expense,
@@ -14,8 +16,22 @@ import {
  * Nothing here is wired to Stripe, Supabase or PostHog yet.
  */
 
-/** The decorative range in the page header. Not a working picker yet. */
-export const DATE_RANGE_LABEL = "25 Jul – 21 Aug 2026"
+/**
+ * The one clock for this page. Every date here — the reporting period, the
+ * default date on a new expense, every seed row — is frozen relative to it,
+ * never to the real `new Date()`, so the mock reads the same on any day and
+ * server and client never disagree.
+ */
+export const NOW = new Date("2026-08-21T12:00:00.000Z")
+
+/** The reporting period: four weeks ending today. */
+export const PERIOD = {
+  start: isoDay(new Date(NOW.getTime() - 27 * 86_400_000)),
+  end: isoDay(NOW),
+} as const
+
+/** What the header's (decorative) range control shows: "25 Jul – 21 Aug 2026". */
+export const DATE_RANGE_LABEL = `${formatDate(PERIOD.start).replace(/ \d{4}$/, "")} – ${formatDate(PERIOD.end)}`
 
 export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   mrr: { id: "mrr", label: "MRR", unit: "currency", trendKind: "percent", defaultChart: "bar" },

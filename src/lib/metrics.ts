@@ -200,6 +200,11 @@ export function pickerIds(visible: readonly MetricId[]): MetricId[] {
 // the mock (and the rest of the dashboard) use three-letter months.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+/** A Date → its UTC calendar day as "YYYY-MM-DD". */
+export function isoDay(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
 /** "2026-08-18" → "18 Aug 2026". Calendar dates, so no local-zone drift. */
 export function formatDate(iso: string) {
   const [y, m, d] = iso.split("-").map(Number)

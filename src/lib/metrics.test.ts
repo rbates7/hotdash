@@ -15,8 +15,13 @@ import {
   type MetricId,
 } from "@/lib/metrics"
 import {
+  DATE_RANGE_LABEL,
   METRIC_DEFS,
+  NOW,
+  PERIOD,
+  churnedSubscribers,
   expenses,
+  newSubscribers,
   snapshotFor,
 } from "@/lib/metrics-fixture"
 
@@ -133,6 +138,23 @@ describe("formatting", () => {
     expect(formatDate("2025-09-04")).toBe("4 Sep 2025")
     expect(formatDate("2026-01-01")).toBe("1 Jan 2026")
     expect(formatDate("not-a-date")).toBe("not-a-date")
+  })
+})
+
+describe("one clock", () => {
+  it("the period and its label derive from the frozen NOW, not the machine date", () => {
+    expect(NOW.toISOString()).toBe("2026-08-21T12:00:00.000Z")
+    expect(PERIOD).toEqual({ start: "2026-07-25", end: "2026-08-21" })
+    expect(DATE_RANGE_LABEL).toBe("25 Jul – 21 Aug 2026")
+  })
+
+  it("no seed row is dated after NOW", () => {
+    const dates = [
+      ...expenses.map((e) => e.date),
+      ...newSubscribers.map((s) => s.signupDate),
+      ...churnedSubscribers.flatMap((s) => [s.signupDate, s.churnDate]),
+    ]
+    for (const d of dates) expect(d <= PERIOD.end).toBe(true)
   })
 })
 
