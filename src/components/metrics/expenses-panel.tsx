@@ -42,7 +42,9 @@ import {
 } from "@/components/table-bits"
 
 function AddExpenseDialog() {
-  // Default to the page's "today" (read once per request), not the machine's.
+  // Dates come from the store's clock (the request's day, or the day of a
+  // Reset) — never the machine's. The default is taken when the dialog
+  // opens, so it follows a Reset that moved the day.
   const { today, addExpense } = useMetrics()
   const period = periodEnding(today)
   const [open, setOpen] = React.useState(false)
@@ -67,6 +69,12 @@ function AddExpenseDialog() {
     setRecurring(false)
   }
 
+  function openDialog(next: boolean) {
+    if (next) setDate(today)
+    else reset()
+    setOpen(next)
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!valid) return
@@ -76,13 +84,7 @@ function AddExpenseDialog() {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) reset()
-      }}
-    >
+    <Dialog open={open} onOpenChange={openDialog}>
       <DialogTrigger
         render={
           <Button size="sm" className="h-9 px-3.5">

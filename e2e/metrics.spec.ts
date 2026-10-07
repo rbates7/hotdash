@@ -9,7 +9,8 @@ import {
   todayIn,
 } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { setTheme } from "./support/theme"
+import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.metrics.v2"
 
@@ -38,7 +39,10 @@ const table = (page: Page, name: "New subscribers" | "Churned subscribers" | "Ex
   return panel(page, owner).getByRole("table", { name, exact: true })
 }
 const sampleNote = (page: Page) => page.getByRole("note", { name: "Sample data" })
-const headerTag = (page: Page) => page.locator("main header").getByTestId("sample-data-tag")
+const header = (page: Page) => page.locator("main header").first()
+const headerTag = (page: Page) => header(page).getByTestId("sample-data-tag")
+const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard" })
 
 async function freshMetrics(page: Page, path = "/metrics") {
   await page.goto(path)
@@ -46,20 +50,14 @@ async function freshMetrics(page: Page, path = "/metrics") {
   await page.reload()
   // Nothing edited in this browser yet, so nothing is saved — and it says so.
   await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-  await expect(page.getByRole("button", { name: "Reset", exact: true })).toBeDisabled()
+  await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
-}
 
 test.describe("Metrics", () => {
   test("is reachable from the sidebar and shows the Overview", async ({ page }) => {
     await page.goto("/home")
-    await page.getByRole("link", { name: "Metrics", exact: true }).click()
+    await rail(page).getByRole("link", { name: "Metrics", exact: true }).click()
     await expect(page).toHaveURL(/\/metrics$/)
     await expect(page.getByRole("heading", { level: 1, name: "Metrics" })).toBeVisible()
     // Real clock: the header is the trailing four weeks ending on today's
@@ -131,6 +129,29 @@ test.describe("Metrics", () => {
     await setTheme(page, "dark")
     await expectProbeCatchesSabotage(headerTag(page), "header tag (dark)", expect)
     await setTheme(page, "light")
+  })
+
+  test("the disabled Reset does not react to hover and keeps its own size", async ({ page }) => {
+    await freshMetrics(page)
+    const reset = resetButton(page)
+    await expect(reset).toHaveAttribute("aria-disabled", "true")
+    const styles = () =>
+      reset.evaluate((el) => {
+        const cs = getComputedStyle(el)
+        return { background: cs.backgroundColor, color: cs.color, fontSize: cs.fontSize, paddingLeft: cs.paddingLeft, cursor: cs.cursor, opacity: cs.opacity }
+      })
+    const before = await styles()
+    expect(before.fontSize).toBe("11px") // text-micro, not Nova's text-xs (12px)
+    expect(before.paddingLeft).toBe("6px") // px-1.5, not Nova's px-2
+    expect(before.cursor).toBe("not-allowed")
+    expect(Number(before.opacity)).toBeCloseTo(0.5, 2)
+    await reset.hover()
+    await page.mouse.move(1, 1) // and back off again, to be sure the hover frame was painted first
+    await reset.hover()
+    const during = await styles()
+    expect(during.background).toBe(before.background)
+    expect(during.color).toBe(before.color)
+    expect(during.fontSize).toBe("11px")
   })
 
   test("sparklines are images, not stops: tabbing through the Overview never lands in a chart", async ({ page }) => {
@@ -291,20 +312,18 @@ test.describe("Metrics", () => {
     // script runs. Same-origin pages in one context share localStorage and
     // receive each other's `storage` events, exactly like two browser tabs.
     await countWrites(context, STORAGE_KEY)
-    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
 
     const a = await context.newPage()
     const b = await context.newPage()
     await freshMetrics(a)
     await b.goto("/metrics")
     await expect(persistenceNote(b)).toHaveText(NOTE.unsaved)
-    expect(await writes(a)).toBe(0)
-    expect(await writes(b)).toBe(0)
-
     // Writes are counted after the other tab has visibly taken the change
-    // (web-first), then polled: a loop would overshoot and never match.
-    const settled = async (p: Page, n: number) =>
-      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    // (web-first), then must stay flat over a quiet window: a loop would
+    // move the count and the poll would never settle.
+    const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
+    await settled(a, 0)
+    await settled(b, 0)
 
     // A edits: one write in A; B hears it and takes the copy without writing.
     await card(a, "ARR").getByRole("button", { name: "Remove ARR" }).click()
