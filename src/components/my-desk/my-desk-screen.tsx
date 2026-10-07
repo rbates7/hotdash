@@ -6,6 +6,7 @@ import { CheckIcon, NotebookPenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lu
 import { formatRelative, type IsoDay } from "@/lib/clock"
 import {
   carryFromLabel,
+  carryFromSpoken,
   describeTodo,
   formatDeskDate,
   isSeedTodo,
@@ -40,6 +41,8 @@ export const SCRATCH_HINT = "jot, not an editor"
 export const SCRATCH_SAVE_MS = 300
 export const EMPTY_COPY =
   "Every to-do has been removed. Add one, or Reset to bring the sample rows back."
+export const FINISHED_EARLIER_COPY =
+  "Nothing open today. To-dos you finished on earlier days drop off this list. Add one, or Reset to bring the sample rows back."
 
 /**
  * Stands in for both cards until localStorage has been read. Showing the
@@ -115,6 +118,8 @@ function TodoRow({
   onToggle: (todo: Todo) => void
 }) {
   const carryFrom = carryFromLabel(todo.createdOn, today)
+  const carrySpoken = carryFromSpoken(todo.createdOn, today)
+  const carryId = `${todo.id}-carry`
   return (
     <li
       data-todo={todo.id}
@@ -128,6 +133,7 @@ function TodoRow({
         role="checkbox"
         aria-checked={todo.done}
         aria-label={todo.title}
+        aria-describedby={carrySpoken ? carryId : undefined}
         className={cn(
           "mt-0.5 size-4 rounded-[4px] border",
           todo.done
@@ -148,12 +154,14 @@ function TodoRow({
           >
             {todo.title}
           </p>
-          {carryFrom ? (
+          {carryFrom && carrySpoken ? (
             <span
+              id={carryId}
               data-testid="carry-from"
               className="text-micro text-muted-foreground tracking-tight"
             >
-              {carryFrom}
+              <span aria-hidden="true">{carryFrom}</span>
+              <span className="sr-only">{carrySpoken}</span>
             </span>
           ) : null}
           {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
@@ -385,7 +393,9 @@ export function MyDeskScreen() {
                 >
                   <NotebookPenIcon className="text-foreground size-6" aria-hidden />
                   <p className="text-body text-foreground font-medium">Nothing on the list</p>
-                  <p className="text-caption text-muted-foreground">{EMPTY_COPY}</p>
+                  <p className="text-caption text-muted-foreground">
+                    {todos.length === 0 ? EMPTY_COPY : FINISHED_EARLIER_COPY}
+                  </p>
                   <Button size="sm" variant="outline" className="mt-1" onClick={() => setAdding(true)}>
                     <PlusIcon aria-hidden />
                     Add to-do

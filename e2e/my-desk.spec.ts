@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { EMPTY_COPY, SCRATCH_SAVE_MS } from "../src/components/my-desk/my-desk-screen"
-import { carryFromLabel, formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
+import { EMPTY_COPY, FINISHED_EARLIER_COPY, SCRATCH_SAVE_MS } from "../src/components/my-desk/my-desk-screen"
+import { carryFromLabel, carryFromSpoken, formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
 import { addDays, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.my-desk.v2"
+const LEGACY_KEY = "hotdash.my-desk.v1"
 
 const today = () => todayIn(now())
 
@@ -24,7 +25,13 @@ const todoRow = (page: Page, title: string) => todoBox(page, title).locator("xpa
 
 async function freshDesk(page: Page) {
   await page.goto("/my-desk")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
+  await page.evaluate(
+    ([v2, v1]) => {
+      localStorage.removeItem(v2)
+      localStorage.removeItem(v1)
+    },
+    [STORAGE_KEY, LEGACY_KEY] as const
+  )
   await page.reload()
   await expect(note(page)).toHaveText(NOTE.unsaved)
   await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
@@ -83,9 +90,11 @@ test.describe("My Desk", () => {
     await page.reload()
     await expect(note(page)).toHaveText(NOTE.saved)
 
+    const spoken = carryFromSpoken(yesterday, today)
     const carried = todoRow(page, "Finish the packet")
     await expect(carried).toBeVisible()
-    await expect(carried.getByTestId("carry-from")).toHaveText(label!)
+    await expect(carried.getByTestId("carry-from")).toContainText(label!)
+    await expect(todoBox(page, "Finish the packet")).toHaveAccessibleDescription(spoken!)
     await expect(todoBox(page, "Already filed")).toHaveCount(0)
     await expect(todoBox(page, "Call today")).toBeVisible()
     await expect(todoRow(page, "Call today").getByTestId("carry-from")).toHaveCount(0)
@@ -94,6 +103,54 @@ test.describe("My Desk", () => {
     await page.reload()
     await expect(todoBox(page, "Finish the packet")).toHaveCount(1)
     await expect(todayList(page).getByTestId("carry-from")).toHaveCount(1)
+
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectReadable(carried, `${theme}/carried row`, expect)
+      await expectReadable(carried.getByTestId("carry-from"), `${theme}/carried label`, expect)
+      await expectReadable(todoRow(page, "Call today"), `${theme}/today row`, expect)
+    }
+    await setTheme(page, "light")
+  })
+
+  test("finished-earlier empty copy is true and readable in light and dark", async ({ page }) => {
+    const today = todayIn(now())
+    const yesterday = addDays(today, -1)
+    await page.goto("/my-desk")
+    await page.evaluate(
+      ([key, prior]) => {
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            todos: [
+              {
+                id: "todo-21",
+                title: "Already filed",
+                note: "yesterday",
+                done: true,
+                createdOn: prior,
+                doneOn: prior,
+              },
+            ],
+            nextId: 22,
+            scratch: "",
+            scratchUpdatedAt: new Date().toISOString(),
+          })
+        )
+      },
+      [STORAGE_KEY, yesterday] as const
+    )
+    await page.reload()
+    const empty = page.getByRole("status", { name: "No to-dos", exact: true })
+    await expect(empty).toBeVisible()
+    await expect(empty).toContainText(FINISHED_EARLIER_COPY)
+    await expect(empty).not.toContainText("removed")
+    await expect(empty).not.toContainText(EMPTY_COPY)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectReadable(empty, `${theme}/finished earlier`, expect)
+    }
+    await setTheme(page, "light")
   })
 
   test("is reachable from the sidebar and shows the mock's two cards", async ({ page }) => {

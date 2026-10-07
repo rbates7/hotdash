@@ -1,11 +1,12 @@
 import * as React from "react"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { DESK_MOCK_DAY, SEED_SCRATCH, TODO_LIMITS, formatDeskDate, seedTodos } from "@/lib/my-desk"
 import {
   EMPTY_COPY,
+  FINISHED_EARLIER_COPY,
   LEDE,
   MyDeskScreen,
   NOTES_FOOTER,
@@ -59,6 +60,7 @@ describe("MyDeskScreen", () => {
     expect(todayList()).toHaveTextContent(TODAY_FOOTER)
 
     const todos = seedTodos()
+    expect(todos).toHaveLength(7)
     for (const todo of todos) {
       const box = screen.getByRole("checkbox", { name: todo.title })
       expect(box).toHaveAttribute("aria-checked", String(todo.done))
@@ -92,6 +94,62 @@ describe("MyDeskScreen", () => {
   it("the Today chip is the Central day: 23:30 CT on 7 Oct still reads Wed 7 Oct", () => {
     renderScreen(LATE_MS)
     expect(screen.getByTestId("today-date")).toHaveTextContent("Wed 7 Oct")
+  })
+
+  describe("the Central day advances in an open tab", () => {
+    const wed = "2026-10-07"
+    const at2359 = new Date("2026-10-08T04:59:00.000Z")
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it("a row ticked Wed is visible at 23:59 CT and gone after the midnight timer; an open Wed row reads from Wed", () => {
+      saveState(window.localStorage, {
+        todos: [
+          {
+            id: "todo-10",
+            title: "Finish the packet",
+            note: "Aledo",
+            done: false,
+            createdOn: wed,
+            doneOn: null,
+          },
+          {
+            id: "todo-11",
+            title: "Ticked Wed",
+            note: "",
+            done: true,
+            createdOn: wed,
+            doneOn: wed,
+          },
+        ],
+        nextId: 12,
+        scratch: "",
+        scratchUpdatedAt: "2026-10-07T17:00:00.000Z",
+      })
+      vi.useFakeTimers({ now: at2359, toFake: ["Date", "setTimeout", "clearTimeout"] })
+      renderScreen(at2359.getTime())
+      expect(screen.getByTestId("today-date")).toHaveTextContent("Wed 7 Oct")
+      expect(screen.getByRole("checkbox", { name: "Ticked Wed" })).toBeInTheDocument()
+      expect(screen.getByRole("checkbox", { name: "Finish the packet" })).toBeInTheDocument()
+      expect(
+        screen.getByRole("checkbox", { name: "Finish the packet" }).closest("li")
+      ).not.toHaveTextContent("from Wed")
+
+      fireEvent(document, new Event("visibilitychange"))
+      // Still Wed until time moves.
+      expect(screen.getByTestId("today-date")).toHaveTextContent("Wed 7 Oct")
+
+      act(() => {
+        vi.advanceTimersByTime(90_000)
+      })
+      expect(screen.getByTestId("today-date")).toHaveTextContent("Thu 8 Oct")
+      expect(screen.queryByRole("checkbox", { name: "Ticked Wed" })).not.toBeInTheDocument()
+      const carried = screen.getByRole("checkbox", { name: "Finish the packet" })
+      expect(carried.closest("li")).toHaveTextContent("from Wed")
+      expect(carried).toHaveAccessibleDescription("added Wednesday")
+    })
   })
 
   describe("hydration", () => {
@@ -250,10 +308,84 @@ describe("MyDeskScreen", () => {
       renderScreen()
       const carried = screen.getByRole("checkbox", { name: "Finish the packet" }).closest("li")!
       expect(within(carried).getByTestId("carry-from")).toHaveTextContent("from Tue")
+      expect(screen.getByRole("checkbox", { name: "Finish the packet" })).toHaveAccessibleDescription(
+        "added Tuesday"
+      )
       expect(screen.queryByRole("checkbox", { name: "Already filed" })).not.toBeInTheDocument()
       const fresh = screen.getByRole("checkbox", { name: "Call today" }).closest("li")!
       expect(within(fresh).queryByTestId("carry-from")).not.toBeInTheDocument()
       expect(screen.getByTestId("open-count")).toHaveTextContent("2")
+    })
+
+    it("editing a carried row keeps createdOn and the label; ticking Done in the dialog stamps today", async () => {
+      const user = userEvent.setup()
+      saveState(window.localStorage, {
+        ...initialState(NOW_MS),
+        todos: [
+          {
+            id: "todo-20",
+            title: "Finish the packet",
+            note: "Aledo",
+            done: false,
+            createdOn: yesterday,
+            doneOn: null,
+          },
+        ],
+        nextId: 21,
+      })
+      renderScreen()
+      expect(screen.getByRole("checkbox", { name: "Finish the packet" })).toHaveAccessibleDescription(
+        "added Tuesday"
+      )
+      await user.click(screen.getByRole("button", { name: "Edit Finish the packet" }))
+      const edit = await screen.findByRole("dialog", { name: "Edit to-do" })
+      await user.clear(within(edit).getByLabelText("Title"))
+      await user.type(within(edit).getByLabelText("Title"), "Finish the Aledo packet")
+      await user.click(within(edit).getByRole("button", { name: "Save changes" }))
+      const renamed = screen.getByRole("checkbox", { name: "Finish the Aledo packet" })
+      expect(renamed).toHaveAccessibleDescription("added Tuesday")
+      expect(renamed.closest("li")).toHaveTextContent("from Tue")
+      expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)!).todos[0].createdOn).toBe(yesterday)
+
+      await user.click(screen.getByRole("button", { name: "Edit Finish the Aledo packet" }))
+      const again = await screen.findByRole("dialog", { name: "Edit to-do" })
+      await user.click(within(again).getByLabelText("Done"))
+      await user.click(within(again).getByRole("button", { name: "Save changes" }))
+      expect(screen.getByRole("checkbox", { name: "Finish the Aledo packet" })).toHaveAttribute(
+        "aria-checked",
+        "true"
+      )
+      expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)!).todos[0]).toMatchObject({
+        createdOn: yesterday,
+        doneOn: DESK_MOCK_DAY,
+      })
+    })
+
+    it("Undo on a deleted carried row brings the label back", async () => {
+      const user = userEvent.setup()
+      saveState(window.localStorage, {
+        ...initialState(NOW_MS),
+        todos: [
+          {
+            id: "todo-20",
+            title: "Finish the packet",
+            note: "Aledo",
+            done: false,
+            createdOn: yesterday,
+            doneOn: null,
+          },
+        ],
+        nextId: 21,
+      })
+      renderScreen()
+      await user.click(screen.getByRole("button", { name: "Delete Finish the packet" }))
+      const dialog = await screen.findByRole("dialog", { name: "Delete this to-do?" })
+      await user.click(within(dialog).getByRole("button", { name: "Delete" }))
+      expect(screen.queryByRole("checkbox", { name: "Finish the packet" })).not.toBeInTheDocument()
+      await user.click(screen.getByRole("button", { name: "Undo" }))
+      const restored = screen.getByRole("checkbox", { name: "Finish the packet" })
+      expect(restored).toHaveAccessibleDescription("added Tuesday")
+      expect(restored.closest("li")).toHaveTextContent("from Tue")
     })
   })
 
@@ -270,6 +402,31 @@ describe("MyDeskScreen", () => {
       expect(empty).toHaveTextContent(EMPTY_COPY)
       expect(empty).not.toHaveTextContent(/carry over/i)
       expect(empty).not.toHaveTextContent(/Yesterday/)
+    })
+
+    it("when every remaining row was finished on an earlier day, the copy does not say they were removed", () => {
+      saveState(window.localStorage, {
+        ...initialState(NOW_MS),
+        todos: [
+          {
+            id: "todo-21",
+            title: "Already filed",
+            note: "",
+            done: true,
+            createdOn: "2026-08-25",
+            doneOn: "2026-08-25",
+          },
+        ],
+        nextId: 22,
+        scratch: "",
+      })
+      renderScreen()
+      const empty = screen.getByRole("status", { name: "No to-dos" })
+      expect(empty).toHaveTextContent("Nothing on the list")
+      expect(empty).toHaveTextContent(FINISHED_EARLIER_COPY)
+      expect(empty).not.toHaveTextContent("removed")
+      expect(empty).not.toHaveTextContent(EMPTY_COPY)
+      expect(screen.getByTestId("open-count")).toHaveTextContent("0")
     })
 
     it("with no to-dos, Today shows one empty state that can add", async () => {

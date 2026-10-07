@@ -170,8 +170,43 @@ for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme)
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(todayList(page).getByRole("checkbox", { name: "Finish the packet", exact: true })).toBeVisible()
-    await expect(todayList(page).getByTestId("carry-from")).toHaveText(label ?? "")
+    await expect(todayList(page).getByTestId("carry-from")).toContainText(label ?? "")
     await expect(todayList(page).getByRole("checkbox", { name: "Call today", exact: true })).toBeVisible()
     await shoot(page, `my-desk-carryover-${theme}`)
+  })
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`captures the finished-earlier empty state (${theme})`, async ({ page }) => {
+    const today = todayIn(now())
+    const yesterday = addDays(today, -1)
+    await page.goto("/my-desk")
+    await page.evaluate(
+      ([key, prior]) => {
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            todos: [
+              {
+                id: "todo-21",
+                title: "Already filed",
+                note: "yesterday",
+                done: true,
+                createdOn: prior,
+                doneOn: prior,
+              },
+            ],
+            nextId: 22,
+            scratch: "",
+            scratchUpdatedAt: new Date().toISOString(),
+          })
+        )
+      },
+      [STORAGE_KEY, yesterday] as const
+    )
+    await page.reload()
+    await setTheme(page, theme)
+    await expect(page.getByRole("status", { name: "No to-dos", exact: true })).toBeVisible()
+    await shoot(page, `my-desk-finished-earlier-${theme}`)
   })
 }

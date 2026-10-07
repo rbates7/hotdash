@@ -7,11 +7,13 @@ import {
   SEED_TODO_IDS,
   TODO_LIMITS,
   carryFromLabel,
+  carryFromSpoken,
   describeTodo,
   formatDeskDate,
   isSeedScratch,
   isSeedTodo,
   isTodo,
+  msUntilNextCentralMidnight,
   normalizeScratch,
   normalizeTodoInput,
   openCount,
@@ -165,5 +167,49 @@ describe("todaysTodos carries unfinished rows and hides earlier-day completions"
   it("a row completed today stays visible; a row completed yesterday does not", () => {
     expect(todaysTodos([doneToday, doneOnTue], wed).map((t) => t.id)).toEqual(["todo-12"])
     expect(todaysTodos([doneToday, doneOnTue], thu)).toEqual([])
+  })
+})
+
+describe("carryFromLabel: weekday for 1–6 days, a date for 7 or more", () => {
+  const today = "2026-10-07"
+
+  it("yesterday (−1) is a weekday; six days ago is still a weekday", () => {
+    expect(carryFromLabel(addDays(today, -1), today)).toBe("from Tue")
+    expect(carryFromSpoken(addDays(today, -1), today)).toBe("added Tuesday")
+    expect(carryFromLabel(addDays(today, -6), today)).toBe("from Thu")
+    expect(carryFromSpoken(addDays(today, -6), today)).toBe("added Thursday")
+  })
+
+  it("seven days ago is a date even when it is the same weekday as today", () => {
+    expect(addDays(today, -7)).toBe("2026-09-30")
+    expect(carryFromLabel(addDays(today, -7), today)).toBe("from 30 Sep")
+    expect(carryFromSpoken(addDays(today, -7), today)).toBe("added 30 Sep")
+  })
+
+  it("thirty days ago and a month-boundary 7-day gap stay as dates", () => {
+    expect(carryFromLabel(addDays(today, -30), today)).toBe("from 7 Sep")
+    expect(carryFromSpoken(addDays(today, -30), today)).toBe("added 7 Sep")
+    expect(carryFromLabel("2026-09-24", "2026-10-01")).toBe("from 24 Sep")
+    expect(carryFromLabel(today, today)).toBeNull()
+    expect(carryFromSpoken(today, today)).toBeNull()
+  })
+})
+
+describe("msUntilNextCentralMidnight", () => {
+  it("from 23:59 CT on Wed the wait is about a minute, even though UTC is already Thu", () => {
+    const at2359 = new Date("2026-10-08T04:59:00.000Z")
+    expect(todayIn(at2359)).toBe("2026-10-07")
+    expect(at2359.getUTCDate()).toBe(8)
+    const wait = msUntilNextCentralMidnight(at2359)
+    expect(wait).toBeGreaterThanOrEqual(50_000)
+    expect(wait).toBeLessThanOrEqual(70_000)
+  })
+
+  it("just after Central midnight the wait is the rest of that Central day", () => {
+    const after = new Date("2026-10-08T05:00:30.000Z")
+    expect(todayIn(after)).toBe("2026-10-08")
+    const wait = msUntilNextCentralMidnight(after)
+    expect(wait).toBeGreaterThan(23 * 60 * 60 * 1000)
+    expect(wait).toBeLessThan(25 * 60 * 60 * 1000)
   })
 })

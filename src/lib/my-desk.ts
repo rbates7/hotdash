@@ -1,4 +1,4 @@
-import { daysBetween, isIsoDay, type IsoDay } from "@/lib/clock"
+import { daysBetween, formatDayShort, isIsoDay, todayIn, type IsoDay } from "@/lib/clock"
 import { isBoolean, isString } from "@/lib/persistence"
 
 /**
@@ -122,10 +122,50 @@ function weekdayOf(day: IsoDay): string {
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()]
 }
 
-/** Quiet label for a carried-over row; `null` when the row was added today. */
+/** Full weekday, e.g. "Tuesday", for the row's accessible description. */
+function weekdayLongOf(day: IsoDay): string {
+  const [y, m, d] = day.split("-").map(Number)
+  if (!y || !m || !d) return day
+  return WEEKDAYS_LONG[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()]
+}
+
+/**
+ * Quiet label for a carried-over row; `null` when the row was added today.
+ * 1–6 days ago stays a weekday ("from Tue"); 7 or more is a date
+ * ("from 30 Sep") so the same weekday a week later cannot be read as today.
+ */
 export function carryFromLabel(createdOn: IsoDay, today: IsoDay): string | null {
-  if (daysBetween(createdOn, today) <= 0) return null
-  return `from ${weekdayOf(createdOn)}`
+  const days = daysBetween(createdOn, today)
+  if (days <= 0) return null
+  if (days <= 6) return `from ${weekdayOf(createdOn)}`
+  return `from ${formatDayShort(createdOn)}`
+}
+
+/**
+ * Spoken form of the carry-over label for the checkbox description:
+ * "added Tuesday" within a week, "added 30 Sep" after that.
+ */
+export function carryFromSpoken(createdOn: IsoDay, today: IsoDay): string | null {
+  const days = daysBetween(createdOn, today)
+  if (days <= 0) return null
+  if (days <= 6) return `added ${weekdayLongOf(createdOn)}`
+  return `added ${formatDayShort(createdOn)}`
+}
+
+/**
+ * Milliseconds from `instant` until the next Central midnight. Found by
+ * searching with `todayIn` so DST cannot skew a constructed UTC hour.
+ */
+export function msUntilNextCentralMidnight(instant: Date): number {
+  const today = todayIn(instant)
+  let lo = instant.getTime()
+  let hi = lo + 36 * 60 * 60 * 1000
+  while (hi - lo > 250) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (todayIn(new Date(mid)) === today) lo = mid
+    else hi = mid
+  }
+  return Math.max(hi - instant.getTime(), 0)
 }
 
 /** A row's accessible summary, e.g. for a delete confirm. */
@@ -140,6 +180,15 @@ export function openCount(todos: readonly Pick<Todo, "done">[]) {
 /* ----------------------------------------------------------------- dates */
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+const WEEKDAYS_LONG = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const
 
 /**
