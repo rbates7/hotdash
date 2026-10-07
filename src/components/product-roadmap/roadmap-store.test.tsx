@@ -225,7 +225,20 @@ describe("shell (through the shared persistence shell)", () => {
     const theirs: RoadmapState = { items: [], nextId: 1 }
     const after = shellReducer(shell, { type: "hydrate", result: found(theirs), nowMs: NOW })
     expect(after.data).toBe(shell.data)
-    expect(after).toMatchObject({ edited: true, saved: true })
+    // Round 5: keep `saved` / `saveFailed` as they are — an incoming copy
+    // must not read as "Saved" over unsaved edits.
+    expect(after).toMatchObject({ edited: true, saved: false, saveFailed: false })
+    expect(after).toBe(shell)
+  })
+
+  it("a failed save is never masked by an incoming copy", () => {
+    let shell = shellReducer(hydrated(), edit)
+    shell = shellReducer(shell, { type: "save-result", ok: false })
+    const theirs: RoadmapState = { items: [], nextId: 1 }
+    const after = shellReducer(shell, { type: "hydrate", result: found(theirs), nowMs: NOW })
+    expect(after.data).toBe(shell.data)
+    expect(after).toMatchObject({ edited: true, saved: false, saveFailed: true })
+    expect(after).toBe(shell)
   })
 
   it("another tab's Reset (no copy) re-seeds this tab from the instant it is handed, never-edited", () => {
