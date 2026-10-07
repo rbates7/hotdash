@@ -215,7 +215,9 @@ export function truthStrip(ctx: KpiContext): Kpi[] {
   const cash = { value: cashIn(thisWeek, ctx.today), previous: cashIn(lastWeek, ctx.today) }
   const cashTrend = trendFor(cash.value, cash.previous, "percent")
   return [
-    toKpi(subscribers, VS_PREVIOUS_WINDOW),
+    // Same number and delta as the Metrics Subscribers card; Home keeps the
+    // founder-dashboard-screens.md wording for the label.
+    { ...toKpi(subscribers, VS_PREVIOUS_WINDOW), label: "Paying coaches" },
     {
       id: "cash-this-week",
       label: "Cash this week",

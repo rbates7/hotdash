@@ -1,8 +1,8 @@
 import Link from "next/link"
+import { formatRelative } from "@/lib/clock"
 import { InboxIcon } from "lucide-react"
 
 import type { NeedsYou } from "@/lib/home"
-import { formatAge } from "@/lib/inbox"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
@@ -85,7 +85,7 @@ export function NeedsYouDoor({
                     </span>
                   </span>
                   <span className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap">
-                    {formatAge(item.at, now)}
+                    {formatRelative(Date.parse(item.at), now.getTime(), { style: "compact" })}
                   </span>
                 </Link>
               </li>
