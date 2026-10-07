@@ -2,7 +2,7 @@
 
 import { ArrowRightIcon } from "lucide-react"
 
-import { formatDate } from "@/lib/feature-requests/clock"
+import { formatDate } from "@/lib/feature-requests/dates"
 import type { FeatureRequest } from "@/lib/feature-requests/feature-requests"
 import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/feature-request/sample-data"

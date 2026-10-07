@@ -1,4 +1,4 @@
-import { daysAgo } from "@/lib/feature-requests/clock"
+import { calendarDaysBefore } from "@/lib/feature-requests/dates"
 import {
   DEFAULT_FROM,
   type FeatureRequest,
@@ -31,10 +31,13 @@ export const SEED_ROWS: readonly SeedRow[] = [
   { title: "Parent recap emails", ask: "Weekly recap of what the team practiced.", status: "parked", age: 46 },
 ]
 
-/** Builds the seed against `now`, so every age is measured from today. */
+/**
+ * Builds the seed against `now` — the request instant handed down by the
+ * page — so every age is measured from today, in Central calendar days.
+ */
 export function buildSeed(now: Date): FeatureRequest[] {
   return SEED_ROWS.map((row, i) => {
-    const at = daysAgo(row.age, now).toISOString()
+    const at = calendarDaysBefore(row.age, now).toISOString()
     return {
       id: `fr-${i + 1}`,
       title: row.title,

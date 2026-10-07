@@ -3,11 +3,13 @@
 import * as React from "react"
 import { ChevronRightIcon, MapIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { formatDate, relativeLabel } from "@/lib/feature-requests/clock"
+import { formatDate, relativeLabel } from "@/lib/feature-requests/dates"
 import {
   DEFAULT_FROM,
+  LIMITS,
   STATUS_CONFIG,
   STATUS_ORDER,
+  isFeatureStatus,
   type FeatureRequest,
   type FeatureStatus,
 } from "@/lib/feature-requests/feature-requests"
@@ -24,8 +26,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
 import { SampleDataTag } from "@/components/feature-request/sample-data"
 
+export const MOVE_TO_ROADMAP = "Move to On Roadmap"
 export const ROADMAP_HANDOFF_NOTE =
-  "Moves the card to On Roadmap on this board. The Product Roadmap page isn't wired yet, so nothing is sent anywhere."
+  "Moves the card to the On Roadmap column on this board. The Product Roadmap page isn't wired yet, so nothing is sent anywhere."
 
 const DIALOG_CLASS =
   // Nova's .cn-dialog-content pins sm:max-w-sm, so the override has to be
@@ -125,6 +128,7 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="What's the idea?"
             aria-label="Idea title"
+            maxLength={LIMITS.title}
             className="text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none"
           />
           <textarea
@@ -132,6 +136,7 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             onChange={(e) => setAsk(e.target.value)}
             placeholder="The ask, in one line. What would it let a coach do?"
             aria-label="The ask"
+            maxLength={LIMITS.ask}
             rows={4}
             className="text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none"
           />
@@ -141,6 +146,7 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
                 aria-label="From"
+                maxLength={LIMITS.from}
                 className={cn(INPUT, "w-32")}
               />
             </Field>
@@ -175,7 +181,7 @@ export function EditIdeaDialog({
   request: FeatureRequest | null
   onClose: () => void
 }) {
-  const { patchRequest, setStatus, removeRequest } = useFeatureRequests()
+  const { now, patchRequest, setStatus, removeRequest } = useFeatureRequests()
 
   return (
     <Dialog
@@ -189,6 +195,7 @@ export function EditIdeaDialog({
           // Remount per card so draft state never leaks between ideas.
           key={request.id}
           request={request}
+          now={now}
           onClose={onClose}
           onSave={(patch, status) => {
             patchRequest(request.id, patch)
@@ -203,11 +210,14 @@ export function EditIdeaDialog({
 
 function EditIdeaBody({
   request,
+  now,
   onClose,
   onSave,
   onDelete,
 }: {
   request: FeatureRequest
+  /** The request instant from the store; "Added 2 days ago" is measured from it. */
+  now: Date
   onClose: () => void
   onSave: (
     patch: { title: string; ask: string; from: string },
@@ -273,6 +283,7 @@ function EditIdeaBody({
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What's the idea?"
           aria-label="Idea title"
+          maxLength={LIMITS.title}
           className="text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none"
         />
         <textarea
@@ -280,6 +291,7 @@ function EditIdeaBody({
           onChange={(e) => setAsk(e.target.value)}
           placeholder="The ask, in one line."
           aria-label="The ask"
+          maxLength={LIMITS.ask}
           rows={3}
           className="text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none"
         />
@@ -290,11 +302,12 @@ function EditIdeaBody({
               value={from}
               onChange={(e) => setFrom(e.target.value)}
               aria-label="From"
+              maxLength={LIMITS.from}
               className={cn(INPUT, "w-32")}
             />
           </Field>
           <p className="text-caption text-muted-foreground pb-1.5">
-            Added {relativeLabel(request.createdAt)} ·{" "}
+            Added {relativeLabel(request.createdAt, now)} ·{" "}
             <time dateTime={request.createdAt}>{formatDate(request.createdAt)}</time>
           </p>
         </div>
@@ -311,7 +324,8 @@ function EditIdeaBody({
             onValueChange={(value) => {
               // Single-select: ignore the empty array from re-clicking the
               // pressed item so a status is always chosen.
-              if (value[0]) setDraftStatus(value[0] as FeatureStatus)
+              const next = value[0]
+              if (isFeatureStatus(next)) setDraftStatus(next)
             }}
             className="flex-wrap"
           >
@@ -346,7 +360,7 @@ function EditIdeaBody({
                 disabled={!title.trim()}
               >
                 <MapIcon className="text-brand" />
-                Send to Roadmap
+                {MOVE_TO_ROADMAP}
               </Button>
               <p className="text-caption text-muted-foreground min-w-0 flex-1">
                 {ROADMAP_HANDOFF_NOTE}

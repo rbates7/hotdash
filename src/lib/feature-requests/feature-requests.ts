@@ -61,6 +61,9 @@ export type FeatureRequest = {
 
 export const DEFAULT_FROM = "Dan"
 
+/** Hard caps on what the inputs accept; the reducer clamps to the same. */
+export const LIMITS = { title: 120, ask: 280, from: 40 } as const
+
 /** Newest first, the order the mock lists each column in. */
 export function sortNewestFirst(requests: FeatureRequest[]): FeatureRequest[] {
   return [...requests].sort((a, b) => b.createdAt.localeCompare(a.createdAt))

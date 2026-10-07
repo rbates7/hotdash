@@ -1,28 +1,29 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   FeatureRequestsProvider,
   STORAGE_KEY,
 } from "@/components/feature-request/feature-requests-store"
 import { HeaderActions } from "@/components/feature-request/header-actions"
-import { ROADMAP_HANDOFF_NOTE } from "@/components/feature-request/idea-dialog"
+import { MOVE_TO_ROADMAP, ROADMAP_HANDOFF_NOTE } from "@/components/feature-request/idea-dialog"
+import {
+  NOTE_FAILED,
+  NOTE_SAVED,
+  NOTE_UNSAVED,
+} from "@/components/feature-request/persistence-note"
 import { RequestBoard } from "@/components/feature-request/request-board"
 import { ROADMAP_HINT_TITLE } from "@/components/feature-request/request-card"
 
 const TODAY = new Date("2026-08-24T15:00:00.000Z")
 
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] })
-  vi.setSystemTime(TODAY)
-})
-afterEach(() => vi.useRealTimers())
+afterEach(() => vi.restoreAllMocks())
 
 function Screen() {
   return (
-    <FeatureRequestsProvider>
+    <FeatureRequestsProvider nowMs={TODAY.getTime()}>
       <HeaderActions />
       <RequestBoard />
     </FeatureRequestsProvider>
@@ -166,14 +167,14 @@ describe("board", () => {
     expect(within(card("Staff share sheet")).getByTestId("sample-data-tag")).toBeInTheDocument()
   })
 
-  it("Send to Roadmap only moves the card here and says so", async () => {
+  it("Move to On Roadmap only moves the card here and says so", async () => {
     const user = userEvent.setup()
     render(<Screen />)
     await user.click(card("Custom play headers"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Custom play headers" })
     expect(dialog).toHaveTextContent(ROADMAP_HANDOFF_NOTE)
     expect(ROADMAP_HANDOFF_NOTE).toMatch(/nothing is sent anywhere/)
-    await user.click(within(dialog).getByRole("button", { name: "Send to Roadmap" }))
+    await user.click(within(dialog).getByRole("button", { name: MOVE_TO_ROADMAP }))
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(cardsIn("On Roadmap")).toHaveLength(3)
@@ -183,7 +184,8 @@ describe("board", () => {
     // Already on the roadmap: no button, just the honest note.
     await user.click(moved)
     const again = await screen.findByRole("dialog", { name: "Idea: Custom play headers" })
-    expect(within(again).queryByRole("button", { name: "Send to Roadmap" })).toBeNull()
+    expect(within(again).queryByRole("button", { name: MOVE_TO_ROADMAP })).toBeNull()
+    expect(MOVE_TO_ROADMAP).toBe("Move to On Roadmap")
     expect(again).toHaveTextContent("On Roadmap here only.")
   })
 
@@ -216,29 +218,86 @@ describe("board", () => {
     expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
   })
 
-  it("Reset brings the sample cards back", async () => {
+  it("Reset is disabled until something is saved, then asks before it acts", async () => {
     const user = userEvent.setup()
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests: [], nextId: 1 }))
     render(<Screen />)
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent("Saved in this browser")
-    await user.click(screen.getByRole("button", { name: "Reset" }))
-    expect(screen.queryByRole("status", { name: "Empty board" })).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(10)
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent("Edits save in this browser")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-  })
+    const note = screen.getByTestId("persistence-note")
+    expect(note).toHaveTextContent(NOTE_UNSAVED)
+    const reset = screen.getByRole("button", { name: "Reset" })
+    expect(reset).toBeDisabled()
+    expect(reset).toHaveAttribute("title", "Nothing is saved in this browser yet")
 
-  it("the persistence note says nothing is saved until the first edit", async () => {
-    const user = userEvent.setup()
-    render(<Screen />)
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent("Edits save in this browser")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
     const status = within(dialog).getByRole("group", { name: "Status" })
     await user.click(within(status).getByRole("button", { name: "Triaged" }))
     await user.click(within(dialog).getByRole("button", { name: /Save/ }))
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent("Saved in this browser")
+    expect(note).toHaveTextContent(NOTE_SAVED)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"status":"triaged"')
+    expect(reset).toBeEnabled()
+
+    // First click only asks.
+    await user.click(reset)
+    expect(screen.queryByRole("button", { name: "Reset" })).toBeNull()
+    expect(cardsIn("Triaged")).toHaveLength(4)
+    await user.click(screen.getByRole("button", { name: "Keep edits" }))
+    expect(cardsIn("Triaged")).toHaveLength(4)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"status":"triaged"')
+
+    // Second time through, confirmed.
+    await user.click(screen.getByRole("button", { name: "Reset" }))
+    await user.click(screen.getByRole("button", { name: "Confirm reset" }))
+    expect(cardsIn("Triaged")).toHaveLength(3)
+    expect(cardsIn("Inbox")).toHaveLength(3)
+    expect(note).toHaveTextContent(NOTE_UNSAVED)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+  })
+
+  it("Reset from an empty board brings the sample cards back", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests: [], nextId: 1 }))
+    render(<Screen />)
+    expect(screen.getByTestId("persistence-note")).toHaveTextContent(NOTE_SAVED)
+    await user.click(screen.getByRole("button", { name: "Reset" }))
+    await user.click(screen.getByRole("button", { name: "Confirm reset" }))
+    expect(screen.queryByRole("status", { name: "Empty board" })).toBeNull()
+    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(10)
+  })
+
+  it("says so when a save fails, and keeps the edit on the board", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError")
+    })
+    await user.click(screen.getByRole("button", { name: "New idea" }))
+    const dialog = await screen.findByRole("dialog", { name: "New idea" })
+    await user.type(within(dialog).getByRole("textbox", { name: "Idea title" }), "Won't fit")
+    await user.click(within(dialog).getByRole("button", { name: /Add idea/ }))
+    expect(card("Won't fit")).toBeInTheDocument()
+    const note = screen.getByTestId("persistence-note")
+    expect(note).toHaveTextContent(NOTE_FAILED)
+    expect(note).toHaveAttribute("role", "alert")
+    expect(NOTE_FAILED).toBe("Couldn't save in this browser")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    // Nothing is saved, so there is nothing to reset.
+    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+  })
+
+  it("caps what the inputs accept", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    await user.click(screen.getByRole("button", { name: "New idea" }))
+    const dialog = await screen.findByRole("dialog", { name: "New idea" })
+    expect(within(dialog).getByRole("textbox", { name: "Idea title" })).toHaveAttribute("maxlength", "120")
+    expect(within(dialog).getByRole("textbox", { name: "The ask" })).toHaveAttribute("maxlength", "280")
+    expect(within(dialog).getByRole("textbox", { name: "From" })).toHaveAttribute("maxlength", "40")
+    await user.keyboard("{Escape}")
+    await user.click(card("Play of the Day"))
+    const edit = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
+    expect(within(edit).getByRole("textbox", { name: "Idea title" })).toHaveAttribute("maxlength", "120")
+    expect(within(edit).getByRole("textbox", { name: "The ask" })).toHaveAttribute("maxlength", "280")
+    expect(within(edit).getByRole("textbox", { name: "From" })).toHaveAttribute("maxlength", "40")
   })
 })
