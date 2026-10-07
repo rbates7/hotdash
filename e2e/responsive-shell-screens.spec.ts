@@ -4,10 +4,10 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { setTheme } from "./support/theme"
-import { openFounderNav } from "./support/nav"
+import { expandSidebarButton, founderNavDrawer, openFounderNav } from "./support/nav"
 
 /**
- * Shell stills at the four target widths, both themes.
+ * Shell stills at the four target widths, both themes, plus phone/tablet overlays.
  * Opt-in: `SCREENSHOTS=1 pnpm test:e2e e2e/responsive-shell-screens.spec.ts`
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
@@ -41,11 +41,17 @@ for (const theme of ["light", "dark"] as const) {
       await page.evaluate(() => localStorage.setItem("theme", "light"))
       await page.reload()
       await setTheme(page, theme)
-      if (size === "phone") {
-        await openFounderNav(page)
-      }
       await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
       await shoot(page, `shell-${size}-${theme}`)
+      if (size === "phone") {
+        await openFounderNav(page)
+        await shoot(page, `shell-${size}-drawer-${theme}`)
+      }
+      if (size === "tablet-portrait") {
+        await expandSidebarButton(page).click()
+        await expect(founderNavDrawer(page)).toBeVisible()
+        await shoot(page, `shell-${size}-drawer-${theme}`)
+      }
     })
   }
 }

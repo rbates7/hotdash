@@ -208,7 +208,7 @@ function Sidebar({
     )
   }
 
-  const drawer = (isMobile || isTablet) && (
+  const drawer = (isMobile || isTablet) && openMobile && (
     <Sheet open={openMobile} onOpenChange={setOpenMobile}>
       <SheetContent
         dir={dir}
@@ -240,16 +240,14 @@ function Sidebar({
           <SheetDescription>Founder dashboard sections</SheetDescription>
         </SheetHeader>
         <SidebarSurfaceContext.Provider value="sheet">
-          {openMobile ? (
-            <div
-              className={cn(
-                "flex h-full w-full flex-col",
-                isTablet && "cn-sidebar-inner overflow-hidden"
-              )}
-            >
-              {children}
-            </div>
-          ) : null}
+          <div
+            className={cn(
+              "flex h-full w-full flex-col",
+              isTablet && "cn-sidebar-inner overflow-hidden"
+            )}
+          >
+            {children}
+          </div>
         </SidebarSurfaceContext.Provider>
       </SheetContent>
     </Sheet>
