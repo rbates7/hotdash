@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts"
+    "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
+    "screens:roadmap": "SCREENSHOTS=1 playwright test e2e/product-roadmap-screens.spec.ts",
+    "test:tz:roadmap": "TZ=UTC vitest run src/lib/roadmap && TZ=America/Chicago vitest run src/lib/roadmap"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
