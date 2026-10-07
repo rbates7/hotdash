@@ -11,7 +11,7 @@ import {
   RASHAD,
 } from "@/lib/issues-fixture"
 
-type State = {
+export type State = {
   issues: Issue[]
   sprints: Sprint[]
   /** Next number for a generated CHLK-n key. */
@@ -26,21 +26,24 @@ export type NewIssueInput = {
   assigneeId: string | null
   sprintId: string | null
   labels: string[]
+  project?: string
 }
 
-type Action =
+export type Action =
   | { type: "create-issue"; input: NewIssueInput; at: string }
   | { type: "patch-issue"; key: string; patch: Partial<Issue>; at: string }
   | { type: "add-comment"; key: string; body: string; at: string }
   | { type: "create-sprint"; name: string; startDate: string; endDate: string }
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
+  | { type: "hydrate"; state: State | null }
+  | { type: "reset" }
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
 }
 
-function reducer(state: State, action: Action): State {
+export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "create-issue": {
       const key = `CHLK-${state.nextKey}`
@@ -53,6 +56,7 @@ function reducer(state: State, action: Action): State {
         assigneeId: action.input.assigneeId,
         sprintId: action.input.sprintId,
         labels: action.input.labels,
+        project: action.input.project,
         createdById: RASHAD,
         createdAt: action.at,
         updatedAt: action.at,
@@ -151,10 +155,26 @@ function reducer(state: State, action: Action): State {
             : i
         ),
       }
+
+    case "hydrate":
+      return action.state ?? state
+
+    case "reset":
+      return initialState()
   }
 }
 
-function initialState(): State {
+/** Reducer state plus whether localStorage has been consulted yet. */
+type Shell = { data: State; hydrated: boolean }
+
+function shellReducer(shell: Shell, action: Action): Shell {
+  return {
+    data: reducer(shell.data, action),
+    hydrated: shell.hydrated || action.type === "hydrate",
+  }
+}
+
+export function initialState(): State {
   const highest = seedIssues.reduce((max, i) => {
     const n = Number(i.key.split("-")[1])
     return Number.isFinite(n) && n > max ? n : max
@@ -162,22 +182,78 @@ function initialState(): State {
   return { issues: seedIssues, sprints: seedSprints, nextKey: highest + 1 }
 }
 
+/* ------------------------------------------------------------ persistence */
+
+/**
+ * Board state is saved to this browser's localStorage so a reload keeps
+ * edits. Bump the version whenever the seed or the shape changes so stale
+ * saves are discarded instead of half-applied. This is a stand-in until a
+ * real datastore exists (CHLK-414); there is no server copy.
+ */
+export const STORAGE_KEY = "hotdash.agent-workplace.v1"
+
+function isState(value: unknown): value is State {
+  if (!value || typeof value !== "object") return false
+  const v = value as Record<string, unknown>
+  return (
+    Array.isArray(v.issues) &&
+    Array.isArray(v.sprints) &&
+    typeof v.nextKey === "number"
+  )
+}
+
+export function loadState(storage: Storage | undefined): State | null {
+  try {
+    const raw = storage?.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    return isState(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function saveState(storage: Storage | undefined, state: State) {
+  try {
+    storage?.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Quota or private mode: edits still work for the session.
+  }
+}
+
 type Store = State & {
   actors: typeof seedActors
   /** Fixed clock. A live one would hydrate mismatched against the server. */
   now: Date
+  /** True once localStorage has been read and writes are flowing. */
+  persisted: boolean
   createIssue: (input: NewIssueInput) => void
   patchIssue: (key: string, patch: Partial<Issue>) => void
   addComment: (key: string, body: string) => void
   createSprint: (name: string, startDate: string, endDate: string) => void
   startSprint: (id: string) => void
   completeSprint: (id: string) => void
+  resetDemoData: () => void
 }
 
 const IssuesContext = React.createContext<Store | null>(null)
 
 export function IssuesProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = React.useReducer(reducer, undefined, initialState)
+  const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
+    shellReducer,
+    undefined,
+    () => ({ data: initialState(), hydrated: false })
+  )
+
+  // Server and first client paint both use the seed; the saved copy is
+  // applied after mount so the HTML never mismatches.
+  React.useEffect(() => {
+    dispatch({ type: "hydrate", state: loadState(window.localStorage) })
+  }, [])
+
+  React.useEffect(() => {
+    if (persisted) saveState(window.localStorage, state)
+  }, [persisted, state])
 
   const value = React.useMemo<Store>(() => {
     const at = () => new Date().toISOString()
@@ -185,6 +261,7 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
       ...state,
       actors: seedActors,
       now: NOW,
+      persisted,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
       patchIssue: (key, patch) =>
         dispatch({ type: "patch-issue", key, patch, at: at() }),
@@ -194,8 +271,9 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
+      resetDemoData: () => dispatch({ type: "reset" }),
     }
-  }, [state])
+  }, [state, persisted])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>
