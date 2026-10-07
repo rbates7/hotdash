@@ -2,16 +2,18 @@
 
 import * as React from "react"
 
-import { todayIn, type IsoDay } from "@/lib/clock"
+import { now, todayIn, type IsoDay } from "@/lib/clock"
 import {
   isSeedScratch,
   isTodo,
+  msUntilNextCentralMidnight,
   normalizeScratch,
   normalizeTodoInput,
   sameTodo,
   seedTodos,
   SEED_SCRATCH,
   stripTodo,
+  TODO_ID,
   TODO_LIMITS,
   todoNumber,
   type Todo,
@@ -21,6 +23,7 @@ import {
   createStorage,
   dedupe,
   initialShell,
+  isBoolean,
   isFiniteNumber,
   isIsoInstant,
   isString,
@@ -49,9 +52,9 @@ export type State = {
 }
 
 export type Action =
-  | { type: "add"; input: TodoInput }
-  | { type: "update"; id: string; input: TodoInput }
-  | { type: "toggle"; id: string }
+  | { type: "add"; input: TodoInput; today: IsoDay }
+  | { type: "update"; id: string; input: TodoInput; today: IsoDay }
+  | { type: "toggle"; id: string; today: IsoDay }
   | { type: "remove"; id: string }
   | { type: "restore"; todo: Todo }
   | { type: "set-scratch"; text: string; at: string }
@@ -66,15 +69,27 @@ export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "re
 export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "add": {
-      const todo: Todo = { id: `todo-${state.nextId}`, ...normalizeTodoInput(action.input) }
-      if (!todo.title) return state
+      const input = normalizeTodoInput(action.input)
+      if (!input.title) return state
+      const todo: Todo = {
+        id: `todo-${state.nextId}`,
+        ...input,
+        createdOn: action.today,
+        doneOn: input.done ? action.today : null,
+      }
       return { ...state, todos: [...state.todos, todo], nextId: state.nextId + 1 }
     }
 
     case "update": {
       const current = state.todos.find((t) => t.id === action.id)
       if (!current) return state
-      const next: Todo = { id: current.id, ...normalizeTodoInput(action.input) }
+      const input = normalizeTodoInput(action.input)
+      const next: Todo = {
+        id: current.id,
+        ...input,
+        createdOn: current.createdOn,
+        doneOn: input.done ? (current.done ? current.doneOn : action.today) : null,
+      }
       if (!next.title || sameTodo(current, next)) return state
       return { ...state, todos: state.todos.map((t) => (t.id === action.id ? next : t)) }
     }
@@ -82,9 +97,12 @@ export function reducer(state: State, action: EditAction): State {
     case "toggle": {
       const current = state.todos.find((t) => t.id === action.id)
       if (!current) return state
+      const done = !current.done
       return {
         ...state,
-        todos: state.todos.map((t) => (t.id === action.id ? { ...t, done: !t.done } : t)),
+        todos: state.todos.map((t) =>
+          t.id === action.id ? { ...t, done, doneOn: done ? action.today : null } : t
+        ),
       }
     }
 
@@ -137,7 +155,7 @@ export function shellReducer(shell: Shell, action: Action): Shell {
 
 /** The seed: the mock's seven to-dos and one scratch note, dated from `nowMs`. */
 export function initialState(nowMs: number): State {
-  const todos = seedTodos()
+  const todos = seedTodos(todayIn(new Date(nowMs)))
   return {
     todos,
     nextId: highestId(todos) + 1,
@@ -158,7 +176,8 @@ function highestId(todos: readonly Todo[]) {
  * in `@/lib/persistence`: only after a real edit, validated whole on load,
  * Reset clears the key. Bump the version when the seed or shape changes.
  */
-export const STORAGE_KEY = "hotdash.my-desk.v1"
+export const STORAGE_KEY = "hotdash.my-desk.v2"
+export const LEGACY_KEY = "hotdash.my-desk.v1"
 
 /**
  * Every row is checked, not just the envelope: a bad type, a blank title,
@@ -192,28 +211,126 @@ export function parseState(value: unknown): State | null {
   return isState(value) ? stripState(value) : null
 }
 
-export const deskStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
+export const deskStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: [LEGACY_KEY],
+  parse: parseState,
+})
 
-/** Read the saved copy; `null` when there is none or it was rejected. */
+/** The v1 row: id, title, note, done. Dates were added in v2. */
+export type V1Todo = Pick<Todo, "id" | "title" | "note" | "done">
+
+/** The v1 envelope; same counters and scratch, no calendar days. */
+export type V1State = {
+  todos: V1Todo[]
+  nextId: number
+  scratch: string
+  scratchUpdatedAt: string
+}
+
+const isText = (v: unknown, max: number): v is string => isString(v) && v.length <= max
+
+function isV1Todo(value: unknown): value is V1Todo {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const v = value as Record<string, unknown>
+  return (
+    isString(v.id) &&
+    TODO_ID.test(v.id) &&
+    isText(v.title, TODO_LIMITS.title) &&
+    v.title.trim().length > 0 &&
+    isText(v.note, TODO_LIMITS.note) &&
+    isBoolean(v.done)
+  )
+}
+
+/** The old row guard: every field, then only the known keys. */
+export function parseV1(value: unknown): V1State | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const v = value as Record<string, unknown>
+  if (!Array.isArray(v.todos) || !v.todos.every(isV1Todo)) return null
+  if (dedupe(v.todos.map((t) => t.id)).length !== v.todos.length) return null
+  if (!isFiniteNumber(v.nextId) || !Number.isInteger(v.nextId)) return null
+  if (v.nextId <= v.todos.reduce((max, t) => Math.max(max, todoNumber(t.id)), 0)) return null
+  if (!isString(v.scratch) || v.scratch.length > TODO_LIMITS.scratch) return null
+  if (!isIsoInstant(v.scratchUpdatedAt)) return null
+  return {
+    todos: v.todos.map((t) => ({ id: t.id, title: t.title, note: t.note, done: t.done })),
+    nextId: v.nextId,
+    scratch: v.scratch,
+    scratchUpdatedAt: v.scratchUpdatedAt,
+  }
+}
+
+export const legacyDesk = createStorage<V1State>({
+  key: LEGACY_KEY,
+  parse: parseV1,
+})
+
+/**
+ * Stamp each v1 row with the request's Central day so it does not look
+ * carried-over on the first visit after the shape change. Ids, nextId,
+ * scratch and scratchUpdatedAt stay as they were.
+ */
+export function migrateV1(v1: V1State, today: IsoDay): State | null {
+  const state: State = {
+    todos: v1.todos.map((t) => ({
+      id: t.id,
+      title: t.title,
+      note: t.note,
+      done: t.done,
+      createdOn: today,
+      doneOn: t.done ? today : null,
+    })),
+    nextId: v1.nextId,
+    scratch: v1.scratch,
+    scratchUpdatedAt: v1.scratchUpdatedAt,
+  }
+  return isState(state) ? stripState(state) : null
+}
+
+/**
+ * v2 wins whenever it exists (saved, rejected or error). Otherwise a valid
+ * v1 is migrated in memory. Loading writes nothing.
+ */
+export function loadDesk(storage: Storage | undefined, nowMs: number): LoadResult<State> {
+  const v2 = deskStorage.load(storage)
+  if (v2.status !== "empty") return v2
+  const v1 = legacyDesk.load(storage)
+  if (v1.status === "saved" && v1.state) {
+    const migrated = migrateV1(v1.state, todayIn(new Date(nowMs)))
+    if (migrated) return { status: "saved", state: migrated }
+  }
+  return { state: null, status: "empty" }
+}
+
+/** Read the v2 copy only; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
   return deskStorage.load(storage).state
 }
 
+function parkRejectedV1(storage: Storage | undefined) {
+  const v1 = legacyDesk.load(storage)
+  if (v1.status === "rejected") legacyDesk.quarantine(storage, v1.rejected)
+}
+
 export function saveState(storage: Storage | undefined, state: State): boolean {
+  parkRejectedV1(storage)
   return deskStorage.save(storage, state)
 }
 
 export function clearState(storage: Storage | undefined) {
   deskStorage.clear(storage)
+  legacyDesk.clear(storage)
 }
 
 type Store = State &
   PersistenceStore & {
     /**
-     * Today on the founder's calendar (America/Chicago), from the shell's
-     * clock: the request's instant until a Reset (ours, or another tab's)
-     * moves it. The Today date chip and the scratch subtitle derive from
-     * it; nothing else in the tree reads a clock for a calendar day.
+     * Today on the founder's calendar (America/Chicago). First render uses
+     * the request instant (hydration-safe). After mount it re-reads
+     * `todayIn(now())` on focus, on becoming visible, and at the next
+     * Central midnight, so a tab left open overnight stamps and filters
+     * against the new day.
      */
     today: IsoDay
     /** The shell clock, for "Saved 5m ago" on the scratch note. */
@@ -247,39 +364,75 @@ export function MyDeskProvider({
     initialShell(seedAt(ms), ms)
   )
   const { data: state, persisted, edited, saved, saveFailed, nowMs } = shell
-  const today = shellToday(shell)
+  const [day, setDay] = React.useState(() => todayIn(new Date(requestNowMs)))
+
+  const refreshDay = React.useCallback(() => {
+    const next = todayIn(now())
+    setDay((prev) => (prev === next ? prev : next))
+  }, [])
+
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshDay()
+    }
+    const onFocus = () => refreshDay()
+    let timer = 0
+    const arm = () => {
+      const wait = msUntilNextCentralMidnight(now())
+      timer = window.setTimeout(() => {
+        refreshDay()
+        arm()
+      }, Math.max(wait, 1))
+    }
+    arm()
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", onFocus)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [refreshDay])
 
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
   // layout effect — before paint — so the first frame is already the
   // founder's data, never a flash of seed. This first hydrate is the only
-  // one dated from the request.
+  // one dated from the request. v1 is migrated in memory; nothing is written.
   React.useLayoutEffect(() => {
     if (holdHydration) return
-    dispatch({ type: "hydrate", result: deskStorage.load(window.localStorage), nowMs: requestNowMs })
+    dispatch({ type: "hydrate", result: loadDesk(window.localStorage, requestNowMs), nowMs: requestNowMs })
   }, [requestNowMs, holdHydration])
 
   const onHydrate = React.useCallback(
-    (result: LoadResult<State>, hydrateNowMs: number) =>
-      dispatch({ type: "hydrate", result, nowMs: hydrateNowMs }),
+    (result: LoadResult<State>, hydrateNowMs: number) => {
+      dispatch({ type: "hydrate", result, nowMs: hydrateNowMs })
+      // Another tab's Reset (no copy) reseeds from `now()`; move the
+      // calendar day with that instant so the chip and stamps match.
+      if (result.state === null) setDay(todayIn(new Date(hydrateNowMs)))
+    },
     []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
-  usePersistenceSync({ storage: deskStorage, shell, onHydrate, onSaved })
+  const persistence = React.useMemo(
+    () => ({ ...deskStorage, save: saveState, clear: clearState }),
+    []
+  )
+  usePersistenceSync({ storage: persistence, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(
     () => ({
       ...state,
-      today,
+      today: day,
       nowMs,
       scratchSample: isSeedScratch(state.scratch),
       persisted,
       edited,
       saved,
       saveFailed,
-      addTodo: (input) => dispatch({ type: "add", input }),
-      updateTodo: (id, input) => dispatch({ type: "update", id, input }),
-      toggleTodo: (id) => dispatch({ type: "toggle", id }),
+      addTodo: (input) => dispatch({ type: "add", input, today: day }),
+      updateTodo: (id, input) => dispatch({ type: "update", id, input, today: day }),
+      toggleTodo: (id) => dispatch({ type: "toggle", id, today: day }),
       removeTodo: (id) => dispatch({ type: "remove", id }),
       restoreTodo: (todo) => dispatch({ type: "restore", todo }),
       setScratch: (text) =>
@@ -287,9 +440,10 @@ export function MyDeskProvider({
       resetDemoData: () => {
         clearState(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
+        setDay(todayIn(now()))
       },
     }),
-    [state, today, nowMs, persisted, edited, saved, saveFailed]
+    [state, day, nowMs, persisted, edited, saved, saveFailed]
   )
 
   return <MyDeskContext.Provider value={value}>{children}</MyDeskContext.Provider>
