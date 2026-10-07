@@ -5,7 +5,8 @@ test.describe("Home", () => {
     await page.goto("/")
     await expect(page).toHaveURL(/\/home$/)
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-    await expect(page.getByText(/^[A-Z][a-z]+day pulse$/)).toBeVisible()
+    // The demo clock (2026-08-27 14:00Z) is a Thursday morning in Chicago.
+    await expect(page.getByText("Thursday pulse")).toBeVisible()
 
     // Sidebar marks Home as the current page.
     const rail = page.locator('[data-slot="sidebar"]').first()

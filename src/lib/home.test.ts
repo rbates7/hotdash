@@ -9,6 +9,8 @@ import {
   pulseLabel,
   sparklinePoints,
 } from "@/lib/home"
+import { now } from "@/lib/clock"
+import { activeSprint, daysUntil } from "@/lib/issues"
 import { NOW, actors, issues, sprints } from "@/lib/issues-fixture"
 import { inbox } from "@/lib/workplace-fixture"
 import type { InboxItem } from "@/lib/workplace-fixture"
@@ -35,6 +37,23 @@ describe("pulseLabel", () => {
     // 03:00 UTC Thursday is still Wednesday evening in Chicago.
     expect(pulseLabel(new Date("2026-10-08T03:00:00Z"))).toBe("Wednesday pulse")
     expect(pulseLabel(new Date("2026-10-08T03:00:00Z"), "UTC")).toBe("Thursday pulse")
+  })
+
+  it("reads the same clock the board and inbox are measured from", () => {
+    expect(now().getTime()).toBe(NOW.getTime())
+    expect(pulseLabel(now())).toBe("Thursday pulse")
+  })
+})
+
+describe("one clock", () => {
+  it("keeps the sprint countdown and the lede on the same day", () => {
+    const sprint = activeSprint(sprints)!
+    const preview = boardPreview(issues, sprints, actors, now())!
+    expect(preview.daysLeft).toBe(daysUntil(sprint.endDate, NOW))
+    expect(preview.daysLeft).toBe(9)
+    // The sprint still has days left as seen from the clock the page uses —
+    // it is not already a month overdue because Home looked at a wall clock.
+    expect(Date.parse(sprint.endDate)).toBeGreaterThan(now().getTime())
   })
 })
 

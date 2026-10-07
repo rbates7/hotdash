@@ -1,15 +1,17 @@
+import { DEMO_NOW } from "@/lib/clock"
 import type { Actor, Issue, Sprint } from "@/lib/issues"
 
 /**
  * Dummy data for the Agent Workplace design mock. Timestamps are generated
- * relative to a fixed epoch rather than `Date.now()` so server and client
- * render identically — a moving "now" would hydrate mismatched.
+ * relative to the shared demo clock (`@/lib/clock`) rather than `Date.now()`
+ * so server and client render identically — a moving "now" would hydrate
+ * mismatched — and so every page measures from the same instant.
  *
  * The active-sprint issues mirror founder-dashboard-workplace-v0.html card
  * for card; everything else is filler so the Backlog tab has something to
  * plan with.
  */
-export const NOW = new Date("2026-08-27T14:00:00.000Z")
+export const NOW = DEMO_NOW
 
 const hoursAgo = (h: number) =>
   new Date(NOW.getTime() - h * 3_600_000).toISOString()
