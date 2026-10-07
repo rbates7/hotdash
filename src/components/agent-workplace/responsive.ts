@@ -39,12 +39,14 @@ export const WORKPLACE_BOARD_META =
   "flex min-w-0 flex-wrap items-center gap-2.5"
 
 /**
- * Scrollport. `w-0 min-w-full` takes the parent's width without feeding the
- * 5×240px track back into the page's intrinsic min-width (which is what
- * made tablet 820 scroll the document). Desktop drops the trick.
+ * Scrollport. `w-0 min-w-full` sizes to the parent. `contain: layout` keeps
+ * the 5×240px track from expanding the document (Chrome still lets
+ * `overflow-x: auto` leak into ancestor scrollWidth). Layout containment
+ * does not clip paint, so focus rings stay visible in the `p-[3px]` gutter.
+ * Desktop drops the trick.
  */
 export const WORKPLACE_BOARD =
-  "w-0 min-w-full overflow-x-auto p-[3px] xl:w-auto xl:min-w-0 xl:overflow-visible xl:p-0"
+  "w-0 min-w-full overflow-x-auto p-[3px] [contain:layout] xl:w-auto xl:min-w-0 xl:overflow-visible xl:p-0 xl:[contain:none]"
 
 /** Phone: one column. Tablet: 240px columns that scroll sideways. Desktop: 5-col grid. */
 export const WORKPLACE_BOARD_TRACK =

@@ -19,6 +19,7 @@ describe("workplace responsive class contracts", () => {
   it("B3: board and switcher leave room for focus rings and do not clip paint", () => {
     expect(WORKPLACE_BOARD).toContain("p-[3px]")
     expect(WORKPLACE_BOARD).toContain("xl:p-0")
+    expect(WORKPLACE_BOARD).toContain("[contain:layout]")
     expect(WORKPLACE_BOARD).not.toMatch(/contain:paint/)
     expect(WORKPLACE_BOARD.split(/\s+/)).not.toContain("overflow-y-hidden")
     expect(WORKPLACE_SWITCHER).toContain("p-[3px]")
