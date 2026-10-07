@@ -6,6 +6,10 @@ export const metadata = {
   title: "Feature Request · Chlk",
 }
 
+// Render per request, never at build time: the seed is dated from now(),
+// and a prerendered page would freeze "today" to whenever the build ran.
+export const dynamic = "force-dynamic"
+
 export default function FeatureRequestPage() {
   return (
     <FeatureRequestsProvider>
