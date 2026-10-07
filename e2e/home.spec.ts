@@ -40,10 +40,7 @@ test.describe("Home", () => {
 
   test("the dev board door opens the board", async ({ page }) => {
     await page.goto("/home")
-    await page
-      .getByRole("region", { name: "Agent Workplace" })
-      .getByRole("link", { name: "Agent Workplace" })
-      .click()
+    await page.getByRole("link", { name: "Open Agent Workplace" }).click()
     await expect(page).toHaveURL(/\/agent-workplace$/)
     await expect(page.getByRole("region", { name: "To Do" })).toBeVisible()
   })

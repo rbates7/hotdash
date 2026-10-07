@@ -74,12 +74,12 @@ describe("HomeScreen", () => {
       "Agent Workplace",
       "Inbox",
     ])
-    expect(within(sections[0]).getByRole("link", { name: "Metrics" })).toHaveAttribute("href", "/metrics")
-    expect(within(sections[1]).getByRole("link", { name: "Agent Workplace" })).toHaveAttribute(
+    expect(within(sections[0]).getByRole("link", { name: "Open Metrics" })).toHaveAttribute("href", "/metrics")
+    expect(within(sections[1]).getByRole("link", { name: "Open Agent Workplace" })).toHaveAttribute(
       "href",
       "/agent-workplace"
     )
-    expect(within(sections[2]).getByRole("link", { name: "Inbox" })).toHaveAttribute(
+    expect(within(sections[2]).getByRole("link", { name: "Open Inbox" })).toHaveAttribute(
       "href",
       "/agent-workplace?tab=inbox"
     )

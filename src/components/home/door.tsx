@@ -40,6 +40,8 @@ export function Door({
       <Link
         href={href}
         data-door-link
+        // Distinguishes the door from the sidebar item of the same name.
+        aria-label={`Open ${name}`}
         className="group/door focus-visible:ring-ring/50 -mx-2 -mt-2 flex flex-col rounded-lg px-2 pt-2 focus-visible:ring-[3px] focus-visible:outline-none"
       >
         <span

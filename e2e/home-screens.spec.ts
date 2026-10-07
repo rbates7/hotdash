@@ -66,7 +66,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `home-with-data-${theme}`)
 
     // Interactive: hovering a door and a Needs-you row.
-    await page.getByRole("region", { name: "Agent Workplace" }).getByRole("link", { name: "Agent Workplace" }).hover()
+    await page.getByRole("link", { name: "Open Agent Workplace" }).hover()
     await shoot(page, `home-door-hover-${theme}`)
     await page.getByRole("link", { name: /Agent blocked/ }).hover()
     await shoot(page, `home-needs-you-row-hover-${theme}`)
