@@ -59,7 +59,7 @@ export function SampleDataLabel() {
     >
       <FlaskConicalIcon className="size-3.5" aria-hidden />
       Sample data
-      <span className="font-medium text-amber-700/90 dark:text-amber-200/80">
+      <span className="font-medium text-amber-800 dark:text-amber-200">
         · figures are invented, not live
       </span>
     </p>

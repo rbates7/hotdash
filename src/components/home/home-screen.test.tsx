@@ -153,11 +153,12 @@ describe("HomeScreen", () => {
     expect(within(door).getByText("Needs you lives here.")).toBeInTheDocument()
   })
 
-  it("previews metrics with a trend chart", () => {
+  it("previews metrics with a trend chart, stamped as sample data", () => {
     renderHome()
     const door = screen.getByRole("region", { name: "Metrics" })
     expect(within(door).getByRole("img", { name: /MRR over 12 weeks/ })).toBeInTheDocument()
     expect(within(door).getByText("$21.8k → $26.2k")).toBeInTheDocument()
+    expect(within(door).getByTestId("kpi-sample-chip")).toHaveTextContent("Sample data")
   })
 
   it("empties the dev board door once the sprint is complete", async () => {
@@ -207,6 +208,10 @@ describe("HomeScreen before the saved board is read", () => {
     expect(html).toContain("Call Aledo before Friday")
     expect(html).toContain("Paying coaches")
     expect(html).toContain("$4,860")
+    // The sample caveat is in the first paint, not added after hydration.
+    expect(html).toContain("Sample data")
+    expect(html).toContain("figures are invented, not live")
+    expect(html.match(/data-testid="kpi-sample-chip"/g)).toHaveLength(3)
   })
 
   it("swaps to the data and the persistence note once mounted", async () => {

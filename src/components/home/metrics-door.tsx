@@ -2,6 +2,7 @@ import { ChartColumnIcon } from "lucide-react"
 
 import { compactDollars, sparklinePoints } from "@/lib/home"
 import { Door } from "@/components/home/door"
+import { SampleChip } from "@/components/home/kpi-strip"
 
 const W = 240
 const H = 56
@@ -21,19 +22,20 @@ export function MetricsDoor({ trend }: { trend: number[] }) {
       name="Metrics"
       href="/metrics"
       icon={ChartColumnIcon}
-      caption="Dummy series. The full page lands with the Metrics phase."
+      caption="Sample series. The full page lands with the Metrics phase."
     >
       <div className="flex flex-1 flex-col">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             MRR · last {trend.length} weeks
           </span>
-          {hasTrend && (
-            <span className="text-caption text-muted-foreground tracking-tight tabular-nums">
-              {compactDollars(first)} → {compactDollars(last)}
-            </span>
-          )}
+          <SampleChip />
         </div>
+        {hasTrend && (
+          <span className="text-caption text-muted-foreground mt-1.5 tracking-tight tabular-nums">
+            {compactDollars(first)} → {compactDollars(last)}
+          </span>
+        )}
         {hasTrend ? (
           <svg
             viewBox={`0 0 ${W} ${H}`}

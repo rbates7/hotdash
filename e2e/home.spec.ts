@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import { expect, test, type Locator } from "@playwright/test"
 
 test.describe("Home", () => {
   test("is the default screen and shows the day's pulse", async ({ page }) => {
@@ -30,6 +30,7 @@ test.describe("Home", () => {
     await expect(kpis.getByText("186")).toBeVisible()
     await expect(kpis.getByText("$4,860")).toBeVisible()
     await expect(kpis.getByTestId("kpi-sample-chip")).toHaveCount(2)
+    await expect(page.getByTestId("kpi-sample-chip")).toHaveCount(3)
 
     // Home reads the Workplace's browser-saved board and says so.
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
@@ -97,8 +98,9 @@ test.describe("Home", () => {
   test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {
     await page.goto("/home")
     const label = page.getByTestId("kpi-sample-label")
+    // Two on the truth-strip cards, one on the Metrics door's dollar figures.
     const chips = page.getByTestId("kpi-sample-chip")
-    await expect(chips).toHaveCount(2)
+    await expect(chips).toHaveCount(3)
 
     for (const theme of ["Light", "Dark"] as const) {
       await page.getByText(theme, { exact: true }).click()
@@ -109,24 +111,32 @@ test.describe("Home", () => {
 
       await expect(label).toBeVisible()
       await expect(label).toContainText("Sample data")
-      expect(await contrastRatio(page, label), `${theme} strip label`).toBeGreaterThanOrEqual(4.5)
+      // Every text node — "Sample data" and the quieter second line alike.
+      const labelNodes = await textNodeContrasts(label)
+      expect(labelNodes.length).toBeGreaterThanOrEqual(2)
+      for (const node of labelNodes) {
+        expect(node.ratio, `${theme} strip label: "${node.text}"`).toBeGreaterThanOrEqual(4.5)
+      }
 
       for (const chip of await chips.all()) {
         await expect(chip).toBeVisible()
         await expect(chip).toHaveText("Sample data")
-        expect(await contrastRatio(page, chip), `${theme} card chip`).toBeGreaterThanOrEqual(4.5)
+        for (const node of await textNodeContrasts(chip)) {
+          expect(node.ratio, `${theme} chip: "${node.text}"`).toBeGreaterThanOrEqual(4.5)
+        }
       }
     }
   })
 })
 
 /**
- * WCAG contrast of an element's text against what is actually painted
- * behind it: its own background composited over the nearest opaque ancestor
- * background, so translucent dark-mode chips are measured honestly.
+ * WCAG contrast of every text node inside an element, each measured with
+ * the colour of the element that actually paints it against what is really
+ * behind it: the backgrounds up the tree composited onto the nearest opaque
+ * ancestor, so translucent dark-mode chips are measured honestly.
  */
-async function contrastRatio(page: Page, locator: Locator) {
-  return locator.evaluate((el) => {
+async function textNodeContrasts(locator: Locator) {
+  return locator.evaluate((root) => {
     // Computed colours arrive as oklch()/color(srgb …) under Tailwind v4;
     // painting a pixel is the one parser that understands every syntax.
     const ctx = document.createElement("canvas").getContext("2d", {
@@ -152,22 +162,31 @@ async function contrastRatio(page: Page, locator: Locator) {
       }
       return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
     }
-
-    // Walk up from the element compositing every backdrop until one is opaque.
-    const layers: ReturnType<typeof parse>[] = []
-    let node: Element | null = el
-    while (node) {
-      const bg = parse(getComputedStyle(node).backgroundColor)
-      if (bg.a > 0) layers.push(bg)
-      if (bg.a >= 1) break
-      node = node.parentElement
+    const backdropOf = (el: Element): Rgb => {
+      const layers: ReturnType<typeof parse>[] = []
+      let node: Element | null = el
+      while (node) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+        node = node.parentElement
+      }
+      let backdrop: Rgb = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      return backdrop
     }
-    let backdrop: Rgb = { r: 255, g: 255, b: 255 }
-    for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
 
-    const fg = parse(getComputedStyle(el).color)
-    const text = over(fg, backdrop)
-    const [l1, l2] = [lum(text), lum(backdrop)].sort((a, b) => b - a)
-    return (l1 + 0.05) / (l2 + 0.05)
+    const out: { text: string; ratio: number }[] = []
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const text = (n.textContent ?? "").trim()
+      const el = n.parentElement
+      if (!text || !el) continue
+      const backdrop = backdropOf(el)
+      const fg = over(parse(getComputedStyle(el).color), backdrop)
+      const [l1, l2] = [lum(fg), lum(backdrop)].sort((a, b) => b - a)
+      out.push({ text, ratio: (l1 + 0.05) / (l2 + 0.05) })
+    }
+    return out
   })
 }
