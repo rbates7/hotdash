@@ -264,10 +264,15 @@ test.describe("CRM", () => {
     await expect(page.getByRole("status", { name: "No contacts" })).toBeVisible()
 
     await crmNav(page).getByRole("link", { name: /Triage/ }).click()
-    while ((await triageCards(page).count()) > 0) {
+    await expect(page.getByRole("heading", { level: 2, name: "Triage" })).toBeVisible()
+    for (let i = 0; i < 8; i++) {
+      const clear = page.getByRole("status", { name: "Triage is clear" })
+      if (await clear.isVisible()) break
+      await expect(triageCards(page).first()).toBeVisible()
       await triageCards(page).first().getByRole("button", { name: "More actions" }).click()
       await page.getByRole("menuitem", { name: "Ignore this thread" }).click()
     }
+    await expect(page.getByRole("status", { name: "Triage is clear" })).toBeVisible()
 
     await crmNav(page).getByRole("link", { name: "Overview", exact: true }).click()
     await expect(page.getByRole("status", { name: "No CRM data" })).toBeVisible()
