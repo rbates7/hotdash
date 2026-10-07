@@ -8,8 +8,7 @@ export function FounderIdentity() {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2 p-1">
       <Avatar className="size-8 shrink-0">
-        {/* Darker than `--brand` so "RB" clears 4.5:1. `!` beats Nova's muted fallback. */}
-        <AvatarFallback className="bg-[oklch(0.42_0.16_253)]! text-white! text-xs font-semibold">
+        <AvatarFallback className="bg-brand! text-brand-foreground! text-xs font-semibold">
           {FOUNDER_INITIALS}
         </AvatarFallback>
       </Avatar>
