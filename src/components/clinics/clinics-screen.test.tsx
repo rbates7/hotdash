@@ -49,7 +49,8 @@ describe("ClinicsScreen", () => {
     expect(screen.getByText(LEDE)).toBeInTheDocument()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
-    expect(within(screen.getByRole("banner")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    const header = screen.getByRole("heading", { level: 1, name: "Clinics" }).closest("header")!
+    expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     expect(screen.getByRole("button", { name: "Add clinic" })).toBeEnabled()
   })
 
