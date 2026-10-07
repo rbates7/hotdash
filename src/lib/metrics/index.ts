@@ -1,3 +1,5 @@
+import { inPeriod, type Period } from "@/lib/clock"
+
 /**
  * Metrics page domain: metric definitions, trend math and formatting.
  * Numbers are dummy by design (reqs: "Dummy/invented numbers throughout");
@@ -180,8 +182,15 @@ export function valuationFromArr(arr: number) {
   return arr * VALUATION_MULTIPLE
 }
 
-export function expensesTotal(expenses: readonly Expense[]) {
-  return expenses.reduce((sum, e) => sum + e.amount, 0)
+/**
+ * Sum of the rows dated inside `period` (inclusive). Rows outside it — an
+ * older entry a browser kept — stay in the table but not in the card.
+ */
+export function expensesTotal(expenses: readonly Expense[], period?: Period) {
+  return expenses.reduce(
+    (sum, e) => (period && !inPeriod(e.date, period) ? sum : sum + e.amount),
+    0
+  )
 }
 
 /**
@@ -201,8 +210,11 @@ export type SortDir = "asc" | "desc"
 export type Sort<K extends string> = { key: K; dir: SortDir }
 
 /**
- * Sort rows by one column. Strings compare case-insensitively, numbers and
- * ISO dates compare naturally (ISO dates sort correctly as strings).
+ * Sort rows by one column. Numbers compare numerically, booleans false
+ * before true, and everything else as text, case-insensitively via
+ * localeCompare. ISO calendar days (YYYY-MM-DD) are text here: their
+ * fixed-width, most-significant-first form makes lexical order equal
+ * chronological order, so no date parsing is needed.
  */
 export function sortRows<T, K extends keyof T & string>(
   rows: readonly T[],

@@ -13,10 +13,11 @@ import {
   valuationFromArr,
   type MetricId,
 } from "@/lib/metrics"
-import { METRIC_DEFS, MOCK_DAY, seedExpenses, snapshotFor } from "@/lib/metrics-fixture"
+import { METRIC_DEFS, MOCK_DAY, seedExpenses, snapshotFor } from "@/lib/kpis"
 
-/** The seed as the mock drew it; dates are irrelevant to the sums below. */
+/** The seed as the mock drew it. */
 const expenses = seedExpenses(MOCK_DAY)
+const ctx = { today: MOCK_DAY, expenses }
 
 /** The headline and trend each card in the mock shows. */
 const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
@@ -25,7 +26,8 @@ const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
   churn: ["3.8%", "−0.4 pts", true],
   revenue: ["$28,410", "+6.1%", true],
   retention: ["96.2%", "+0.4 pts", true],
-  subscribers: ["186", "+12", true],
+  // The mock said +12; the seed now reconciles with its own tables (8 new − 5 churned).
+  subscribers: ["186", "+3", true],
   trials: ["28%", "+3.1 pts", true],
   expenses: ["$8,240", "+2.4%", false],
   cac: ["$142", "−8.4%", true],
@@ -43,7 +45,7 @@ describe("metric snapshots reproduce the mock", () => {
     (typeof MOCK)[MetricId],
   ][]) {
     it(`${id}: ${value} ${trend}`, () => {
-      const snap = snapshotFor(id, expenses)
+      const snap = snapshotFor(id, ctx)
       expect(formatMetricValue(snap.value, snap.unit)).toBe(value)
       const t = trendFor(snap.value, snap.previous, snap.trendKind, {
         lowerIsBetter: snap.lowerIsBetter,
@@ -74,7 +76,7 @@ describe("derived metrics", () => {
   it("expenses card is the sum of the expense rows", () => {
     expect(expensesTotal(expenses)).toBe(8_240)
     const more = [...expenses, { id: "x", category: "Vercel", amount: 160, date: "2026-08-20", recurring: true }]
-    const snap = snapshotFor("expenses", more)
+    const snap = snapshotFor("expenses", { today: MOCK_DAY, expenses: more })
     expect(snap.value).toBe(8_400)
     expect(formatMetricValue(snap.value, snap.unit)).toBe("$8,400")
     // Up against last month's 8,050 → and up is bad for a cost.
@@ -84,7 +86,7 @@ describe("derived metrics", () => {
   })
 
   it("expenses can fall below last month and read as good", () => {
-    const snap = snapshotFor("expenses", expenses.filter((e) => e.category !== "AWS"))
+    const snap = snapshotFor("expenses", { today: MOCK_DAY, expenses: expenses.filter((e) => e.category !== "AWS") })
     expect(snap.value).toBe(2_830)
     const t = trendFor(snap.value, snap.previous, "percent", { lowerIsBetter: true })
     expect(t.up).toBe(false)

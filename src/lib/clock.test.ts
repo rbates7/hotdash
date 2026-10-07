@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  TIME_ZONE,
+  CENTRAL,
   addDays,
   daysBetween,
   formatDate,
+  inPeriod,
+  isIsoDay,
+  periodBefore,
   formatMonthSpan,
   formatPeriod,
   monthsEnding,
@@ -12,13 +15,8 @@ import {
   periodEnding,
   toDay,
   todayIn,
-} from "@/lib/metrics/clock"
-import {
-  MOCK_DAY,
-  seedChurnedSubscribers,
-  seedExpenses,
-  seedNewSubscribers,
-} from "@/lib/metrics-fixture"
+} from "@/lib/clock"
+import { MOCK_DAY } from "@/lib/kpis"
 
 afterEach(() => {
   vi.useRealTimers()
@@ -35,7 +33,7 @@ const INSTANTS = [
 describe("now → today", () => {
   it.each(INSTANTS)("$at is $today in America/Chicago", ({ at, today }) => {
     vi.useFakeTimers({ now: new Date(at) })
-    expect(TIME_ZONE).toBe("America/Chicago")
+    expect(CENTRAL).toBe("America/Chicago")
     expect(now().toISOString()).toBe(at)
     expect(todayIn(now())).toBe(today)
   })
@@ -143,39 +141,26 @@ describe("formatting", () => {
   })
 })
 
-describe("seed rows", () => {
-  it.each(INSTANTS)("never postdate today ($today) and are not months stale", ({ at, today }) => {
-    vi.useFakeTimers({ now: new Date(at) })
-    const day = todayIn(now())
-    expect(day).toBe(today)
-    const expenses = seedExpenses(day)
-    const fresh = seedNewSubscribers(day)
-    const churned = seedChurnedSubscribers(day)
-
-    for (const d of [
-      ...expenses.map((e) => e.date),
-      ...fresh.map((s) => s.signupDate),
-      ...churned.flatMap((s) => [s.signupDate, s.churnDate]),
-    ]) {
-      expect(d <= day).toBe(true)
-    }
-    // Recent activity sits inside the trailing month.
-    const floor = addDays(day, -37)
-    for (const d of [...expenses.map((e) => e.date), ...churned.map((s) => s.churnDate)]) {
-      expect(d >= floor).toBe(true)
-    }
-    expect(expenses.some((e) => e.date === day)).toBe(true)
+describe("isIsoDay", () => {
+  it("accepts only canonical calendar days that survive a round trip", () => {
+    expect(isIsoDay("2026-08-21")).toBe(true)
+    expect(isIsoDay("2024-02-29")).toBe(true)
+    expect(isIsoDay("2026-13-45")).toBe(false)
+    expect(isIsoDay("2026-02-30")).toBe(false)
+    expect(isIsoDay("2026-8-3")).toBe(false)
+    expect(isIsoDay("2026-08-21T00:00:00Z")).toBe(false)
+    expect(isIsoDay(20260821)).toBe(false)
+    expect(isIsoDay(null)).toBe(false)
   })
+})
 
-  it("reproduce the mock on the day it was drawn", () => {
-    expect(seedExpenses(MOCK_DAY).map((e) => e.date)).toEqual([
-      "2026-08-18", "2026-08-21", "2026-08-01", "2026-08-08", "2026-08-15", "2026-08-12", "2026-08-04", "2026-08-03",
-    ])
-    expect(seedNewSubscribers(MOCK_DAY)[0].signupDate).toBe("2026-08-18")
-    expect(seedNewSubscribers(MOCK_DAY).at(-1)!.signupDate).toBe("2026-07-22")
-    const brett = seedChurnedSubscribers(MOCK_DAY)[0]
-    expect([brett.signupDate, brett.churnDate]).toEqual(["2026-01-12", "2026-08-08"])
-    const nina = seedChurnedSubscribers(MOCK_DAY)[1]
-    expect([nina.signupDate, nina.churnDate]).toEqual(["2025-09-04", "2026-08-02"])
+describe("periods", () => {
+  it("the prior period is the 28 days before the current one, and inPeriod is inclusive", () => {
+    const period = periodEnding("2026-08-21")
+    expect(periodBefore(period)).toEqual({ start: "2026-06-27", end: "2026-07-24" })
+    expect(inPeriod("2026-07-25", period)).toBe(true)
+    expect(inPeriod("2026-08-21", period)).toBe(true)
+    expect(inPeriod("2026-07-24", period)).toBe(false)
+    expect(inPeriod("2026-08-22", period)).toBe(false)
   })
 })
