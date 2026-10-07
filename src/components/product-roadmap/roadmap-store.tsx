@@ -2,10 +2,12 @@
 
 import * as React from "react"
 
+import { now } from "@/lib/clock"
 import {
   createStorage,
   initialShell,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
@@ -37,7 +39,7 @@ export type NewItemInput = {
 /** The fields a founder can rewrite on an existing bet. */
 export type ItemPatch = Partial<Pick<RoadmapItem, "title" | "why" | "owner" | "window">>
 
-/** The screen's own edits. Every one carries the request-clock stamp. */
+/** The screen's own edits. Every one carries the instant it was made (`now()`). */
 export type Edit =
   | { type: "add"; input: NewItemInput; at: string }
   | { type: "patch"; id: string; patch: ItemPatch; at: string }
@@ -53,8 +55,8 @@ function text(value: string | undefined, max: number): string | undefined {
  * Pure. Every edit that changes nothing returns the *same* state object, so
  * the shared persistence shell can tell a real edit from a no-op without
  * diffing — and `updatedAt` is only ever stamped on a real change. Nothing
- * in here reads `Date`: the `at` stamp comes from the provider, which
- * derives it from the request clock.
+ * in here reads `Date`: the `at` stamp comes from the provider, read from
+ * the shared clock at the moment of the edit.
  */
 export function reducer(state: RoadmapState, edit: Edit): RoadmapState {
   switch (edit.type) {
@@ -182,44 +184,50 @@ export type Shell = PersistenceShell<RoadmapState>
 
 export type Action =
   | Edit
-  | { type: "hydrate"; result: LoadResult<RoadmapState> }
-  | { type: "reset" }
+  /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
+  | { type: "hydrate"; result: LoadResult<RoadmapState>; nowMs: number }
+  /** `nowMs` is `now()` at the click (`reseedNowMs`), never the request's. */
+  | { type: "reset"; nowMs: number }
   | { type: "save-result"; ok: boolean }
 
 /**
  * Routes every action through the shared shell: hydrate / reset / save
  * results are the shared transitions; a screen edit becomes a shared `edit`
  * event carrying the reducer's output, so a no-op (same object back) leaves
- * the shell untouched — nothing marked edited, no write. The seed, for a
- * hydrate with nothing saved and for Reset, is rebuilt from the request
- * clock, never from a client read.
+ * the shell untouched — nothing marked edited, no write. The seed is built
+ * lazily from whichever clock the event carries: the request's on the first
+ * hydrate, `now()` for a Reset or a re-seed after another tab's Reset.
  */
-export function shellReducer(shell: Shell, action: Action, nowMs: number): Shell {
+export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
     case "hydrate":
       return persistenceShellReducer(shell, {
         type: "hydrate",
         result: action.result,
-        fallback: seedState(nowMs),
+        nowMs: action.nowMs,
+        fallback: seedState,
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", data: seedState(nowMs) })
+      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: seedState })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
 export function initialRoadmapShell(nowMs: number): Shell {
-  return initialShell(seedState(nowMs))
+  return initialShell(seedState(nowMs), nowMs)
 }
 
 /* ------------------------------------------------------------------ store */
 
 export type Store = RoadmapState &
   PersistenceStore & {
-    /** The request clock, read once in the page. Every date on the screen is relative to it. */
+    /**
+     * The instant the screen measures from: the request's on first render,
+     * then the moment of a Reset (or of a re-seed after another tab's Reset).
+     */
     nowMs: number
     addItem: (input: NewItemInput) => void
     patchItem: (id: string, patch: ItemPatch) => void
@@ -231,41 +239,39 @@ export type Store = RoadmapState &
 const RoadmapContext = React.createContext<Store | null>(null)
 
 export function RoadmapProvider({
-  nowMs,
+  nowMs: requestNowMs,
   children,
 }: {
-  /** Read once per request in `page.tsx`. The only clock this screen has. */
+  /** `now().getTime()` from the server component — the one clock read for the first hydrate. */
   nowMs: number
   children: React.ReactNode
 }) {
-  const [shell, dispatch] = React.useReducer(
-    (s: Shell, a: Action) => shellReducer(s, a, nowMs),
-    nowMs,
-    initialRoadmapShell
-  )
-  const { data, persisted, edited, saved, saveFailed } = shell
+  const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, initialRoadmapShell)
+  const { data, nowMs, persisted, edited, saved, saveFailed } = shell
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — before the browser paints — so the
-  // first frame a user sees is already their data, never the seed.
+  // first frame a user sees is already their data, never the seed. This
+  // first hydrate is the only one dated from the request.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", result: roadmapStorage.load(window.localStorage) })
-  }, [])
+    dispatch({ type: "hydrate", result: roadmapStorage.load(window.localStorage), nowMs: requestNowMs })
+  }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes (another
-  // tab's copy is theirs; their Reset re-seeds this tab); only a moving edit
-  // count does, and an identical copy is never re-written. The write's
-  // result feeds the note.
+  // tab's copy is theirs; their Reset re-seeds this tab, dated from the
+  // `now()` the hook reads); only a moving edit count does, and an identical
+  // copy is never re-written. The write's result feeds the note.
   const onHydrate = React.useCallback(
-    (result: LoadResult<RoadmapState>) => dispatch({ type: "hydrate", result }),
+    (result: LoadResult<RoadmapState>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
     []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: roadmapStorage, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(() => {
-    const at = new Date(nowMs).toISOString()
+    // Edits are stamped at the moment they happen, through the shared clock.
+    const at = () => now().toISOString()
     return {
       ...data,
       nowMs,
@@ -273,16 +279,17 @@ export function RoadmapProvider({
       edited,
       saved,
       saveFailed,
-      addItem: (input) => dispatch({ type: "add", input, at }),
-      patchItem: (id, patch) => dispatch({ type: "patch", id, patch, at }),
-      moveItem: (id, column) => dispatch({ type: "move", id, column, at }),
-      reorderItem: (id, direction) => dispatch({ type: "reorder", id, direction, at }),
+      addItem: (input) => dispatch({ type: "add", input, at: at() }),
+      patchItem: (id, patch) => dispatch({ type: "patch", id, patch, at: at() }),
+      moveItem: (id, column) => dispatch({ type: "move", id, column, at: at() }),
+      reorderItem: (id, direction) => dispatch({ type: "reorder", id, direction, at: at() }),
       removeItem: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate around the request clock — never a
-        // client read, per the read-once rule.
+        // Clear first, then regenerate from the moment of the click (the
+        // shared clock read every store uses for a reset): the browser
+        // returns to the never-edited state with a seed dated today.
         roadmapStorage.clear(window.localStorage)
-        dispatch({ type: "reset" })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
   }, [data, nowMs, persisted, edited, saved, saveFailed])

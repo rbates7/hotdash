@@ -1,14 +1,15 @@
 /**
  * Roadmap-specific date helpers on top of the shared clock
- * (`@/lib/clock`): "signed N days ago" as an instant, relative age, and the
- * target-window labels the seed uses ("Q4 2026", "Nov 2026", "2027").
+ * (`@/lib/clock`): "signed N days ago" as an instant, and the target-window
+ * labels the seed uses ("Q4 2026", "Nov 2026", "2027"). Relative age is the
+ * shared `formatRelative`.
  *
- * Nothing here reads the clock. The page reads `now()` once per request and
- * hands the instant down as `nowMs`; every helper takes it as an argument.
- * All calendar work goes through the shared Central-day helpers, so day
- * arithmetic is calendar days (DST-proof), never 24-hour blocks.
+ * Nothing here reads the clock; every helper takes the instant it should
+ * work from (`shell.nowMs`). All calendar work goes through the shared
+ * Central-day helpers, so day arithmetic is calendar days (DST-proof),
+ * never 24-hour blocks.
  */
-import { addDays, daysBetween, todayIn, type IsoDay } from "@/lib/clock"
+import { addDays, todayIn, type IsoDay } from "@/lib/clock"
 
 /** The Central calendar day `nowMs` falls on. */
 export function centralDay(nowMs: number): IsoDay {
@@ -27,16 +28,6 @@ export function middayInstant(day: IsoDay): string {
 /** Midday on the Central day `days` calendar days before `nowMs`, as an ISO instant. */
 export function signedDaysAgo(nowMs: number, days: number): string {
   return middayInstant(addDays(centralDay(nowMs), -days))
-}
-
-/** "today", "yesterday", "5 days ago", "3 weeks ago"… relative to `nowMs`, in Central days. */
-export function relativeLabel(instant: string, nowMs: number): string {
-  const days = daysBetween(new Date(instant), new Date(nowMs))
-  if (days <= 0) return "today"
-  if (days === 1) return "yesterday"
-  if (days < 14) return `${days} days ago`
-  if (days < 60) return `${Math.floor(days / 7)} weeks ago`
-  return `${Math.floor(days / 30)} months ago`
 }
 
 /* ------------------------------------------------- target-window labels */

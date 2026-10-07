@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
@@ -27,7 +28,7 @@ const card = (page: Page, title: string) => page.getByRole("article", { name: ti
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
 async function shoot(page: Page, name: string) {
-  await page.waitForTimeout(250)
+  await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
     await page.screenshot({ path: path.join(dir, `${name}.png`) })

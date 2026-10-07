@@ -3,8 +3,7 @@
 import * as React from "react"
 import { ChevronRightIcon, TicketPlusIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { formatDate } from "@/lib/clock"
-import { relativeLabel } from "@/lib/roadmap/dates"
+import { formatDate, formatRelative } from "@/lib/clock"
 import {
   COLUMN_CONFIG,
   COLUMN_ORDER,
@@ -350,8 +349,10 @@ function EditBetBody({
         </div>
 
         <p className="text-caption text-muted-foreground">
-          Signed {relativeLabel(item.signedAt, nowMs)} ·{" "}
-          <time dateTime={item.signedAt}>{formatDate(new Date(item.signedAt))}</time>
+          Signed{" "}
+          <time dateTime={item.signedAt} title={formatDate(new Date(item.signedAt))}>
+            {formatRelative(Date.parse(item.signedAt), nowMs)}
+          </time>
           {item.fromFeatureRequest && " · from Feature Request"}
         </p>
 

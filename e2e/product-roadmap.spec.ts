@@ -10,6 +10,7 @@ const REJECTED_KEY = `${STORAGE_KEY}.rejected`
 // nothing else on the page can match by accident. The sample-data chips are
 // the shared component's `data-testid`, always read inside a named region.
 const main = (page: Page) => page.getByRole("main")
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
 const header = (page: Page) => main(page).locator("header").first()
 const column = (page: Page, name: string) => page.getByRole("region", { name, exact: true })
 const card = (page: Page, title: string) => page.getByRole("article", { name: title, exact: true })
@@ -48,6 +49,8 @@ async function freshBoard(page: Page) {
 }
 
 async function setTheme(page: Page, theme: "light" | "dark") {
+  // The Light/Dark toggle lives in the sidebar footer, outside the rail's nav
+  // landmark; its two names are unique on the page (same lookup as Home/Metrics).
   await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
@@ -57,7 +60,7 @@ async function setTheme(page: Page, theme: "light" | "dark") {
 test.describe("Product Roadmap", () => {
   test("is reachable from the sidebar and shows Now / Next / Later", async ({ page }) => {
     await page.goto("/home")
-    await page.getByRole("link", { name: "Product Roadmap", exact: true }).click()
+    await rail(page).getByRole("link", { name: "Product Roadmap", exact: true }).click()
     await expect(page).toHaveURL(/\/product-roadmap$/)
     await expect(page.getByRole("heading", { level: 1, name: "Product Roadmap" })).toBeVisible()
     await expect(header(page)).toContainText("Signed bets, in order. Tickets live in Agent Workplace.")
@@ -211,7 +214,9 @@ test.describe("Product Roadmap", () => {
     await freshBoard(page)
     await button(card(page, "Web import from a link"), "Edit").click()
     const d = dialog(page, "Bet: Web import from a link")
-    await expect(d).toContainText(/Signed \d+ days ago · \d+ \w{3} \d{4} · from Feature Request/)
+    // Shared formatRelative: a weekday-date for anything older than yesterday; full date in the title.
+    await expect(d).toContainText(/Signed \w{3}, \w{3} \d{1,2} · from Feature Request/)
+    await expect(d.locator("time")).toHaveAttribute("title", /^\d{1,2} \w{3} \d{4}$/)
     await expect(d.getByRole("button", { name: /^Save/ })).toBeDisabled()
     await expect(d.getByRole("textbox", { name: "Bet title", exact: true })).toHaveAttribute("maxlength", "80")
 
@@ -275,7 +280,7 @@ test.describe("Product Roadmap", () => {
     await expect(card(page, "Parent recap emails")).toBeVisible()
   })
 
-  test("refuses a saved copy with one bad item: parks it raw under .rejected, drops the live key, shows the seed", async ({ page }) => {
+  test("refuses a saved copy with one bad item: shows the seed, leaves the key alone, parks it on the first save", async ({ page }) => {
     await page.goto("/product-roadmap")
     await page.evaluate((key) => localStorage.removeItem(key), REJECTED_KEY)
     const raw = JSON.stringify({
@@ -290,16 +295,17 @@ test.describe("Product Roadmap", () => {
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
     await expect(card(page, "Fine")).toHaveCount(0)
     await expect(sampleTags(page)).toHaveCount(8)
-    const parked = await rejectedCopies(page)
-    expect(parked).toHaveLength(1)
-    expect(parked[0]).toMatchObject({ raw, why: "failed validation" })
-    expect(await savedCopy(page)).toBeNull()
     await expect(resetButton(page)).toBeDisabled()
-    // The next edit saves the real board; the parked copy is left alone.
+    // load() is pure: the bad copy is still there, nothing parked yet.
+    expect(await savedCopy(page)).toBe(raw)
+    expect(await rejectedCopies(page)).toEqual([])
+    // The first real save parks it and writes the real board.
     await button(card(page, "Flag Football 2026"), "Move down").click()
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     expect(await savedCopy(page)).not.toContain("Broken")
-    expect((await rejectedCopies(page))[0].raw).toBe(raw)
+    const parked = await rejectedCopies(page)
+    expect(parked).toHaveLength(1)
+    expect(parked[0]).toMatchObject({ raw, why: "failed validation" })
     await page.evaluate((key) => localStorage.removeItem(key), REJECTED_KEY)
     await resetDemoData(page)
   })
@@ -311,39 +317,36 @@ test.describe("Product Roadmap", () => {
     const other = await context.newPage()
     await other.goto("/product-roadmap")
     await expect(persistenceNote(other)).toHaveText(NOTE.unsaved)
+    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
+    // Counted after the other tab has visibly taken the change (web-first),
+    // then polled until stable: no fixed sleeps.
+    const settled = async (p: Page, n: number) =>
+      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
 
+    // The other tab edits: one write there; this tab hears it and takes the copy without writing.
     await button(card(other, "Staff seats"), "Move to Now").click()
     await expect(persistenceNote(other)).toHaveText(NOTE.saved)
-
-    // No reload on the first tab: the storage event re-hydrated it.
     await expect(column(page, "Now").getByRole("article", { name: "Staff seats", exact: true })).toBeVisible()
     expect(await titlesIn(page, "Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates", "Staff seats"])
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+    await settled(other, 1)
+    await settled(page, 0)
 
-    // Exactly one write, in the tab that edited; the follower wrote nothing —
-    // and it stays that way (no ping-pong).
-    expect(await writesTo(other, STORAGE_KEY)).toBe(1)
-    expect(await writesTo(page, STORAGE_KEY)).toBe(0)
-    await page.waitForTimeout(750)
-    expect(await writesTo(other, STORAGE_KEY)).toBe(1)
-    expect(await writesTo(page, STORAGE_KEY)).toBe(0)
-
-    // The follower edits next: it writes once, on top of the other tab's copy.
+    // This tab edits next: one write here, on top of the other tab's copy; the other follows, still at one.
     await button(card(page, "Staff seats"), "Move up").click()
     expect(await titlesIn(page, "Now")).toEqual(["Flag Football 2026", "Play share links", "Staff seats", "iPad forced updates"])
     await expect(column(other, "Now").getByRole("article").nth(2)).toHaveAccessibleName("Staff seats")
-    await page.waitForTimeout(750)
-    expect(await writesTo(page, STORAGE_KEY)).toBe(1)
-    expect(await writesTo(other, STORAGE_KEY)).toBe(1)
+    await settled(page, 1)
+    await settled(other, 1)
 
-    // Reset in the other tab re-seeds this one, never-edited, Reset disabled.
+    // Reset in the other tab clears the key; this tab re-seeds, never-edited, Reset disabled — no write anywhere.
     await resetDemoData(other)
     await expect(column(page, "Next").getByRole("article", { name: "Staff seats", exact: true })).toBeVisible()
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
     await expect(resetButton(page)).toBeDisabled()
-    await page.waitForTimeout(500)
-    expect(await writesTo(page, STORAGE_KEY)).toBe(1)
-    expect(await writesTo(other, STORAGE_KEY)).toBe(1)
+    await settled(page, 1)
+    await settled(other, 1)
+    expect(await savedCopy(page)).toBeNull()
     await other.close()
   })
 

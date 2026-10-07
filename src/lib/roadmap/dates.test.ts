@@ -1,24 +1,25 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { CENTRAL, formatDate, todayIn } from "@/lib/clock"
+import { CENTRAL, formatDate, formatRelative, todayIn } from "@/lib/clock"
 import {
   centralDay,
   middayInstant,
   monthLabel,
   quarterLabel,
-  relativeLabel,
   signedDaysAgo,
   yearLabel,
 } from "@/lib/roadmap/dates"
 import { buildSeed } from "@/lib/roadmap/fixture"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 
 // 15:00 UTC = 10:00 in Chicago, so a day either side stays on the same date.
 const TODAY = Date.parse("2026-10-07T15:00:00.000Z")
 
 // 23:30 CDT on 7 Oct = 04:30 UTC on 8 Oct: UTC, and most of the world east
-// of Chicago, is already on the next day.
-const LATE = "2026-10-08T04:30:00.000Z"
-const LATE_MS = Date.parse(LATE)
+// of Chicago, is already on the next day. The shared instant every clock
+// test uses.
+const LATE = LATE_EVENING_CT.toISOString()
+const LATE_MS = LATE_EVENING_CT_MS
 
 const fmt = (instant: string | number) => formatDate(new Date(instant))
 
@@ -58,12 +59,12 @@ describe.each(["UTC", "America/Chicago", "Pacific/Kiritimati", "Asia/Tokyo"])(
         expect(new Date(LATE).getDate()).toBeDefined()
       })
 
-      it("counts days from the Central calendar", () => {
-        expect(relativeLabel("2026-10-07T15:00:00.000Z", LATE_MS)).toBe("today")
-        expect(relativeLabel("2026-10-06T15:00:00.000Z", LATE_MS)).toBe("yesterday")
+      it("the shared formatRelative counts days from the Central calendar", () => {
+        expect(formatRelative(Date.parse("2026-10-07T15:00:00.000Z"), LATE_MS)).toBe("13 h ago") // still today in Chicago
+        expect(formatRelative(Date.parse("2026-10-06T15:00:00.000Z"), LATE_MS)).toBe("Yesterday")
+        expect(formatRelative(Date.parse("2026-10-05T15:00:00.000Z"), LATE_MS)).toBe("Mon, Oct 5")
         // 00:30 CDT the next morning is tomorrow in Central, even though it
         // is the same UTC day as LATE.
-        expect(relativeLabel("2026-10-08T05:30:00.000Z", LATE_MS)).toBe("today") // never negative
         expect(centralDay(Date.parse("2026-10-08T05:30:00.000Z"))).toBe("2026-10-08")
       })
 
@@ -102,7 +103,7 @@ describe("day arithmetic", () => {
     expect(fmt(afterSpring)).toBe("9 Mar 2026")
     expect(fmt(afterSpring - 86_400_000)).toBe("7 Mar 2026")
     expect(fmt(signedDaysAgo(afterSpring, 1))).toBe("8 Mar 2026")
-    expect(relativeLabel(signedDaysAgo(afterSpring, 1), afterSpring)).toBe("yesterday")
+    expect(formatRelative(Date.parse(signedDaysAgo(afterSpring, 1)), afterSpring)).toBe("Yesterday")
   })
 
   it("crosses the autumn DST change without an off-by-one", () => {
@@ -112,18 +113,15 @@ describe("day arithmetic", () => {
     expect(fmt(afterFall)).toBe("1 Nov 2026")
     expect(fmt(signedDaysAgo(afterFall, 1))).toBe("31 Oct 2026")
     expect(fmt(signedDaysAgo(afterFall, 2))).toBe("30 Oct 2026")
-    expect(relativeLabel("2026-10-30T18:00:00.000Z", afterFall)).toBe("2 days ago")
+    expect(formatRelative(Date.parse("2026-10-30T18:00:00.000Z"), afterFall)).toBe("Fri, Oct 30")
   })
 
-  it("labels relative age in plain words, by calendar day", () => {
-    expect(relativeLabel(signedDaysAgo(TODAY, 0), TODAY)).toBe("today")
-    expect(relativeLabel("2026-10-07T04:30:00.000Z", TODAY)).toBe("yesterday") // 23:30 on the 6th in Chicago
-    expect(relativeLabel(signedDaysAgo(TODAY, 1), TODAY)).toBe("yesterday")
-    expect(relativeLabel(signedDaysAgo(TODAY, 5), TODAY)).toBe("5 days ago")
-    expect(relativeLabel(signedDaysAgo(TODAY, 13), TODAY)).toBe("13 days ago")
-    expect(relativeLabel(signedDaysAgo(TODAY, 20), TODAY)).toBe("2 weeks ago")
-    expect(relativeLabel(signedDaysAgo(TODAY, 46), TODAY)).toBe("6 weeks ago")
-    expect(relativeLabel(signedDaysAgo(TODAY, 95), TODAY)).toBe("3 months ago")
+  it("signed dates read through the shared formatRelative, by Central calendar day", () => {
+    expect(formatRelative(Date.parse(signedDaysAgo(TODAY, 0)), TODAY)).toBe("just now") // midday seed vs 10:00 — never negative
+    expect(formatRelative(Date.parse("2026-10-07T04:30:00.000Z"), TODAY)).toBe("Yesterday") // 23:30 on the 6th in Chicago
+    expect(formatRelative(Date.parse(signedDaysAgo(TODAY, 1)), TODAY)).toBe("Yesterday")
+    expect(formatRelative(Date.parse(signedDaysAgo(TODAY, 2)), TODAY)).toBe("Mon, Oct 5")
+    expect(formatRelative(Date.parse(signedDaysAgo(TODAY, 9)), TODAY)).toBe("Mon, Sep 28")
   })
 })
 

@@ -2,7 +2,7 @@ import * as React from "react"
 import { act, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { type RejectedCopy } from "@/lib/persistence"
+import { type LoadResult, type RejectedCopy } from "@/lib/persistence"
 import { buildSeed, seedState } from "@/lib/roadmap/fixture"
 import { inColumn, parseState, type RoadmapState } from "@/lib/roadmap/roadmap"
 import {
@@ -19,6 +19,7 @@ import {
   useRoadmap,
   type Edit,
 } from "@/components/product-roadmap/roadmap-store"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import { fireStorageEvent } from "@/test/storage"
 
 /** The parked rejected copies, newest first. */
@@ -32,7 +33,12 @@ const titlesIn = (state: RoadmapState, column: "now" | "next" | "later") =>
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
+
+const empty: LoadResult<RoadmapState> = { state: null, status: "empty" }
+const found = (state: RoadmapState): LoadResult<RoadmapState> => ({ state, status: "saved" })
+const hydrated = (nowMs = NOW) => shellReducer(initialRoadmapShell(nowMs), { type: "hydrate", result: empty, nowMs })
 
 describe("reducer", () => {
   it("adds a bet at the bottom of the chosen column, owned by Rashad by default, not sample data", () => {
@@ -170,19 +176,19 @@ describe("reducer", () => {
 describe("shell (through the shared persistence shell)", () => {
   const edit: Edit = { type: "add", input: { title: "Mine" }, at: AT }
 
-  it("starts unhydrated, unsaved and never-edited, seeded from nowMs", () => {
-    expect(initialRoadmapShell(NOW)).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false, edits: 0 })
-    expect(initialRoadmapShell(NOW).data).toEqual(seedState(NOW))
+  it("starts unhydrated, unsaved and never-edited, seeded from and holding the request clock", () => {
+    const shell = initialRoadmapShell(NOW)
+    expect(shell).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false, edits: 0, savedEdits: 0, nowMs: NOW })
+    expect(shell.data).toEqual(seedState(NOW))
   })
 
-  it("hydrate applies a saved copy (saved, not edited) or rebuilds the seed from nowMs", () => {
+  it("the first hydrate applies a saved copy (saved, not edited, clock unmoved) or seeds lazily from the request clock", () => {
     const saved: RoadmapState = { items: [], nextId: 1 }
-    const found = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: saved, status: "saved" } }, NOW)
-    expect(found).toMatchObject({ data: saved, persisted: true, saved: true, edited: false })
-    const later = Date.parse("2027-03-01T15:00:00.000Z")
-    const none = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, later)
-    expect(none).toMatchObject({ persisted: true, saved: false, edited: false })
-    expect(none.data).toEqual(seedState(later))
+    const withCopy = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: found(saved), nowMs: NOW })
+    expect(withCopy).toMatchObject({ data: saved, persisted: true, saved: true, edited: false, nowMs: NOW })
+    const none = hydrated(NOW)
+    expect(none).toMatchObject({ persisted: true, saved: false, edited: false, nowMs: NOW })
+    expect(none.data).toEqual(seedState(NOW))
   })
 
   it("the storage parses with the validator, so unknown keys never reach the board", () => {
@@ -193,43 +199,52 @@ describe("shell (through the shared persistence shell)", () => {
   })
 
   it("a real edit marks edited and bumps the edit count; saved waits for the write; a no-op edit returns the same shell", () => {
-    const shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
-    const edited = shellReducer(shell, edit, NOW)
+    const shell = hydrated()
+    const edited = shellReducer(shell, edit)
     expect(edited).toMatchObject({ edited: true, edits: 1, saved: false })
-    expect(shellReducer(edited, { type: "save-result", ok: true }, NOW)).toMatchObject({ saved: true, saveFailed: false })
-    expect(shellReducer(edited, { type: "save-result", ok: false }, NOW)).toMatchObject({ saved: false, saveFailed: true })
-    expect(shellReducer(shell, { type: "add", input: { title: " " }, at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "move", id: "rm-1", column: "now", at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "reorder", id: "rm-1", direction: -1, at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "patch", id: "rm-1", patch: { owner: "Rashad" }, at: AT }, NOW)).toBe(shell)
-    expect(shellReducer(shell, { type: "remove", id: "nope" }, NOW)).toBe(shell)
+    expect(shellReducer(edited, { type: "save-result", ok: true })).toMatchObject({ saved: true, saveFailed: false, savedEdits: 1 })
+    expect(shellReducer(edited, { type: "save-result", ok: false })).toMatchObject({ saved: false, saveFailed: true, savedEdits: 0 })
+    expect(shellReducer(shell, { type: "add", input: { title: " " }, at: AT })).toBe(shell)
+    expect(shellReducer(shell, { type: "move", id: "rm-1", column: "now", at: AT })).toBe(shell)
+    expect(shellReducer(shell, { type: "reorder", id: "rm-1", direction: -1, at: AT })).toBe(shell)
+    expect(shellReducer(shell, { type: "patch", id: "rm-1", patch: { owner: "Rashad" }, at: AT })).toBe(shell)
+    expect(shellReducer(shell, { type: "remove", id: "nope" })).toBe(shell)
   })
 
-  it("a hydrate after edits is not an edit: another tab's copy is theirs", () => {
-    let shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
-    shell = shellReducer(shell, edit, NOW)
+  it("a hydrate after a *saved* edit is not an edit: another tab's copy is theirs, clock unmoved", () => {
+    let shell = shellReducer(hydrated(), edit)
+    shell = shellReducer(shell, { type: "save-result", ok: true })
     const theirs: RoadmapState = { items: [], nextId: 1 }
-    const editsBefore = shell.edits
-    shell = shellReducer(shell, { type: "hydrate", result: { state: theirs, status: "saved" } }, NOW)
-    expect(shell).toMatchObject({ data: theirs, edited: false, saved: true, edits: editsBefore })
-    // …and a removal elsewhere re-seeds this tab, never-edited.
-    shell = shellReducer(shell, { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
-    expect(shell).toMatchObject({ edited: false, saved: false })
-    expect(shell.data).toEqual(seedState(NOW))
+    const later = LATE_EVENING_CT_MS
+    shell = shellReducer(shell, { type: "hydrate", result: found(theirs), nowMs: later })
+    expect(shell).toMatchObject({ data: theirs, edited: false, saved: true, edits: 1, nowMs: NOW })
   })
 
-  it("reset rebuilds the seed against the request clock, not a client read, and clears the flags", () => {
-    const spy = vi.spyOn(Date, "now")
-    let shell = shellReducer(initialRoadmapShell(NOW), { type: "hydrate", result: { state: null, status: "empty" } }, NOW)
-    shell = shellReducer(shell, { type: "remove", id: "rm-1" }, NOW)
-    shell = shellReducer(shell, edit, NOW)
-    shell = shellReducer(shell, { type: "save-result", ok: false }, NOW)
+  it("a local edit that has not been saved yet wins over an incoming copy", () => {
+    const shell = shellReducer(hydrated(), edit)
+    const theirs: RoadmapState = { items: [], nextId: 1 }
+    const after = shellReducer(shell, { type: "hydrate", result: found(theirs), nowMs: NOW })
+    expect(after.data).toBe(shell.data)
+    expect(after).toMatchObject({ edited: true, saved: true })
+  })
+
+  it("another tab's Reset (no copy) re-seeds this tab from the instant it is handed, never-edited", () => {
+    let shell = shellReducer(hydrated(), edit)
+    shell = shellReducer(shell, { type: "save-result", ok: true })
+    shell = shellReducer(shell, { type: "hydrate", result: empty, nowMs: LATE_EVENING_CT_MS })
+    expect(shell).toMatchObject({ edited: false, saved: false, nowMs: LATE_EVENING_CT_MS })
+    expect(shell.data).toEqual(seedState(LATE_EVENING_CT_MS))
+  })
+
+  it("reset rebuilds the seed from the instant it is handed and moves the clock", () => {
+    let shell = shellReducer(hydrated(), { type: "remove", id: "rm-1" })
+    shell = shellReducer(shell, edit)
+    shell = shellReducer(shell, { type: "save-result", ok: false })
     const later = Date.parse("2027-03-01T15:00:00.000Z")
-    const reset = shellReducer(shell, { type: "reset" }, later)
-    expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false, edits: shell.edits })
+    const reset = shellReducer(shell, { type: "reset", nowMs: later })
+    expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false, nowMs: later, edits: shell.edits, savedEdits: shell.edits })
     expect(reset.data).toEqual(seedState(later))
     expect(reset.data.items[0].window).toBe("Q1 2027")
-    expect(spy).not.toHaveBeenCalled()
   })
 })
 
@@ -256,24 +271,28 @@ describe("storage (shared createStorage, roadmap key)", () => {
     expect(saveState(undefined, seedState(NOW))).toBe(false)
   })
 
-  it("rejects the whole copy when one item is bad: parks it raw under .rejected and drops the live key", () => {
+  it("load() is pure: a copy with one bad item is refused and left in place; the first save parks it", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const good = seedState(NOW)
     const bad = { ...good, items: good.items.map((i, n) => (n === 2 ? { ...i, owner: "Dan" } : i)) }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
-    expect(loadState(window.localStorage)).toEqual({ state: null, status: "rejected" })
+    const result = loadState(window.localStorage)
+    expect(result).toMatchObject({ state: null, status: "rejected", rejected: { raw, why: "failed validation" } })
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(rejected()).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    expect(saveState(window.localStorage, good)).toBe(true)
     expect(rejected()).toHaveLength(1)
     expect(rejected()[0]).toMatchObject({ raw, why: "failed validation" })
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(warn).toHaveBeenCalledTimes(1)
+    expect(loadState(window.localStorage)).toEqual({ state: good, status: "saved" })
   })
 
-  it("rejects garbage too, newest first", () => {
+  it("rejects garbage too", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     window.localStorage.setItem(STORAGE_KEY, "{not json")
-    expect(loadState(window.localStorage).status).toBe("rejected")
-    expect(rejected()[0]).toMatchObject({ raw: "{not json", why: "is not JSON" })
+    expect(loadState(window.localStorage)).toMatchObject({ status: "rejected", rejected: { raw: "{not json", why: "is not JSON" } })
   })
 
   it("does not re-write an identical copy", () => {
@@ -336,33 +355,34 @@ function mount(nowMs = NOW) {
 const click = (name: string) => act(() => screen.getByRole("button", { name }).click())
 const writesTo = (spy: { mock: { calls: unknown[][] } }, key: string) =>
   spy.mock.calls.filter((c) => c[0] === key).length
+const text = (id: string) => screen.getByTestId(id).textContent
 
 describe("RoadmapProvider", () => {
-  it("hydrates before the first paint and exposes the request clock it was given", () => {
+  it("hydrates before the first paint and measures from the request clock it was given", () => {
     mount()
     // Synchronous: the layout effect ran inside render(), no await needed.
-    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("now-ms")).toHaveTextContent(String(NOW))
+    expect(text("persisted")).toBe("true")
+    expect(text("count")).toBe("8")
+    expect(text("now-ms")).toBe(String(NOW))
   })
 
   it("writes nothing on mount, and no-op edits do not count", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     mount()
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(text("saved")).toBe("false")
+    expect(text("edited")).toBe("false")
     expect(setItem).not.toHaveBeenCalled()
-    const updatedBefore = screen.getByTestId("rm-1-updated").textContent
+    const updatedBefore = text("rm-1-updated")
 
     click("add-nothing")
     click("same-column")
     click("already-top")
     click("same-owner")
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(text("saved")).toBe("false")
+    expect(text("edited")).toBe("false")
     expect(setItem).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(screen.getByTestId("rm-1-updated")).toHaveTextContent(updatedBefore!)
+    expect(text("rm-1-updated")).toBe(updatedBefore)
   })
 
   it("does not re-write a copy it merely found on load", () => {
@@ -370,19 +390,19 @@ describe("RoadmapProvider", () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     mount()
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
-    expect(screen.getByTestId("count")).toHaveTextContent("9")
+    expect(text("saved")).toBe("true")
+    expect(text("edited")).toBe("false")
+    expect(text("count")).toBe("9")
     expect(setItem).not.toHaveBeenCalled()
   })
 
-  it("seeds from the clock it is handed, never from Date.now()", () => {
+  it("seeds from the request clock it is handed, never from Date.now()", () => {
     const spy = vi.spyOn(Date, "now")
     const first = mount()
-    expect(screen.getByTestId("rm-1-window")).toHaveTextContent("Q4 2026")
+    expect(text("rm-1-window")).toBe("Q4 2026")
     first.unmount()
     mount(Date.parse("2027-03-01T15:00:00.000Z"))
-    expect(screen.getByTestId("rm-1-window")).toHaveTextContent("Q1 2027")
+    expect(text("rm-1-window")).toBe("Q1 2027")
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -390,44 +410,50 @@ describe("RoadmapProvider", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     const first = mount()
     click("add")
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
-    expect(screen.getByTestId("edited")).toHaveTextContent("true")
-    expect(screen.getByTestId("save-failed")).toHaveTextContent("false")
+    expect(text("saved")).toBe("true")
+    expect(text("edited")).toBe("true")
+    expect(text("save-failed")).toBe("false")
     expect(writesTo(setItem, STORAGE_KEY)).toBe(1)
     click("move-later")
     click("up-3")
     click("remove-8")
     expect(writesTo(setItem, STORAGE_KEY)).toBe(4)
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("now-titles")).toHaveTextContent("iPad forced updates|Play share links|Probe bet")
+    expect(text("count")).toBe("8")
+    expect(text("now-titles")).toBe("iPad forced updates|Play share links|Probe bet")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"title":"Probe bet"')
 
     first.unmount()
     mount()
-    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("now-titles")).toHaveTextContent("iPad forced updates|Play share links|Probe bet")
+    expect(text("persisted")).toBe("true")
+    expect(text("saved")).toBe("true")
+    expect(text("count")).toBe("8")
+    expect(text("now-titles")).toBe("iPad forced updates|Play share links|Probe bet")
     expect(writesTo(setItem, STORAGE_KEY)).toBe(4) // the remount wrote nothing
   })
 
-  it("stamps edits with the request clock, not a client read", () => {
-    // NOW is in 2026; a client read would stamp the real wall clock instead.
-    // (Date.now can't be spied on here: jsdom stamps every DOM event with it.)
-    mount()
+  it("stamps edits with the shared clock at the moment of the edit, not the request's instant", () => {
+    const EDIT_AT = new Date("2026-10-07T21:45:00.000Z")
+    vi.useFakeTimers({ now: EDIT_AT, toFake: ["Date"] })
+    mount(NOW)
     click("move-later")
-    expect(screen.getByTestId("rm-1-updated")).toHaveTextContent(AT)
+    expect(text("rm-1-updated")).toBe(EDIT_AT.toISOString())
+    expect(text("now-ms")).toBe(String(NOW)) // the clock the screen measures from is unmoved by an edit
   })
 
-  it("Reset throws the browser's copy away entirely and shows a fresh seed", () => {
-    mount()
+  it("Reset throws the browser's copy away and re-seeds from now(), moving the clock", () => {
+    mount(NOW)
     click("add")
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+    // Opened in the evening; Reset the next afternoon.
+    const nextDay = new Date("2027-03-01T20:00:00.000Z")
+    vi.useFakeTimers({ now: nextDay, toFake: ["Date"] })
     click("reset")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("now-titles")).toHaveTextContent("Flag Football 2026|Play share links|iPad forced updates")
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(text("count")).toBe("8")
+    expect(text("now-titles")).toBe("Flag Football 2026|Play share links|iPad forced updates")
+    expect(text("saved")).toBe("false")
+    expect(text("edited")).toBe("false")
+    expect(text("now-ms")).toBe(String(nextDay.getTime()))
+    expect(text("rm-1-window")).toBe("Q1 2027") // the seed is dated from the Reset, not the request
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
@@ -439,69 +465,73 @@ describe("RoadmapProvider", () => {
     mount()
     click("add")
     // Nothing landed, so the note must not claim "Saved" (and Reset stays off).
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("save-failed")).toHaveTextContent("true")
-    expect(screen.getByTestId("count")).toHaveTextContent("9") // the edit still works for the session
+    expect(text("saved")).toBe("false")
+    expect(text("save-failed")).toBe("true")
+    expect(text("count")).toBe("9") // the edit still works for the session
     setItem.mockRestore()
     click("move-later")
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
-    expect(screen.getByTestId("save-failed")).toHaveTextContent("false")
+    expect(text("saved")).toBe("true")
+    expect(text("save-failed")).toBe("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
   })
 
-  it("falls back to the seed when the saved copy has one bad item; the copy is parked under .rejected", () => {
+  it("falls back to the seed when the saved copy has one bad item; the copy is parked on the first save", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const bad = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT })
     bad.items[3] = { ...bad.items[3], column: "shipped" as never }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
     mount()
-    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(rejected()[0].raw).toBe(raw)
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(text("persisted")).toBe("true")
+    expect(text("saved")).toBe("false")
+    expect(text("count")).toBe("8")
+    // load() is pure: the bad copy stays put, nothing parked yet.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(rejected()).toEqual([])
     expect(warn).toHaveBeenCalledTimes(1)
-    // Nothing is written until the founder edits again; the parked copy stays.
+    // The first real edit parks it and writes the real board.
     click("add")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
-    expect(rejected()[0].raw).toBe(raw)
+    expect(rejected()[0]).toMatchObject({ raw, why: "failed validation" })
   })
 
-  it("follows a change made in another tab without writing anything back", () => {
+  it("follows a change made in another tab without writing anything back, clock unmoved", () => {
     mount()
-    click("add") // this tab has edits of its own
+    click("add") // this tab has saved edits of its own
     const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
     const raw = JSON.stringify(other)
     window.localStorage.setItem(STORAGE_KEY, raw)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     act(() => fireStorageEvent(STORAGE_KEY, raw))
-    expect(screen.getByTestId("count")).toHaveTextContent("9")
-    expect(screen.getByTestId("saved")).toHaveTextContent("true")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
-    expect(screen.getByTestId("now-titles")).toHaveTextContent("From another tab")
+    expect(text("count")).toBe("9")
+    expect(text("saved")).toBe("true")
+    expect(text("edited")).toBe("false")
+    expect(text("now-titles")).toBe("Flag Football 2026|Play share links|iPad forced updates|From another tab")
+    expect(text("now-ms")).toBe(String(NOW))
     // Following is not editing: nothing written back, so two tabs never ping-pong.
     expect(setItem).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
   })
 
-  it("a removal in another tab re-seeds this tab, never-edited, and still writes nothing", () => {
-    mount()
+  it("another tab's Reset re-seeds this tab from now(), never-edited, and still writes nothing", () => {
+    mount(NOW)
     click("add")
     const setItem = vi.spyOn(Storage.prototype, "setItem")
+    vi.useFakeTimers({ now: LATE_EVENING_CT, toFake: ["Date"] })
     window.localStorage.removeItem(STORAGE_KEY)
     act(() => fireStorageEvent(STORAGE_KEY, null))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(text("count")).toBe("8")
+    expect(text("saved")).toBe("false")
+    expect(text("edited")).toBe("false")
+    expect(text("now-ms")).toBe(String(LATE_EVENING_CT_MS))
     expect(setItem).not.toHaveBeenCalled()
     // Storage.clear() in the other tab arrives with a null key.
     click("add")
     window.localStorage.clear()
     act(() => fireStorageEvent(null, null))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    expect(text("count")).toBe("8")
+    expect(text("edited")).toBe("false")
   })
 
   it("after taking another tab's copy, the next real edit writes exactly once", () => {
@@ -524,23 +554,26 @@ describe("RoadmapProvider", () => {
       fireStorageEvent("hotdash.feature-requests.v1", other)
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: other, storageArea: window.sessionStorage }))
     })
-    expect(screen.getByTestId("count")).toHaveTextContent("9")
+    expect(text("count")).toBe("9")
   })
 
-  it("quarantines a bad copy arriving from another tab and falls back to the seed", () => {
+  it("a bad copy arriving from another tab is refused: seed shown, copy left for the next save to park", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     mount()
     click("add")
     window.localStorage.setItem(STORAGE_KEY, "{broken")
     act(() => fireStorageEvent(STORAGE_KEY, "{broken"))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(rejected()[0].raw).toBe("{broken")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(text("count")).toBe("8")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("{broken")
+    expect(rejected()).toEqual([])
     expect(warn).toHaveBeenCalledTimes(1)
+    click("add")
+    expect(rejected()[0]).toMatchObject({ raw: "{broken", why: "is not JSON" })
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe bet")
   })
 
   it("the seed it falls back to matches the fixture exactly", () => {
     mount()
-    expect(screen.getByTestId("count")).toHaveTextContent(String(buildSeed(NOW).length))
+    expect(text("count")).toBe(String(buildSeed(NOW).length))
   })
 })
