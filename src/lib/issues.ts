@@ -11,6 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { CENTRAL } from "@/lib/clock"
+
 /* ------------------------------------------------------------------ types */
 
 export type IssueStatus =
@@ -277,9 +279,15 @@ export function formatRelative(at: string, now: Date) {
   return `${Math.round(hours / 24)}d ago`
 }
 
-export function formatDay(date: string) {
+/**
+ * "Oct 7" style day label, always in the founder's zone. Without an explicit
+ * zone a UTC server and a Central browser disagree between about 7pm and
+ * midnight Central, and the page hydrates mismatched.
+ */
+export function formatDay(date: string, timeZone: string = CENTRAL) {
   return new Date(date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone,
   })
 }
