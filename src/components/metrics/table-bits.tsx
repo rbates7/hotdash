@@ -6,12 +6,23 @@ import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon } from "lucide-react
 import type { Sort } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
 import { TableHead } from "@/components/ui/table"
+import { SampleDataTag } from "@/components/metrics/sample-data"
 
 export const HEAD =
   "text-micro text-muted-foreground h-auto px-[18px] py-3 font-medium tracking-[0.05em] uppercase"
 export const CELL = "text-label px-[18px] py-3.5 whitespace-normal"
 
-export function TableCard({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Bordered surface around a table, with a "Sample data" strip on top that
+ * says what the rows are. Pass `note` to explain; omit it only for tables
+ * with no seed rows at all.
+ */
+export function TableCard({
+  note,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & { note?: React.ReactNode }) {
   return (
     <div
       className={cn(
@@ -19,7 +30,15 @@ export function TableCard({ className, ...props }: React.ComponentProps<"div">) 
         className
       )}
       {...props}
-    />
+    >
+      {note && (
+        <div className="border-surface-border bg-warning/5 flex flex-wrap items-center gap-2 border-b px-[18px] py-2">
+          <SampleDataTag />
+          <span className="text-caption text-muted-foreground">{note}</span>
+        </div>
+      )}
+      {children}
+    </div>
   )
 }
 

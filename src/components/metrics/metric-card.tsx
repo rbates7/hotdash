@@ -16,6 +16,7 @@ import {
 } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
 import { MetricChart } from "@/components/metrics/metric-chart"
+import { SampleDataTag } from "@/components/metrics/sample-data"
 
 function ToolButton({
   on,
@@ -91,7 +92,10 @@ export function MetricCard({
       )}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
+          <SampleDataTag />
+        </div>
         <div
           className="flex flex-none items-center gap-1"
           role="group"

@@ -50,7 +50,7 @@ export function NewSubscribersTable({
     setSort((s) => toggleSort(s, key, key === "signupDate" ? "desc" : "asc"))
 
   return (
-    <TableCard>
+    <TableCard note="Illustrative sign-ups, not real customers.">
       <Table aria-label="New subscribers">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -99,7 +99,7 @@ export function ChurnedSubscribersTable({
     setSort((s) => toggleSort(s, key, key === "name" ? "asc" : "desc"))
 
   return (
-    <TableCard>
+    <TableCard note="Illustrative churn, not real customers.">
       <Table aria-label="Churned subscribers">
         <TableHeader>
           <TableRow className="hover:bg-transparent">

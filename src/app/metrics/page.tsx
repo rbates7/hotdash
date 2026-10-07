@@ -5,6 +5,7 @@ import { DATE_RANGE_LABEL } from "@/lib/metrics-fixture"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { PersistenceNote } from "@/components/metrics/persistence-note"
+import { SAMPLE_DATA_LABEL, SampleDataNotice } from "@/components/metrics/sample-data"
 
 export const metadata = {
   title: "Metrics · Chlk",
@@ -19,7 +20,7 @@ export default function MetricsPage() {
           <div className="flex flex-wrap items-center gap-2.5">
             <PersistenceNote />
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-              Dummy numbers
+              {SAMPLE_DATA_LABEL}
             </span>
             {/* Decorative for this pass (reqs: Open). Marked disabled rather
                 than wired to a picker that would not filter anything. */}
@@ -33,6 +34,7 @@ export default function MetricsPage() {
             </span>
           </div>
         </header>
+        <SampleDataNotice />
         {/* MetricsTabs reads the tab from the URL, so it needs a Suspense
             boundary around useSearchParams. */}
         <Suspense fallback={null}>
