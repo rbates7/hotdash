@@ -1,5 +1,7 @@
 import {
+  PERIOD_DAYS,
   addDays,
+  daysEnding,
   inPeriod,
   periodBefore,
   periodEnding,
@@ -62,16 +64,18 @@ export const METRIC_DEFS: Record<MetricId, MetricDef> = {
 }
 
 /**
- * Six periods per metric, oldest first; the last two are the prior period
- * and now. Three are derived (see `snapshotFor`): Expenses sums the table,
- * Subscribers reconciles with the subscriber tables, Valuation is ARR × 3.5.
+ * Six 28-day windows per metric, oldest first; the last two are the prior
+ * window and the current one. Several points are derived at read time (see
+ * `snapshotFor`): Expenses sums the table, Subscribers reconciles with the
+ * subscriber tables, Churn and Retention follow from them, Valuation is
+ * ARR × 3.5.
  */
 const SERIES: Record<MetricId, number[]> = {
   mrr: [23_800, 24_200, 24_900, 25_100, 25_130, 26_190],
   arr: [285_600, 290_400, 298_800, 301_200, 301_560, 314_280],
-  churn: [4.4, 4.3, 4.3, 4.2, 4.2, 3.8],
+  churn: [4.4, 4.3, 4.3, 4.2, 4.2, 0],
   revenue: [24_800, 25_200, 26_100, 26_400, 26_780, 28_410],
-  retention: [95.6, 95.7, 95.8, 95.8, 95.8, 96.2],
+  retention: [95.6, 95.7, 95.8, 95.8, 95.8, 0],
   subscribers: [158, 164, 169, 172, 0, 186],
   trials: [22, 23, 24, 24.5, 24.9, 28],
   // The second-to-last point is the prior period's total; the last is
@@ -119,8 +123,13 @@ export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
   }
   if (id === "subscribers") {
     // Last period's count is this period's less the net adds the tables show.
-    const net = seedNewSubscribers(today).length - seedChurnedSubscribers(today).length
-    series[last - 1] = series[last] - net
+    series[last - 1] = series[last] - netSubscribers(today)
+  }
+  if (id === "churn") {
+    series[last] = churnRate(today)
+  }
+  if (id === "retention") {
+    series[last] = 100 - churnRate(today)
   }
   if (id === "valuation") {
     series[last] = valuationFromArr(SERIES.arr[SERIES.arr.length - 1])
@@ -134,31 +143,93 @@ export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
   }
 }
 
+/* ------------------------------------------------- derived from the seed */
+
+/** Net adds this window: the sign-ups table less the churn table. */
+export function netSubscribers(today: IsoDay | Date) {
+  return seedNewSubscribers(today).length - seedChurnedSubscribers(today).length
+}
+
+/** Churn this window: the churn table over last window's subscriber count, in %. */
+export function churnRate(today: IsoDay | Date) {
+  const current = SERIES.subscribers[SERIES.subscribers.length - 1]
+  const previous = current - netSubscribers(today)
+  return (seedChurnedSubscribers(today).length / previous) * 100
+}
+
+/**
+ * Daily revenue for the two most recent 28-day windows, oldest first. The
+ * Revenue series only has window totals, so each window is spread over its
+ * days with a gentle linear ramp (the business is growing inside the
+ * window, not flat), summing exactly to the window's total. Dummy, like
+ * everything here — but it lets "Cash this week" be a real trailing-7-day
+ * figure rather than a 28-day average wearing a weekly label.
+ */
+export function dailyRevenue(today: IsoDay | Date): { date: IsoDay; amount: number }[] {
+  const end = toDay(today)
+  const totals = SERIES.revenue.slice(-2) // prior window, current window
+  const days = daysEnding(end, PERIOD_DAYS * 2)
+  const out: { date: IsoDay; amount: number }[] = []
+  totals.forEach((total, w) => {
+    const window = days.slice(w * PERIOD_DAYS, (w + 1) * PERIOD_DAYS)
+    const mid = (PERIOD_DAYS - 1) / 2
+    const weights = window.map((_, i) => 1 + (i - mid) * 0.01)
+    const sum = weights.reduce((a, b) => a + b, 0)
+    let allotted = 0
+    window.forEach((date, i) => {
+      const amount =
+        i === window.length - 1
+          ? total - allotted // the remainder lands on the last day so the sum is exact
+          : Math.round((total * weights[i]) / sum)
+      allotted += amount
+      out.push({ date, amount })
+    })
+  })
+  return out
+}
+
+/** Sum of daily revenue inside a window. */
+export function cashIn(period: Period, today: IsoDay | Date) {
+  return dailyRevenue(today).reduce((sum, d) => (inPeriod(d.date, period) ? sum + d.amount : sum), 0)
+}
+
+/** The trailing 7 days ending today, and the 7 before: the truth strip's "week". */
+export function weekEnding(today: IsoDay | Date): { thisWeek: Period; lastWeek: Period } {
+  const end = toDay(today)
+  return {
+    thisWeek: { start: addDays(end, -6), end },
+    lastWeek: { start: addDays(end, -13), end: addDays(end, -7) },
+  }
+}
+
 /* --------------------------------------------------------------- home */
+
+/** How every 28-day comparison is labelled, on Home and on Metrics. */
+export const VS_PREVIOUS_WINDOW = "vs previous 28 days"
+export const VS_PREVIOUS_WEEK = "vs previous 7 days"
 
 /** Home's truth strip: are coaches paying, and is cash arriving this week. */
 export function truthStrip(ctx: KpiContext): Kpi[] {
   const subscribers = snapshotFor("subscribers", ctx)
-  const revenue = snapshotFor("revenue", ctx)
-  // One week of the 28-day Revenue period, this period and last.
-  const cash = { value: revenue.value / 4, previous: revenue.previous / 4 }
+  const { thisWeek, lastWeek } = weekEnding(ctx.today)
+  const cash = { value: cashIn(thisWeek, ctx.today), previous: cashIn(lastWeek, ctx.today) }
   const cashTrend = trendFor(cash.value, cash.previous, "percent")
   return [
-    toKpi(subscribers, "vs last month"),
+    toKpi(subscribers, VS_PREVIOUS_WINDOW),
     {
       id: "cash-this-week",
       label: "Cash this week",
       value: `$${Math.round(cash.value).toLocaleString("en-US")}`,
-      delta: `${cashTrend.text} vs last week`,
+      delta: `${cashTrend.text} ${VS_PREVIOUS_WEEK}`,
       direction: cashTrend.flat ? "flat" : cashTrend.up ? "up" : "down",
     },
   ]
 }
 
-/** Home's growth set: the Metrics cards it mirrors, same numbers. */
+/** Home's growth set: the Metrics cards it mirrors, same numbers, same label. */
 export function growthStrip(ctx: KpiContext): Kpi[] {
   return (["mrr", "arr", "subscribers", "churn"] as const).map((id) =>
-    toKpi(snapshotFor(id, ctx), "")
+    toKpi(snapshotFor(id, ctx), VS_PREVIOUS_WINDOW)
   )
 }
 

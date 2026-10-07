@@ -4,7 +4,7 @@ import * as React from "react"
 import { Bar, BarChart, Cell, Line, LineChart, YAxis } from "recharts"
 import type { BarShapeProps } from "recharts/types/cartesian/Bar"
 
-import { formatMonthSpan, monthsEnding, type IsoDay } from "@/lib/clock"
+import { formatDayShort, formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { formatMetricValue, type ChartType, type MetricUnit } from "@/lib/metrics"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 
@@ -68,23 +68,22 @@ export function MetricChart({
   label: string
   /** How each point is read aloud, e.g. "$26,190". */
   unit: MetricUnit
-  /** The page's calendar day; the six points are the six months ending in it. */
+  /** The page's calendar day; the six points are the six 28-day windows ending on it. */
   today: IsoDay
 }) {
-  // The axis is 120×52px, far too small for month ticks, so the chart's
-  // months and values live in its accessible name and the sr-only list
-  // below instead. Months derive from `today`, so the same series reads as
-  // the right half-year whenever it is viewed.
-  const months = React.useMemo(() => monthsEnding(today, series.length), [today, series.length])
+  // The axis is 120×52px, far too small for ticks, so the chart's windows
+  // and values live in its accessible name: each point is a 28-day window
+  // labelled by the day it ends, derived from `today`.
+  const windows = React.useMemo(() => windowsEnding(today, series.length), [today, series.length])
   const data = React.useMemo(
-    () => series.map((v, i) => ({ i, v, month: months[i]?.label ?? "" })),
-    [series, months]
+    () => series.map((v, i) => ({ i, v, ends: windows[i] ? formatDayShort(windows[i].end) : "" })),
+    [series, windows]
   )
   const domain = React.useMemo(() => chartDomain(series), [series])
   const last = data.length - 1
-  const span = formatMonthSpan(months)
-  const readings = data.map((d) => `${d.month} ${formatMetricValue(d.v, unit)}`)
-  const name = `${label}, six-month ${type} chart, ${span}: ${readings.join(", ")}`
+  const span = formatWindowSpan(windows)
+  const readings = data.map((d) => `to ${d.ends} ${formatMetricValue(d.v, unit)}`)
+  const name = `${label}, ${type} chart of six 28-day windows, ${span}: ${readings.join(", ")}`
 
   return (
     <ChartContainer
@@ -94,7 +93,7 @@ export function MetricChart({
       role="img"
       aria-label={name}
       title={`${label}: ${span}`}
-      data-months={months.map((m) => m.label).join(" ")}
+      data-windows={windows.map((w) => w.end).join(" ")}
     >
       {type === "bar" ? (
         <BarChart

@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { PersistenceStore } from "@/lib/persistence"
-import { PERSISTENCE_COPY, PersistenceNote, persistenceCopy } from "@/components/persistence-note"
+import {
+  PERSISTENCE_COPY,
+  PERSISTENCE_NOTE_NAME,
+  PersistenceNote,
+  RESET_DISABLED_HINT,
+  persistenceCopy,
+} from "@/components/persistence-note"
 
 function store(over: Partial<PersistenceStore> = {}): PersistenceStore {
   return {
@@ -28,23 +34,38 @@ describe("persistenceCopy", () => {
 })
 
 describe("PersistenceNote", () => {
-  it("reads 'Edits save in this browser' before the first save and disables Reset", () => {
+  it("reads 'Edits save in this browser' before the first save; Reset is disabled but reachable and explains why", async () => {
+    const user = userEvent.setup()
     render(<PersistenceNote store={store()} />)
     expect(screen.getByTestId("persistence-note")).toHaveTextContent("Edits save in this browser")
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    const reset = screen.getByRole("button", { name: "Reset" })
+    expect(reset).toHaveAttribute("aria-disabled", "true")
+    expect(reset).toHaveAccessibleDescription(RESET_DISABLED_HINT)
+    // Keyboard users can still land on it and hear the hint.
+    await user.tab()
+    expect(reset).toHaveFocus()
+    await user.keyboard("{Enter}")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
-  it("reads 'Saved in this browser' once something is saved and enables Reset", () => {
+  it("reads 'Saved in this browser' once something is saved and enables Reset without the hint", () => {
     render(<PersistenceNote store={store({ edited: true, saved: true })} />)
     expect(screen.getByTestId("persistence-note")).toHaveTextContent("Saved in this browser")
-    expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled()
+    const reset = screen.getByRole("button", { name: "Reset" })
+    expect(reset).toBeEnabled()
+    expect(reset).not.toHaveAttribute("aria-describedby")
   })
 
-  it("announces a failed save and never says Saved", () => {
+  it("is a named status region, and an alert of the same name once a save has failed", () => {
+    const { unmount } = render(<PersistenceNote store={store({ edited: true, saved: true })} />)
+    expect(screen.getByRole("status", { name: PERSISTENCE_NOTE_NAME })).toHaveTextContent("Saved in this browser")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+    unmount()
     render(<PersistenceNote store={store({ edited: true, saved: true, saveFailed: true })} />)
-    const note = screen.getByRole("alert")
+    const note = screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })
     expect(note).toHaveTextContent("Couldn't save in this browser")
     expect(note).not.toHaveTextContent("Saved")
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
   })
 
   it("Reset asks first, and only the confirm clears", async () => {

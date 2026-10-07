@@ -147,16 +147,18 @@ describe("MetricsTabs", () => {
   })
 
   describe("clock-derived content", () => {
-    it("charts name the six months ending in today's month", () => {
+    it("charts name their six 28-day windows ending today, with values", () => {
       renderTabs()
       expect(
-        within(card("MRR")).getByRole("img", { name: /^MRR, six-month bar chart, Mar – Aug 2026: Mar \$23,800, .*Aug \$26,190$/ })
-      ).toHaveAttribute("data-months", "Mar Apr May Jun Jul Aug")
+        within(card("MRR")).getByRole("img", {
+          name: /^MRR, bar chart of six 28-day windows, 7 Mar – 21 Aug 2026: to 3 Apr \$23,800, .*to 21 Aug \$26,190$/,
+        })
+      ).toHaveAttribute("data-windows", "2026-04-03 2026-05-01 2026-05-29 2026-06-26 2026-07-24 2026-08-21")
 
       renderTabs("", "2026-10-07")
       expect(
         within(screen.getAllByRole("article", { name: "MRR" }).at(-1)!).getByRole("img", {
-          name: /^MRR, six-month bar chart, May – Oct 2026/,
+          name: /^MRR, bar chart of six 28-day windows, 23 Apr – 7 Oct 2026/,
         })
       ).toBeInTheDocument()
     })
@@ -245,7 +247,7 @@ describe("MetricsTabs", () => {
       expect(within(mrr).getByTestId("metric-value")).toHaveTextContent("$26,190")
       expect(within(mrr).getByTestId("trend")).toHaveTextContent("+4.2%")
       expect(within(mrr).getByTestId("trend")).toHaveAttribute("data-good", "true")
-      expect(within(mrr).getByText("compared to last month")).toBeInTheDocument()
+      expect(within(mrr).getByText("vs previous 28 days")).toBeInTheDocument()
 
       const exp = card("Expenses")
       expect(within(exp).getByTestId("trend")).toHaveAttribute("data-good", "false")
@@ -264,7 +266,7 @@ describe("MetricsTabs", () => {
       await user.click(within(card("MRR")).getByRole("button", { name: "MRR: line chart" }))
       expect(within(card("MRR")).getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
       expect(within(card("MRR")).getByRole("button", { name: "MRR: bar chart" })).toHaveAttribute("aria-pressed", "false")
-      expect(within(card("MRR")).getByRole("img", { name: /^MRR, six-month line chart, Mar – Aug 2026/ })).toBeInTheDocument()
+      expect(within(card("MRR")).getByRole("img", { name: /^MRR, line chart of six 28-day windows, 7 Mar – 21 Aug 2026/ })).toBeInTheDocument()
     })
 
     it("removes a card and offers it again in the picker after the extras", async () => {

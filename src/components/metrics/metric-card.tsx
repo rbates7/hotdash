@@ -15,6 +15,7 @@ import {
   type MetricSnapshot,
 } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
+import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
 import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { SampleDataTag } from "@/components/sample-data"
@@ -147,7 +148,7 @@ export function MetricCard({
           <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
             <TrendPill snapshot={snapshot} />
             <span className="text-caption text-muted-foreground tracking-tight whitespace-nowrap">
-              compared to last month
+              {VS_PREVIOUS_WINDOW}
             </span>
           </div>
         </div>

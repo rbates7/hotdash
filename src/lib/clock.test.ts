@@ -8,9 +8,11 @@ import {
   inPeriod,
   isIsoDay,
   periodBefore,
-  formatMonthSpan,
+  daysEnding,
+  formatDayShort,
+  formatWindowSpan,
   formatPeriod,
-  monthsEnding,
+  windowsEnding,
   now,
   periodEnding,
   toDay,
@@ -64,7 +66,7 @@ describe("every formatter is Central, never the machine zone", () => {
     expect(formatDate(instant)).toBe("7 Oct 2026")
     expect(periodEnding(instant)).toEqual({ start: "2026-09-10", end: "2026-10-07" })
     expect(formatPeriod(periodEnding(instant))).toBe("10 Sep – 7 Oct 2026")
-    expect(monthsEnding(instant, 6).at(-1)).toEqual({ label: "Oct", year: 2026 })
+    expect(windowsEnding(instant, 6).at(-1)).toEqual({ start: "2026-09-10", end: "2026-10-07" })
     expect(addDays(instant, -3)).toBe("2026-10-04")
     expect(daysBetween("2026-10-01", instant)).toBe(6)
   })
@@ -81,7 +83,7 @@ describe("every formatter is Central, never the machine zone", () => {
   it("23:30 CT on New Year's Eve stays in the old year (CST)", () => {
     const nye = new Date("2026-01-01T05:30:00.000Z")
     expect(formatDate(nye)).toBe("31 Dec 2025")
-    expect(formatMonthSpan(monthsEnding(nye, 6))).toBe("Jul – Dec 2025")
+    expect(formatWindowSpan(windowsEnding(nye, 6))).toBe("17 Jul – 31 Dec 2025")
   })
 })
 
@@ -126,19 +128,21 @@ describe("formatting", () => {
     expect(formatDate("not-a-date")).toBe("not-a-date")
   })
 
-  it("months ending in today's month, oldest first, wrapping the year", () => {
-    expect(monthsEnding("2026-08-21", 6).map((m) => m.label)).toEqual(["Mar", "Apr", "May", "Jun", "Jul", "Aug"])
-    expect(monthsEnding("2026-02-10", 6)).toEqual([
-      { label: "Sep", year: 2025 },
-      { label: "Oct", year: 2025 },
-      { label: "Nov", year: 2025 },
-      { label: "Dec", year: 2025 },
-      { label: "Jan", year: 2026 },
-      { label: "Feb", year: 2026 },
-    ])
-    expect(formatMonthSpan(monthsEnding("2026-08-21", 6))).toBe("Mar – Aug 2026")
-    expect(formatMonthSpan(monthsEnding("2026-02-10", 6))).toBe("Sep 2025 – Feb 2026")
+  it("windows are six back-to-back 28-day periods ending today, labelled honestly", () => {
+    const windows = windowsEnding("2026-08-21", 6)
+    expect(windows).toHaveLength(6)
+    expect(windows.at(-1)).toEqual({ start: "2026-07-25", end: "2026-08-21" })
+    expect(windows.at(-2)).toEqual({ start: "2026-06-27", end: "2026-07-24" })
+    expect(windows[0]).toEqual({ start: "2026-03-07", end: "2026-04-03" })
+    for (let i = 1; i < windows.length; i++) {
+      expect(addDays(windows[i - 1].end, 1)).toBe(windows[i].start)
+    }
+    expect(formatWindowSpan(windows)).toBe("7 Mar – 21 Aug 2026")
+    expect(formatWindowSpan(windowsEnding("2026-02-10", 6))).toBe("27 Aug 2025 – 10 Feb 2026")
+    expect(formatDayShort("2026-10-07")).toBe("7 Oct")
+    expect(daysEnding("2026-03-02", 3)).toEqual(["2026-02-28", "2026-03-01", "2026-03-02"])
   })
+
 })
 
 describe("isIsoDay", () => {

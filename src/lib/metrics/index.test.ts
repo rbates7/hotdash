@@ -23,9 +23,10 @@ const ctx = { today: MOCK_DAY, expenses }
 const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
   mrr: ["$26,190", "+4.2%", true],
   arr: ["$314,280", "+4.2%", true],
-  churn: ["3.8%", "−0.4 pts", true],
+  // Churn and retention derive from the seed tables (5 churned of 183), not the mock.
+  churn: ["2.7%", "−1.5 pts", true],
   revenue: ["$28,410", "+6.1%", true],
-  retention: ["96.2%", "+0.4 pts", true],
+  retention: ["97.3%", "+1.5 pts", true],
   // The mock said +12; the seed now reconciles with its own tables (8 new − 5 churned).
   subscribers: ["186", "+3", true],
   trials: ["28%", "+3.1 pts", true],
