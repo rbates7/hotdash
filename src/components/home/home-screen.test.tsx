@@ -65,6 +65,18 @@ describe("HomeScreen", () => {
     expect(within(cards[3]).getByText("Down", { exact: false })).toBeInTheDocument()
   })
 
+  it("labels the KPI strip as sample data and ties every card to the label", () => {
+    renderHome()
+    const strip = screen.getByRole("region", { name: "KPI strip" })
+    const note = within(strip).getByRole("note")
+    expect(note).toHaveTextContent(/^Sample data/)
+    expect(note).toHaveTextContent("figures are invented, not live")
+    expect(note).toBeVisible()
+    for (const card of within(strip).getAllByRole("article")) {
+      expect(card).toHaveAccessibleDescription(/Sample data/)
+    }
+  })
+
   it("has three doors, each opening its page", () => {
     renderHome()
     const doors = screen.getByRole("group", { name: "Doors" })

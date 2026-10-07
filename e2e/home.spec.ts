@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 test.describe("Home", () => {
   test("is the default screen and shows the day's pulse", async ({ page }) => {
@@ -84,13 +84,74 @@ test.describe("Home", () => {
     await expect(page.getByText("2 waiting")).toBeVisible()
   })
 
-  test("renders in light and dark", async ({ page }) => {
+  test("renders in light and dark, with a readable sample-data label in both", async ({ page }) => {
     await page.goto("/home")
+    const label = page.getByTestId("kpi-sample-label")
+
     await page.getByText("Light", { exact: true }).click()
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/)
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
+    await expect(label).toBeVisible()
+    await expect(label).toContainText("Sample data")
+    expect(await contrastRatio(page, label)).toBeGreaterThanOrEqual(4.5)
+
     await page.getByText("Dark", { exact: true }).click()
     await expect(page.locator("html")).toHaveClass(/\bdark\b/)
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
+    await expect(label).toBeVisible()
+    await expect(label).toContainText("Sample data")
+    expect(await contrastRatio(page, label)).toBeGreaterThanOrEqual(4.5)
   })
 })
+
+/**
+ * WCAG contrast of an element's text against what is actually painted
+ * behind it: its own background composited over the nearest opaque ancestor
+ * background, so translucent dark-mode chips are measured honestly.
+ */
+async function contrastRatio(page: Page, locator: Locator) {
+  return locator.evaluate((el) => {
+    // Computed colours arrive as oklch()/color(srgb …) under Tailwind v4;
+    // painting a pixel is the one parser that understands every syntax.
+    const ctx = document.createElement("canvas").getContext("2d", {
+      willReadFrequently: true,
+    })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b, a: a / 255 }
+    }
+    type Rgb = { r: number; g: number; b: number }
+    const over = (top: ReturnType<typeof parse>, under: Rgb): Rgb => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: Rgb) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+
+    // Walk up from the element compositing every backdrop until one is opaque.
+    const layers: ReturnType<typeof parse>[] = []
+    let node: Element | null = el
+    while (node) {
+      const bg = parse(getComputedStyle(node).backgroundColor)
+      if (bg.a > 0) layers.push(bg)
+      if (bg.a >= 1) break
+      node = node.parentElement
+    }
+    let backdrop: Rgb = { r: 255, g: 255, b: 255 }
+    for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+
+    const fg = parse(getComputedStyle(el).color)
+    const text = over(fg, backdrop)
+    const [l1, l2] = [lum(text), lum(backdrop)].sort((a, b) => b - a)
+    return (l1 + 0.05) / (l2 + 0.05)
+  })
+}
