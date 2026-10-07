@@ -73,7 +73,7 @@ describe("StatusScreen", () => {
 
   it("is marked as sample data and links out to Sentry and the site as plain external links", () => {
     mount()
-    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("Nothing on this page is polled")
+    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("Nothing here is polled yet")
     expect(screen.getAllByTestId("sample-data-tag").length).toBeGreaterThanOrEqual(2)
     const sentry = screen.getAllByRole("link", { name: "Sentry" })
     expect(sentry.length).toBeGreaterThan(0)
