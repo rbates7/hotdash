@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { CLINICS_MOCK_DAY, seedClinics, type ClinicInput } from "@/lib/clinics"
 import { initialShell, type LoadResult } from "@/lib/persistence"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
   ClinicsProvider,
   STORAGE_KEY,
@@ -16,6 +17,7 @@ import {
   reducer,
   saveState,
   shellReducer,
+  shellToday,
   stripState,
   useClinics,
   type State,
@@ -38,11 +40,13 @@ const KATY: ClinicInput = {
   notes: "",
 }
 
-const hydrate = (state: State | null, today = TODAY) => {
+/** Noon Central on `day`, as an instant. */
+const noonMs = (day: string) => Date.parse(`${day}T17:00:00.000Z`)
+const hydrate = (state: State | null, nowMs = NOW_MS) => {
   const result: LoadResult<State> = state
     ? { state, status: "saved" }
     : { state: null, status: "empty" }
-  return { type: "hydrate" as const, result, today }
+  return { type: "hydrate" as const, result, nowMs }
 }
 
 afterEach(() => vi.restoreAllMocks())
@@ -95,27 +99,46 @@ describe("reducer", () => {
 })
 
 describe("shellReducer (the shared persistence shell around the list)", () => {
-  const fresh = initialShell(initialState(TODAY))
+  const fresh = initialShell(initialState(TODAY), NOW_MS)
 
-  it("hydrate takes the saved copy whole; an empty result (nothing saved, or a Reset elsewhere) re-seeds around the day", () => {
+  it("hydrate takes the saved copy whole and keeps the clock; an empty result (nothing saved, or a Reset elsewhere) re-seeds around the event's instant and moves it", () => {
     const edited = reducer(initialState(TODAY), { type: "remove", id: "clinic-1" })
-    const s = shellReducer(fresh, hydrate(edited))
+    const s = shellReducer(fresh, hydrate(edited, noonMs("2026-09-30")))
     expect(s.data).toEqual(edited)
-    expect(s).toMatchObject({ persisted: true, edited: false, saved: true, saveFailed: false, edits: 0 })
-    const reseeded = shellReducer({ ...s, edited: true, saveFailed: true }, hydrate(null, "2026-10-07"))
+    expect(s).toMatchObject({ persisted: true, edited: false, saved: true, saveFailed: false, edits: 0, nowMs: NOW_MS })
+    expect(shellToday(s)).toBe(TODAY)
+    const reseeded = shellReducer({ ...s, edited: true, saveFailed: true }, hydrate(null, noonMs("2026-10-07")))
     expect(reseeded.data).toEqual(initialState("2026-10-07"))
+    expect(shellToday(reseeded)).toBe("2026-10-07")
     expect(reseeded).toMatchObject({ persisted: true, edited: false, saved: false, saveFailed: false })
   })
 
-  it("a hydrate never moves the edit counter, so it can never cause a write", () => {
-    const after = shellReducer(shellReducer(fresh, { type: "add", input: KATY }), hydrate(initialState(TODAY)))
-    expect(after.edits).toBe(1)
-    expect(after.edited).toBe(false)
+  it("shellToday is the Central day of the shell clock: 23:30 CT is still the 7th", () => {
+    expect(shellToday({ nowMs: LATE_EVENING_CT_MS })).toBe("2026-10-07")
+    expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
+    const s = shellReducer(fresh, hydrate(null, LATE_EVENING_CT_MS))
+    expect(s.data).toEqual(initialState("2026-10-07"))
   })
 
-  it("reset regenerates the seed around the given day and returns to the never-edited state", () => {
-    const s = shellReducer(shellReducer(fresh, { type: "add", input: KATY }), { type: "reset", today: "2026-10-07" })
+  it("a hydrate never moves the edit counter, so it can never cause a write; a local unsaved edit wins over an incoming copy", () => {
+    const edited = shellReducer(fresh, { type: "add", input: KATY })
+    // Not yet saved: the incoming copy is ignored, ours stays and stays dirty,
+    // so the pending save overwrites theirs rather than theirs discarding ours.
+    const racing = shellReducer(edited, hydrate(initialState(TODAY)))
+    expect(racing.edits).toBe(1)
+    expect(racing.data).toBe(edited.data)
+    expect(racing.edited).toBe(true)
+    // Once saved, a hydrate adopts the copy and clears `edited` without moving `edits`.
+    const settled = shellReducer(shellReducer(edited, { type: "save-result", ok: true }), hydrate(initialState(TODAY)))
+    expect(settled.edits).toBe(1)
+    expect(settled.data).toEqual(initialState(TODAY))
+    expect(settled.edited).toBe(false)
+  })
+
+  it("reset regenerates the seed around the given instant, moves the clock and returns to the never-edited state", () => {
+    const s = shellReducer(shellReducer(fresh, { type: "add", input: KATY }), { type: "reset", nowMs: noonMs("2026-10-07") })
     expect(s.data).toEqual(initialState("2026-10-07"))
+    expect(shellToday(s)).toBe("2026-10-07")
     expect(s).toMatchObject({ edited: false, saved: false, saveFailed: false })
   })
 
@@ -174,14 +197,20 @@ describe("isState rejects a bad saved copy", () => {
     expect(parseState({ ...good, nextId: 1 })).toBeNull()
   })
 
-  it("a rejected copy is parked under <key>.rejected and the page gets the seed", () => {
+  it("a rejected copy gives the page the seed without writing (load is pure); the first real save parks it", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ ...good, nextId: 1 })
     window.localStorage.setItem(STORAGE_KEY, raw)
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
     expect(loadState(window.localStorage)).toBeNull()
-    expect(clinicsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(clinicsStorage.rejected(window.localStorage)).toEqual([])
     expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+    setItem.mockRestore()
+    saveState(window.localStorage, good)
+    expect(clinicsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
+    expect(loadState(window.localStorage)).toEqual(good)
   })
 })
 
@@ -261,8 +290,7 @@ function countingSetItem() {
 
 describe("ClinicsProvider", () => {
   it("derives today from the request instant in Central time, not the machine zone", () => {
-    // 23:30 CT on 7 Oct 2026 is already 8 Oct in UTC.
-    mount(new Date("2026-10-08T04:30:00.000Z").getTime())
+    mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
   })
 
@@ -309,13 +337,30 @@ describe("ClinicsProvider", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
     expect(writes.calls).toHaveLength(1)
 
+    // Reset reads the shared clock, not the request's: a tab opened on the
+    // 28th and Reset on 7 Oct re-seeds around 7 Oct and "today" moves.
+    vi.useFakeTimers({ now: new Date(noonMs("2026-10-07")), toFake: ["Date"] })
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
     expect(screen.getByTestId("count")).toHaveTextContent("8")
-    expect(screen.getByTestId("today")).toHaveTextContent(TODAY)
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("names")).toHaveTextContent("Houston Offensive Staff Clinic")
     expect(writes.calls).toHaveLength(1)
+    vi.useRealTimers()
     writes.restore()
+  })
+
+  it("opened at 23:30 CT and Reset after midnight: the seed and today move to the new day", () => {
+    mount(LATE_EVENING_CT_MS)
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    act(() => screen.getByRole("button", { name: "add" }).click())
+    // 00:30 CT on 8 Oct.
+    vi.useFakeTimers({ now: new Date("2026-10-08T05:30:00.000Z"), toFake: ["Date"] })
+    act(() => screen.getByRole("button", { name: "reset" }).click())
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
+    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    vi.useRealTimers()
   })
 
   it("reports a failed save and never claims Saved; the next edit retries", () => {
@@ -345,7 +390,7 @@ describe("ClinicsProvider", () => {
     writes.restore()
   })
 
-  it("a storage event with the key removed (Reset elsewhere) re-seeds this tab and clears edited", () => {
+  it("a storage event with the key removed (Reset elsewhere) re-seeds this tab from now() and clears edited", () => {
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("9")
@@ -353,9 +398,13 @@ describe("ClinicsProvider", () => {
 
     const writes = countingSetItem()
     window.localStorage.removeItem(STORAGE_KEY)
+    // The other tab's Reset happened on 7 Oct; this tab re-seeds around that day.
+    vi.useFakeTimers({ now: new Date(noonMs("2026-10-07")), toFake: ["Date"] })
     act(() => fireStorageEvent(STORAGE_KEY, null))
+    vi.useRealTimers()
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("names")).not.toHaveTextContent("Katy")
+    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
     expect(writes.calls).toEqual([])
 
@@ -368,14 +417,20 @@ describe("ClinicsProvider", () => {
     writes.restore()
   })
 
-  it("a corrupt copy written by another tab is parked and this tab falls back to the seed", () => {
+  it("a corrupt copy written by another tab leaves this tab on the seed, writes nothing, and is parked by the next real save", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     mount()
+    const writes = countingSetItem()
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     act(() => fireStorageEvent(STORAGE_KEY, "{not json"))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
+    expect(writes.calls).toEqual([STORAGE_KEY]) // only the simulated other tab
+    expect(clinicsStorage.rejected(window.localStorage)).toEqual([])
+    act(() => screen.getByRole("button", { name: "attend" }).click())
     expect(clinicsStorage.rejected(window.localStorage)[0]?.raw).toBe("{not json")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"attended"')
+    writes.restore()
   })
 
   describe("two tabs", () => {

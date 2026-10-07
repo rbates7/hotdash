@@ -15,12 +15,13 @@ import {
   saveState,
 } from "@/components/clinics/clinics-store"
 import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
+import { LATE_EVENING_CT_MS } from "@/test/clock"
 import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME, RESET_DISABLED_HINT } from "@/components/persistence-note"
 
 /** Noon Central on the day the mock was drawn, so rows match it verbatim. */
 const NOW_MS = new Date("2026-08-28T17:00:00.000Z").getTime()
 /** 23:30 Central on 7 Oct 2026 — UTC already says the 8th. */
-const LATE_MS = new Date("2026-10-08T04:30:00.000Z").getTime()
+const LATE_MS = LATE_EVENING_CT_MS
 
 function renderScreen(nowMs = NOW_MS) {
   return render(

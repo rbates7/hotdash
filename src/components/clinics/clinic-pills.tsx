@@ -48,9 +48,10 @@ export function TypePill({ type, className }: { type: ClinicType; className?: st
   )
 }
 
+// Status text on the card surface uses the shared text-safe tokens.
 const ATTENDANCE_TONE: Record<Attendance, string> = {
   planned: "text-foreground",
-  attended: "text-emerald-800 dark:text-emerald-300",
+  attended: "text-success-text",
   skipped: "text-muted-foreground",
 }
 

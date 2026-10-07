@@ -23,6 +23,7 @@ import {
   type Clinic,
 } from "@/lib/clinics"
 import { daysBetween, formatDate, now, todayIn } from "@/lib/clock"
+import { LATE_EVENING_CT } from "@/test/clock"
 
 afterEach(() => vi.useRealTimers())
 
@@ -78,7 +79,7 @@ describe("seed", () => {
 
 describe("Upcoming vs Past is decided on Central calendar days", () => {
   /** 23:30 Central on 7 Oct 2026 (CDT, UTC−5): UTC already reads 8 Oct. */
-  const LATE_CDT = new Date("2026-10-08T04:30:00.000Z")
+  const LATE_CDT = LATE_EVENING_CT
   /** 23:30 Central on 31 Oct 2026, the last evening of daylight time. */
   const LATE_DST_EVE = new Date("2026-11-01T04:30:00.000Z")
   /** 23:30 Central on 1 Nov 2026 (CST, UTC−6), the first evening of standard time. */

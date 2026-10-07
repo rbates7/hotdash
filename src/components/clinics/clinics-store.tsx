@@ -20,6 +20,7 @@ import {
   initialShell,
   isFiniteNumber,
   persistenceShellReducer,
+  reseedNowMs,
   usePersistenceSync,
   type LoadResult,
   type PersistenceShell,
@@ -43,9 +44,9 @@ export type Action =
   | { type: "update"; id: string; input: ClinicInput }
   | { type: "set-attendance"; id: string; attendance: Attendance }
   | { type: "remove"; id: string }
-  | { type: "hydrate"; result: LoadResult<State>; today: IsoDay }
+  | { type: "hydrate"; result: LoadResult<State>; nowMs: number }
   | { type: "save-result"; ok: boolean }
-  | { type: "reset"; today: IsoDay }
+  | { type: "reset"; nowMs: number }
 
 /** The founder's own edits, as opposed to persistence plumbing. */
 export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
@@ -86,11 +87,18 @@ export function reducer(state: State, action: EditAction): State {
 /**
  * The shared persistence shell around the list. A saved copy replaces ours
  * whole; an empty or removed key (nothing saved yet, or a Reset in another
- * tab) puts this tab back on the seed around the request's day. Everything
- * else — hydrates never write, no-op edits are identity, `saved` follows
- * the write's result — is the shared reducer's business.
+ * tab) puts this tab back on the seed around the shell's clock, which the
+ * event moves to `nowMs`. Everything else — hydrates never write, a local
+ * unsaved edit wins, no-op edits are identity, `saved` follows the write's
+ * result — is the shared reducer's business.
  */
 type Shell = PersistenceShell<State>
+
+/** The calendar day a shell measures from (America/Chicago). */
+export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
+
+/** The seed around the day `nowMs` falls on. */
+const seedAt = (nowMs: number) => initialState(todayIn(new Date(nowMs)))
 
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
@@ -98,12 +106,13 @@ export function shellReducer(shell: Shell, action: Action): Shell {
       return persistenceShellReducer(shell, {
         type: "hydrate",
         result: action.result,
-        fallback: initialState(action.today),
+        nowMs: action.nowMs,
+        fallback: seedAt,
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", data: initialState(action.today) })
+      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: seedAt })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
@@ -177,9 +186,10 @@ export function clearState(storage: Storage | undefined) {
 type Store = State &
   PersistenceStore & {
     /**
-     * Today on the founder's calendar (America/Chicago), from the one clock
-     * reading the page made. Upcoming/Past and "in N days" all derive from it;
-     * nothing in the tree reads the machine clock.
+     * Today on the founder's calendar (America/Chicago), from the shell's
+     * clock: the request's instant until a Reset (ours, or another tab's)
+     * moves it. Upcoming/Past, "in N days" and the add dialog's default date
+     * all derive from it; nothing else in the tree reads a clock.
      */
     today: IsoDay
     addClinic: (input: ClinicInput) => void
@@ -191,33 +201,33 @@ type Store = State &
 const ClinicsContext = React.createContext<Store | null>(null)
 
 export function ClinicsProvider({
-  nowMs,
+  nowMs: requestNowMs,
   children,
 }: {
-  /** `now().getTime()` from the server component rendering this page. */
+  /** `now().getTime()` from the server component — the one clock read for the first hydrate. */
   nowMs: number
   children: React.ReactNode
 }) {
-  const today = React.useMemo(() => todayIn(new Date(nowMs)), [nowMs])
-
-  const [shell, dispatch] = React.useReducer(shellReducer, today, (day) =>
-    initialShell(initialState(day))
+  const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, (ms) =>
+    initialShell(seedAt(ms), ms)
   )
   const { data: state, persisted, edited, saved, saveFailed } = shell
+  const today = shellToday(shell)
 
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
   // layout effect — before paint — so the first frame is already the
-  // founder's data, never a flash of seed.
+  // founder's data, never a flash of seed. This first hydrate is the only
+  // one dated from the request.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", result: clinicsStorage.load(window.localStorage), today })
-  }, [today])
+    dispatch({ type: "hydrate", result: clinicsStorage.load(window.localStorage), nowMs: requestNowMs })
+  }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
-  // moving edit count does, and an identical copy is skipped by `save`.
+  // moving edit count does. The hook reads `now()` for a cross-tab re-seed.
   const onHydrate = React.useCallback(
-    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, today }),
-    [today]
+    (result: LoadResult<State>, nowMs: number) => dispatch({ type: "hydrate", result, nowMs }),
+    []
   )
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: clinicsStorage, shell, onHydrate, onSaved })
@@ -235,11 +245,11 @@ export function ClinicsProvider({
       setAttendance: (id, attendance) => dispatch({ type: "set-attendance", id, attendance }),
       removeClinic: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate around the request's day — never a
-        // client clock read, per the read-once rule. Other tabs hear the
-        // clear and re-seed too.
+        // Clear first, then regenerate from the moment of the click — the
+        // shared clock read every store uses for a Reset — so the seed and
+        // "today" move with it. Other tabs hear the clear and re-seed too.
         clearState(window.localStorage)
-        dispatch({ type: "reset", today })
+        dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }),
     [state, today, persisted, edited, saved, saveFailed]

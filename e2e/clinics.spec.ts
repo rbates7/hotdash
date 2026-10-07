@@ -16,7 +16,11 @@ const today = () => todayIn(now())
 // Every lookup below is scoped by role and name — to the sidebar, the page
 // header, a named region/table, a dialog or a menu — so a sibling element
 // with the same text can never match.
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
+// The theme switch sits in the sidebar footer, outside the nav landmark; its
+// group has no name, so it is found by role and by the buttons it holds.
+const themeSwitch = (page: Page) =>
+  page.getByRole("group").filter({ has: page.getByRole("button", { name: "Light", exact: true }) })
 // A <header> inside <main> is not a banner landmark, so it is reached through
 // the main landmark; everything inside it is then found by role and name.
 const header = (page: Page) => page.getByRole("main").locator("header").first()
@@ -51,7 +55,7 @@ async function freshClinics(page: Page) {
 }
 
 async function setTheme(page: Page, theme: "light" | "dark") {
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  await themeSwitch(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 
@@ -395,6 +399,11 @@ test.describe("Clinics", () => {
     await expect(note(b)).toHaveText(NOTE.unsaved)
     expect(await writes(a)).toBe(0)
     expect(await writes(b)).toBe(0)
+    // Write counts are checked after the other tab has visibly caught up
+    // (web-first), then polled, so an echo that arrived late would still
+    // fail the count rather than slip past a fixed sleep.
+    const settled = (p: Page, n: number) =>
+      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
 
     // Edit in A: one write in A; B hydrates and writes nothing.
     let menu = await openMenu(a, "Upcoming clinics", "Houston Offensive Staff Clinic")
@@ -402,8 +411,8 @@ test.describe("Clinics", () => {
     await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Skipped")
     await expect(note(b)).toHaveText(NOTE.saved)
     await expect(resetButton(b)).toBeEnabled()
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(0)
+    await settled(a, 1)
+    await settled(b, 0)
 
     // Edit in B: one write in B; A hydrates and writes nothing. Totals settle.
     menu = await openMenu(b, "Upcoming clinics", "Dallas 7-on-7 Coaches Night")
@@ -411,10 +420,8 @@ test.describe("Clinics", () => {
     await dialog(b, "Delete this clinic?").getByRole("button", { name: "Delete", exact: true }).click()
     await expect(bodyRows(a, "Upcoming clinics")).toHaveCount(3)
     await expect(table(a, "Upcoming clinics").getByText("Dallas 7-on-7 Coaches Night")).toHaveCount(0)
-    // Give any echo a moment to show itself, then assert there was none.
-    await a.waitForTimeout(500)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
 
     // Reset in A (behind its confirm): B hears the clear and re-seeds, with nothing to reset.
     await resetDemoData(a, header(a))
@@ -422,28 +429,39 @@ test.describe("Clinics", () => {
     await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Planned")
     await expect(note(b)).toHaveText(NOTE.unsaved)
     await expect(resetButton(b)).toBeDisabled()
-    await b.waitForTimeout(500)
-    expect(await writes(a)).toBe(1)
-    expect(await writes(b)).toBe(1)
+    await settled(a, 1)
+    await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
 
-  test("a corrupt saved copy is parked under <key>.rejected and the seed renders", async ({ page }) => {
+  test("a corrupt saved copy renders the seed without being touched; the first real save parks it under <key>.rejected", async ({ browser }) => {
+    const context = await browser.newContext()
+    await countWrites(context, STORAGE_KEY)
+    const page = await context.newPage()
+    const junk = '{"clinics":[{"id":"clinic-1","type":"webinar"}],"nextId":2}'
     await page.goto("/clinics")
-    await page.evaluate((key) => localStorage.setItem(key, '{"clinics":[{"id":"clinic-1","type":"webinar"}],"nextId":2}'), STORAGE_KEY)
+    await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [STORAGE_KEY, junk] as const)
     await page.reload()
     await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
-    // Parked as the shared helper's `{ at, raw, why }[]`, newest first.
+    // load() is pure: the bad copy is still there, nothing was written, nothing parked yet.
+    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBe(junk)
+    expect(await writesTo(page, STORAGE_KEY)).toBe(0)
+    expect(await page.evaluate((key) => localStorage.getItem(`${key}.rejected`), STORAGE_KEY)).toBeNull()
+
+    // The first real edit parks it — as the helper's `{ at, raw, why }[]` — and writes ours.
+    const menu = await openMenu(page, "Upcoming clinics", "Austin staff install")
+    await menu.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
+    await expect(note(page)).toHaveText(NOTE.saved)
     const parked = await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(`${key}.rejected`) ?? "[]") as { raw: string; why: string }[],
       STORAGE_KEY
     )
     expect(parked).toHaveLength(1)
     expect(parked[0].why).toBe("failed validation")
-    expect(parked[0].raw).toContain('"webinar"')
-    await page.evaluate((key) => localStorage.removeItem(`${key}.rejected`), STORAGE_KEY)
+    expect(parked[0].raw).toBe(junk)
+    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"skipped"')
+    await context.close()
   })
 })
