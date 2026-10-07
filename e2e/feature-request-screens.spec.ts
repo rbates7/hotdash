@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { settleAnimations } from "./support/contrast"
 import { NOTE, NOTE_NAME, resetDemoData } from "./support/persistence"
 
 /**
@@ -27,7 +28,7 @@ const board = (page: Page) => page.getByRole("region", { name: "Feature request 
 const card = (page: Page, title: string) =>
   board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
 const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const themeToggle = (page: Page) => page.getByRole("group", { name: "Color theme", exact: true })
 const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
 const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
@@ -35,7 +36,8 @@ const persistence = (page: Page, { failed = false } = {}) =>
   actions(page).getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
 
 async function shoot(page: Page, name: string) {
-  await page.waitForTimeout(250)
+  // Let dialogs and theme swaps finish animating before the capture.
+  await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
     await page.screenshot({ path: path.join(dir, `${name}.png`) })
@@ -44,7 +46,7 @@ async function shoot(page: Page, name: string) {
 
 async function setTheme(page: Page, theme: "light" | "dark") {
   // Through the real provider: click the sidebar toggle, not a query param.
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  await themeToggle(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
   )

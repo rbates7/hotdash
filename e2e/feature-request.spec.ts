@@ -14,7 +14,8 @@ const board = (page: Page) => page.getByRole("region", { name: "Feature request 
 const card = (page: Page, title: string) =>
   board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
 const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
+const themeToggle = (page: Page) => page.getByRole("group", { name: "Color theme", exact: true })
 const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
 const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const cardsIn = (page: Page, name: string) =>
@@ -40,7 +41,7 @@ async function freshBoard(page: Page) {
 }
 
 async function setTheme(page: Page, theme: "light" | "dark") {
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  await themeToggle(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
   )
@@ -160,6 +161,10 @@ test.describe("Feature Request", () => {
     // so after one edit exactly one write exists across the pair.
     await countWrites(context, STORAGE_KEY)
     const writes = (p: Page) => writesTo(p, STORAGE_KEY)
+    // Counted after the other tab has visibly taken the change (web-first),
+    // then polled until quiet: no fixed sleeps.
+    const settled = (p: Page, n: number) =>
+      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
 
     await freshBoard(page)
     const other = await context.newPage()
@@ -175,10 +180,9 @@ test.describe("Feature Request", () => {
     await expect(persistence(page)).toHaveText(NOTE.saved)
     await expect(persistence(other)).toHaveText(NOTE.saved)
 
-    // Let any echo happen, then prove there was none.
-    await page.waitForTimeout(500)
-    expect(await writes(other)).toBe(1)
-    expect(await writes(page)).toBe(0)
+    // One write in the editing tab; the listening tab never echoes.
+    await settled(other, 1)
+    await settled(page, 0)
 
     // The first tab edits in turn: one more write, still no echo from the second.
     await card(page, "From tab two").click()
@@ -186,9 +190,8 @@ test.describe("Feature Request", () => {
     await d.getByRole("group", { name: "Status" }).getByRole("button", { name: "Parked", exact: true }).click()
     await d.getByRole("button", { name: /Save/ }).click()
     await expect(column(other, "Parked").getByRole("button", { name: "Open idea: From tab two", exact: true })).toBeVisible()
-    await page.waitForTimeout(500)
-    expect(await writes(page)).toBe(1)
-    expect(await writes(other)).toBe(1)
+    await settled(page, 1)
+    await settled(other, 1)
 
     // Reset there: this tab re-seeds and forgets it edited anything.
     await resetDemoData(other, actions(other))
@@ -196,9 +199,8 @@ test.describe("Feature Request", () => {
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
     await expect(resetButton(page)).toBeDisabled()
-    await page.waitForTimeout(300)
-    expect(await writes(page)).toBe(1)
-    expect(await writes(other)).toBe(1)
+    await settled(page, 1)
+    await settled(other, 1)
     await other.close()
   })
 
@@ -236,17 +238,16 @@ test.describe("Feature Request", () => {
     await expect(persistence(page)).toHaveText(NOTE.unsaved)
     await expect(card(page, "Fine")).toHaveCount(0)
     await expect(cardTags(page)).toHaveCount(10)
-    // The bad copy is parked verbatim (newest first, with a reason) and the
-    // live key is dropped, so it cannot trip the next load; the next edit
-    // then writes a clean copy and the parked one stays.
-    const rejected = await page.evaluate(
-      (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { raw: string; why: string }[],
-      REJECTED_KEY
-    )
-    expect(rejected).toHaveLength(1)
-    expect(rejected[0].raw).toContain('"Broken"')
-    expect(rejected[0].why).toBe("failed validation")
-    expect(await savedCopy(page)).toBeNull()
+    // load() is pure: the bad copy is still under the live key and nothing
+    // is parked yet. The first real save parks it (newest first, with a
+    // reason) and writes the clean copy over it.
+    const parked = () =>
+      page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { raw: string; why: string }[],
+        REJECTED_KEY
+      )
+    expect(await savedCopy(page)).toContain('"Broken"')
+    expect(await parked()).toEqual([])
 
     await card(page, "Play of the Day").click()
     const d = dialog(page, "Idea: Play of the Day")
@@ -254,12 +255,10 @@ test.describe("Feature Request", () => {
     await d.getByRole("button", { name: /Save/ }).click()
     await expect(persistence(page)).toHaveText(NOTE.saved)
     expect(await savedCopy(page)).not.toContain('"Broken"')
-    const stillParked = await page.evaluate(
-      (key) => JSON.parse(localStorage.getItem(key) ?? "[]") as { raw: string }[],
-      REJECTED_KEY
-    )
-    expect(stillParked).toHaveLength(1)
-    expect(stillParked[0].raw).toContain('"Broken"')
+    const rejected = await parked()
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].raw).toContain('"Broken"')
+    expect(rejected[0].why).toBe("failed validation")
   })
 
   test("adds an idea, reloads, and it is still there; Reset clears it", async ({ page }) => {
@@ -294,7 +293,8 @@ test.describe("Feature Request", () => {
     await freshBoard(page)
     await card(page, "Web import from a link").click()
     const d = dialog(page, "Idea: Web import from a link")
-    await expect(d).toContainText("Added 2 days ago")
+    // Shared formatRelative: two days back reads as a weekday date.
+    await expect(d.getByText(/^Added/)).toContainText(/^Added \w{3}, \w{3} \d{1,2}$/)
     await expect(d.getByRole("button", { name: /Save/ })).toBeDisabled()
 
     await d.getByRole("textbox", { name: "Idea title" }).fill("Import a play from a HUDL link")

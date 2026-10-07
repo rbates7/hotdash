@@ -52,6 +52,7 @@ export function ThemeToggle() {
 
   return (
     <ToggleGroup
+      aria-label="Color theme"
       variant="outline"
       spacing={0}
       className="bg-muted w-full"
