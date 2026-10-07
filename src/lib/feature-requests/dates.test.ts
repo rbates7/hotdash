@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CENTRAL } from "@/lib/clock"
+import { CENTRAL, formatDate } from "@/lib/clock"
 
 type Dates = typeof import("@/lib/feature-requests/dates")
+
+/** The shared formatter takes an instant and reads it in Central. */
+const fmt = (iso: string) => formatDate(new Date(iso))
 type Fixture = typeof import("@/lib/feature-requests/fixture")
 
 // 10:00 in Chicago on 24 Aug 2026 (CDT, UTC−5).
@@ -35,17 +38,17 @@ for (const tz of ["UTC", "America/Chicago"]) {
       else process.env.TZ = originalTz
     })
 
-    it("formats dates the way the mock prints them, in Central time", () => {
+    it("the shared formatter prints the mock's form, in Central time", () => {
       expect(CENTRAL).toBe("America/Chicago")
-      expect(dates.formatDate("2026-08-24T15:00:00.000Z")).toBe("24 Aug 2026")
-      expect(dates.formatDate("2026-07-09T15:00:00.000Z")).toBe("9 Jul 2026")
-      expect(dates.formatDate("2026-09-11T15:00:00.000Z")).toBe("11 Sep 2026")
+      expect(fmt("2026-08-24T15:00:00.000Z")).toBe("24 Aug 2026")
+      expect(fmt("2026-07-09T15:00:00.000Z")).toBe("9 Jul 2026")
+      expect(fmt("2026-09-11T15:00:00.000Z")).toBe("11 Sep 2026")
       // 03:00 UTC is still the previous evening in Chicago.
-      expect(dates.formatDate("2026-08-25T03:00:00.000Z")).toBe("24 Aug 2026")
+      expect(fmt("2026-08-25T03:00:00.000Z")).toBe("24 Aug 2026")
     })
 
     it("at 23:30 CT prints the Central date, not the UTC one", () => {
-      expect(dates.formatDate(LATE.toISOString())).toBe("24 Aug 2026")
+      expect(fmt(LATE.toISOString())).toBe("24 Aug 2026")
       expect(LATE.getUTCDate()).toBe(25)
       expect(dates.centralWall(LATE)).toEqual({ y: 2026, m: 8, d: 24, h: 23, min: 30, s: 0 })
     })
@@ -84,9 +87,9 @@ for (const tz of ["UTC", "America/Chicago"]) {
         const from = new Date("2026-11-02T05:30:00.000Z") // 23:30 CST, 1 Nov
         const before = dates.calendarDaysBefore(1, from)
         expect(before.toISOString()).toBe("2026-11-01T04:30:00.000Z") // 23:30 CDT, 31 Oct
-        expect(dates.formatDate(before.toISOString())).toBe("31 Oct 2026")
+        expect(fmt(before.toISOString())).toBe("31 Oct 2026")
         // 24-hour maths would have landed on 00:30 CDT 1 Nov — the wrong day.
-        expect(dates.formatDate(new Date(from.getTime() - 86_400_000).toISOString())).toBe("1 Nov 2026")
+        expect(fmt(new Date(from.getTime() - 86_400_000).toISOString())).toBe("1 Nov 2026")
         expect(dates.calendarDaysAgo(before.toISOString(), from)).toBe(1)
       })
 
@@ -94,8 +97,8 @@ for (const tz of ["UTC", "America/Chicago"]) {
         const from = new Date("2026-03-09T05:30:00.000Z") // 00:30 CDT, 9 Mar
         const before = dates.calendarDaysBefore(1, from)
         expect(before.toISOString()).toBe("2026-03-08T06:30:00.000Z") // 00:30 CST, 8 Mar
-        expect(dates.formatDate(before.toISOString())).toBe("8 Mar 2026")
-        expect(dates.formatDate(new Date(from.getTime() - 86_400_000).toISOString())).toBe("7 Mar 2026")
+        expect(fmt(before.toISOString())).toBe("8 Mar 2026")
+        expect(fmt(new Date(from.getTime() - 86_400_000).toISOString())).toBe("7 Mar 2026")
         expect(dates.calendarDaysAgo(before.toISOString(), from)).toBe(1)
       })
 
@@ -124,7 +127,7 @@ for (const tz of ["UTC", "America/Chicago"]) {
       })
 
       it("reproduces the mock's dates when today is 24 Aug 2026", () => {
-        expect(fixture.buildSeed(TODAY).map((r) => dates.formatDate(r.createdAt))).toEqual([
+        expect(fixture.buildSeed(TODAY).map((r) => fmt(r.createdAt))).toEqual([
           "24 Aug 2026", "22 Aug 2026", "19 Aug 2026",
           "14 Aug 2026", "11 Aug 2026", "4 Aug 2026",
           "29 Jul 2026", "22 Jul 2026",
@@ -134,8 +137,8 @@ for (const tz of ["UTC", "America/Chicago"]) {
 
       it("still dates today's card today when today is nearly over", () => {
         const seed = fixture.buildSeed(LATE)
-        expect(dates.formatDate(seed[0].createdAt)).toBe("24 Aug 2026")
-        expect(dates.formatDate(seed[1].createdAt)).toBe("22 Aug 2026")
+        expect(fmt(seed[0].createdAt)).toBe("24 Aug 2026")
+        expect(fmt(seed[1].createdAt)).toBe("22 Aug 2026")
       })
 
       it("has ten cards, all from Dan, all tagged as sample data, none in the future", () => {

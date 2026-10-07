@@ -3,7 +3,8 @@
 import * as React from "react"
 import { ChevronRightIcon, MapIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { formatDate, relativeLabel } from "@/lib/feature-requests/dates"
+import { formatDate } from "@/lib/clock"
+import { relativeLabel } from "@/lib/feature-requests/dates"
 import {
   DEFAULT_FROM,
   LIMITS,
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
-import { SampleDataTag } from "@/components/feature-request/sample-data"
+import { SampleDataTag } from "@/components/sample-data"
 
 export const MOVE_TO_ROADMAP = "Move to On Roadmap"
 export const ROADMAP_HANDOFF_NOTE =
@@ -308,7 +309,7 @@ function EditIdeaBody({
           </Field>
           <p className="text-caption text-muted-foreground pb-1.5">
             Added {relativeLabel(request.createdAt, now)} ·{" "}
-            <time dateTime={request.createdAt}>{formatDate(request.createdAt)}</time>
+            <time dateTime={request.createdAt}>{formatDate(new Date(request.createdAt))}</time>
           </p>
         </div>
 

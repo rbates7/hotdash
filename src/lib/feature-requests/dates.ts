@@ -1,16 +1,15 @@
 /**
- * Date maths for the Feature Request screen. Pure: nothing here reads the
- * clock. The instant "now" is read once per request in the page
- * (`src/lib/clock.ts` → `now()`), handed down as `nowMs`, and passed into
- * these helpers explicitly, so server HTML and client hydration agree.
+ * Wall-clock date maths for the Feature Request seed, on top of the shared
+ * clock (`@/lib/clock`): `formatDate`, `daysBetween` and `CENTRAL` come from
+ * there. What lives here is the one thing the shared clock does not do —
+ * move an *instant* back N Central calendar days while keeping its
+ * wall-clock time, so the seed's "2 days ago" survives a DST change — plus
+ * the relative wording this screen prints.
  *
- * Every calculation is in calendar days as seen from Central
- * (`CENTRAL`, shared with Home), never in 24-hour blocks, so a DST change
- * cannot shift a card onto the wrong day.
+ * Pure: nothing here reads the clock. The instant "now" is read once per
+ * request in the page and handed down as `nowMs`.
  */
-import { CENTRAL } from "@/lib/clock"
-
-const DAY_MS = 86_400_000
+import { CENTRAL, daysBetween } from "@/lib/clock"
 
 /** Wall-clock fields of an instant in Central. */
 export type Wall = {
@@ -22,8 +21,8 @@ export type Wall = {
   s: number
 }
 
-// Formatters are built on first use, not at import, so a test can set
-// process.env.TZ and re-import without a stale instance.
+// Built on first use, not at import, so a test can set process.env.TZ and
+// re-import without a stale instance.
 let partsFormat: Intl.DateTimeFormat | undefined
 function parts(): Intl.DateTimeFormat {
   return (partsFormat ??= new Intl.DateTimeFormat("en-US", {
@@ -68,29 +67,9 @@ export function calendarDaysBefore(days: number, from: Date): Date {
   return instantAtCentralWall({ ...w, d: w.d - days })
 }
 
-/** Central calendar day as a day count, for differences. */
-function dayNumber(date: Date): number {
-  const w = centralWall(date)
-  return Date.UTC(w.y, w.m - 1, w.d) / DAY_MS
-}
-
 /** Whole Central calendar days from `iso` to `now`; negative if `iso` is later. */
 export function calendarDaysAgo(iso: string, now: Date): number {
-  return dayNumber(now) - dayNumber(new Date(iso))
-}
-
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
-
-/**
- * "24 Aug 2026" — the format the mock prints on every card. Composed by
- * hand because `en-GB` says "Sept" and `en-US` puts the day last.
- */
-export function formatDate(iso: string): string {
-  const w = centralWall(new Date(iso))
-  return `${w.d} ${MONTHS[w.m - 1]} ${w.y}`
+  return daysBetween(new Date(iso), now)
 }
 
 /** "today", "yesterday", "5 days ago", "3 weeks ago"… relative to `now`. */

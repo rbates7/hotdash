@@ -1,5 +1,5 @@
 import * as React from "react"
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 afterEach(() => vi.restoreAllMocks())
@@ -9,15 +9,23 @@ import {
   FeatureRequestsProvider,
   REJECTED_KEY,
   STORAGE_KEY,
-  clearState,
+  featureRequestsStorage as storage,
   initialState,
   isRequest,
   isState,
-  loadState,
   reducer,
-  saveState,
+  sanitize,
   useFeatureRequests,
 } from "@/components/feature-request/feature-requests-store"
+
+// Thin wrappers over the shared storage so the assertions below read plainly.
+const loadState = (s: Storage) => {
+  const r = storage.load(s)
+  return r.state ? sanitize(r.state) : null
+}
+const saveState = (s: Storage | undefined, state: Parameters<typeof storage.save>[1]) =>
+  storage.save(s, state)
+const clearState = (s: Storage) => storage.clear(s)
 
 const TODAY = new Date("2026-08-24T15:00:00.000Z")
 const NOW_MS = TODAY.getTime()
@@ -244,13 +252,14 @@ describe("localStorage", () => {
     expect(isState(JSON.parse(JSON.stringify(good)))).toBe(true)
   })
 
-  it("parks a rejected copy verbatim under the .rejected key and warns in dev", () => {
+  it("parks a rejected copy verbatim under the .rejected key, drops the live key, and warns in dev", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ requests: [{ id: "fr-1", title: "Mine" }], nextId: 2 })
     window.localStorage.setItem(STORAGE_KEY, raw)
-    expect(loadState(window.localStorage)).toBeNull()
+    expect(storage.load(window.localStorage)).toEqual({ state: null, status: "rejected" })
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw) // not touched here
+    // Shared policy: the live key is dropped so the next load does not trip again.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(warn).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls[0][0]).toContain(REJECTED_KEY)
 
@@ -263,9 +272,9 @@ describe("localStorage", () => {
 
   it("does not warn or park anything when there is no copy or a good one", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    expect(loadState(window.localStorage)).toBeNull()
+    expect(storage.load(window.localStorage)).toEqual({ state: null, status: "empty" })
     saveState(window.localStorage, seed())
-    expect(loadState(window.localStorage)).toEqual(seed())
+    expect(storage.load(window.localStorage)).toEqual({ state: seed(), status: "saved" })
     expect(window.localStorage.getItem(REJECTED_KEY)).toBeNull()
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
@@ -275,13 +284,14 @@ describe("localStorage", () => {
 /* ------------------------------------------------------------- provider */
 
 function Probe() {
-  const { requests, now, persisted, saved, saveFailed, addRequest, patchRequest, setStatus, resetDemoData } =
+  const { requests, now, persisted, edited, saved, saveFailed, addRequest, patchRequest, setStatus, resetDemoData } =
     useFeatureRequests()
   const first = requests[0]
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
       <span data-testid="saved">{String(saved)}</span>
+      <span data-testid="edited">{String(edited)}</span>
       <span data-testid="save-failed">{String(saveFailed)}</span>
       <span data-testid="now">{now.toISOString()}</span>
       <span data-testid="count">{requests.length}</span>
@@ -333,11 +343,13 @@ describe("FeatureRequestsProvider", () => {
   it("does not write the untouched seed, and no-op edits do not count", () => {
     mount()
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     act(() => screen.getByRole("button", { name: "add-nothing" }).click())
     act(() => screen.getByRole("button", { name: "same-status" }).click())
     act(() => screen.getByRole("button", { name: "same-words" }).click())
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
@@ -356,6 +368,7 @@ describe("FeatureRequestsProvider", () => {
     const first = mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("saved")).toHaveTextContent("true")
+    expect(screen.getByTestId("edited")).toHaveTextContent("true")
     act(() => screen.getByRole("button", { name: "park" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("11")
     expect(screen.getByTestId("fr-2-status")).toHaveTextContent("parked")
@@ -399,7 +412,7 @@ describe("FeatureRequestsProvider", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe idea")
   })
 
-  it("falls back to the seed when the saved copy has one bad item, parks it, and overwrites only on the next edit", () => {
+  it("falls back to the seed when the saved copy has one bad item, parks it, and writes a clean copy only on the next edit", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const bad = reducer(seed(), { type: "add", input: { title: "Mine" }, at: AT })
     bad.requests[3] = { ...bad.requests[3], status: "shipped" as never }
@@ -410,7 +423,7 @@ describe("FeatureRequestsProvider", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("10")
     expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
     expect(window.localStorage.getItem(REJECTED_KEY)).toBe(raw)
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull() // dropped by the shared loader
     expect(warn).toHaveBeenCalled()
 
     act(() => screen.getByRole("button", { name: "add" }).click())
@@ -462,5 +475,96 @@ describe("FeatureRequestsProvider", () => {
       expect(setItem).not.toHaveBeenCalled()
       setItem.mockRestore()
     })
+
+    it("an emptied key re-seeds this tab and forgets it was edited here", () => {
+      mount()
+      act(() => screen.getByRole("button", { name: "add" }).click())
+      expect(screen.getByTestId("edited")).toHaveTextContent("true")
+      window.localStorage.removeItem(STORAGE_KEY)
+      fire(null)
+      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("edited")).toHaveTextContent("false")
+      expect(screen.getByTestId("saved")).toHaveTextContent("false")
+      // An empty string counts as emptied too.
+      act(() => screen.getByRole("button", { name: "add" }).click())
+      window.localStorage.setItem(STORAGE_KEY, "")
+      fire("")
+      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("edited")).toHaveTextContent("false")
+    })
+
+    it("two providers sharing one storage settle after a single write — no ping-pong", () => {
+      // Two tabs, stood in for by two providers on one window. jsdom does
+      // not fire `storage` across them, so the event is relayed by hand, the
+      // way the browser would, after every write.
+      const setItem = vi.spyOn(Storage.prototype, "setItem")
+      const a = render(
+        <FeatureRequestsProvider nowMs={NOW_MS}>
+          <Probe />
+        </FeatureRequestsProvider>
+      )
+      const b = render(
+        <FeatureRequestsProvider nowMs={NOW_MS}>
+          <Probe />
+        </FeatureRequestsProvider>
+      )
+      const inA = within(a.container)
+      const inB = within(b.container)
+      expect(setItem).not.toHaveBeenCalled() // two hydrates, zero writes
+
+      act(() => inA.getByRole("button", { name: "add" }).click())
+      expect(setItem).toHaveBeenCalledTimes(1)
+      const written = window.localStorage.getItem(STORAGE_KEY)!
+
+      // Relay the event to everyone, as the browser would, until it is quiet.
+      for (let round = 0; round < 3; round++) fire(written)
+      expect(inB.getByTestId("first")).toHaveTextContent("Probe idea")
+      expect(inB.getByTestId("saved")).toHaveTextContent("true")
+      expect(inB.getByTestId("edited")).toHaveTextContent("false")
+      expect(setItem).toHaveBeenCalledTimes(1) // B never wrote back
+
+      // B edits: one more write, A follows, still nothing echoes.
+      act(() => inB.getByRole("button", { name: "park" }).click())
+      expect(setItem).toHaveBeenCalledTimes(2)
+      for (let round = 0; round < 3; round++) fire(window.localStorage.getItem(STORAGE_KEY))
+      expect(inA.getByTestId("fr-2-status")).toHaveTextContent("parked")
+      expect(setItem).toHaveBeenCalledTimes(2)
+      setItem.mockRestore()
+    })
+  })
+
+  it("keeps the volatile clock out of the saved copy", () => {
+    mount()
+    act(() => screen.getByRole("button", { name: "add" }).click())
+    const copy = JSON.parse(window.localStorage.getItem(STORAGE_KEY)!)
+    expect(Object.keys(copy).sort()).toEqual(["nextId", "requests"])
+    expect("now" in copy).toBe(false)
+    expect("nowIso" in copy).toBe(false)
+  })
+
+  it("skips the write when an edit serialises to what storage already holds", () => {
+    mount()
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    act(() => screen.getByRole("button", { name: "park" }).click())
+    expect(setItem).toHaveBeenCalledTimes(1)
+    act(() => screen.getByRole("button", { name: "same-status" }).click()) // fr-2 → inbox
+    expect(setItem).toHaveBeenCalledTimes(2)
+    // Back to parked: a real edit, but byte-identical to the first write? No —
+    // storage holds the inbox copy now, so this must write. Then flip to
+    // inbox again and we are back where storage was *before*, which is still
+    // a different copy from what it holds now: writes 3 and 4 are both due.
+    act(() => screen.getByRole("button", { name: "park" }).click())
+    expect(setItem).toHaveBeenCalledTimes(3)
+    // Now a sync that puts the current board into storage verbatim, followed
+    // by an edit that lands on the same JSON, must not write.
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: STORAGE_KEY,
+        newValue: window.localStorage.getItem(STORAGE_KEY),
+        storageArea: window.localStorage,
+      })
+    )
+    expect(setItem).toHaveBeenCalledTimes(3)
+    setItem.mockRestore()
   })
 })

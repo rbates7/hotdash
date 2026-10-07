@@ -9,11 +9,11 @@ import {
 } from "@/components/feature-request/feature-requests-store"
 import { HeaderActions } from "@/components/feature-request/header-actions"
 import { MOVE_TO_ROADMAP, ROADMAP_HANDOFF_NOTE } from "@/components/feature-request/idea-dialog"
-import {
-  NOTE_FAILED,
-  NOTE_SAVED,
-  NOTE_UNSAVED,
-} from "@/components/feature-request/persistence-note"
+import { PERSISTENCE_COPY } from "@/components/persistence-note"
+
+const NOTE_FAILED = PERSISTENCE_COPY.failed
+const NOTE_SAVED = PERSISTENCE_COPY.saved
+const NOTE_UNSAVED = PERSISTENCE_COPY.unsaved
 import { RequestBoard } from "@/components/feature-request/request-board"
 import { ROADMAP_HINT_TITLE } from "@/components/feature-request/request-card"
 
@@ -35,6 +35,10 @@ const cardsIn = (name: string) =>
   within(column(name)).getAllByRole("button", { name: /^Open idea:/ })
 const card = (title: string) =>
   screen.getByRole("button", { name: `Open idea: ${title}` })
+/** Tags on cards only; the header carries one more while sample cards remain. */
+const board = () => screen.getByRole("region", { name: "Feature request intake" })
+const cardTags = () => within(board()).queryAllByTestId("sample-data-tag")
+const headerTag = () => screen.queryAllByTestId("sample-data-tag").length - cardTags().length
 
 describe("board", () => {
   it("renders the four mock columns with their counts and cards, newest first", () => {
@@ -54,12 +58,12 @@ describe("board", () => {
     expect(card("Parent recap emails")).toHaveTextContent("9 Jul 2026")
   })
 
-  it("labels every seed card, the page and the notice as sample data", () => {
+  it("labels every seed card, the page and the notice as sample data (shared components)", () => {
     render(<Screen />)
-    const tags = screen.getAllByTestId("sample-data-tag")
+    const tags = cardTags()
     expect(tags).toHaveLength(10)
     for (const tag of tags) expect(tag).toHaveTextContent("Sample data")
-    expect(screen.getByTestId("sample-data-badge")).toHaveTextContent("Sample data")
+    expect(headerTag()).toBe(1)
     const note = screen.getByRole("note", { name: "Sample data" })
     expect(note).toHaveTextContent("10 cards tagged below are invented examples")
   })
@@ -122,7 +126,7 @@ describe("board", () => {
     expect(inbox[0]).toHaveTextContent("Reusable weekly plans.")
     expect(inbox[0]).toHaveTextContent("24 Aug 2026")
     expect(within(inbox[0]).queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(10)
+    expect(cardTags()).toHaveLength(10)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Practice plan templates")
   })
 
@@ -145,7 +149,7 @@ describe("board", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     const edited = card("Import a play from a HUDL link")
     expect(within(edited).queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(9)
+    expect(cardTags()).toHaveLength(9)
     expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("9 cards")
   })
 
@@ -214,7 +218,6 @@ describe("board", () => {
       expect(within(column(name)).queryAllByRole("button")).toHaveLength(0)
     }
     expect(screen.queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.queryByTestId("sample-data-badge")).toBeNull()
     expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
   })
 
@@ -236,17 +239,18 @@ describe("board", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"status":"triaged"')
     expect(reset).toBeEnabled()
 
-    // First click only asks.
+    // First click only asks (the shared confirm dialog).
     await user.click(reset)
-    expect(screen.queryByRole("button", { name: "Reset" })).toBeNull()
-    expect(cardsIn("Triaged")).toHaveLength(4)
-    await user.click(screen.getByRole("button", { name: "Keep edits" }))
+    const confirm = await screen.findByRole("dialog", { name: "Reset demo data?" })
+    await user.click(within(confirm).getByRole("button", { name: "Keep my edits" }))
+    expect(screen.queryByRole("dialog", { name: "Reset demo data?" })).not.toBeInTheDocument()
     expect(cardsIn("Triaged")).toHaveLength(4)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"status":"triaged"')
 
     // Second time through, confirmed.
-    await user.click(screen.getByRole("button", { name: "Reset" }))
-    await user.click(screen.getByRole("button", { name: "Confirm reset" }))
+    await user.click(reset)
+    const again = await screen.findByRole("dialog", { name: "Reset demo data?" })
+    await user.click(within(again).getByRole("button", { name: "Reset" }))
     expect(cardsIn("Triaged")).toHaveLength(3)
     expect(cardsIn("Inbox")).toHaveLength(3)
     expect(note).toHaveTextContent(NOTE_UNSAVED)
@@ -260,9 +264,10 @@ describe("board", () => {
     render(<Screen />)
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(NOTE_SAVED)
     await user.click(screen.getByRole("button", { name: "Reset" }))
-    await user.click(screen.getByRole("button", { name: "Confirm reset" }))
+    const confirm = await screen.findByRole("dialog", { name: "Reset demo data?" })
+    await user.click(within(confirm).getByRole("button", { name: "Reset" }))
     expect(screen.queryByRole("status", { name: "Empty board" })).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(10)
+    expect(cardTags()).toHaveLength(10)
   })
 
   it("says so when a save fails, and keeps the edit on the board", async () => {

@@ -2,10 +2,10 @@
 
 import { ArrowRightIcon } from "lucide-react"
 
-import { formatDate } from "@/lib/feature-requests/dates"
+import { formatDate } from "@/lib/clock"
 import type { FeatureRequest } from "@/lib/feature-requests/feature-requests"
 import { cn } from "@/lib/utils"
-import { SampleDataTag } from "@/components/feature-request/sample-data"
+import { SampleDataTag } from "@/components/sample-data"
 
 export const ROADMAP_HINT_TITLE =
   "Shown on this board only. The Product Roadmap page isn't wired yet, so nothing has been sent anywhere."
@@ -47,7 +47,7 @@ export function RequestCard({
           dateTime={request.createdAt}
           className="text-micro text-muted-foreground font-medium whitespace-nowrap tabular-nums"
         >
-          {formatDate(request.createdAt)}
+          {formatDate(new Date(request.createdAt))}
         </time>
         {request.sample && <SampleDataTag />}
         {request.status === "roadmap" && (

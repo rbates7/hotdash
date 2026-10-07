@@ -3,35 +3,25 @@
 import { PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { PersistenceNote } from "@/components/persistence-note"
+import { SampleDataTag } from "@/components/sample-data"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
 import { NewIdeaDialog } from "@/components/feature-request/idea-dialog"
-import { PersistenceNote } from "@/components/feature-request/persistence-note"
-import { SAMPLE_DATA_LABEL, SAMPLE_PALETTE } from "@/components/feature-request/sample-data"
-import { cn } from "@/lib/utils"
 
 /**
- * Right side of the page header: where edits live, the mock's dashed badge
- * (worded "Sample data", and gone once no sample card remains), and the one
- * way to add an idea.
+ * Right side of the page header: the shared persistence note (where edits
+ * live, Reset behind a confirm), the shared sample-data tag in the mock's
+ * badge position (gone once no sample card remains), and the one way to
+ * add an idea.
  */
 export function HeaderActions() {
-  const { requests, persisted } = useFeatureRequests()
-  const hasSample = persisted && requests.some((r) => r.sample)
+  const store = useFeatureRequests()
+  const hasSample = store.persisted && store.requests.some((r) => r.sample)
 
   return (
-    <div className="flex items-center gap-2.5">
-      <PersistenceNote />
-      {hasSample && (
-        <span
-          data-testid="sample-data-badge"
-          className={cn(
-            "rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase",
-            SAMPLE_PALETTE
-          )}
-        >
-          {SAMPLE_DATA_LABEL}
-        </span>
-      )}
+    <div role="group" aria-label="Page actions" className="flex items-center gap-2.5">
+      <PersistenceNote store={store} />
+      {hasSample && <SampleDataTag className="h-6 px-2" />}
       <NewIdeaDialog
         trigger={
           <Button size="sm">

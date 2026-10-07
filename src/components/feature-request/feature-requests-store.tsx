@@ -10,6 +10,13 @@ import {
   type FeatureStatus,
 } from "@/lib/feature-requests/feature-requests"
 import { buildSeed } from "@/lib/feature-requests/fixture"
+import {
+  createStorage,
+  isIsoInstant,
+  isString,
+  type LoadResult,
+  type PersistenceStore,
+} from "@/lib/persistence"
 
 export type State = {
   requests: FeatureRequest[]
@@ -32,10 +39,8 @@ export type Action =
   | { type: "patch"; id: string; patch: RequestPatch; at: string }
   | { type: "set-status"; id: string; status: FeatureStatus; at: string }
   | { type: "remove"; id: string }
-  /** First read of localStorage after mount. */
-  | { type: "hydrate"; state: State | null }
-  /** Another tab changed (or removed) the saved copy. */
-  | { type: "sync"; state: State | null }
+  /** The saved copy as read on mount, or as another tab just left it. */
+  | { type: "hydrate"; result: LoadResult<State> }
   | { type: "reset"; at: string }
   /** Outcome of the last write attempt. */
   | { type: "wrote"; ok: boolean }
@@ -107,10 +112,8 @@ export function reducer(state: State, action: Action): State {
     }
 
     case "hydrate":
-    case "sync":
-      // A null copy on `sync` means the other tab reset; the provider's
-      // shell swaps in a fresh seed because it knows the request instant.
-      return action.state ?? state
+      // With no copy the shell swaps in a fresh seed; it knows the instant.
+      return action.result.state ? sanitize(action.result.state) : state
 
     case "reset":
       return initialState(new Date(action.at))
@@ -123,21 +126,21 @@ export function reducer(state: State, action: Action): State {
 const EDITS: ReadonlySet<Action["type"]> = new Set(["add", "patch", "set-status", "remove"])
 
 /**
- * Reducer state plus persistence bookkeeping.
+ * Reducer state plus persistence bookkeeping, in the shape the shared
+ * `PersistenceNote` reads (`PersistenceStatus`) plus two of our own:
  *
  * - `nowIso`: the request instant from the page. Every stamp on a card and
  *   the seed's dates come from it; nothing in here reads the clock.
- * - `hydrated`: localStorage has been consulted; real cards may render.
- * - `saved`: this browser holds a saved copy (found on load, or written).
- * - `pending`: user edits since the last write/hydrate/sync/reset. Only a
+ * - `pending`: user edits since the last write/hydrate/reset. Only a
  *   positive count triggers a write, so neither the untouched seed nor a
- *   copy that was merely loaded is ever written back.
- * - `saveFailed`: the last write threw (quota, private mode).
+ *   copy that was merely loaded (or synced from another tab) is ever
+ *   written back.
  */
 type Shell = {
   data: State
   nowIso: string
   hydrated: boolean
+  edited: boolean
   saved: boolean
   pending: number
   saveFailed: boolean
@@ -146,19 +149,18 @@ type Shell = {
 function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
     case "hydrate":
+      // A copy (ours from an earlier session, or another tab's) is theirs:
+      // nothing new of ours to save, so `pending` drops to zero and nothing
+      // is written back. An empty or removed key re-seeds this tab and
+      // forgets that anything was edited here.
       return {
         ...shell,
-        data: action.state ?? shell.data,
+        data: action.result.state
+          ? sanitize(action.result.state)
+          : initialState(new Date(shell.nowIso)),
         hydrated: true,
-        saved: action.state !== null,
-        pending: 0,
-        saveFailed: false,
-      }
-    case "sync":
-      return {
-        ...shell,
-        data: action.state ?? initialState(new Date(shell.nowIso)),
-        saved: action.state !== null,
+        edited: action.result.state ? shell.edited : false,
+        saved: action.result.status === "saved",
         pending: 0,
         saveFailed: false,
       }
@@ -166,6 +168,7 @@ function shellReducer(shell: Shell, action: Action): Shell {
       return {
         ...shell,
         data: initialState(new Date(shell.nowIso)),
+        edited: false,
         saved: false,
         pending: 0,
         saveFailed: false,
@@ -180,8 +183,8 @@ function shellReducer(shell: Shell, action: Action): Shell {
     default: {
       const data = reducer(shell.data, action)
       // Only a change that actually changed something counts as an edit.
-      const edited = EDITS.has(action.type) && data !== shell.data
-      return edited ? { ...shell, data, pending: shell.pending + 1 } : shell
+      const changed = EDITS.has(action.type) && data !== shell.data
+      return changed ? { ...shell, data, edited: true, pending: shell.pending + 1 } : shell
     }
   }
 }
@@ -195,29 +198,14 @@ export function initialState(now: Date): State {
 /* ------------------------------------------------------------ persistence */
 
 /**
- * Board state is saved to this browser's localStorage — from the first real
- * edit on, never the untouched seed — so a reload keeps Dan's ideas. Bump
- * the version whenever the seed or the shape changes so stale saves are
- * discarded instead of half-applied. There is no server copy and no API
- * behind this page.
+ * Board state is saved to this browser's localStorage under the shared
+ * policy in `@/lib/persistence`: only after a real edit (never the
+ * untouched seed), validated whole on load with a bad copy parked under
+ * `<key>.rejected`, a write that can fail, other tabs heard, and Reset
+ * clearing the key. Bump the version whenever the seed or the shape
+ * changes. There is no server copy and no API behind this page.
  */
 export const STORAGE_KEY = "hotdash.feature-requests.v1"
-
-/**
- * Where a saved copy that failed validation is parked, verbatim, before
- * anything can overwrite the live key. Nothing of the founder's is lost
- * silently; it is just not rendered.
- */
-export const REJECTED_KEY = `${STORAGE_KEY}.rejected`
-
-const isString = (v: unknown): v is string => typeof v === "string"
-
-/** Exact ISO round trip: `Date.parse("0")` is a date, `"0"` is not an ISO stamp. */
-const isIsoInstant = (v: unknown): v is string => {
-  if (!isString(v)) return false
-  const t = Date.parse(v)
-  return !Number.isNaN(t) && new Date(t).toISOString() === v
-}
 
 const ID_PATTERN = /^fr-(\d+)$/
 
@@ -257,7 +245,7 @@ export function isState(value: unknown): value is State {
 }
 
 /** A copy with only the fields we know about; anything else is dropped. */
-function sanitize(state: State): State {
+export function sanitize(state: State): State {
   return {
     nextId: state.nextId,
     requests: state.requests.map((r) => {
@@ -276,76 +264,25 @@ function sanitize(state: State): State {
   }
 }
 
-/**
- * The saved copy, or `null` when there is none or any part of it is bad —
- * the caller then falls back to the seed rather than half-applying it. A
- * bad copy is parked under `REJECTED_KEY` first so it cannot be lost when
- * the next edit writes the live key.
- */
-export function loadState(storage: Storage | undefined): State | null {
-  let raw: string | null = null
-  try {
-    raw = storage?.getItem(STORAGE_KEY) ?? null
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (isState(parsed)) return sanitize(parsed)
-  } catch {
-    // Fall through: unreadable storage or unparseable JSON is a rejection too.
-  }
-  if (raw !== null) stashRejected(storage, raw)
-  return null
-}
+export const featureRequestsStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  validate: isState,
+})
 
-function stashRejected(storage: Storage | undefined, raw: string) {
-  try {
-    storage?.setItem(REJECTED_KEY, raw)
-  } catch {
-    // Nowhere to park it; the warning below is all we can do.
-  }
-  if (process.env.NODE_ENV !== "production") {
-    console.warn(
-      `[feature-request] The saved copy under ${STORAGE_KEY} failed validation and was not applied. ` +
-        `It is kept verbatim under ${REJECTED_KEY}; the board shows the sample seed instead.`
-    )
-  }
-}
-
-/** True when the write landed. False on quota, private mode, or no storage. */
-export function saveState(storage: Storage | undefined, state: State): boolean {
-  try {
-    if (!storage) return false
-    storage.setItem(STORAGE_KEY, JSON.stringify(state))
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function clearState(storage: Storage | undefined) {
-  try {
-    storage?.removeItem(STORAGE_KEY)
-  } catch {
-    // Nothing to do; the next load falls back to the seed anyway.
-  }
-}
+/** Where a copy that failed validation is parked, verbatim. */
+export const REJECTED_KEY = featureRequestsStorage.rejectedKey
 
 /* ------------------------------------------------------------------ store */
 
-type Store = State & {
-  /** The request instant, as a Date. Every relative label is measured from it. */
-  now: Date
-  /** True once localStorage has been read; the board can show real cards. */
-  persisted: boolean
-  /** True when this browser holds a saved copy (an edit was written, or one was found on load). */
-  saved: boolean
-  /** True when the last write failed; edits still work for the session. */
-  saveFailed: boolean
-  addRequest: (input: NewRequestInput) => void
-  patchRequest: (id: string, patch: RequestPatch) => void
-  setStatus: (id: string, status: FeatureStatus) => void
-  removeRequest: (id: string) => void
-  resetDemoData: () => void
-}
+type Store = State &
+  PersistenceStore & {
+    /** The request instant, as a Date. Every relative label is measured from it. */
+    now: Date
+    addRequest: (input: NewRequestInput) => void
+    patchRequest: (id: string, patch: RequestPatch) => void
+    setStatus: (id: string, status: FeatureStatus) => void
+    removeRequest: (id: string) => void
+  }
 
 const FeatureRequestsContext = React.createContext<Store | null>(null)
 
@@ -361,37 +298,49 @@ export function FeatureRequestsProvider({
     data: initialState(new Date(ms)),
     nowIso: new Date(ms).toISOString(),
     hydrated: false,
+    edited: false,
     saved: false,
     pending: 0,
     saveFailed: false,
   }))
-  const { data: state, nowIso, hydrated: persisted, saved, pending, saveFailed } = shell
+  const { data: state, nowIso, hydrated: persisted, edited, saved, pending, saveFailed } = shell
+
+  // The JSON last known to be in storage (written by us, or read from it).
+  // Writes compare against it so a round of hydrate → re-render can never
+  // put back what is already there — two tabs would otherwise ping-pong.
+  const lastWritten = React.useRef<string | null>(null)
+  const hydrate = React.useCallback((result: LoadResult<State>) => {
+    lastWritten.current = result.state ? JSON.stringify(sanitize(result.state)) : null
+    dispatch({ type: "hydrate", result })
+  }, [])
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
   // copy is read in a *layout* effect — it runs before the browser paints, so
   // the first frame a user sees is already their data, never the seed.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", state: loadState(window.localStorage) })
-  }, [])
+    hydrate(featureRequestsStorage.load(window.localStorage))
+  }, [hydrate])
 
-  // Write only when there are edits waiting. A load with no edits writes
-  // nothing back; the untouched seed is never written at all.
+  // Another tab wrote or cleared the key: take its copy rather than
+  // overwriting it with ours on the next edit. A hydrate never saves.
+  React.useEffect(() => featureRequestsStorage.subscribe(hydrate), [hydrate])
+
+  // Write only while user edits are pending, and only if the JSON actually
+  // differs from what storage holds. A load with no edits writes nothing
+  // back; the untouched seed is never written at all. The copy carries no
+  // clock (`nowIso` lives outside `State`), so equal boards serialise equal.
   React.useEffect(() => {
     if (!persisted || pending === 0) return
-    dispatch({ type: "wrote", ok: saveState(window.localStorage, state) })
-  }, [persisted, pending, state])
-
-  // Another tab edited or reset the board: follow it.
-  React.useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.storageArea !== window.localStorage) return
-      if (event.key !== null && event.key !== STORAGE_KEY) return
-      dispatch({ type: "sync", state: loadState(window.localStorage) })
+    const json = JSON.stringify(state)
+    if (json === lastWritten.current) {
+      dispatch({ type: "wrote", ok: true })
+      return
     }
-    window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
-  }, [])
+    const ok = featureRequestsStorage.save(window.localStorage, state)
+    if (ok) lastWritten.current = json
+    dispatch({ type: "wrote", ok })
+  }, [persisted, pending, state])
 
   const now = React.useMemo(() => new Date(nowIso), [nowIso])
 
@@ -400,6 +349,7 @@ export function FeatureRequestsProvider({
       ...state,
       now,
       persisted,
+      edited,
       saved,
       saveFailed,
       // Every stamp is the request instant: no client clock reads here.
@@ -408,11 +358,12 @@ export function FeatureRequestsProvider({
       setStatus: (id, status) => dispatch({ type: "set-status", id, status, at: nowIso }),
       removeRequest: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
-        clearState(window.localStorage)
+        featureRequestsStorage.clear(window.localStorage)
+        lastWritten.current = null
         dispatch({ type: "reset", at: nowIso })
       },
     }),
-    [state, now, nowIso, persisted, saved, saveFailed]
+    [state, now, nowIso, persisted, edited, saved, saveFailed]
   )
 
   return (

@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
 import { EditIdeaDialog } from "@/components/feature-request/idea-dialog"
 import { RequestCard } from "@/components/feature-request/request-card"
-import { SampleDataNotice } from "@/components/feature-request/sample-data"
+import { SampleDataNotice } from "@/components/sample-data"
 
 function ColumnHead({ status, count }: { status: FeatureStatus; count: number }) {
   return (
@@ -77,7 +77,14 @@ export function RequestBoard() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {sampleCount > 0 && <SampleDataNotice count={sampleCount} />}
+      {sampleCount > 0 && (
+        <SampleDataNotice>
+          The {sampleCount === 1 ? "card" : `${sampleCount} cards`} tagged below{" "}
+          {sampleCount === 1 ? "is an" : "are"} invented example{sampleCount === 1 ? "" : "s"} of
+          Dan&rsquo;s ideas, not real requests. Ideas you add or rewrite are yours, and they
+          live only in this browser.
+        </SampleDataNotice>
+      )}
 
       {requests.length === 0 && (
         <div
@@ -95,7 +102,11 @@ export function RequestBoard() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 items-start gap-3.5" aria-label="Feature request intake">
+      <div
+        role="region"
+        aria-label="Feature request intake"
+        className="grid grid-cols-4 items-start gap-3.5"
+      >
         {STATUS_ORDER.map((status) => {
           const cards = byStatus(requests, status)
           return (
