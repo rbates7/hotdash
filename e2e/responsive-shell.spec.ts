@@ -106,7 +106,8 @@ test.describe("responsive shell (phone 390)", () => {
 
   test("exactly one aria-current and no horizontal overflow", async ({ page }) => {
     await gotoHydrated(page)
-    await expectOneAriaCurrent(page)
+    // Phone chrome is the top bar only; the nav lives in the overlay.
+    await expect(page.locator("[aria-current='page']")).toHaveCount(0)
     await expectNoOverflowX(page)
     await openFounderNav(page)
     await expectOneAriaCurrent(page)
@@ -146,6 +147,7 @@ test.describe("responsive shell (tablet portrait 820)", () => {
     await expectChevronFullyHit(page, chevron)
     await expectScrollLock(page, true)
     await expectFocusTrapped(page, drawer)
+    await expectOneAriaCurrent(page)
   })
 
   test("chevron, Escape, and scrim each close and return focus", async ({ page }) => {

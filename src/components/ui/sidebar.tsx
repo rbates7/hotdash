@@ -616,12 +616,18 @@ function SidebarMenuButton({
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { isMobile, isTabletPortrait, state } = useSidebar()
+  const { isMobile, isTabletPortrait, openMobile, state } = useSidebar()
+  const surface = useSidebarSurface()
+  // One aria-current in the tree. The tablet overlay mounts rail + sheet;
+  // only the sheet announces while it is open. Phone has no rail.
+  const announceCurrent =
+    isActive && (surface === "sheet" || !openMobile)
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
       {
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+        "aria-current": announceCurrent ? "page" : undefined,
       },
       props
     ),

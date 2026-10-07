@@ -137,7 +137,6 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         isActive={active}
                         tooltip={item.label}
-                        aria-current={active ? "page" : undefined}
                         className={TABLET_ROW}
                         render={
                           item.external ? (
