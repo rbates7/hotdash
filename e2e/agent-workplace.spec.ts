@@ -65,10 +65,14 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("article", { name: "Grok-1" })).toContainText("Undo stack for iPad canvas")
     await expect(page.getByRole("article", { name: "Grok-3" })).toContainText("Working")
 
-    await page.getByRole("tab", { name: "Chat" }).click()
-    // Scoped by accessible name: during the tab transition Base UI keeps the
-    // outgoing panel mounted, so an unscoped lookup trips strict mode.
+    // During the tab transition Base UI keeps the outgoing panel mounted, so
+    // scope the panel by name and wait for the switch to settle before
+    // asserting on its content.
+    const chatTab = page.getByRole("tab", { name: "Chat" })
+    await chatTab.click()
+    await expect(chatTab).toHaveAttribute("aria-selected", "true")
     const chat = page.getByRole("tabpanel", { name: "Chat" })
+    await expect(chat).toBeVisible()
     await expect(chat).toContainText(/door/i)
     await expect(chat).not.toContainText(/unified|thread/i)
     await expect(chat.getByRole("textbox")).toHaveCount(0)
