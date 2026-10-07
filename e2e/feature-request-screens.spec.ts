@@ -48,7 +48,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(persistence(page)).toHaveText("Saved in this browser")
+    await expect(persistence(page)).toHaveText("Edits save in this browser")
 
     // With data (the seed).
     await shoot(page, `feature-request-board-${theme}`)
