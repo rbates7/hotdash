@@ -101,7 +101,7 @@ function StageMenu({ deal }: { deal: Deal }) {
           }}
         >
           {STAGES.map((s) => (
-            <DropdownMenuRadioItem key={s} value={s}>
+            <DropdownMenuRadioItem key={s} value={s} closeOnClick>
               {STAGE_CONFIG[s].label}
             </DropdownMenuRadioItem>
           ))}
