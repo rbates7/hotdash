@@ -24,6 +24,7 @@
     "screens:bugs": "CI=true SCREENSHOTS=1 playwright test e2e/bugs-screens.spec.ts",
     "screens:clinics": "SCREENSHOTS=1 playwright test e2e/clinics-screens.spec.ts",
     "screens:crm": "CI=true SCREENSHOTS=1 playwright test e2e/crm-screens.spec.ts",
+    "screens:my-desk": "CI=true SCREENSHOTS=1 playwright test e2e/my-desk-screens.spec.ts",
     "screens:community-development": "CI=true SCREENSHOTS=1 playwright test e2e/community-development-screens.spec.ts"
   },
   "dependencies": {
