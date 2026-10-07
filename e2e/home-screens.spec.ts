@@ -4,6 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for Home, every state in both themes at desktop width.
@@ -30,13 +31,6 @@ async function shoot(page: Page, name: string) {
   }
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByText(theme === "dark" ? "Dark" : "Light", { exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
-}
 
 /** Close the three tickets Needs-you points at, through the ticket view. */
 async function closeLinkedTickets(page: Page) {

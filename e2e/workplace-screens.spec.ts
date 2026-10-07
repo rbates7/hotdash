@@ -4,6 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Agent Workplace, every main state in both
@@ -28,13 +29,6 @@ async function shoot(page: Page, name: string) {
   }
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByText(theme === "dark" ? "Dark" : "Light", { exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
-}
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Workplace state (${theme})`, async ({ page }) => {

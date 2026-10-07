@@ -110,14 +110,20 @@ describe("createStorage", () => {
     expect(store.rejected(window.localStorage)[0].raw).toBe(raw)
   })
 
-  it("quarantine() is the explicit step: parks and clears the live key", () => {
+  it("quarantine() parks without touching the live key, and save() never removes or clears it (no storage-event clear for other tabs)", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     window.localStorage.setItem(store.key, "{bad")
     const result = store.load(window.localStorage)
     if (result.status !== "rejected") throw new Error("unreachable")
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem")
+    const clear = vi.spyOn(Storage.prototype, "clear")
     store.quarantine(window.localStorage, result.rejected)
-    expect(window.localStorage.getItem(store.key)).toBeNull()
+    expect(window.localStorage.getItem(store.key)).toBe("{bad")
     expect(store.rejected(window.localStorage)[0].raw).toBe("{bad")
+    store.save(window.localStorage, { n: 1, name: "a" })
+    expect(removeItem).not.toHaveBeenCalledWith(store.key)
+    expect(clear).not.toHaveBeenCalled()
+    expect(store.load(window.localStorage)).toEqual({ state: { n: 1, name: "a" }, status: "saved" })
   })
 
   it("keeps the last three rejected copies, newest first; a second one never overwrites the first", () => {
@@ -250,10 +256,25 @@ describe("persistenceShellReducer", () => {
     shell = edit(shell, { n: 1, name: "mine, unsaved" })
     const raced = hydrate(shell, found({ n: 2, name: "theirs" }))
     expect(raced.data).toEqual({ n: 1, name: "mine, unsaved" })
-    expect(raced).toMatchObject({ edited: true, edits: 1, savedEdits: 0, saved: true })
+    // Flags untouched: "saved" is only ever set by our own write's result.
+    expect(raced).toMatchObject({ edited: true, edits: 1, savedEdits: 0, saved: false, saveFailed: false })
     // Once the pending save lands, the next copy is adopted as usual.
     const settled = hydrate(saved(raced), found({ n: 3, name: "later" }))
     expect(settled.data).toEqual({ n: 3, name: "later" })
+  })
+
+  it("a failed save is never masked by an incoming copy; another tab's Reset still re-seeds and clears the pending state", () => {
+    let shell = hydrate(initialShell(seed, T0), empty)
+    shell = saved(edit(shell, { n: 1, name: "mine" }), false)
+    expect(shell).toMatchObject({ edited: true, saved: false, saveFailed: true, edits: 1, savedEdits: 0 })
+    const incoming = hydrate(shell, found({ n: 2, name: "theirs" }))
+    expect(incoming.data).toEqual({ n: 1, name: "mine" })
+    expect(incoming).toMatchObject({ edited: true, saved: false, saveFailed: true })
+    expect(incoming).toBe(shell) // identity: nothing changed
+    const reseeded = hydrate(incoming, empty, T0 + 7)
+    expect(reseeded).toMatchObject({ data: seedAt(T0 + 7), nowMs: T0 + 7, edited: false, saved: false, saveFailed: false, savedEdits: 1 })
+    // The next local edit moves `edits` past `savedEdits` again → a write is attempted.
+    expect(edit(reseeded, { n: 3, name: "retry" })).toMatchObject({ edits: 2, savedEdits: 1, edited: true })
   })
 
   it("a real edit flips edited and counts; a no-op edit returns the very same shell; saved waits for the write", () => {

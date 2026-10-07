@@ -6,6 +6,7 @@ import { DEFAULT_METRIC_IDS } from "@/lib/metrics"
 import { MOCK_DAY, seedExpenses } from "@/lib/kpis"
 import type { LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
+import { formatPeriod, periodEnding } from "@/lib/clock"
 import {
   LEGACY_STORAGE_KEYS,
   MetricsProvider,
@@ -13,7 +14,6 @@ import {
   initialState,
   isState,
   loadState,
-  loadStateOrSeed,
   metricsStorage,
   parseState,
   reducer,
@@ -213,7 +213,8 @@ describe("isState rejects a bad saved copy", () => {
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
-    expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+    // Loaded through the shell, the page shows the seed (L2's "load with no save → seed").
+    expect(viaShell(initialState(TODAY), hydrate(loadState(window.localStorage)))).toEqual(initialState(TODAY))
     saveState(window.localStorage, initialState(TODAY))
     expect(metricsStorage.rejected(window.localStorage)[0].raw).toBe(raw)
   })
@@ -229,10 +230,11 @@ describe("localStorage", () => {
     expect(window.localStorage.getItem(LEGACY_STORAGE_KEYS[0])).toBeNull()
   })
 
-  it("loadStateOrSeed returns the seed for today when nothing is saved, and the aged copy when there is", () => {
-    expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
+  it("hydrating with no save yields the seed for today; with one, the copy aged to today", () => {
+    expect(viaShell(initialState(TODAY), hydrate(null))).toEqual(initialState(TODAY))
     saveState(window.localStorage, initialState("2026-08-21"))
-    expect(loadStateOrSeed(window.localStorage, "2026-08-24").seededAt).toBe("2026-08-24")
+    const aged = viaShell(initialState("2026-08-24"), hydrate(loadState(window.localStorage), "2026-08-24"), noon("2026-08-24"))
+    expect(aged.seededAt).toBe("2026-08-24")
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
@@ -254,6 +256,7 @@ function Probe() {
       <span data-testid="persisted">{String(persisted)}</span>
       <span data-testid="status">{`edited=${edited} saved=${saved} failed=${saveFailed}`}</span>
       <span data-testid="today">{today}</span>
+      <span data-testid="period">{formatPeriod(periodEnding(today))}</span>
       <span data-testid="visible">{visible.join(",")}</span>
       <span data-testid="mrr-chart">{charts.mrr ?? "default"}</span>
       <span data-testid="expense-count">{expenses.length}</span>
@@ -319,11 +322,14 @@ describe("MetricsProvider persistence", () => {
     // Served 7 Oct at 23:30 Central (already 8 Oct in UTC).
     const first = mount("2026-10-07", LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("period")).toHaveTextContent("10 Sep – 7 Oct 2026")
     act(() => screen.getByRole("button", { name: "edit" }).click())
     // Next day, the founder presses Reset.
     vi.useFakeTimers({ now: new Date(LATE_EVENING_CT.getTime() + 12 * 3_600_000), toFake: ["Date"] })
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
+    // The header's date range and the cards' period move together.
+    expect(screen.getByTestId("period")).toHaveTextContent("11 Sep – 8 Oct 2026")
     expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-08")
     expect(screen.getByTestId("dates")).not.toHaveTextContent("2026-10-07")
     vi.useRealTimers()
@@ -359,6 +365,38 @@ describe("MetricsProvider persistence", () => {
     act(() => screen.getByRole("button", { name: "edit" }).click())
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
     spy.mockRestore()
+  })
+
+  it("a failed save is never masked: an incoming copy keeps 'Couldn't save', and their Reset still re-seeds", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(quotaExceededStorage().setItem)
+    try {
+      mount()
+      act(() => screen.getByRole("button", { name: "edit" }).click())
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+      expect(screen.getByTestId("visible")).not.toHaveTextContent("arr")
+
+      // Another tab's copy arrives: ours (unsaved) stays, and so does the failure.
+      const theirs = reducer(initialState(TODAY), { type: "remove-metric", id: "mrr" })
+      spy.mockRestore()
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
+      act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
+      expect(screen.getByTestId("visible")).toHaveTextContent("mrr")
+      expect(screen.getByTestId("visible")).not.toHaveTextContent("arr")
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+
+      // Their Reset still re-seeds this tab.
+      window.localStorage.removeItem(STORAGE_KEY)
+      act(() => fireStorageEvent(STORAGE_KEY, null))
+      expect(screen.getByTestId("visible")).toHaveTextContent(DEFAULT_METRIC_IDS.join(","))
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
+
+      // And the next local edit retries the save — storage works again now.
+      act(() => screen.getByRole("button", { name: "edit" }).click())
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it("re-hydrates when another tab writes the key, and re-seeds when another tab Resets", () => {

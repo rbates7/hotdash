@@ -18,7 +18,8 @@
  *   for the seed. `load()` is pure — it reports a rejected copy but writes
  *   nothing, so a bad copy in one tab never makes the others re-seed. The
  *   first real `save()` parks it under `<key>.rejected` (last three,
- *   timestamped) before overwriting; `quarantine()` does the same on
+ *   timestamped) before overwriting it in place — the live key is never
+ *   removed, so other tabs never see a clear; `quarantine()` parks on
  *   demand. Rejections are warned about in development.
  * - **Saving can fail.** `save` returns false on quota or private-mode
  *   errors; the note then says so and never claims "Saved".
@@ -93,7 +94,7 @@ export type ScreenStorage<T, S = T> = {
    * no-op). A copy under the key that does not parse is parked first.
    */
   save: (storage: Storage | undefined, state: T) => boolean
-  /** Park a rejected copy under `<key>.rejected` and drop the live key. */
+  /** Park a rejected copy under `<key>.rejected`; never touches the live key. */
   quarantine: (storage: Storage | undefined, rejected: RejectedCopy) => void
   clear: (storage: Storage | undefined) => void
   /** Whether the key currently holds anything (saved or not yet validated). */
@@ -170,14 +171,14 @@ export function createStorage<T, S = T>(def: StorageDef<T, S>): ScreenStorage<T,
 
   function quarantine(storage: Storage | undefined, copy: RejectedCopy) {
     if (!storage) return
-    // Park the raw copy — newest first, capped — before anything overwrites
-    // it, then drop the live key.
+    // Park the raw copy — newest first, capped. The live key is left alone:
+    // removing it would fire a `storage` clear in every other tab and make
+    // them re-seed; the save that follows simply overwrites it.
     try {
       const kept = [copy, ...rejected(storage).filter((r) => r.raw !== copy.raw)].slice(0, REJECTED_KEEP)
       storage.setItem(rejectedKey, JSON.stringify(kept))
-      if (storage.getItem(key) === copy.raw) storage.removeItem(key)
     } catch {
-      // Best effort: if we cannot park it, the save below still overwrites it.
+      // Best effort: if we cannot park it, the save still overwrites it.
     }
     warn(`parked a rejected copy of ${key} under ${rejectedKey}`)
   }
@@ -359,8 +360,9 @@ export type PersistenceShell<T> = PersistenceStatus & {
   savedEdits: number
   /**
    * The instant the screen measures from: the request's on mount, then the
-   * moment of a Reset (or of a re-seed after another tab's Reset). A saved
-   * copy adopted from another tab never moves it.
+   * moment of a Reset (or of a re-seed after another tab's Reset). A store's
+   * `adopt` may also move it forward when the copy it takes was saved on a
+   * later day than this tab believes it is.
    */
   nowMs: number
 }
@@ -409,10 +411,12 @@ export function initialShell<T>(data: T, nowMs: number): PersistenceShell<T> {
  *   not move, so nothing is written back — another tab's copy is theirs,
  *   and their Reset (no copy) re-seeds this tab with `fallback(nowMs)`,
  *   moving the clock to `nowMs`;
- * - **a local edit that has not been saved yet wins**: if `edits >
- *   savedEdits` when a hydrate arrives, this tab keeps its data and stays
- *   `edited`, so its pending save overwrites the incoming copy instead of
- *   the incoming copy silently discarding the edit (same-render race);
+ * - **a local edit that has not been saved yet wins** over an incoming
+ *   copy: if `edits > savedEdits` when a hydrate brings a copy, this tab
+ *   keeps its data, `edited`, `saved` and `saveFailed` exactly as they are,
+ *   so a pending save overwrites the copy and a failed save keeps reading
+ *   "Couldn't save" (same-render race; failure never masked). Another tab's
+ *   Reset (no copy) still re-seeds this tab;
  * - an edit that changed nothing (`data === shell.data`) returns the *same*
  *   shell, so it neither flips `edited` nor triggers a write;
  * - `saved` reflects the write's result, never the intent;
@@ -426,10 +430,13 @@ export function persistenceShellReducer<T, S = T>(
   switch (event.type) {
     case "hydrate": {
       const pendingLocalEdits = shell.edits > shell.savedEdits
-      if (pendingLocalEdits) {
-        // Ours is newer than anything we have written; keep it and let the
-        // pending save win. Only the "is there a copy" fact is taken.
-        return { ...shell, persisted: true, saved: event.result.status === "saved", saveFailed: false }
+      if (pendingLocalEdits && event.result.state !== null) {
+        // Ours is newer than anything we have written (a save is pending, or
+        // the last one failed); keep it and let the next save win. `saved`
+        // and `saveFailed` stay exactly as they are — an incoming copy must
+        // not read as "Saved" over unsaved edits. Their Reset (no copy) is
+        // not this branch: it still re-seeds this tab below.
+        return shell.persisted ? shell : { ...shell, persisted: true }
       }
       if (event.result.state !== null) {
         const adopted = event.adopt
@@ -445,10 +452,13 @@ export function persistenceShellReducer<T, S = T>(
           saveFailed: false,
         }
       }
+      // No copy — nothing saved, or another tab's Reset. A fresh seed dated
+      // from this moment; nothing of ours is pending any more.
       return {
         ...shell,
         data: event.fallback(event.nowMs),
         nowMs: event.nowMs,
+        savedEdits: shell.edits,
         persisted: true,
         edited: false,
         saved: false,

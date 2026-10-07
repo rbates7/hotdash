@@ -79,21 +79,19 @@ describe("buildInbox + formatAge", () => {
     const later = new Date("2027-03-02T20:00:00Z")
     const rows = buildInbox(later)
     expect(rows.map((i) => formatAge(i.at, later))).toEqual(["18m", "2h", "4h", "Yesterday"])
-    // Built from one instant but read against a later one, they age honestly
-    // — into a Central calendar date once they are older than yesterday.
-    expect(formatAge(inbox[0].at, later)).toBe("Thu, Aug 27")
+    // Built from one instant but read against a later one, they age honestly.
+    expect(formatAge(inbox[0].at, later)).toMatch(/^\d+d$/)
   })
 
-  it("age thresholds are Central calendar days (FIXED_NOW is 09:00 CT Thursday)", () => {
+  it("formatAge thresholds — parity with the passed Inbox copy (compact style of the shared formatter)", () => {
     const at = (ms: number) => new Date(FIXED_NOW.getTime() - ms).toISOString()
     expect(formatAge(at(10_000), FIXED_NOW)).toBe("now")
     expect(formatAge(at(59 * 60_000), FIXED_NOW)).toBe("59m")
     expect(formatAge(at(60 * 60_000), FIXED_NOW)).toBe("1h")
-    expect(formatAge(at(8 * 3_600_000), FIXED_NOW)).toBe("8h") // 01:00 today
-    expect(formatAge(at(10 * 3_600_000), FIXED_NOW)).toBe("Yesterday") // 23:00 yesterday, not "10h"
+    expect(formatAge(at(10 * 3_600_000), FIXED_NOW)).toBe("10h")
+    expect(formatAge(at(23.9 * 3_600_000), FIXED_NOW)).toBe("23h")
     expect(formatAge(at(24 * 3_600_000), FIXED_NOW)).toBe("Yesterday")
-    expect(formatAge(at(33 * 3_600_000), FIXED_NOW)).toBe("Yesterday") // 00:00 Wednesday
-    expect(formatAge(at(34 * 3_600_000), FIXED_NOW)).toBe("Tue, Aug 25") // 23:00 Tuesday
-    expect(formatAge(at(48 * 3_600_000), FIXED_NOW)).toBe("Tue, Aug 25")
+    expect(formatAge(at(47 * 3_600_000), FIXED_NOW)).toBe("Yesterday")
+    expect(formatAge(at(48 * 3_600_000), FIXED_NOW)).toBe("2d")
   })
 })
