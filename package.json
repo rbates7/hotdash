@@ -14,7 +14,8 @@
     "test:e2e": "playwright test",
     "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
     "screens:home": "SCREENSHOTS=1 playwright test e2e/home-screens.spec.ts",
-    "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts"
+    "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts",
+    "test:tz": "TZ=UTC vitest run && TZ=America/Chicago vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
