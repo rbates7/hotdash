@@ -1,14 +1,17 @@
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
+import { formatCheckedAgo } from "@/lib/system-status"
 import { StatusScreen } from "@/components/system-status/status-screen"
-import { FIXED_NOW_MS } from "@/test/clock"
+import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 // 27 Aug 2026, 09:00 Chicago. Checks are seeded 2–6 minutes before it.
 const mount = (scenario?: "green" | "not-green", nowMs = FIXED_NOW_MS) =>
   render(<StatusScreen nowMs={nowMs} scenario={scenario} />)
 
 const banner = () => screen.getByRole("region", { name: "Current status" })
+/** The verbose relative wording, through the page's own helper (explicit style). */
+const ago = (nowMs: number, minutes: number) => formatCheckedAgo(nowMs - minutes * 60_000, nowMs)
 const components = () => screen.getByRole("region", { name: "Components" })
 const row = (name: string) => within(components()).getByRole("listitem", { name })
 
@@ -19,7 +22,7 @@ describe("StatusScreen", () => {
     expect(within(banner()).getByRole("heading", { level: 2, name: "All systems green" })).toBeInTheDocument()
     expect(banner()).toHaveAttribute("data-verdict", "green")
     expect(banner()).toHaveTextContent("Every check passed. Nothing needs you.")
-    expect(banner()).toHaveTextContent("Updated 2 min ago")
+    expect(banner()).toHaveTextContent(`Updated ${ago(FIXED_NOW_MS, 2)}`)
     expect(banner()).toHaveTextContent("7 operational")
     expect(components()).toHaveTextContent("None down")
 
@@ -41,8 +44,8 @@ describe("StatusScreen", () => {
     }
     // The site row: reason, and the check time where the founder is.
     expect(row("chlkapp.com")).toHaveTextContent("Site up · 200 from Dallas")
-    expect(row("chlkapp.com")).toHaveTextContent("Checked 2 min ago · 8:58 AM CT")
-    expect(row("Export")).toHaveTextContent("Checked 6 min ago · 8:54 AM CT")
+    expect(row("chlkapp.com")).toHaveTextContent(`Checked ${ago(FIXED_NOW_MS, 2)} · 8:58 AM CT`)
+    expect(row("Export")).toHaveTextContent(`Checked ${ago(FIXED_NOW_MS, 6)} · 8:54 AM CT`)
   })
 
   it("not green: the degraded row is named in the verdict and carries its own icon and word", () => {
@@ -92,14 +95,14 @@ describe("StatusScreen", () => {
   it("every relative figure comes from nowMs, not the machine clock", () => {
     const anHourLater = FIXED_NOW_MS + 60 * 60_000
     mount("green", anHourLater)
-    expect(banner()).toHaveTextContent("Updated 2 min ago")
-    expect(row("chlkapp.com")).toHaveTextContent("Checked 2 min ago · 9:58 AM CT")
+    expect(banner()).toHaveTextContent(`Updated ${ago(anHourLater, 2)}`)
+    expect(row("chlkapp.com")).toHaveTextContent(`Checked ${ago(anHourLater, 2)} · 9:58 AM CT`)
   })
 
   it("late evening Central renders the same in either process zone", () => {
-    // 23:30 CDT on 7 Oct = 04:30 UTC on 8 Oct.
-    mount("not-green", Date.parse("2026-10-08T04:30:00.000Z"))
-    expect(row("Billing")).toHaveTextContent("Checked 4 min ago · 11:26 PM CT")
+    // 23:30 CDT on 7 Oct = 04:30 UTC on 8 Oct — the shared instant.
+    mount("not-green", LATE_EVENING_CT_MS)
+    expect(row("Billing")).toHaveTextContent(`Checked ${ago(LATE_EVENING_CT_MS, 4)} · 11:26 PM CT`)
     expect(screen.getByRole("region", { name: "Past incident" })).toHaveTextContent("18 Aug 2026")
   })
 })

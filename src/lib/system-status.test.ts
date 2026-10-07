@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { formatDate, todayIn } from "@/lib/clock"
+import { formatDate, formatRelative, todayIn } from "@/lib/clock"
 import {
   VERDICT_GREEN,
   VERDICT_NOT_GREEN,
   buildPastIncident,
   buildServices,
   countByStatus,
-  formatAgo,
   formatCentralTime,
   formatChecked,
+  formatCheckedAgo,
   formatCounts,
   formatDownCount,
   isScenario,
@@ -17,7 +17,7 @@ import {
   verdictFor,
   type Service,
 } from "@/lib/system-status"
-import { FIXED_NOW_MS } from "@/test/clock"
+import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 const svc = (over: Partial<Service> & Pick<Service, "id" | "status">): Service => ({
   name: over.id,
@@ -146,20 +146,18 @@ describe("seed", () => {
   })
 })
 
-describe("relative time", () => {
-  it("rounds to whole units from the given instant", () => {
-    const at = (secondsAgo: number) => FIXED_NOW_MS - secondsAgo * 1000
-    expect(formatAgo(at(0), FIXED_NOW_MS)).toBe("just now")
-    expect(formatAgo(at(29), FIXED_NOW_MS)).toBe("just now")
-    expect(formatAgo(at(31), FIXED_NOW_MS)).toBe("1 min ago")
-    expect(formatAgo(at(2 * 60), FIXED_NOW_MS)).toBe("2 min ago")
-    expect(formatAgo(at(59 * 60), FIXED_NOW_MS)).toBe("59 min ago")
-    expect(formatAgo(at(60 * 60), FIXED_NOW_MS)).toBe("1 hr ago")
-    expect(formatAgo(at(3 * 3600 + 20 * 60), FIXED_NOW_MS)).toBe("3 hr ago")
-    expect(formatAgo(at(24 * 3600), FIXED_NOW_MS)).toBe("1 day ago")
-    expect(formatAgo(at(50 * 3600), FIXED_NOW_MS)).toBe("2 days ago")
-    // A check "in the future" (clock skew) never reads as negative.
-    expect(formatAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).toBe("just now")
+describe("check times use the shared relative formatter", () => {
+  it("'Checked …' is the shared long style plus the Central wall clock", () => {
+    // The verbose style is asked for explicitly, so the page keeps its words
+    // whatever the shared default is; the clock part is this page's own.
+    const ago = (deltaMs: number) => formatRelative(FIXED_NOW_MS - deltaMs, FIXED_NOW_MS, { style: "long" })
+    expect(formatCheckedAgo(FIXED_NOW_MS - 2 * 60_000, FIXED_NOW_MS)).toBe(ago(2 * 60_000))
+    expect(formatChecked(FIXED_NOW_MS - 2 * 60_000, FIXED_NOW_MS)).toBe(`Checked ${ago(2 * 60_000)} · 8:58 AM CT`)
+    expect(formatChecked(FIXED_NOW_MS, FIXED_NOW_MS)).toBe(`Checked ${ago(0)} · 9:00 AM CT`)
+    expect(formatChecked(FIXED_NOW_MS - 3 * 3_600_000, FIXED_NOW_MS)).toBe(`Checked ${ago(3 * 3_600_000)} · 6:00 AM CT`)
+    // A check "in the future" (clock skew) reads as the freshest bucket, never negative.
+    expect(formatCheckedAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).toBe(ago(0))
+    expect(formatCheckedAgo(FIXED_NOW_MS + 90_000, FIXED_NOW_MS)).not.toMatch(/-/)
   })
 })
 
@@ -167,17 +165,17 @@ describe("relative time", () => {
  * The late-evening matrix. 23:30 Central is already the next calendar day
  * in UTC, so a formatter that leaned on the machine zone would print the
  * wrong day (or hour) under `pnpm test` and the right one under
- * `pnpm test:tz`. Both runs must agree with these literals. One instant in
- * daylight time (CDT, UTC−5) and one in standard time (CST, UTC−6).
+ * `pnpm test:tz`. Both runs must agree with these literals. The shared
+ * `LATE_EVENING_CT` is the daylight-time case (CDT, UTC−5); the second
+ * case is the same wall-clock time in standard time (CST, UTC−6).
  */
 describe("23:30 Central, in both halves of the year, whatever TZ the process runs in", () => {
   const cases = [
-    { label: "CDT", nowIso: "2026-10-08T04:30:00.000Z", centralDay: "2026-10-07", incidentDay: "2026-08-18" },
-    { label: "CST", nowIso: "2026-01-16T05:30:00.000Z", centralDay: "2026-01-15", incidentDay: "2025-11-26" },
+    { label: "CDT (LATE_EVENING_CT)", nowMs: LATE_EVENING_CT_MS, centralDay: "2026-10-07", incidentDay: "2026-08-18" },
+    { label: "CST", nowMs: Date.parse("2026-01-16T05:30:00.000Z"), centralDay: "2026-01-15", incidentDay: "2025-11-26" },
   ] as const
 
-  it.each(cases)("$label: the Central day, clock time and incident date hold", ({ nowIso, centralDay, incidentDay }) => {
-    const nowMs = Date.parse(nowIso)
+  it.each(cases)("$label: the Central day, clock time and incident date hold", ({ nowMs, centralDay, incidentDay }) => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     expect(tz).toMatch(/^(UTC|America\/Chicago)$/)
 
@@ -188,7 +186,7 @@ describe("23:30 Central, in both halves of the year, whatever TZ the process run
     // The clock reads Central regardless of the process zone.
     expect(formatCentralTime(nowMs)).toBe("11:30 PM CT")
     expect(formatCentralTime(nowMs - 2 * 60_000)).toBe("11:28 PM CT")
-    expect(formatChecked(nowMs - 2 * 60_000, nowMs)).toBe("Checked 2 min ago · 11:28 PM CT")
+    expect(formatChecked(nowMs - 2 * 60_000, nowMs)).toBe(`Checked ${formatCheckedAgo(nowMs - 2 * 60_000, nowMs)} · 11:28 PM CT`)
 
     // Rows and the incident are dated from the instant, on the Central calendar.
     const rows = buildServices(nowMs, "green")
@@ -196,12 +194,12 @@ describe("23:30 Central, in both halves of the year, whatever TZ the process run
     expect(buildPastIncident(nowMs).day).toBe(incidentDay)
 
     // And the verdict's "updated" reads from the same instant.
-    expect(formatAgo(verdictFor(rows).updatedAtMs, nowMs)).toBe("2 min ago")
+    expect(formatCheckedAgo(verdictFor(rows).updatedAtMs, nowMs)).toBe(formatCheckedAgo(nowMs - 2 * 60_000, nowMs))
   })
 
   it("the Central clock crosses midnight exactly where Chicago does", () => {
-    // 23:59 CDT → "11:59 PM CT"; thirty seconds later it is 12:00 AM, same Central day → next day.
-    const beforeMidnight = Date.parse("2026-10-08T04:59:30.000Z")
+    // 23:59 CDT → "11:59 PM CT"; a minute later it is 12:00 AM and the next Central day.
+    const beforeMidnight = LATE_EVENING_CT_MS + 29.5 * 60_000
     expect(formatCentralTime(beforeMidnight)).toBe("11:59 PM CT")
     expect(todayIn(new Date(beforeMidnight))).toBe("2026-10-07")
     const afterMidnight = beforeMidnight + 60_000

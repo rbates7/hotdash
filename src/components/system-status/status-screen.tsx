@@ -15,8 +15,8 @@ import {
   STATUS_LABEL,
   buildPastIncident,
   buildServices,
-  formatAgo,
   formatChecked,
+  formatCheckedAgo,
   formatCounts,
   formatDownCount,
   verdictFor,
@@ -32,10 +32,10 @@ import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 
 /**
  * Status is never colour alone: each state has its own icon and its own
- * word, and the colour sits on both. Text colours are solid and clear
- * 4.5:1 on white, on the tinted banner and on the dark card (the e2e
- * measures every node); the banner tints are translucent only in dark,
- * where the probe composites them onto the canvas.
+ * word, and the colour sits on both. The words use the theme's text-safe
+ * status tokens (`--success-text` / `--warning-text` / `--danger-text`),
+ * which clear 4.5:1 on a surface in both themes — the e2e measures every
+ * node. Banner tints are fills, built from the matching fill tokens.
  */
 const TONE: Record<
   ServiceStatus,
@@ -43,21 +43,21 @@ const TONE: Record<
 > = {
   operational: {
     icon: CircleCheckIcon,
-    text: "text-green-700 dark:text-green-400",
-    banner: "bg-green-50 border-green-200 dark:bg-green-500/10 dark:border-green-500/25",
-    ring: "ring-green-600/15 dark:ring-green-400/20",
+    text: "text-success-text",
+    banner: "bg-success/8 border-success/25 dark:bg-success/12",
+    ring: "ring-success/15",
   },
   degraded: {
     icon: TriangleAlertIcon,
-    text: "text-amber-700 dark:text-amber-400",
-    banner: "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/25",
-    ring: "ring-amber-600/15 dark:ring-amber-400/20",
+    text: "text-warning-text",
+    banner: "bg-warning/12 border-warning/35 dark:bg-warning/12 dark:border-warning/25",
+    ring: "ring-warning/25",
   },
   down: {
     icon: CircleXIcon,
-    text: "text-red-700 dark:text-red-400",
-    banner: "bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/25",
-    ring: "ring-red-600/15 dark:ring-red-400/20",
+    text: "text-danger-text",
+    banner: "bg-destructive/8 border-destructive/25 dark:bg-destructive/12",
+    ring: "ring-destructive/15",
   },
 }
 
@@ -147,7 +147,7 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
   const status: ServiceStatus = verdict.green ? "operational" : verdict.anyDown ? "down" : "degraded"
   const tone = TONE[status]
   const updated = Number.isFinite(verdict.updatedAtMs)
-    ? `Updated ${formatAgo(verdict.updatedAtMs, nowMs)}`
+    ? `Updated ${formatCheckedAgo(verdict.updatedAtMs, nowMs)}`
     : "Not checked yet"
 
   return (

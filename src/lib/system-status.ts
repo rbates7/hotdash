@@ -9,7 +9,7 @@
  * server HTML and the client agree to the minute.
  */
 
-import { CENTRAL, addDays, todayIn } from "@/lib/clock"
+import { CENTRAL, addDays, formatRelative, todayIn } from "@/lib/clock"
 
 /* ----------------------------------------------------------------- model */
 
@@ -192,22 +192,9 @@ export const STATUS_LABEL: Record<ServiceStatus, string> = {
   down: "Down",
 }
 
-/**
- * "just now", "2 min ago", "1 hr ago", "3 hr ago", "2 days ago" — whole
- * units, measured from `nowMs`, never from the machine clock.
- */
-export function formatAgo(atMs: number, nowMs: number) {
-  const mins = Math.max(0, Math.round((nowMs - atMs) / 60_000))
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins} min ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours} hr ago`
-  const days = Math.round(hours / 24)
-  return `${days} ${days === 1 ? "day" : "days"} ago`
-}
-
 // Built on first use, not at import: Intl.DateTimeFormat is costly and a
-// server bundle that never formats a time should not pay for it.
+// server bundle that never formats a time should not pay for it. (Relative
+// time itself is the shared `formatRelative` in `@/lib/clock`.)
 let centralClock: Intl.DateTimeFormat | undefined
 
 /** "9:14 AM CT" — the wall-clock time where the founder is, whatever zone the machine is in. */
@@ -221,7 +208,15 @@ export function formatCentralTime(atMs: number) {
   return `${centralClock.format(atMs).replace(/\u202f/g, " ")} CT`
 }
 
+/**
+ * How long ago a check ran, in the shared formatter's verbose style —
+ * asked for explicitly, so this page does not move if the default does.
+ */
+export function formatCheckedAgo(atMs: number, nowMs: number) {
+  return formatRelative(atMs, nowMs, { style: "long" })
+}
+
 /** "Checked 2 min ago · 9:14 AM CT" */
 export function formatChecked(atMs: number, nowMs: number) {
-  return `Checked ${formatAgo(atMs, nowMs)} · ${formatCentralTime(atMs)}`
+  return `Checked ${formatCheckedAgo(atMs, nowMs)} · ${formatCentralTime(atMs)}`
 }

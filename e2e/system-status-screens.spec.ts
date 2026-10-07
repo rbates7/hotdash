@@ -26,14 +26,15 @@ async function shoot(page: Page, name: string, clip?: Parameters<Page["screensho
   }
 }
 
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
 const main = (page: Page) => page.getByRole("main")
 const banner = (page: Page) => main(page).getByRole("region", { name: "Current status", exact: true })
 const preview = (page: Page) => main(page).getByRole("group", { name: "Preview", exact: true })
 
 async function setTheme(page: Page, theme: "light" | "dark") {
   // Through the real provider: click the sidebar toggle, not a query param.
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  // The theme group sits in the sidebar footer, outside the nav landmark,
+  // and has no name of its own; the two buttons are unique on the page.
+  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 

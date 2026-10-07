@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { formatRelative } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 
 /**
@@ -7,11 +8,10 @@ import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
  * is persisted and nothing is polled; the not-green view is a URL preview.
  *
  * Every lookup is anchored to a named region (`Current status`,
- * `Components`, `Past incident`, the `Preview` group) or to the sidebar
- * rail — the shared sidebar has no named `nav` landmark yet, so, as on
- * Home, the rail is found by its slot and the link by role inside it.
+ * `Components`, `Past incident`, the `Preview` group) inside `main`, or to
+ * the sidebar's named `nav` landmark ("Founder dashboard").
  */
-const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
 const main = (page: Page) => page.getByRole("main")
 const banner = (page: Page) => main(page).getByRole("region", { name: "Current status", exact: true })
 const components = (page: Page) => main(page).getByRole("region", { name: "Components", exact: true })
@@ -22,10 +22,19 @@ const sampleNote = (page: Page) => main(page).getByRole("note", { name: "Sample 
 const headerTag = (page: Page) => main(page).locator("header").getByTestId("sample-data-tag")
 const componentsTag = (page: Page) => components(page).getByTestId("sample-data-tag")
 
+/**
+ * The page asks the shared formatter for its verbose style explicitly, so
+ * the expectation is built the same way rather than from a literal. Under
+ * an hour the wording is pure arithmetic, so any base instant works.
+ */
+const ago = (minutes: number) => formatRelative(-minutes * 60_000, 0, { style: "long" })
+
 const ROWS = ["iPad app API", "Sync", "Auth", "Billing", "chlkapp.com", "Export", "Sentry errors (24h)"]
 
 async function setTheme(page: Page, theme: "light" | "dark") {
-  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  // The theme group sits in the sidebar footer, outside the nav landmark,
+  // and has no name of its own; the two buttons are unique on the page.
+  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 
@@ -35,7 +44,7 @@ async function expectStatus(page: Page, name: string, status: "operational" | "d
   await expect(label).toHaveAttribute("data-status", status)
   await expect(label).toHaveText({ operational: "Operational", degraded: "Degraded", down: "Down" }[status])
   await expect(label.locator("svg[data-status-icon]")).toHaveCount(1)
-  await expect(row(page, name).locator("time")).toHaveText(/^Checked (just now|\d+ min ago) · \d{1,2}:\d{2} (AM|PM) CT$/)
+  await expect(row(page, name).locator("time")).toHaveText(new RegExp(`^Checked (${[0, 2, 3, 4, 5, 6].map(ago).join("|")}) · \\d{1,2}:\\d{2} (AM|PM) CT$`))
 }
 
 test.describe("System Status", () => {
@@ -52,7 +61,7 @@ test.describe("System Status", () => {
     await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
     await expect(banner(page)).toContainText("Every check passed. Nothing needs you.")
     // Seeded two minutes before the request, so the real clock reads it back as such.
-    await expect(banner(page).locator("time")).toHaveText("Updated 2 min ago")
+    await expect(banner(page).locator("time")).toHaveText(`Updated ${ago(2)}`)
     await expect(banner(page)).toContainText("7 operational")
     await expect(banner(page).locator("svg[data-status-icon]")).toHaveCount(1)
 
@@ -61,8 +70,8 @@ test.describe("System Status", () => {
     for (const name of ROWS) await expectStatus(page, name, "operational")
     await expect(components(page)).toContainText("None down")
     await expect(row(page, "chlkapp.com")).toContainText("Site up · 200 from Dallas")
-    await expect(row(page, "chlkapp.com").locator("time")).toHaveText(/^Checked 2 min ago/)
-    await expect(row(page, "Export").locator("time")).toHaveText(/^Checked 6 min ago/)
+    await expect(row(page, "chlkapp.com").locator("time")).toHaveText(new RegExp(`^Checked ${ago(2)}`))
+    await expect(row(page, "Export").locator("time")).toHaveText(new RegExp(`^Checked ${ago(6)}`))
 
     // Plain external links to Sentry and the site; no bug list anywhere.
     const sentry = main(page).locator("header").getByRole("link", { name: "Sentry", exact: true })
