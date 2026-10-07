@@ -378,7 +378,7 @@ export function CommunityDevelopmentScreen() {
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       {COLUMNS.map((c) => (
-                        <TableHead key={c} className={cn(HEAD, c === "Name" && "w-[26%]")}>
+                        <TableHead key={c} className={cn(HEAD, c === "Name" && "min-w-[16rem] w-[26%]")}>
                           {c}
                         </TableHead>
                       ))}
@@ -396,12 +396,12 @@ export function CommunityDevelopmentScreen() {
                           className="group/row hover:bg-transparent"
                           data-initiative={row.id}
                         >
-                          <TableCell className={cn(CELL, "min-w-0 whitespace-normal!")}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex flex-wrap items-center gap-1.5">
+                          <TableCell className={cn(CELL, "min-w-[16rem] whitespace-normal!")}>
+                            <div className="flex min-w-0 flex-col gap-0.5">
+                              <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                                 <Button
                                   variant="link"
-                                  className="text-label text-foreground h-auto whitespace-normal p-0 text-left font-semibold tracking-tight"
+                                  className="text-label text-foreground h-auto min-w-0 shrink whitespace-normal! p-0 text-left font-semibold tracking-tight [overflow-wrap:anywhere]"
                                   onClick={() => setViewing({ initiative: row, open: true })}
                                 >
                                   {row.name}

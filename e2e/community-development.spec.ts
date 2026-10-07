@@ -485,5 +485,17 @@ test.describe("Community Development at 1440", () => {
     await expect(
       table(page).getByRole("button", { name: "Actions for Equipment drive for Yates High School", exact: true })
     ).toBeInViewport()
+
+    for (const r of await bodyRows(page).all()) {
+      const nameBox = await r.getByRole("cell").nth(0).getByRole("button").first().boundingBox()
+      const typeBox = await r.getByRole("cell").nth(1).getByTestId("type-pill").boundingBox()
+      expect(nameBox, "name title box").toBeTruthy()
+      expect(typeBox, "type pill box").toBeTruthy()
+      const nameRight = nameBox!.x + nameBox!.width
+      expect(
+        nameRight,
+        `name overlaps type: "${(await r.getByRole("cell").nth(0).innerText()).replace(/\s+/g, " ")}"`
+      ).toBeLessThanOrEqual(typeBox!.x + 1)
+    }
   })
 })
