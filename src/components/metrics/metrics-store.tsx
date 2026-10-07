@@ -9,7 +9,7 @@ import {
   type Expense,
   type MetricId,
 } from "@/lib/metrics"
-import type { IsoDay } from "@/lib/metrics/clock"
+import { addDays, daysBetween, type IsoDay } from "@/lib/metrics/clock"
 import { seedExpenses } from "@/lib/metrics-fixture"
 
 export type State = {
@@ -20,6 +20,12 @@ export type State = {
   expenses: Expense[]
   /** Next number for a generated exp-n id. */
   nextExpenseId: number
+  /**
+   * The day the seed rows were dated against. On load they are shifted
+   * forward by the days since, so an edit made last week does not pin the
+   * sample expenses to last week. User-added rows keep their own dates.
+   */
+  seededAt: IsoDay
 }
 
 export type NewExpenseInput = Omit<Expense, "id">
@@ -30,7 +36,7 @@ export type Action =
   | { type: "set-chart"; id: MetricId; chart: ChartType }
   | { type: "add-expense"; input: NewExpenseInput }
   | { type: "remove-expense"; id: string }
-  | { type: "hydrate"; state: State | null }
+  | { type: "hydrate"; state: State | null; today: IsoDay }
   | { type: "reset"; today: IsoDay }
 
 export function reducer(state: State, action: Action): State {
@@ -69,20 +75,46 @@ export function reducer(state: State, action: Action): State {
       }
 
     case "hydrate":
-      return action.state ?? state
+      return action.state ? shiftSeed(action.state, action.today) : state
 
     case "reset":
       return initialState(action.today)
   }
 }
 
-/** Reducer state plus whether localStorage has been consulted yet. */
-type Shell = { data: State; hydrated: boolean }
+/** Ids the seed uses; anything else was entered by the user. */
+const SEED_IDS = new Set(seedExpenses("2026-01-01").map((e) => e.id))
+
+/**
+ * Bring a saved seed up to date: its rows move forward by the days since
+ * `seededAt`, capped at today. Rows the user added are left alone.
+ */
+export function shiftSeed(state: State, today: IsoDay): State {
+  const delta = daysBetween(state.seededAt, today)
+  if (delta <= 0) return state
+  return {
+    ...state,
+    seededAt: today,
+    expenses: state.expenses.map((e) => {
+      if (!SEED_IDS.has(e.id)) return e
+      const shifted = addDays(e.date, delta)
+      return { ...e, date: shifted > today ? today : shifted }
+    }),
+  }
+}
+
+/**
+ * Reducer state plus two flags: whether localStorage has been consulted,
+ * and whether the user has changed anything since. Only the latter earns a
+ * write — loading the page must not pin today's seed into storage.
+ */
+type Shell = { data: State; hydrated: boolean; edited: boolean }
 
 function shellReducer(shell: Shell, action: Action): Shell {
   return {
     data: reducer(shell.data, action),
     hydrated: shell.hydrated || action.type === "hydrate",
+    edited: shell.edited || action.type !== "hydrate",
   }
 }
 
@@ -98,6 +130,7 @@ export function initialState(today: IsoDay): State {
     charts: {},
     expenses,
     nextExpenseId: highest + 1,
+    seededAt: today,
   }
 }
 
@@ -105,11 +138,15 @@ export function initialState(today: IsoDay): State {
 
 /**
  * Board layout, chart choices and expense rows are saved to this browser's
- * localStorage so a reload keeps them. Bump the version whenever the seed
- * or the shape changes so stale saves are discarded instead of
- * half-applied. Stand-in until real Stripe/Supabase wiring; no server copy.
+ * localStorage so a reload keeps them — but only once the user has edited
+ * something; the untouched seed is never written. Bump the version whenever
+ * the seed or the shape changes so stale saves are discarded instead of
+ * half-applied (v1 froze the seed on load and had no `seededAt`). Stand-in
+ * until real Stripe/Supabase wiring; no server copy.
  */
-export const STORAGE_KEY = "hotdash.metrics.v1"
+export const STORAGE_KEY = "hotdash.metrics.v2"
+/** Dropped on load so an old save cannot linger beside the new one. */
+export const LEGACY_STORAGE_KEYS = ["hotdash.metrics.v1"] as const
 
 function isMetricId(value: unknown): value is MetricId {
   return typeof value === "string" && (METRIC_IDS as readonly string[]).includes(value)
@@ -137,12 +174,15 @@ function isState(value: unknown): value is State {
     v.charts !== null &&
     Array.isArray(v.expenses) &&
     v.expenses.every(isExpense) &&
-    typeof v.nextExpenseId === "number"
+    typeof v.nextExpenseId === "number" &&
+    typeof v.seededAt === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v.seededAt)
   )
 }
 
 export function loadState(storage: Storage | undefined): State | null {
   try {
+    for (const key of LEGACY_STORAGE_KEYS) storage?.removeItem(key)
     const raw = storage?.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
@@ -189,10 +229,10 @@ export function MetricsProvider({
   today: IsoDay
   children: React.ReactNode
 }) {
-  const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
+  const [{ data: state, hydrated: persisted, edited }, dispatch] = React.useReducer(
     shellReducer,
     today,
-    (day) => ({ data: initialState(day), hydrated: false })
+    (day) => ({ data: initialState(day), hydrated: false, edited: false })
   )
 
   // The server has no localStorage, so it renders with `persisted: false` and
@@ -200,12 +240,14 @@ export function MetricsProvider({
   // copy is read in a *layout* effect — it runs before the browser paints, so
   // the first frame a user sees is already their data, never the seed.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", state: loadState(window.localStorage) })
-  }, [])
+    dispatch({ type: "hydrate", state: loadState(window.localStorage), today })
+  }, [today])
 
+  // Write only after a real edit. A visit that changes nothing leaves
+  // storage untouched, so the seed keeps tracking today on later visits.
   React.useEffect(() => {
-    if (persisted) saveState(window.localStorage, state)
-  }, [persisted, state])
+    if (persisted && edited) saveState(window.localStorage, state)
+  }, [persisted, edited, state])
 
   const value = React.useMemo<Store>(
     () => ({

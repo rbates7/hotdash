@@ -5,12 +5,14 @@ import { describe, expect, it } from "vitest"
 import { DEFAULT_METRIC_IDS } from "@/lib/metrics"
 import { MOCK_DAY, seedExpenses } from "@/lib/metrics-fixture"
 import {
+  LEGACY_STORAGE_KEYS,
   MetricsProvider,
   STORAGE_KEY,
   initialState,
   loadState,
   reducer,
   saveState,
+  shiftSeed,
   useMetrics,
 } from "@/components/metrics/metrics-store"
 
@@ -24,6 +26,7 @@ describe("reducer", () => {
     expect(s.charts).toEqual({})
     expect(s.expenses).toEqual(seedExpenses(TODAY))
     expect(s.nextExpenseId).toBe(9)
+    expect(s.seededAt).toBe(TODAY)
   })
 
   it("adds a metric to the end and ignores duplicates", () => {
@@ -99,7 +102,58 @@ describe("reducer", () => {
   })
 })
 
+describe("seed ageing on load", () => {
+  it("moves seed rows forward by the days since they were seeded, capped at today", () => {
+    const saved = reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL })
+    const loaded = shiftSeed(saved, "2026-08-28")
+    expect(loaded.seededAt).toBe("2026-08-28")
+    // Seed rows: +7 days. Stripe fees was "today" and stays "today".
+    expect(loaded.expenses.find((e) => e.id === "exp-1")!.date).toBe("2026-08-25")
+    expect(loaded.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-08-28")
+    // The user's row keeps its absolute date.
+    expect(loaded.expenses.find((e) => e.category === "Vercel")!.date).toBe("2026-08-20")
+    expect(loaded.expenses.every((e) => e.date <= "2026-08-28")).toBe(true)
+  })
+
+  it("leaves a same-day or future-dated save alone", () => {
+    const saved = initialState("2026-08-21")
+    expect(shiftSeed(saved, "2026-08-21")).toBe(saved)
+    expect(shiftSeed(saved, "2026-08-20")).toBe(saved)
+  })
+
+  it("the hydrate action applies the shift", () => {
+    const saved = initialState("2026-08-21")
+    const s = reducer(initialState("2026-09-01"), { type: "hydrate", state: saved, today: "2026-09-01" })
+    expect(s.seededAt).toBe("2026-09-01")
+    expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-09-01")
+  })
+})
+
 describe("localStorage round trip", () => {
+  it("uses the v2 key", () => {
+    expect(STORAGE_KEY).toBe("hotdash.metrics.v2")
+    expect(LEGACY_STORAGE_KEYS).toContain("hotdash.metrics.v1")
+  })
+
+  it("ignores and removes an old v1 save", () => {
+    const v1 = {
+      visible: ["mrr"],
+      charts: {},
+      expenses: [{ id: "exp-1", category: "AWS", amount: 1, date: "2026-08-18", recurring: true }],
+      nextExpenseId: 9,
+    }
+    window.localStorage.setItem("hotdash.metrics.v1", JSON.stringify(v1))
+    expect(loadState(window.localStorage)).toBeNull()
+    expect(window.localStorage.getItem("hotdash.metrics.v1")).toBeNull()
+  })
+
+  it("rejects a v2-keyed save that lacks seededAt (the v1 shape)", () => {
+    const { seededAt: _dropped, ...v1Shape } = initialState(TODAY)
+    void _dropped
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(v1Shape))
+    expect(loadState(window.localStorage)).toBeNull()
+  })
+
   it("saves and loads the same state", () => {
     let s = reducer(initialState(TODAY), { type: "add-metric", id: "nps" })
     s = reducer(s, { type: "set-chart", id: "arr", chart: "line" })
@@ -137,6 +191,7 @@ function Probe() {
       <span data-testid="visible">{visible.join(",")}</span>
       <span data-testid="mrr-chart">{charts.mrr ?? "default"}</span>
       <span data-testid="expense-count">{expenses.length}</span>
+      <span data-testid="dates">{expenses.map((e) => e.date).join(",")}</span>
       <button
         type="button"
         onClick={() => {
@@ -152,6 +207,32 @@ function Probe() {
 }
 
 describe("MetricsProvider persistence", () => {
+  it("does not write the untouched seed on first load", async () => {
+    render(
+      <MetricsProvider today={TODAY}>
+        <Probe />
+      </MetricsProvider>
+    )
+    expect(await screen.findByText("true", { selector: "[data-testid=persisted]" })).toBeInTheDocument()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+
+  it("on a later day, a saved seed reads relative to that day; user rows do not move", async () => {
+    saveState(window.localStorage, reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL }))
+    render(
+      <MetricsProvider today="2026-08-24">
+        <Probe />
+      </MetricsProvider>
+    )
+    expect(await screen.findByText("true", { selector: "[data-testid=persisted]" })).toBeInTheDocument()
+    const dates = screen.getByTestId("dates").textContent!.split(",")
+    expect(dates).toContain("2026-08-24") // Stripe fees, shifted +3
+    expect(dates).toContain("2026-08-21") // AWS, was −3
+    expect(dates).toContain("2026-08-20") // Vercel, untouched
+    // Reading did not write anything back.
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)!).seededAt).toBe("2026-08-21")
+  })
+
   it("persists edits and rehydrates them after a remount (reload)", async () => {
     const first = render(
       <MetricsProvider today={TODAY}>
