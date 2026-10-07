@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import { ChevronRightIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -7,6 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export const RESPONSIVE_TABLE_SLOT = "responsive-table"
 export const ROW_COLLAPSE_SLOT = "row-collapse"
+
+export type RowCollapseMeta = {
+  label: string
+  value: string
+}
 
 /**
  * The one narrow-screen table helper. Screens should wrap a `Table` (or any
@@ -18,6 +23,7 @@ export const ROW_COLLAPSE_SLOT = "row-collapse"
  *   first cell's subline at the screen.
  * - `scroll` (default): keep columns and scroll inside this box. Use
  *   `pinFirst` for dense numeric tables (Metrics Expenses).
+ * - `stack` without `stacked` falls back to the same horizontal scroller.
  */
 export function ResponsiveTable({
   children,
@@ -27,10 +33,12 @@ export function ResponsiveTable({
   className,
   ...props
 }: ComponentProps<"div"> & {
-  stacked?: React.ReactNode
+  stacked?: ReactNode
   layout?: "scroll" | "stack"
   pinFirst?: boolean
 }) {
+  const showStack = layout === "stack" && Boolean(stacked)
+
   return (
     <div
       data-slot={RESPONSIVE_TABLE_SLOT}
@@ -38,14 +46,14 @@ export function ResponsiveTable({
       data-pin-first={pinFirst || undefined}
       className={cn(
         "w-full min-w-0 max-w-full",
-        layout === "scroll" && "overflow-x-auto overscroll-x-contain",
+        !showStack && "overflow-x-auto overscroll-x-contain",
         pinFirst &&
           "[&_th:first-child]:bg-background [&_td:first-child]:bg-background [&_th:first-child]:sticky [&_td:first-child]:sticky [&_th:first-child]:left-0 [&_td:first-child]:left-0 [&_th:first-child]:z-10 [&_td:first-child]:z-10",
         className
       )}
       {...props}
     >
-      {layout === "stack" && stacked ? (
+      {showStack ? (
         <>
           <div className="md:hidden">{stacked}</div>
           <div className="hidden md:block">{children}</div>
@@ -58,9 +66,9 @@ export function ResponsiveTable({
 }
 
 /**
- * Phone record-list card (Deke 7:46). Title + status pill + two meta lines +
- * chevron. Whole row is the tap target (min 64). `onClick` should open the
- * screen's existing row dialog as a bottom sheet — wiring is per-screen.
+ * Phone record-list card (Deke 7:46). Title + status pill + labelled meta
+ * pairs + chevron. Whole row is the tap target (min 64). `onClick` should
+ * open the screen's existing row dialog as a bottom sheet — wiring is per-screen.
  */
 export function RowCollapse({
   title,
@@ -73,8 +81,8 @@ export function RowCollapse({
   className,
 }: {
   title: string
-  status?: React.ReactNode
-  meta?: string[]
+  status?: ReactNode
+  meta?: RowCollapseMeta[]
   sample?: boolean
   attention?: boolean
   loading?: boolean
@@ -88,6 +96,7 @@ export function RowCollapse({
       {...(onClick ? { type: "button" as const, onClick } : {})}
       data-slot={ROW_COLLAPSE_SLOT}
       data-state={loading ? "loading" : attention ? "attention" : "default"}
+      aria-busy={loading || undefined}
       className={cn(
         "flex min-h-16 w-full items-center gap-3 border-b py-3 pr-3 pl-4 text-left",
         attention && "bg-destructive/3",
@@ -95,41 +104,47 @@ export function RowCollapse({
         className
       )}
     >
-      <div className={cn("flex min-w-0 flex-1 flex-col", loading ? "gap-2" : "gap-1")}>
+      <span className={cn("flex min-w-0 flex-1 flex-col", loading ? "gap-2" : "gap-1")}>
         {loading ? (
           <>
-            <div className="flex items-center justify-between gap-2">
+            <span className="sr-only">Loading</span>
+            <span className="flex items-center justify-between gap-2">
               <Skeleton className="h-3.5 w-48 rounded-md" />
               <Skeleton className="h-5.5 w-14 rounded-full" />
-            </div>
+            </span>
             <Skeleton className="h-3 w-60 rounded-md" />
             <Skeleton className="h-3 w-36 rounded-md" />
           </>
         ) : (
           <>
-            <div className="flex items-start gap-2">
-              <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-5 font-semibold tracking-tight">
+            <span className="flex items-start gap-2">
+              <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-5 font-semibold tracking-tight">
                 {title}
-              </p>
-              {status ? <div className="shrink-0">{status}</div> : null}
-            </div>
-            {meta.slice(0, 2).map((line, index) => (
-              <p
-                key={`${index}-${line}`}
-                className={cn(
-                  "truncate text-xs leading-4",
-                  attention && index === 1
-                    ? "text-destructive font-medium"
-                    : "text-muted-foreground"
-                )}
-              >
-                {line}
-              </p>
-            ))}
+              </span>
+              {status ? <span className="shrink-0">{status}</span> : null}
+            </span>
+            {meta.length > 0 ? (
+              <ul className="flex min-w-0 flex-col gap-1">
+                {meta.map((line) => (
+                  <li
+                    key={`${line.label}-${line.value}`}
+                    className={cn(
+                      "truncate text-xs leading-4",
+                      attention && line === meta[1]
+                        ? "text-destructive font-medium"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <span className="sr-only">{line.label}: </span>
+                    <span>{line.value}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {sample ? <SampleDataTag /> : null}
           </>
         )}
-      </div>
+      </span>
       <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" aria-hidden />
     </Comp>
   )
