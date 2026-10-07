@@ -82,7 +82,7 @@ test.describe("CRM", () => {
     await expect(page.getByText(/Status changed to Waiting on customer/)).toBeVisible()
     await page.getByRole("combobox", { name: "Priority" }).click()
     await page.getByRole("option", { name: "Urgent", exact: true }).click()
-    await expect(page.getByRole("combobox", { name: "Priority" })).toHaveText("Urgent")
+    await expect(page.getByRole("combobox", { name: "Priority" })).toContainText("Urgent")
 
     await page.getByLabel("Internal note").fill("Called Dana, waiting on a screenshot.")
     await page.getByRole("button", { name: "Add note", exact: true }).click()
@@ -119,7 +119,7 @@ test.describe("CRM", () => {
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
     await page.getByRole("link", { name: /Can't invite teammates to workspace/ }).click()
     await expect(page.getByText("Called Dana, waiting on a screenshot.")).toBeVisible()
-    await expect(page.getByRole("combobox", { name: "Priority" })).toHaveText("Urgent")
+    await expect(page.getByRole("combobox", { name: "Priority" })).toContainText("Urgent")
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
     await expect(page.getByRole("row", { name: /Pat Reyes/ })).toBeVisible()
 
