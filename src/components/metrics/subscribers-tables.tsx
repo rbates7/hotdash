@@ -2,9 +2,9 @@
 
 import * as React from "react"
 
+import { formatDate } from "@/lib/metrics/clock"
 import {
   formatCurrency,
-  formatDate,
   sortRows,
   toggleSort,
   type ChurnedSubscriber,
@@ -12,7 +12,8 @@ import {
   type Plan,
   type Sort,
 } from "@/lib/metrics"
-import { churnedSubscribers, newSubscribers } from "@/lib/metrics-fixture"
+import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/metrics-fixture"
+import { useMetrics } from "@/components/metrics/metrics-store"
 import {
   Table,
   TableBody,
@@ -36,16 +37,14 @@ const PLAN_TONE: Record<Plan, "plan" | "annual" | "muted"> = {
 
 type NewKey = "name" | "plan" | "signupDate"
 
-export function NewSubscribersTable({
-  rows = newSubscribers,
-}: {
-  rows?: NewSubscriber[]
-}) {
+export function NewSubscribersTable({ rows }: { rows?: NewSubscriber[] }) {
+  const { today } = useMetrics()
+  const data = rows ?? seedNewSubscribers(today)
   const [sort, setSort] = React.useState<Sort<NewKey> | null>({
     key: "signupDate",
     dir: "desc",
   })
-  const sorted = sortRows(rows, sort)
+  const sorted = sortRows(data, sort)
   const onSort = (key: NewKey) =>
     setSort((s) => toggleSort(s, key, key === "signupDate" ? "desc" : "asc"))
 
@@ -85,16 +84,14 @@ export function NewSubscribersTable({
 
 type ChurnKey = "name" | "signupDate" | "churnDate" | "lifetimeValue"
 
-export function ChurnedSubscribersTable({
-  rows = churnedSubscribers,
-}: {
-  rows?: ChurnedSubscriber[]
-}) {
+export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }) {
+  const { today } = useMetrics()
+  const data = rows ?? seedChurnedSubscribers(today)
   const [sort, setSort] = React.useState<Sort<ChurnKey> | null>({
     key: "churnDate",
     dir: "desc",
   })
-  const sorted = sortRows(rows, sort)
+  const sorted = sortRows(data, sort)
   const onSort = (key: ChurnKey) =>
     setSort((s) => toggleSort(s, key, key === "name" ? "asc" : "desc"))
 

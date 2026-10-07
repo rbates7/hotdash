@@ -5,6 +5,7 @@ import { Bar, BarChart, Cell, Line, LineChart, YAxis } from "recharts"
 import type { BarShapeProps } from "recharts/types/cartesian/Bar"
 
 import type { ChartType } from "@/lib/metrics"
+import { formatMonthSpan, monthsEnding, type IsoDay } from "@/lib/metrics/clock"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 
 const WIDTH = 120
@@ -59,14 +60,25 @@ export function MetricChart({
   series,
   type,
   label,
+  today,
 }: {
   series: readonly number[]
   type: ChartType
   label: string
+  /** The page's calendar day; the six points are the six months ending in it. */
+  today: IsoDay
 }) {
-  const data = React.useMemo(() => series.map((v, i) => ({ i, v })), [series])
+  // Month labels derive from today, so the same series reads as the right
+  // half-year whenever it is viewed. Too small to print on the axis; they
+  // name the chart and label its points for assistive tech and hover.
+  const months = React.useMemo(() => monthsEnding(today, series.length), [today, series.length])
+  const data = React.useMemo(
+    () => series.map((v, i) => ({ i, v, month: months[i]?.label ?? "" })),
+    [series, months]
+  )
   const domain = React.useMemo(() => chartDomain(series), [series])
   const last = data.length - 1
+  const span = formatMonthSpan(months)
 
   return (
     <ChartContainer
@@ -74,7 +86,9 @@ export function MetricChart({
       initialDimension={{ width: WIDTH, height: HEIGHT }}
       className="aspect-auto h-[52px] w-[120px] flex-none"
       role="img"
-      aria-label={`${label}, six-month ${type} chart`}
+      aria-label={`${label}, six-month ${type} chart, ${span}`}
+      title={`${label}: ${span}`}
+      data-months={months.map((m) => m.label).join(" ")}
     >
       {type === "bar" ? (
         <BarChart

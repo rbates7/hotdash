@@ -12,6 +12,10 @@ import {
 } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { SAMPLE_DATA_LABEL } from "@/components/metrics/sample-data"
+import { MOCK_DAY } from "@/lib/metrics-fixture"
+
+/** The day the mock was drawn, so rows and labels match it verbatim. */
+const TODAY = MOCK_DAY
 
 beforeAll(() => {
   // Recharts' ResponsiveContainer measures itself; jsdom has no layout or
@@ -27,11 +31,11 @@ beforeAll(() => {
   )
 })
 
-function renderTabs(search = "") {
+function renderTabs(search = "", today = TODAY) {
   navigation.params = new URLSearchParams(search)
   navigation.push.mockReset()
   return render(
-    <MetricsProvider>
+    <MetricsProvider today={today}>
       <MetricsTabs />
     </MetricsProvider>
   )
@@ -71,7 +75,7 @@ describe("MetricsTabs", () => {
 
   describe("hydration", () => {
     it("shows skeletons, never the seed, until localStorage has been read", async () => {
-      saveState(window.localStorage, reducer(initialState(), { type: "remove-metric", id: "arr" }))
+      saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove-metric", id: "arr" }))
 
       // Watch the DOM from before mount. The layout effect swaps the first
       // committed frame for the saved board synchronously, so by the time the
@@ -85,7 +89,7 @@ describe("MetricsTabs", () => {
       observer.observe(document.body, { childList: true, subtree: true })
       navigation.params = new URLSearchParams()
       render(
-        <MetricsProvider>
+        <MetricsProvider today={TODAY}>
           <MetricsTabs />
         </MetricsProvider>
       )
@@ -142,6 +146,38 @@ describe("MetricsTabs", () => {
     })
   })
 
+  describe("clock-derived content", () => {
+    it("charts name the six months ending in today's month", () => {
+      renderTabs()
+      expect(
+        within(card("MRR")).getByRole("img", { name: "MRR, six-month bar chart, Mar – Aug 2026" })
+      ).toHaveAttribute("data-months", "Mar Apr May Jun Jul Aug")
+
+      renderTabs("", "2026-10-07")
+      expect(
+        within(screen.getAllByRole("article", { name: "MRR" }).at(-1)!).getByRole("img", {
+          name: "MRR, six-month bar chart, May – Oct 2026",
+        })
+      ).toBeInTheDocument()
+    })
+
+    it("seed tables and the add-expense default follow today", async () => {
+      const user = userEvent.setup()
+      renderTabs("tab=new", "2026-10-07")
+      const rows = within(screen.getByRole("table", { name: "New subscribers" })).getAllByRole("row").slice(1)
+      expect(within(rows[0]).getByText("4 Oct 2026")).toBeInTheDocument() // today − 3
+      expect(within(rows[7]).getByText("7 Sep 2026")).toBeInTheDocument() // today − 30
+
+      renderTabs("tab=expenses", "2026-10-07")
+      const table = screen.getAllByRole("table", { name: "Expenses" }).at(-1)!
+      expect(within(table).getByRole("row", { name: /Stripe fees/ })).toHaveTextContent("7 Oct 2026")
+      await user.click(screen.getAllByRole("button", { name: "Add expense" }).at(-1)!)
+      const dialog = await screen.findByRole("dialog", { name: "Add expense" })
+      expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-10-07")
+      expect(within(dialog).getByLabelText("Date")).toHaveAttribute("max", "2026-10-07")
+    })
+  })
+
   describe("Overview", () => {
     it("shows the eight default cards, in order, with value, trend and caption", () => {
       renderTabs()
@@ -179,7 +215,7 @@ describe("MetricsTabs", () => {
       await user.click(within(card("MRR")).getByRole("button", { name: "MRR: line chart" }))
       expect(within(card("MRR")).getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
       expect(within(card("MRR")).getByRole("button", { name: "MRR: bar chart" })).toHaveAttribute("aria-pressed", "false")
-      expect(within(card("MRR")).getByRole("img", { name: /line chart/ })).toBeInTheDocument()
+      expect(within(card("MRR")).getByRole("img", { name: "MRR, six-month line chart, Mar – Aug 2026" })).toBeInTheDocument()
     })
 
     it("removes a card and offers it again in the picker after the extras", async () => {

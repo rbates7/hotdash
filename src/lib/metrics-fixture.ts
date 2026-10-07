@@ -1,7 +1,6 @@
+import { addDays, type IsoDay } from "@/lib/metrics/clock"
 import {
   expensesTotal,
-  formatDate,
-  isoDay,
   valuationFromArr,
   type ChurnedSubscriber,
   type Expense,
@@ -17,21 +16,11 @@ import {
  */
 
 /**
- * The one clock for this page. Every date here — the reporting period, the
- * default date on a new expense, every seed row — is frozen relative to it,
- * never to the real `new Date()`, so the mock reads the same on any day and
- * server and client never disagree.
+ * The day the mock was drawn. Seed rows are expressed as day offsets so that
+ * `seedX(MOCK_DAY)` reproduces the mock exactly, while on any other day the
+ * same rows sit the same distance behind "today" and never postdate it.
  */
-export const NOW = new Date("2026-08-21T12:00:00.000Z")
-
-/** The reporting period: four weeks ending today. */
-export const PERIOD = {
-  start: isoDay(new Date(NOW.getTime() - 27 * 86_400_000)),
-  end: isoDay(NOW),
-} as const
-
-/** What the header's (decorative) range control shows: "25 Jul – 21 Aug 2026". */
-export const DATE_RANGE_LABEL = `${formatDate(PERIOD.start).replace(/ \d{4}$/, "")} – ${formatDate(PERIOD.end)}`
+export const MOCK_DAY: IsoDay = "2026-08-21"
 
 export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   mrr: { id: "mrr", label: "MRR", unit: "currency", trendKind: "percent", defaultChart: "bar" },
@@ -107,36 +96,45 @@ export function snapshotFor(
 
 /* ------------------------------------------------------------- expenses */
 
-export const expenses: Expense[] = [
-  { id: "exp-1", category: "AWS", amount: 5_410, date: "2026-08-18", recurring: true },
-  // The mock's rows sum to $8,104 against a card reading $8,240; Stripe fees
-  // absorb the gap so the derived card lands on the mock's headline number.
-  { id: "exp-2", category: "Stripe fees", amount: 1_978, date: "2026-08-21", recurring: false },
-  { id: "exp-3", category: "Cursor", amount: 320, date: "2026-08-01", recurring: true },
-  { id: "exp-4", category: "Google Workspace", amount: 288, date: "2026-08-08", recurring: true },
-  { id: "exp-5", category: "Apple Developer", amount: 99, date: "2026-08-15", recurring: true },
-  { id: "exp-6", category: "Figma", amount: 75, date: "2026-08-12", recurring: true },
-  { id: "exp-7", category: "Notion", amount: 48, date: "2026-08-04", recurring: true },
-  { id: "exp-8", category: "Domain", amount: 22, date: "2026-08-03", recurring: false },
-]
+export function seedExpenses(today: IsoDay): Expense[] {
+  const d = (offset: number) => addDays(today, offset)
+  return [
+    { id: "exp-1", category: "AWS", amount: 5_410, date: d(-3), recurring: true },
+    // The mock's rows sum to $8,104 against a card reading $8,240; Stripe fees
+    // absorb the gap so the derived card lands on the mock's headline number.
+    { id: "exp-2", category: "Stripe fees", amount: 1_978, date: d(0), recurring: false },
+    { id: "exp-3", category: "Cursor", amount: 320, date: d(-20), recurring: true },
+    { id: "exp-4", category: "Google Workspace", amount: 288, date: d(-13), recurring: true },
+    { id: "exp-5", category: "Apple Developer", amount: 99, date: d(-6), recurring: true },
+    { id: "exp-6", category: "Figma", amount: 75, date: d(-9), recurring: true },
+    { id: "exp-7", category: "Notion", amount: 48, date: d(-17), recurring: true },
+    { id: "exp-8", category: "Domain", amount: 22, date: d(-18), recurring: false },
+  ]
+}
 
 /* ---------------------------------------------------------- subscribers */
 
-export const newSubscribers: NewSubscriber[] = [
-  { id: "ns-1", name: "Alisha Patel", email: "apatel@canyonridgesports.com", plan: "Monthly", signupDate: "2026-08-18" },
-  { id: "ns-2", name: "Jamal Reeves", email: "jreeves@oakmontcoaches.net", plan: "Staff", signupDate: "2026-08-11" },
-  { id: "ns-3", name: "Priya Shah", email: "priya.shah@riverbendhs.org", plan: "Annual", signupDate: "2026-08-06" },
-  { id: "ns-4", name: "Marcus Hale", email: "mhale@westfieldfb.org", plan: "Annual", signupDate: "2026-08-03" },
-  { id: "ns-5", name: "Colin Brooks", email: "cbrooks@highlandathletics.com", plan: "Monthly", signupDate: "2026-07-31" },
-  { id: "ns-6", name: "Denise Okonkwo", email: "denise.o@lakeridgeathletics.com", plan: "Monthly", signupDate: "2026-07-28" },
-  { id: "ns-7", name: "Elena Vasquez", email: "elena.v@southforkfb.net", plan: "Annual", signupDate: "2026-07-25" },
-  { id: "ns-8", name: "Troy Nguyen", email: "troy.nguyen@northsideprep.edu", plan: "Annual", signupDate: "2026-07-22" },
-]
+export function seedNewSubscribers(today: IsoDay): NewSubscriber[] {
+  const d = (offset: number) => addDays(today, offset)
+  return [
+    { id: "ns-1", name: "Alisha Patel", email: "apatel@canyonridgesports.com", plan: "Monthly", signupDate: d(-3) },
+    { id: "ns-2", name: "Jamal Reeves", email: "jreeves@oakmontcoaches.net", plan: "Staff", signupDate: d(-10) },
+    { id: "ns-3", name: "Priya Shah", email: "priya.shah@riverbendhs.org", plan: "Annual", signupDate: d(-15) },
+    { id: "ns-4", name: "Marcus Hale", email: "mhale@westfieldfb.org", plan: "Annual", signupDate: d(-18) },
+    { id: "ns-5", name: "Colin Brooks", email: "cbrooks@highlandathletics.com", plan: "Monthly", signupDate: d(-21) },
+    { id: "ns-6", name: "Denise Okonkwo", email: "denise.o@lakeridgeathletics.com", plan: "Monthly", signupDate: d(-24) },
+    { id: "ns-7", name: "Elena Vasquez", email: "elena.v@southforkfb.net", plan: "Annual", signupDate: d(-27) },
+    { id: "ns-8", name: "Troy Nguyen", email: "troy.nguyen@northsideprep.edu", plan: "Annual", signupDate: d(-30) },
+  ]
+}
 
-export const churnedSubscribers: ChurnedSubscriber[] = [
-  { id: "cs-1", name: "Brett Holloway", email: "b.holloway@meadowpark.edu", signupDate: "2026-01-12", churnDate: "2026-08-08", lifetimeValue: 199 },
-  { id: "cs-2", name: "Nina Cho", email: "nina.cho@coastalprep.org", signupDate: "2025-09-04", churnDate: "2026-08-02", lifetimeValue: 398 },
-  { id: "cs-3", name: "Derek Fontaine", email: "dfontaine@ironwoodfb.com", signupDate: "2026-03-19", churnDate: "2026-07-29", lifetimeValue: 79 },
-  { id: "cs-4", name: "Tamara Ellis", email: "tellis@prairieviewathletics.net", signupDate: "2025-11-07", churnDate: "2026-07-21", lifetimeValue: 199 },
-  { id: "cs-5", name: "Omar Siddiqui", email: "omar.s@ridgecresths.org", signupDate: "2026-02-02", churnDate: "2026-07-15", lifetimeValue: 398 },
-]
+export function seedChurnedSubscribers(today: IsoDay): ChurnedSubscriber[] {
+  const d = (offset: number) => addDays(today, offset)
+  return [
+    { id: "cs-1", name: "Brett Holloway", email: "b.holloway@meadowpark.edu", signupDate: d(-221), churnDate: d(-13), lifetimeValue: 199 },
+    { id: "cs-2", name: "Nina Cho", email: "nina.cho@coastalprep.org", signupDate: d(-351), churnDate: d(-19), lifetimeValue: 398 },
+    { id: "cs-3", name: "Derek Fontaine", email: "dfontaine@ironwoodfb.com", signupDate: d(-155), churnDate: d(-23), lifetimeValue: 79 },
+    { id: "cs-4", name: "Tamara Ellis", email: "tellis@prairieviewathletics.net", signupDate: d(-287), churnDate: d(-31), lifetimeValue: 199 },
+    { id: "cs-5", name: "Omar Siddiqui", email: "omar.s@ridgecresths.org", signupDate: d(-200), churnDate: d(-37), lifetimeValue: 398 },
+  ]
+}

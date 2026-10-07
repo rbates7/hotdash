@@ -16,6 +16,7 @@ import {
 } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
 import { MetricChart } from "@/components/metrics/metric-chart"
+import { useMetrics } from "@/components/metrics/metrics-store"
 import { SampleDataTag } from "@/components/metrics/sample-data"
 
 function ToolButton({
@@ -82,6 +83,7 @@ export function MetricCard({
   onRemove?: () => void
   className?: string
 }) {
+  const { today } = useMetrics()
   return (
     <article
       aria-label={snapshot.label}
@@ -149,7 +151,12 @@ export function MetricCard({
             </span>
           </div>
         </div>
-        <MetricChart series={snapshot.series} type={chart} label={snapshot.label} />
+        <MetricChart
+          series={snapshot.series}
+          type={chart}
+          label={snapshot.label}
+          today={today}
+        />
       </div>
     </article>
   )

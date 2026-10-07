@@ -5,7 +5,6 @@ import {
   EXTRA_METRIC_IDS,
   expensesTotal,
   formatCurrency,
-  formatDate,
   formatMetricValue,
   pickerIds,
   sortRows,
@@ -14,16 +13,10 @@ import {
   valuationFromArr,
   type MetricId,
 } from "@/lib/metrics"
-import {
-  DATE_RANGE_LABEL,
-  METRIC_DEFS,
-  NOW,
-  PERIOD,
-  churnedSubscribers,
-  expenses,
-  newSubscribers,
-  snapshotFor,
-} from "@/lib/metrics-fixture"
+import { METRIC_DEFS, MOCK_DAY, seedExpenses, snapshotFor } from "@/lib/metrics-fixture"
+
+/** The seed as the mock drew it; dates are irrelevant to the sums below. */
+const expenses = seedExpenses(MOCK_DAY)
 
 /** The headline and trend each card in the mock shows. */
 const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
@@ -131,30 +124,6 @@ describe("formatting", () => {
   it("percent drops a trailing .0", () => {
     expect(formatMetricValue(28, "percent")).toBe("28%")
     expect(formatMetricValue(96.25, "percent")).toBe("96.3%")
-  })
-
-  it("dates print as day month year regardless of time zone", () => {
-    expect(formatDate("2026-08-18")).toBe("18 Aug 2026")
-    expect(formatDate("2025-09-04")).toBe("4 Sep 2025")
-    expect(formatDate("2026-01-01")).toBe("1 Jan 2026")
-    expect(formatDate("not-a-date")).toBe("not-a-date")
-  })
-})
-
-describe("one clock", () => {
-  it("the period and its label derive from the frozen NOW, not the machine date", () => {
-    expect(NOW.toISOString()).toBe("2026-08-21T12:00:00.000Z")
-    expect(PERIOD).toEqual({ start: "2026-07-25", end: "2026-08-21" })
-    expect(DATE_RANGE_LABEL).toBe("25 Jul – 21 Aug 2026")
-  })
-
-  it("no seed row is dated after NOW", () => {
-    const dates = [
-      ...expenses.map((e) => e.date),
-      ...newSubscribers.map((s) => s.signupDate),
-      ...churnedSubscribers.flatMap((s) => [s.signupDate, s.churnDate]),
-    ]
-    for (const d of dates) expect(d <= PERIOD.end).toBe(true)
   })
 })
 

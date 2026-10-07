@@ -3,15 +3,15 @@
 import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
+import { formatDate } from "@/lib/metrics/clock"
 import {
   formatCurrency,
-  formatDate,
   sortRows,
   toggleSort,
   type Expense,
   type Sort,
 } from "@/lib/metrics"
-import { METRIC_DEFS, PERIOD, snapshotFor } from "@/lib/metrics-fixture"
+import { METRIC_DEFS, snapshotFor } from "@/lib/metrics-fixture"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -41,15 +41,13 @@ import {
   TableCard,
 } from "@/components/metrics/table-bits"
 
-/** "Today" on the page's frozen clock, not the machine's. */
-const DEFAULT_DATE = PERIOD.end
-
 function AddExpenseDialog() {
-  const { addExpense } = useMetrics()
+  // Default to the page's "today" (read once per request), not the machine's.
+  const { today, addExpense } = useMetrics()
   const [open, setOpen] = React.useState(false)
   const [category, setCategory] = React.useState("")
   const [amount, setAmount] = React.useState("")
-  const [date, setDate] = React.useState(DEFAULT_DATE)
+  const [date, setDate] = React.useState(today)
   const [recurring, setRecurring] = React.useState(false)
 
   const amountNumber = Number(amount)
@@ -57,12 +55,13 @@ function AddExpenseDialog() {
     category.trim().length > 0 &&
     Number.isFinite(amountNumber) &&
     amountNumber > 0 &&
-    /^\d{4}-\d{2}-\d{2}$/.test(date)
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    date <= today
 
   function reset() {
     setCategory("")
     setAmount("")
-    setDate(DEFAULT_DATE)
+    setDate(today)
     setRecurring(false)
   }
 
@@ -129,6 +128,7 @@ function AddExpenseDialog() {
                 <span className="text-caption font-medium">Date</span>
                 <Input
                   type="date"
+                  max={today}
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   aria-label="Date"

@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { DEFAULT_METRIC_IDS } from "@/lib/metrics"
-import { expenses as seedExpenses } from "@/lib/metrics-fixture"
+import { MOCK_DAY, seedExpenses } from "@/lib/metrics-fixture"
 import {
   MetricsProvider,
   STORAGE_KEY,
@@ -14,19 +14,20 @@ import {
   useMetrics,
 } from "@/components/metrics/metrics-store"
 
+const TODAY = MOCK_DAY
 const VERCEL = { category: " Vercel ", amount: 159.6, date: "2026-08-20", recurring: true }
 
 describe("reducer", () => {
   it("starts with the eight default cards, no chart overrides and the seed expenses", () => {
-    const s = initialState()
+    const s = initialState(TODAY)
     expect(s.visible).toEqual([...DEFAULT_METRIC_IDS])
     expect(s.charts).toEqual({})
-    expect(s.expenses).toEqual(seedExpenses)
+    expect(s.expenses).toEqual(seedExpenses(TODAY))
     expect(s.nextExpenseId).toBe(9)
   })
 
   it("adds a metric to the end and ignores duplicates", () => {
-    let s = reducer(initialState(), { type: "add-metric", id: "cac" })
+    let s = reducer(initialState(TODAY), { type: "add-metric", id: "cac" })
     expect(s.visible.at(-1)).toBe("cac")
     const again = reducer(s, { type: "add-metric", id: "cac" })
     expect(again).toBe(s)
@@ -35,7 +36,7 @@ describe("reducer", () => {
   })
 
   it("removes a metric and lets it be added back", () => {
-    let s = reducer(initialState(), { type: "remove-metric", id: "mrr" })
+    let s = reducer(initialState(TODAY), { type: "remove-metric", id: "mrr" })
     expect(s.visible).not.toContain("mrr")
     expect(s.visible).toHaveLength(7)
     s = reducer(s, { type: "add-metric", id: "mrr" })
@@ -45,13 +46,13 @@ describe("reducer", () => {
   it("can empty the board", () => {
     const s = DEFAULT_METRIC_IDS.reduce(
       (acc, id) => reducer(acc, { type: "remove-metric", id }),
-      initialState()
+      initialState(TODAY)
     )
     expect(s.visible).toEqual([])
   })
 
   it("records a chart choice per card", () => {
-    let s = reducer(initialState(), { type: "set-chart", id: "mrr", chart: "line" })
+    let s = reducer(initialState(TODAY), { type: "set-chart", id: "mrr", chart: "line" })
     s = reducer(s, { type: "set-chart", id: "churn", chart: "bar" })
     expect(s.charts).toEqual({ mrr: "line", churn: "bar" })
     s = reducer(s, { type: "set-chart", id: "mrr", chart: "bar" })
@@ -59,7 +60,7 @@ describe("reducer", () => {
   })
 
   it("adds an expense first, trimmed and rounded, with the next id", () => {
-    const s = reducer(initialState(), { type: "add-expense", input: VERCEL })
+    const s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
     expect(s.expenses[0]).toEqual({
       id: "exp-9",
       category: "Vercel",
@@ -72,22 +73,35 @@ describe("reducer", () => {
   })
 
   it("removes an expense by id", () => {
-    const s = reducer(initialState(), { type: "remove-expense", id: "exp-1" })
+    const s = reducer(initialState(TODAY), { type: "remove-expense", id: "exp-1" })
     expect(s.expenses.find((e) => e.id === "exp-1")).toBeUndefined()
     expect(s.expenses).toHaveLength(7)
   })
 
   it("reset restores the seed", () => {
-    let s = reducer(initialState(), { type: "remove-metric", id: "mrr" })
+    let s = reducer(initialState(TODAY), { type: "remove-metric", id: "mrr" })
     s = reducer(s, { type: "add-expense", input: VERCEL })
-    s = reducer(s, { type: "reset" })
-    expect(s).toEqual(initialState())
+    s = reducer(s, { type: "reset", today: TODAY })
+    expect(s).toEqual(initialState(TODAY))
+  })
+
+  it("reset regenerates the seed relative to the day it is pressed", () => {
+    let s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
+    s = reducer(s, { type: "reset", today: "2026-10-07" })
+    expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-10-07")
+    expect(s.expenses.every((e) => e.date <= "2026-10-07")).toBe(true)
+    expect(s.expenses.some((e) => e.category === "Vercel")).toBe(false)
+  })
+
+  it("persisted expenses keep their absolute dates; only the seed moves", () => {
+    const s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
+    expect(s.expenses[0].date).toBe("2026-08-20")
   })
 })
 
 describe("localStorage round trip", () => {
   it("saves and loads the same state", () => {
-    let s = reducer(initialState(), { type: "add-metric", id: "nps" })
+    let s = reducer(initialState(TODAY), { type: "add-metric", id: "nps" })
     s = reducer(s, { type: "set-chart", id: "arr", chart: "line" })
     s = reducer(s, { type: "add-expense", input: VERCEL })
     saveState(window.localStorage, s)
@@ -102,23 +116,24 @@ describe("localStorage round trip", () => {
     expect(loadState(window.localStorage)).toBeNull()
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ ...initialState(), visible: ["mrr", "bogus"] })
+      JSON.stringify({ ...initialState(TODAY), visible: ["mrr", "bogus"] })
     )
     expect(loadState(window.localStorage)).toBeNull()
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ ...initialState(), expenses: [{ id: "x" }] })
+      JSON.stringify({ ...initialState(TODAY), expenses: [{ id: "x" }] })
     )
     expect(loadState(window.localStorage)).toBeNull()
   })
 })
 
 function Probe() {
-  const { visible, charts, expenses, persisted, removeMetric, setChart, addExpense } =
+  const { today, visible, charts, expenses, persisted, removeMetric, setChart, addExpense } =
     useMetrics()
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
+      <span data-testid="today">{today}</span>
       <span data-testid="visible">{visible.join(",")}</span>
       <span data-testid="mrr-chart">{charts.mrr ?? "default"}</span>
       <span data-testid="expense-count">{expenses.length}</span>
@@ -139,7 +154,7 @@ function Probe() {
 describe("MetricsProvider persistence", () => {
   it("persists edits and rehydrates them after a remount (reload)", async () => {
     const first = render(
-      <MetricsProvider>
+      <MetricsProvider today={TODAY}>
         <Probe />
       </MetricsProvider>
     )
@@ -155,7 +170,7 @@ describe("MetricsProvider persistence", () => {
     // Simulate a reload: tear the tree down and mount a fresh provider.
     first.unmount()
     render(
-      <MetricsProvider>
+      <MetricsProvider today={TODAY}>
         <Probe />
       </MetricsProvider>
     )
@@ -166,11 +181,11 @@ describe("MetricsProvider persistence", () => {
   })
 
   it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
-    saveState(window.localStorage, reducer(initialState(), { type: "remove-metric", id: "arr" }))
+    saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove-metric", id: "arr" }))
     // render() flushes layout effects synchronously; no awaiting here on
     // purpose — the saved copy must already be in place when it returns.
     render(
-      <MetricsProvider>
+      <MetricsProvider today={TODAY}>
         <Probe />
       </MetricsProvider>
     )
@@ -180,7 +195,7 @@ describe("MetricsProvider persistence", () => {
 
   it("falls back to the seed when nothing is saved", async () => {
     render(
-      <MetricsProvider>
+      <MetricsProvider today={TODAY}>
         <Probe />
       </MetricsProvider>
     )
@@ -188,5 +203,6 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("visible")).toHaveTextContent(DEFAULT_METRIC_IDS.join(","))
     expect(screen.getByTestId("mrr-chart")).toHaveTextContent("default")
     expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
+    expect(screen.getByTestId("today")).toHaveTextContent(TODAY)
   })
 })

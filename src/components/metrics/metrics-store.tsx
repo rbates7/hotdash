@@ -9,7 +9,8 @@ import {
   type Expense,
   type MetricId,
 } from "@/lib/metrics"
-import { expenses as seedExpenses } from "@/lib/metrics-fixture"
+import type { IsoDay } from "@/lib/metrics/clock"
+import { seedExpenses } from "@/lib/metrics-fixture"
 
 export type State = {
   /** Cards on the Overview board, in display order. */
@@ -30,7 +31,7 @@ export type Action =
   | { type: "add-expense"; input: NewExpenseInput }
   | { type: "remove-expense"; id: string }
   | { type: "hydrate"; state: State | null }
-  | { type: "reset" }
+  | { type: "reset"; today: IsoDay }
 
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -71,7 +72,7 @@ export function reducer(state: State, action: Action): State {
       return action.state ?? state
 
     case "reset":
-      return initialState()
+      return initialState(action.today)
   }
 }
 
@@ -85,15 +86,17 @@ function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-export function initialState(): State {
-  const highest = seedExpenses.reduce((max, e) => {
+/** The seed, dated relative to `today` so no row ever postdates it. */
+export function initialState(today: IsoDay): State {
+  const expenses = seedExpenses(today)
+  const highest = expenses.reduce((max, e) => {
     const n = Number(e.id.split("-")[1])
     return Number.isFinite(n) && n > max ? n : max
   }, 0)
   return {
     visible: [...DEFAULT_METRIC_IDS],
     charts: {},
-    expenses: seedExpenses,
+    expenses,
     nextExpenseId: highest + 1,
   }
 }
@@ -159,6 +162,12 @@ export function saveState(storage: Storage | undefined, state: State) {
 
 type Store = State & {
   /**
+   * Today's calendar day (America/Chicago), read once per request on the
+   * server and passed in, so SSR and hydration agree and nothing in the
+   * tree reads the machine clock.
+   */
+  today: IsoDay
+  /**
    * True once localStorage has been read and writes are flowing. Until then
    * the state is the seed and must not be shown as if it were the user's.
    */
@@ -173,11 +182,17 @@ type Store = State & {
 
 const MetricsContext = React.createContext<Store | null>(null)
 
-export function MetricsProvider({ children }: { children: React.ReactNode }) {
+export function MetricsProvider({
+  today,
+  children,
+}: {
+  today: IsoDay
+  children: React.ReactNode
+}) {
   const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
     shellReducer,
-    undefined,
-    () => ({ data: initialState(), hydrated: false })
+    today,
+    (day) => ({ data: initialState(day), hydrated: false })
   )
 
   // The server has no localStorage, so it renders with `persisted: false` and
@@ -195,15 +210,17 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
   const value = React.useMemo<Store>(
     () => ({
       ...state,
+      today,
       persisted,
       addMetric: (id) => dispatch({ type: "add-metric", id }),
       removeMetric: (id) => dispatch({ type: "remove-metric", id }),
       setChart: (id, chart) => dispatch({ type: "set-chart", id, chart }),
       addExpense: (input) => dispatch({ type: "add-expense", input }),
       removeExpense: (id) => dispatch({ type: "remove-expense", id }),
-      resetDemoData: () => dispatch({ type: "reset" }),
+      // Reset regenerates the seed relative to today, not to when it was drawn.
+      resetDemoData: () => dispatch({ type: "reset", today }),
     }),
-    [state, persisted]
+    [state, persisted, today]
   )
 
   return (
