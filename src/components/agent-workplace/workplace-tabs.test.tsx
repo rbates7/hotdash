@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it } from "vitest"
 
+import { FIXED_NOW_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
@@ -11,7 +12,7 @@ function renderTabs(search = "") {
   navigation.params = new URLSearchParams(search)
   navigation.push.mockReset()
   return render(
-    <IssuesProvider>
+    <IssuesProvider nowMs={FIXED_NOW_MS}>
       <WorkplaceTabs />
     </IssuesProvider>
   )

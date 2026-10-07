@@ -1,23 +1,27 @@
 import { Suspense } from "react"
 
+import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
-import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
+import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
 
 export const metadata = {
   title: "Agent Workplace · Chlk",
 }
 
+// Rendered per request, never at build, so now() is the request's instant.
+export const dynamic = "force-dynamic"
+
 export default function AgentWorkplacePage() {
   return (
-    <IssuesProvider>
+    <IssuesProvider nowMs={now().getTime()}>
       <div className="flex min-w-0 flex-col gap-2.5">
         <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
           <h1 className="text-display-sm font-semibold tracking-tight">
             Agent Workplace
           </h1>
           <div className="flex items-center gap-2.5">
-            <PersistenceNote />
+            <WorkplacePersistenceNote />
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
               Dummy / design mock
             </span>
