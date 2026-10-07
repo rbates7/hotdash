@@ -34,8 +34,11 @@ jobs:
 
       - run: pnpm typecheck
 
-      - name: Unit and component tests
+      - name: Unit and component tests (TZ=UTC)
         run: pnpm test
+
+      - name: Clock and Metrics tests again under TZ=America/Chicago
+        run: pnpm test:tz
 
       - run: pnpm build
 

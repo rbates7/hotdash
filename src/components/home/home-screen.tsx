@@ -1,10 +1,12 @@
 "use client"
 
+import { todayIn } from "@/lib/clock"
 import { boardPreview, needsYou } from "@/lib/home"
-import { kpiStripTitle, kpis, mrrTrend, numberOne } from "@/lib/home-fixture"
+import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
+import { mrrTrend } from "@/lib/kpis"
 import { buildInbox } from "@/lib/workplace-fixture"
 import { useIssues } from "@/components/agent-workplace/issues-store"
-import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
+import { PersistenceNote } from "@/components/persistence-note"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
@@ -17,7 +19,11 @@ import { NumberOneStrip } from "@/components/home/number-one-strip"
  * the Workplace store so Home always matches the board.
  */
 export function HomeScreen({ pulse }: { pulse: string }) {
-  const { issues, sprints, actors, now, persisted } = useIssues()
+  const store = useIssues()
+  const { issues, sprints, actors, now, persisted } = store
+  // The page's instant, as the founder's calendar day: the same `today` the
+  // Metrics page would compute, so the strip and door match it.
+  const today = todayIn(now)
   const needs = needsYou(buildInbox(now), issues)
   const board = boardPreview(issues, sprints, actors, now)
   // Until the browser's saved board is read, the two store-backed doors show
@@ -36,7 +42,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
         <div className="mt-1 flex shrink-0 items-center gap-2.5">
           {/* Home reads the Workplace's browser-saved board, so it says so
               the same way the Workplace does. */}
-          <PersistenceNote />
+          <PersistenceNote store={store} />
           <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
             Dummy / design mock
           </span>
@@ -45,13 +51,13 @@ export function HomeScreen({ pulse }: { pulse: string }) {
 
       <div className="flex flex-1 flex-col gap-4">
         <NumberOneStrip item={numberOne} />
-        <KpiStrip kpis={kpis} title={kpiStripTitle} />
+        <KpiStrip kpis={kpis(today)} title={kpiStripTitle} />
         <div
           role="group"
           aria-label="Doors"
           className="grid min-h-[200px] flex-1 grid-cols-1 gap-4 lg:grid-cols-3"
         >
-          <MetricsDoor trend={mrrTrend} />
+          <MetricsDoor trend={mrrTrend({ today })} today={today} />
           <DevBoardDoor preview={board} loading={loading} />
           <NeedsYouDoor needs={needs} now={now} loading={loading} />
         </div>

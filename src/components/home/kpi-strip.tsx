@@ -1,7 +1,8 @@
-import { ArrowDownIcon, ArrowUpIcon, FlaskConicalIcon, MinusIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
 import { cn } from "@/lib/utils"
+import { SampleDataTag } from "@/components/sample-data"
 
 const TONE_CLASS: Record<KpiTone, string> = {
   good: "bg-success/10 text-success",
@@ -37,48 +38,12 @@ export function DeltaPill({ kpi }: { kpi: Kpi }) {
 
 const SAMPLE_LABEL_ID = "kpi-sample-data"
 
-/**
- * Amber in both themes (the same pair the board's blocker chip uses), so it
- * reads against the canvas in light and dark rather than hiding in the
- * muted text.
- */
-const SAMPLE_TONE =
-  "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300"
-
 /** Strip-level note: says plainly that the figures are invented. */
 export function SampleDataLabel() {
   return (
-    <p
-      id={SAMPLE_LABEL_ID}
-      role="note"
-      data-testid="kpi-sample-label"
-      className={cn(
-        "text-caption inline-flex w-fit items-center gap-1.5 rounded-full py-1 pr-2.5 pl-2 font-semibold tracking-tight",
-        SAMPLE_TONE
-      )}
-    >
-      <FlaskConicalIcon className="size-3.5" aria-hidden />
-      Sample data
-      <span className="font-medium text-amber-800 dark:text-amber-200">
-        · figures are invented, not live
-      </span>
+    <p id={SAMPLE_LABEL_ID} role="note" data-testid="kpi-sample-label" className="inline-flex">
+      <SampleDataTag className="h-6 px-2">· figures are invented, not live</SampleDataTag>
     </p>
-  )
-}
-
-/** Per-card chip, so no single number can be read without the caveat. */
-export function SampleChip() {
-  return (
-    <span
-      data-testid="kpi-sample-chip"
-      className={cn(
-        "text-micro inline-flex h-[18px] shrink-0 items-center gap-1 rounded-full pr-1.5 pl-1 font-semibold tracking-tight",
-        SAMPLE_TONE
-      )}
-    >
-      <FlaskConicalIcon className="size-3" aria-hidden />
-      Sample data
-    </span>
   )
 }
 
@@ -91,7 +56,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
-        <SampleChip />
+        <SampleDataTag />
       </div>
       <p className="mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums">
         {kpi.value}

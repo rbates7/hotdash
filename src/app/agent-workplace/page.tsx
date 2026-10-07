@@ -2,7 +2,7 @@ import { Suspense } from "react"
 
 import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
-import { PersistenceNote } from "@/components/agent-workplace/persistence-note"
+import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
 
 export const metadata = {
@@ -21,7 +21,7 @@ export default function AgentWorkplacePage() {
             Agent Workplace
           </h1>
           <div className="flex items-center gap-2.5">
-            <PersistenceNote />
+            <WorkplacePersistenceNote />
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
               Dummy / design mock
             </span>

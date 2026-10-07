@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { resetDemoData } from "./support/persistence"
+
 /**
  * Review screenshots for Home, every state in both themes at desktop width.
  * Opt-in: `SCREENSHOTS=1 pnpm test:e2e e2e/home-screens.spec.ts` (or
@@ -88,7 +90,7 @@ for (const theme of ["light", "dark"] as const) {
 
     // Back to the seed for the next run.
     await page.goto("/agent-workplace")
-    await page.getByRole("button", { name: "Reset" }).click()
+    await resetDemoData(page)
     await page.goto("/home")
     await expect(page.getByText("2 waiting")).toBeVisible()
   })

@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { NOTE, resetDemoData } from "./support/persistence"
+
 /**
  * Review screenshots for the Agent Workplace, every main state in both
  * themes at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
@@ -40,7 +42,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate(() => localStorage.removeItem("hotdash.agent-workplace.v2"))
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
+    await expect(page.getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
 
     // With data.
     await shoot(page, `workplace-issues-${theme}`)
@@ -99,7 +101,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `workplace-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset" }).click()
+    await resetDemoData(page)
     await expect(page.getByText("3 agents working")).toBeVisible()
   })
 }
