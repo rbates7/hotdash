@@ -191,8 +191,6 @@ function ScratchPane() {
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftRef = React.useRef(draft)
   const storeRef = React.useRef(store)
-  draftRef.current = draft
-  storeRef.current = store
 
   // Store scratch is the source of truth after Reset, hydrate, or our own
   // save. Adjust during render rather than in an effect so a Reset cannot
@@ -200,8 +198,12 @@ function ScratchPane() {
   if (scratch !== seenScratch) {
     setSeenScratch(scratch)
     setDraft(scratch)
-    draftRef.current = scratch
   }
+
+  React.useLayoutEffect(() => {
+    draftRef.current = draft
+    storeRef.current = store
+  })
 
   const persistDraft = React.useCallback(() => {
     if (timer.current) {
