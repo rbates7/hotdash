@@ -3,7 +3,7 @@
 import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
-import { formatDate } from "@/lib/metrics/clock"
+import { formatDate, formatPeriod, inPeriod, periodEnding } from "@/lib/clock"
 import {
   formatCurrency,
   sortRows,
@@ -11,7 +11,7 @@ import {
   type Expense,
   type Sort,
 } from "@/lib/metrics"
-import { METRIC_DEFS, snapshotFor } from "@/lib/metrics-fixture"
+import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -44,6 +44,7 @@ import {
 function AddExpenseDialog() {
   // Default to the page's "today" (read once per request), not the machine's.
   const { today, addExpense } = useMetrics()
+  const period = periodEnding(today)
   const [open, setOpen] = React.useState(false)
   const [category, setCategory] = React.useState("")
   const [amount, setAmount] = React.useState("")
@@ -51,12 +52,13 @@ function AddExpenseDialog() {
   const [recurring, setRecurring] = React.useState(false)
 
   const amountNumber = Number(amount)
+  // Whole dollars from $1, dated inside the period the card reports on.
   const valid =
     category.trim().length > 0 &&
     Number.isFinite(amountNumber) &&
-    amountNumber > 0 &&
+    amountNumber >= 1 &&
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
-    date <= today
+    inPeriod(date, period)
 
   function reset() {
     setCategory("")
@@ -94,8 +96,8 @@ function AddExpenseDialog() {
           <DialogHeader>
             <DialogTitle>Add expense</DialogTitle>
             <DialogDescription>
-              Adds a row to the table and moves the Expenses card. Saved in this
-              browser only.
+              Adds a row to the table and moves the Expenses card. Dates must fall in
+              the current period ({formatPeriod(period)}). Saved in this browser only.
             </DialogDescription>
           </DialogHeader>
 
@@ -119,7 +121,7 @@ function AddExpenseDialog() {
                   min={1}
                   step={1}
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))}
                   placeholder="0"
                   aria-label="Amount"
                 />
@@ -128,7 +130,8 @@ function AddExpenseDialog() {
                 <span className="text-caption font-medium">Date</span>
                 <Input
                   type="date"
-                  max={today}
+                  min={period.start}
+                  max={period.end}
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   aria-label="Date"
@@ -169,8 +172,8 @@ function AddExpenseDialog() {
 type ExpenseKey = keyof Omit<Expense, "id">
 
 export function ExpensesPanel() {
-  const { expenses, charts, setChart, removeExpense } = useMetrics()
-  const snapshot = snapshotFor("expenses", expenses)
+  const { today, expenses, charts, setChart, removeExpense } = useMetrics()
+  const snapshot = snapshotFor("expenses", { today, expenses })
   const [sort, setSort] = React.useState<Sort<ExpenseKey> | null>({
     key: "amount",
     dir: "desc",

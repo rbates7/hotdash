@@ -11,8 +11,8 @@ import {
   saveState,
 } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { SAMPLE_DATA_LABEL } from "@/components/metrics/sample-data"
-import { MOCK_DAY } from "@/lib/metrics-fixture"
+import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
+import { MOCK_DAY } from "@/lib/kpis"
 
 /** The day the mock was drawn, so rows and labels match it verbatim. */
 const TODAY = MOCK_DAY
@@ -150,13 +150,13 @@ describe("MetricsTabs", () => {
     it("charts name the six months ending in today's month", () => {
       renderTabs()
       expect(
-        within(card("MRR")).getByRole("img", { name: "MRR, six-month bar chart, Mar – Aug 2026" })
+        within(card("MRR")).getByRole("img", { name: /^MRR, six-month bar chart, Mar – Aug 2026: Mar \$23,800, .*Aug \$26,190$/ })
       ).toHaveAttribute("data-months", "Mar Apr May Jun Jul Aug")
 
       renderTabs("", "2026-10-07")
       expect(
         within(screen.getAllByRole("article", { name: "MRR" }).at(-1)!).getByRole("img", {
-          name: "MRR, six-month bar chart, May – Oct 2026",
+          name: /^MRR, six-month bar chart, May – Oct 2026/,
         })
       ).toBeInTheDocument()
     })
@@ -166,7 +166,7 @@ describe("MetricsTabs", () => {
       renderTabs("tab=new", "2026-10-07")
       const rows = within(screen.getByRole("table", { name: "New subscribers" })).getAllByRole("row").slice(1)
       expect(within(rows[0]).getByText("4 Oct 2026")).toBeInTheDocument() // today − 3
-      expect(within(rows[7]).getByText("7 Sep 2026")).toBeInTheDocument() // today − 30
+      expect(within(rows[7]).getByText("10 Sep 2026")).toBeInTheDocument() // today − 27, inside the period
 
       renderTabs("tab=expenses", "2026-10-07")
       const table = screen.getAllByRole("table", { name: "Expenses" }).at(-1)!
@@ -175,6 +175,55 @@ describe("MetricsTabs", () => {
       const dialog = await screen.findByRole("dialog", { name: "Add expense" })
       expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-10-07")
       expect(within(dialog).getByLabelText("Date")).toHaveAttribute("max", "2026-10-07")
+    })
+  })
+
+  describe("period-scoped expenses", () => {
+    it("the add-expense date is bounded to the current period and the submit respects it", async () => {
+      const user = userEvent.setup()
+      renderTabs("tab=expenses")
+      await user.click(screen.getByRole("button", { name: "Add expense" }))
+      const dialog = await screen.findByRole("dialog", { name: "Add expense" })
+      const date = within(dialog).getByLabelText("Date")
+      expect(date).toHaveAttribute("min", "2026-07-25")
+      expect(date).toHaveAttribute("max", "2026-08-21")
+      expect(within(dialog).getByText(/25 Jul – 21 Aug 2026/)).toBeInTheDocument()
+
+      await user.type(within(dialog).getByRole("textbox", { name: "Category" }), "Old thing")
+      await user.type(within(dialog).getByRole("spinbutton", { name: "Amount" }), "50")
+      const submit = within(dialog).getByRole("button", { name: "Add expense" })
+      expect(submit).toBeEnabled()
+      await user.clear(date)
+      await user.type(date, "2026-07-24")
+      expect(submit).toBeDisabled()
+      await user.clear(date)
+      await user.type(date, "2026-07-25")
+      expect(submit).toBeEnabled()
+    })
+
+    it("amounts under $1 are rejected by the form", async () => {
+      const user = userEvent.setup()
+      renderTabs("tab=expenses")
+      await user.click(screen.getByRole("button", { name: "Add expense" }))
+      const dialog = await screen.findByRole("dialog", { name: "Add expense" })
+      await user.type(within(dialog).getByRole("textbox", { name: "Category" }), "Pennies")
+      await user.type(within(dialog).getByRole("spinbutton", { name: "Amount" }), "0")
+      expect(within(dialog).getByRole("button", { name: "Add expense" })).toBeDisabled()
+    })
+
+    it("a persisted row outside the period stays in the table but not in the card", () => {
+      saveState(window.localStorage, {
+        ...initialState(TODAY),
+        expenses: [
+          ...initialState(TODAY).expenses,
+          { id: "exp-9", category: "Old", amount: 1_000, date: "2026-07-01", recurring: false },
+        ],
+        nextExpenseId: 10,
+      })
+      renderTabs("tab=expenses")
+      const table = screen.getByRole("table", { name: "Expenses" })
+      expect(within(table).getByRole("row", { name: /Old/ })).toBeInTheDocument()
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$8,240")
     })
   })
 
@@ -215,7 +264,7 @@ describe("MetricsTabs", () => {
       await user.click(within(card("MRR")).getByRole("button", { name: "MRR: line chart" }))
       expect(within(card("MRR")).getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
       expect(within(card("MRR")).getByRole("button", { name: "MRR: bar chart" })).toHaveAttribute("aria-pressed", "false")
-      expect(within(card("MRR")).getByRole("img", { name: "MRR, six-month line chart, Mar – Aug 2026" })).toBeInTheDocument()
+      expect(within(card("MRR")).getByRole("img", { name: /^MRR, six-month line chart, Mar – Aug 2026/ })).toBeInTheDocument()
     })
 
     it("removes a card and offers it again in the picker after the extras", async () => {
@@ -238,6 +287,14 @@ describe("MetricsTabs", () => {
         "Valuation$1.10M",
         "Revenue$28,410",
       ])
+    })
+
+    it("the picker is itself labelled as sample data", async () => {
+      const user = userEvent.setup()
+      renderTabs()
+      await user.click(screen.getByRole("button", { name: "Add metric" }))
+      const picker = await screen.findByRole("dialog", { name: "Add a metric" })
+      expect(within(picker).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     })
 
     it("adds an extra metric from the picker and closes it", async () => {

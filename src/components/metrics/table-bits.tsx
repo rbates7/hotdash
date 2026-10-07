@@ -6,7 +6,7 @@ import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon } from "lucide-react
 import type { Sort } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
 import { TableHead } from "@/components/ui/table"
-import { SampleDataStrip } from "@/components/metrics/sample-data"
+import { SampleDataStrip } from "@/components/sample-data"
 
 export const HEAD =
   "text-micro text-muted-foreground h-auto px-[18px] py-3 font-medium tracking-[0.05em] uppercase"

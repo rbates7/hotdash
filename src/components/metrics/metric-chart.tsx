@@ -4,8 +4,8 @@ import * as React from "react"
 import { Bar, BarChart, Cell, Line, LineChart, YAxis } from "recharts"
 import type { BarShapeProps } from "recharts/types/cartesian/Bar"
 
-import type { ChartType } from "@/lib/metrics"
-import { formatMonthSpan, monthsEnding, type IsoDay } from "@/lib/metrics/clock"
+import { formatMonthSpan, monthsEnding, type IsoDay } from "@/lib/clock"
+import { formatMetricValue, type ChartType, type MetricUnit } from "@/lib/metrics"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 
 const WIDTH = 120
@@ -60,17 +60,21 @@ export function MetricChart({
   series,
   type,
   label,
+  unit,
   today,
 }: {
   series: readonly number[]
   type: ChartType
   label: string
+  /** How each point is read aloud, e.g. "$26,190". */
+  unit: MetricUnit
   /** The page's calendar day; the six points are the six months ending in it. */
   today: IsoDay
 }) {
-  // Month labels derive from today, so the same series reads as the right
-  // half-year whenever it is viewed. Too small to print on the axis; they
-  // name the chart and label its points for assistive tech and hover.
+  // The axis is 120×52px, far too small for month ticks, so the chart's
+  // months and values live in its accessible name and the sr-only list
+  // below instead. Months derive from `today`, so the same series reads as
+  // the right half-year whenever it is viewed.
   const months = React.useMemo(() => monthsEnding(today, series.length), [today, series.length])
   const data = React.useMemo(
     () => series.map((v, i) => ({ i, v, month: months[i]?.label ?? "" })),
@@ -79,6 +83,8 @@ export function MetricChart({
   const domain = React.useMemo(() => chartDomain(series), [series])
   const last = data.length - 1
   const span = formatMonthSpan(months)
+  const readings = data.map((d) => `${d.month} ${formatMetricValue(d.v, unit)}`)
+  const name = `${label}, six-month ${type} chart, ${span}: ${readings.join(", ")}`
 
   return (
     <ChartContainer
@@ -86,7 +92,7 @@ export function MetricChart({
       initialDimension={{ width: WIDTH, height: HEIGHT }}
       className="aspect-auto h-[52px] w-[120px] flex-none"
       role="img"
-      aria-label={`${label}, six-month ${type} chart, ${span}`}
+      aria-label={name}
       title={`${label}: ${span}`}
       data-months={months.map((m) => m.label).join(" ")}
     >
@@ -95,6 +101,9 @@ export function MetricChart({
           data={data}
           margin={{ top: 2, right: 0, bottom: 0, left: 0 }}
           barCategoryGap="30%"
+          // The wrapper is the single role="img"; Recharts must not add a
+          // focusable role="application" layer inside it.
+          accessibilityLayer={false}
         >
           <YAxis hide domain={domain} />
           <Bar
@@ -111,7 +120,11 @@ export function MetricChart({
           </Bar>
         </BarChart>
       ) : (
-        <LineChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
+          accessibilityLayer={false}
+        >
           <YAxis hide domain={domain} />
           <Line
             dataKey="v"

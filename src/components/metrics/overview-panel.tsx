@@ -4,15 +4,16 @@ import * as React from "react"
 import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
-import { METRIC_DEFS, snapshotFor } from "@/lib/metrics-fixture"
+import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { MetricCard } from "@/components/metrics/metric-card"
 import { useMetrics } from "@/components/metrics/metrics-store"
+import { SampleDataTag } from "@/components/sample-data"
 
 /** "+ Add metric" and its picker: extras first, then any removed default. */
 function AddMetric() {
-  const { visible, expenses, addMetric } = useMetrics()
+  const { today, visible, expenses, addMetric } = useMetrics()
   const [open, setOpen] = React.useState(false)
   const choices = pickerIds(visible)
 
@@ -33,9 +34,12 @@ function AddMetric() {
         className="w-[260px] gap-0 p-1.5"
         aria-label="Add a metric"
       >
-        <p className="text-micro text-muted-foreground px-2.5 pt-2 pb-1.5 font-semibold tracking-[0.06em] uppercase">
-          Add a metric
-        </p>
+        <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1.5">
+          <p className="text-micro text-muted-foreground font-semibold tracking-[0.06em] uppercase">
+            Add a metric
+          </p>
+          <SampleDataTag />
+        </div>
         {choices.length === 0 ? (
           <p className="text-caption text-muted-foreground px-2.5 py-2.5">
             All metrics are on the board
@@ -43,7 +47,7 @@ function AddMetric() {
         ) : (
           <ul className="flex flex-col">
             {choices.map((id) => {
-              const snap = snapshotFor(id, expenses)
+              const snap = snapshotFor(id, { today, expenses })
               return (
                 <li key={id}>
                   <button
@@ -70,7 +74,7 @@ function AddMetric() {
 }
 
 export function OverviewPanel() {
-  const { visible, charts, expenses, setChart, removeMetric } = useMetrics()
+  const { today, visible, charts, expenses, setChart, removeMetric } = useMetrics()
 
   return (
     <div className="flex flex-col items-start gap-[18px]">
@@ -91,7 +95,7 @@ export function OverviewPanel() {
           className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
         >
           {visible.map((id: MetricId) => {
-            const snapshot = snapshotFor(id, expenses)
+            const snapshot = snapshotFor(id, { today, expenses })
             return (
               <MetricCard
                 key={id}

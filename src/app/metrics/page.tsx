@@ -1,11 +1,11 @@
 import { Suspense } from "react"
 import { CalendarIcon } from "lucide-react"
 
-import { formatPeriod, now, periodEnding, todayIn } from "@/lib/metrics/clock"
+import { formatPeriod, now, periodEnding, todayIn } from "@/lib/clock"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { PersistenceNote } from "@/components/metrics/persistence-note"
-import { SAMPLE_DATA_LABEL, SampleDataNotice } from "@/components/metrics/sample-data"
+import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
+import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 
 export const metadata = {
   title: "Metrics · Chlk",
@@ -28,10 +28,8 @@ export default function MetricsPage() {
         <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
           <h1 className="text-display-sm font-semibold tracking-tight">Metrics</h1>
           <div className="flex flex-wrap items-center gap-2.5">
-            <PersistenceNote />
-            <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-              {SAMPLE_DATA_LABEL}
-            </span>
+            <MetricsPersistenceNote />
+            <SampleDataTag className="h-6 px-2" />
             {/* Shows the real trailing four weeks, but is not a picker yet
                 (reqs: Open). Marked disabled rather than wired to a control
                 that would not filter anything. */}

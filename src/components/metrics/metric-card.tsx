@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
-import { SampleDataTag } from "@/components/metrics/sample-data"
+import { SampleDataTag } from "@/components/sample-data"
 
 function ToolButton({
   on,
@@ -155,6 +155,7 @@ export function MetricCard({
           series={snapshot.series}
           type={chart}
           label={snapshot.label}
+          unit={snapshot.unit}
           today={today}
         />
       </div>

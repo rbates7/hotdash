@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { formatDate } from "@/lib/metrics/clock"
+import { formatDate } from "@/lib/clock"
 import {
   formatCurrency,
   sortRows,
@@ -12,7 +12,7 @@ import {
   type Plan,
   type Sort,
 } from "@/lib/metrics"
-import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/metrics-fixture"
+import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import {
   Table,
