@@ -194,7 +194,7 @@ test.describe("Bugs", () => {
       for (const heading of ["To Do", "In Progress", "In Review", "Done"]) {
         expect(nodes.some((n) => n.text === heading), `${theme}: measured "${heading}"`).toBe(true)
       }
-      expect(nodes.some((n) => n.text === "Sample data.")).toBe(true)
+      expect(nodes.some((n) => n.text === "Sample data")).toBe(true)
       expect(
         nodes.some((n) => n.text.includes("example tickets from the Agent Workplace demo board"))
       ).toBe(true)
