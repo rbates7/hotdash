@@ -5,19 +5,27 @@ import { cn } from "@/lib/utils"
 export const SAMPLE_DATA_LABEL = "Sample data"
 
 /**
+ * The one sample-data chip for the dashboard (Home's KPI strip and Metrics
+ * door, every Metrics card and table, and the screens that follow).
+ *
  * Colours for every sample-data surface. Solid fills, no alpha, and the
  * text sits at ≥ 4.5:1 on its own fill in both themes (amber-900 on
- * amber-100 ≈ 8:1; amber-200 on amber-950 ≈ 10:1). The e2e measures each
+ * amber-100 ≈ 8:1; amber-200 on amber-950 ≈ 12:1). The e2e measures each
  * text node, so keep every piece of text inside these classes.
  */
 export const SAMPLE_SURFACE =
   "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800"
 
 /**
- * Sits on every hard-coded number: the metric cards and the seed tables.
- * The tiny dashed page badge alone was too easy to miss.
+ * Sits on every hard-coded number: KPI cards, metric cards, seed tables.
+ * `children` adds a quieter second clause in the same colour, e.g.
+ * "· figures are invented, not live" — never a muted tone of its own.
  */
-export function SampleDataTag({ className, ...props }: React.ComponentProps<"span">) {
+export function SampleDataTag({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"span">) {
   return (
     <span
       data-testid="sample-data-tag"
@@ -30,6 +38,7 @@ export function SampleDataTag({ className, ...props }: React.ComponentProps<"spa
     >
       <FlaskConicalIcon className="size-3" aria-hidden />
       {SAMPLE_DATA_LABEL}
+      {children && <span className="font-medium">{children}</span>}
     </span>
   )
 }
