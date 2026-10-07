@@ -6,7 +6,7 @@ import { ChevronDownIcon, ChevronUpIcon, ChevronsUpDownIcon } from "lucide-react
 import type { Sort } from "@/lib/metrics"
 import { cn } from "@/lib/utils"
 import { TableHead } from "@/components/ui/table"
-import { SampleDataTag } from "@/components/metrics/sample-data"
+import { SampleDataStrip } from "@/components/metrics/sample-data"
 
 export const HEAD =
   "text-micro text-muted-foreground h-auto px-[18px] py-3 font-medium tracking-[0.05em] uppercase"
@@ -31,12 +31,7 @@ export function TableCard({
       )}
       {...props}
     >
-      {note && (
-        <div className="border-surface-border bg-warning/5 flex flex-wrap items-center gap-2 border-b px-[18px] py-2">
-          <SampleDataTag />
-          <span className="text-caption text-muted-foreground">{note}</span>
-        </div>
-      )}
+      {note && <SampleDataStrip>{note}</SampleDataStrip>}
       {children}
     </div>
   )
