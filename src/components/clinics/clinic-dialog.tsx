@@ -267,7 +267,11 @@ function ClinicForm({
               }}
             >
               {CLINIC_TYPES.map((t) => (
-                <ToggleGroupItem key={t} value={t} className="text-caption px-2.5">
+                <ToggleGroupItem
+                  key={t}
+                  value={t}
+                  className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                >
                   {CLINIC_TYPE_LABEL[t]}
                 </ToggleGroupItem>
               ))}
@@ -289,7 +293,11 @@ function ClinicForm({
               }}
             >
               {ATTENDANCES.map((a) => (
-                <ToggleGroupItem key={a} value={a} className="text-caption px-2.5">
+                <ToggleGroupItem
+                  key={a}
+                  value={a}
+                  className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                >
                   {ATTENDANCE_LABEL[a]}
                 </ToggleGroupItem>
               ))}

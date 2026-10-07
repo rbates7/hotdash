@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
@@ -49,6 +49,51 @@ async function freshClinics(page: Page) {
   await expect(note(page)).toHaveText(NOTE.unsaved)
   await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
   await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
+}
+
+/**
+ * WCAG contrast between the painted backgrounds of two controls (pressed
+ * vs unpressed). Composites translucent fills onto the nearest opaque
+ * ancestor so outline toggles are measured honestly.
+ */
+async function backgroundContrast(a: Locator, b: Locator) {
+  return a.evaluate((elA, elB) => {
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, bb, alpha] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b: bb, a: alpha / 255 }
+    }
+    const over = (top: { r: number; g: number; b: number; a: number }, under: { r: number; g: number; b: number }) => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const painted = (el: Element) => {
+      const layers: ReturnType<typeof parse>[] = []
+      let node: Element | null = el
+      while (node) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+        node = node.parentElement
+      }
+      let backdrop = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      return backdrop
+    }
+    const [l1, l2] = [lum(painted(elA)), lum(painted(elB as Element))].sort((x, y) => y - x)
+    return (l1 + 0.05) / (l2 + 0.05)
+  }, await b.elementHandle())
 }
 
 /** Fill the add/edit form. Every field is looked up by its label inside the dialog. */
@@ -136,6 +181,28 @@ test.describe("Clinics", () => {
           await expectReadable(pill, `${theme}/${name} type`, expect)
         }
       }
+    }
+    await setTheme(page, "light")
+  })
+
+  test("Add clinic Type and attendance pressed options read at ≥ 3:1 vs unpressed, light and dark", async ({ page }) => {
+    await freshClinics(page)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await addButton(page).click()
+      const add = dialog(page, "Add clinic")
+      await expect(add).toBeVisible()
+      for (const name of ["Type", "Do we show up?"] as const) {
+        const group = add.getByRole("group", { name, exact: true })
+        const pressed = group.getByRole("button", { pressed: true })
+        const unpressed = group.getByRole("button", { pressed: false }).first()
+        await expect(pressed).toBeVisible()
+        const ratio = await backgroundContrast(pressed, unpressed)
+        expect(ratio, `${theme}/${name} pressed vs unpressed ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
+        await expectReadable(pressed, `${theme}/${name} pressed`, expect)
+      }
+      await page.keyboard.press("Escape")
+      await expect(add).toBeHidden()
     }
     await setTheme(page, "light")
   })
