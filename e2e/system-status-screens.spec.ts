@@ -42,9 +42,12 @@ for (const theme of ["light", "dark"] as const) {
     await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
     await shoot(page, `system-status-green-${theme}`)
 
-    // Tab from Green onto "Not green" so the focus ring paints (`.focus()`
-    // does not). Shared settle, not a timeout, before the close-up.
-    await preview(page).getByRole("link", { name: "Green", exact: true }).press("Tab")
+    // Tab from Green onto "Not green" so :focus-visible paints (`.focus()`
+    // does not). Click first so the next key is a real Tab, not a
+    // programmatic focus. Shared settle, not a timeout, before the close-up.
+    await preview(page).getByRole("link", { name: "Green", exact: true }).click()
+    await page.keyboard.press("Tab")
+    await expect(preview(page).getByRole("link", { name: "Not green", exact: true })).toBeFocused()
     const header = main(page).locator("header").first()
     await settleAnimations(page)
     for (const dir of OUT_DIRS) {
