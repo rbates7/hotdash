@@ -19,7 +19,7 @@ function RunPill({ state }: { state: Autopilot["lastRun"] }) {
       className={cn(
         "text-caption inline-flex h-[22px] items-center rounded-full px-2 font-semibold tracking-tight",
         state === "ok"
-          ? "bg-success/10 text-success"
+          ? "bg-success/10 text-success-text"
           : "bg-muted text-muted-foreground"
       )}
     >
