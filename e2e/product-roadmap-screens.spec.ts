@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Product Roadmap screen, every main state in
@@ -33,14 +34,6 @@ async function shoot(page: Page, name: string) {
     fs.mkdirSync(dir, { recursive: true })
     await page.screenshot({ path: path.join(dir, `${name}.png`) })
   }
-}
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -115,7 +108,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `product-roadmap-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await resetDemoData(page)
+    await resetDemoData(page, page.locator("main header").first(), page)
     await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(8)
   })
 }

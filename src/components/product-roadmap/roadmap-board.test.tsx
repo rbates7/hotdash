@@ -185,7 +185,7 @@ describe("board", () => {
     render(<Screen />)
     await user.click(within(card("Web import from a link")).getByRole("button", { name: "Edit" }))
     const dialog = await screen.findByRole("dialog", { name: "Bet: Web import from a link" })
-    // Shared formatRelative: weekday-date for anything older than yesterday; full date in the title.
+    // Shared formatRelative long: weekday-date for anything older than yesterday; full date in the title.
     expect(dialog).toHaveTextContent("Signed Mon, Sep 28 · from Feature Request")
     expect(within(dialog).getByText("Mon, Sep 28")).toHaveAttribute("title", "28 Sep 2026")
     expect(within(dialog).getByTestId("sample-data-tag")).toBeInTheDocument()

@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { expectProbeCatchesSabotage, expectReadable, textNodeContrasts } from "./support/contrast"
-import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.product-roadmap.v1"
 const REJECTED_KEY = `${STORAGE_KEY}.rejected`
@@ -48,15 +49,6 @@ async function freshBoard(page: Page) {
   await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // The Light/Dark toggle lives in the sidebar footer, outside the rail's nav
-  // landmark; its two names are unique on the page (same lookup as Home/Metrics).
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(
-    theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
-  )
-}
-
 test.describe("Product Roadmap", () => {
   test("is reachable from the sidebar and shows Now / Next / Later", async ({ page }) => {
     await page.goto("/home")
@@ -98,10 +90,10 @@ test.describe("Product Roadmap", () => {
     await expect(button(card(page, "Flag Football 2026"), "Move up")).toBeDisabled()
     await expect(resetButton(page)).toBeDisabled()
 
-    // The first real edit writes, once.
+    // The first real edit writes, once, and stays there.
     await button(card(page, "Flag Football 2026"), "Move down").click()
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
-    expect(await writesTo(page, STORAGE_KEY)).toBe(1)
+    await expectWritesSettled(page, STORAGE_KEY, 1)
     expect(await savedCopy(page)).toContain('"title":"Flag Football 2026"')
     await expect(resetButton(page)).toBeEnabled()
   })
@@ -202,7 +194,7 @@ test.describe("Product Roadmap", () => {
     await expect(card(page, "Practice plan templates")).toBeVisible()
     expect(await savedCopy(page)).not.toBeNull()
 
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
     expect(await titlesIn(page, "Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates"])
     await expect(card(page, "Practice plan templates")).toHaveCount(0)
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
@@ -214,7 +206,7 @@ test.describe("Product Roadmap", () => {
     await freshBoard(page)
     await button(card(page, "Web import from a link"), "Edit").click()
     const d = dialog(page, "Bet: Web import from a link")
-    // Shared formatRelative: a weekday-date for anything older than yesterday; full date in the title.
+    // Shared formatRelative long: a weekday-date for anything older than yesterday; full date in the title.
     await expect(d).toContainText(/Signed \w{3}, \w{3} \d{1,2} · from Feature Request/)
     await expect(d.locator("time")).toHaveAttribute("title", /^\d{1,2} \w{3} \d{4}$/)
     await expect(d.getByRole("button", { name: /^Save/ })).toBeDisabled()
@@ -235,7 +227,7 @@ test.describe("Product Roadmap", () => {
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(column(page, "Next").getByRole("article", { name: "Import a play from a HUDL link", exact: true })).toBeVisible()
     expect((await titlesIn(page, "Next"))[0]).toBe("Import a play from a HUDL link")
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
   })
 
   test("Spawn ticket is a disabled, explained affordance that touches nothing", async ({ page }) => {
@@ -276,7 +268,7 @@ test.describe("Product Roadmap", () => {
 
     await page.reload()
     await expect(card(page, "Parent recap emails")).toHaveCount(0)
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
     await expect(card(page, "Parent recap emails")).toBeVisible()
   })
 
@@ -307,7 +299,7 @@ test.describe("Product Roadmap", () => {
     expect(parked).toHaveLength(1)
     expect(parked[0]).toMatchObject({ raw, why: "failed validation" })
     await page.evaluate((key) => localStorage.removeItem(key), REJECTED_KEY)
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
   })
 
   test("follows an edit made in another tab without writing back, and the writes settle", async ({ page, context }) => {
@@ -317,11 +309,9 @@ test.describe("Product Roadmap", () => {
     const other = await context.newPage()
     await other.goto("/product-roadmap")
     await expect(persistenceNote(other)).toHaveText(NOTE.unsaved)
-    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
     // Counted after the other tab has visibly taken the change (web-first),
-    // then polled until stable: no fixed sleeps.
-    const settled = async (p: Page, n: number) =>
-      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    // then must stay flat over a quiet window: a write loop never settles.
+    const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
 
     // The other tab edits: one write there; this tab hears it and takes the copy without writing.
     await button(card(other, "Staff seats"), "Move to Now").click()
@@ -340,7 +330,7 @@ test.describe("Product Roadmap", () => {
     await settled(other, 1)
 
     // Reset in the other tab clears the key; this tab re-seeds, never-edited, Reset disabled — no write anywhere.
-    await resetDemoData(other)
+    await resetDemoData(other, header(other), other)
     await expect(column(page, "Next").getByRole("article", { name: "Staff seats", exact: true })).toBeVisible()
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
     await expect(resetButton(page)).toBeDisabled()
@@ -384,12 +374,12 @@ test.describe("Product Roadmap", () => {
     await expect(sampleNote(page)).toHaveCount(0)
 
     // One column empty while the board still has bets.
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
     await button(card(page, "Auto-scout from film"), "Move to Next").click()
     await button(card(page, "Parent recap emails"), "Move to Next").click()
     await expect(column(page, "Later")).toContainText("Nothing in Later")
     await expect(main(page).getByRole("status", { name: "Empty board", exact: true })).toHaveCount(0)
-    await resetDemoData(page)
+    await resetDemoData(page, header(page), page)
     await expect(sampleTags(page)).toHaveCount(8)
   })
 })

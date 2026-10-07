@@ -351,7 +351,7 @@ function EditBetBody({
         <p className="text-caption text-muted-foreground">
           Signed{" "}
           <time dateTime={item.signedAt} title={formatDate(new Date(item.signedAt))}>
-            {formatRelative(Date.parse(item.signedAt), nowMs)}
+            {formatRelative(Date.parse(item.signedAt), nowMs, { style: "long" })}
           </time>
           {item.fromFeatureRequest && " · from Feature Request"}
         </p>

@@ -1,8 +1,9 @@
 /**
  * Roadmap-specific date helpers on top of the shared clock
  * (`@/lib/clock`): "signed N days ago" as an instant, and the target-window
- * labels the seed uses ("Q4 2026", "Nov 2026", "2027"). Relative age is the
- * shared `formatRelative`.
+ * labels the seed uses ("Q4 2026", "Nov 2026", "2027"). Instant age is the
+ * shared `formatRelative(..., { style: "long" })`; day labels are
+ * `formatRelativeDay`.
  *
  * Nothing here reads the clock; every helper takes the instant it should
  * work from (`shell.nowMs`). All calendar work goes through the shared
