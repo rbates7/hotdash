@@ -36,14 +36,28 @@ export const EXPAND_SIDEBAR_NAME = "Expand sidebar"
 export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
 
 /**
- * Round chevron straddling the sidebar's right edge. The visible control is
- * still 24px (desktop token); the hit area is 44×44 on tablet (Deke 6:493).
+ * Deke tablet portrait (768–1023): 44×44 icon-rail hit, labels for AT only.
+ * Driven by CSS so SSR / JS-disabled match hydration (Mack B3).
+ */
+const TABLET_PORTRAIT_ICON =
+  "md:max-lg:size-11! md:max-lg:justify-center md:max-lg:p-0! md:max-lg:group-data-[collapsible=icon]:size-11!"
+
+const TABLET_PORTRAIT_LABEL = "md:max-lg:sr-only"
+
+/**
+ * Deke tablet including 1180 (768–1279): 44px rows. Desktop ≥1280 keeps h-8.
+ */
+const TABLET_ROW = "max-xl:h-11!"
+
+/**
+ * Round chevron straddling the sidebar's right edge. Visible glyph stays 24px;
+ * hit area is 44×44 on tablet portrait (6:493) and at 1180 (5:363).
  */
 function CollapseToggle() {
-  const { state, isTablet, toggleSidebar } = useSidebar()
+  const { state, isTabletPortrait, toggleSidebar } = useSidebar()
   const surface = useSidebarSurface()
   const collapsed =
-    surface === "rail" && (isTablet || state === "collapsed")
+    surface === "rail" && (isTabletPortrait || state === "collapsed")
 
   return (
     <Button
@@ -53,14 +67,13 @@ function CollapseToggle() {
       onClick={toggleSidebar}
       className={cn(
         "bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm",
-        isTablet &&
-          "top-1.5 -right-5 size-11 border-0 bg-transparent shadow-none hover:bg-transparent"
+        "md:max-lg:top-1.5 md:max-lg:-right-5 md:max-lg:size-11 md:max-lg:border-0 md:max-lg:bg-transparent md:max-lg:shadow-none md:max-lg:hover:bg-transparent",
+        "lg:max-xl:top-1.5 lg:max-xl:size-11"
       )}
     >
       <span
         className={cn(
-          isTablet &&
-            "bg-sidebar text-muted-foreground flex size-6 items-center justify-center rounded-full border shadow-sm"
+          "md:max-lg:bg-sidebar md:max-lg:text-muted-foreground md:max-lg:flex md:max-lg:size-6 md:max-lg:items-center md:max-lg:justify-center md:max-lg:rounded-full md:max-lg:border md:max-lg:shadow-sm"
         )}
       >
         {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
@@ -91,18 +104,21 @@ function DrawerClose() {
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { isMobile, isTablet, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
 
-  // Overlay drawers (phone sheet + tablet expand) close after a route change
-  // so the next screen is not sitting under an open drawer.
+  // Route changes close the overlay. Same-page clicks are handled on the link.
   React.useEffect(() => {
-    if (isMobile || isTablet) setOpenMobile(false)
-  }, [pathname, isMobile, isTablet, setOpenMobile])
+    setOpenMobile(false)
+  }, [pathname, setOpenMobile])
+
+  const closeOverlay = React.useCallback(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
 
   return (
     <Sidebar collapsible="icon" variant="floating">
-      <SidebarHeader className="relative">
-        <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center">
+      <SidebarHeader className="relative overflow-visible">
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center md:max-lg:justify-center">
           <FounderIdentity />
           {isMobile ? <DrawerClose /> : <CollapseToggle />}
         </div>
@@ -113,42 +129,45 @@ export function AppSidebar() {
       {/* The one named navigation landmark for the rail, so tests and
           assistive tech can scope to it by name instead of a data-slot. */}
       <SidebarContent>
-        <nav aria-label="Founder dashboard" className="flex min-h-0 flex-1 flex-col">
+        <nav
+          aria-label="Founder dashboard"
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-              {navItems.map((item) => {
-                const active = !item.external && isActiveRoute(pathname, item.href)
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      isActive={active}
-                      tooltip={item.label}
-                      className={cn(
-                        (isMobile || isTablet) && "h-11!",
-                        "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
-                      )}
-                      render={
-                        item.external ? (
-                          <a
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          />
-                        ) : (
-                          <Link href={item.href} />
-                        )
-                      }
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                {navItems.map((item) => {
+                  const active =
+                    !item.external && isActiveRoute(pathname, item.href)
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.label}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(TABLET_ROW, TABLET_PORTRAIT_ICON)}
+                        render={
+                          item.external ? (
+                            <a
+                              href={item.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={closeOverlay}
+                            />
+                          ) : (
+                            <Link href={item.href} onClick={closeOverlay} />
+                          )
+                        }
+                      >
+                        <item.icon />
+                        <span className={TABLET_PORTRAIT_LABEL}>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </nav>
       </SidebarContent>
 
@@ -159,7 +178,7 @@ export function AppSidebar() {
             and tests can scope to it instead of searching the page. */}
         <section
           aria-label="Appearance"
-          className="flex group-data-[collapsible=icon]:justify-center"
+          className="flex group-data-[collapsible=icon]:justify-center md:max-lg:justify-center"
         >
           <ThemeToggle />
         </section>
@@ -167,13 +186,10 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Help"
-              className={cn(
-                (isMobile || isTablet) && "h-11!",
-                "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
-              )}
+              className={cn(TABLET_ROW, TABLET_PORTRAIT_ICON)}
             >
               <CircleQuestionMarkIcon />
-              <span>Help</span>
+              <span className={TABLET_PORTRAIT_LABEL}>Help</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -181,12 +197,12 @@ export function AppSidebar() {
               tooltip="Logout"
               className={cn(
                 "text-destructive hover:text-destructive [&_svg]:text-destructive",
-                (isMobile || isTablet) && "h-11!",
-                "md:max-lg:group-data-[collapsible=icon]:size-11! md:max-lg:group-data-[collapsible=icon]:justify-center md:max-lg:group-data-[collapsible=icon]:[&>span]:sr-only"
+                TABLET_ROW,
+                TABLET_PORTRAIT_ICON
               )}
             >
               <LogOutIcon />
-              <span>Logout</span>
+              <span className={TABLET_PORTRAIT_LABEL}>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

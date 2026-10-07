@@ -6,7 +6,13 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
-import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
+import {
+  PHONE_QUERY,
+  TABLET_PORTRAIT_QUERY,
+  useIsMobile,
+  useIsTablet,
+  useIsTabletPortrait,
+} from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,6 +46,7 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
   isTablet: boolean
+  isTabletPortrait: boolean
   toggleSidebar: () => void
 }
 
@@ -77,6 +84,8 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
+  const isTabletPortrait = useIsTabletPortrait()
+  const overlayViewport = isMobile || isTabletPortrait
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.
@@ -98,12 +107,28 @@ function SidebarProvider({
     [setOpenProp, open]
   )
 
-  // Phone and tablet expand open the overlay sheet. Desktop toggles the rail.
+  // Phone and tablet-portrait expand open the overlay sheet. 1180+ toggles the rail.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile || isTablet
+    return overlayViewport
       ? setOpenMobile((open) => !open)
       : setOpen((open) => !open)
-  }, [isMobile, isTablet, setOpen, setOpenMobile])
+  }, [overlayViewport, setOpen, setOpenMobile])
+
+  // Overlay state is phone/tablet-portrait only. Leaving those widths must
+  // drop the sheet so a 390→1440 resize cannot leave a lock or a ghost dialog.
+  React.useEffect(() => {
+    const phone = window.matchMedia(PHONE_QUERY)
+    const portrait = window.matchMedia(TABLET_PORTRAIT_QUERY)
+    const onChange = () => {
+      if (!phone.matches && !portrait.matches) setOpenMobile(false)
+    }
+    phone.addEventListener("change", onChange)
+    portrait.addEventListener("change", onChange)
+    return () => {
+      phone.removeEventListener("change", onChange)
+      portrait.removeEventListener("change", onChange)
+    }
+  }, [])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -118,7 +143,7 @@ function SidebarProvider({
       }
       // Overlay drawers are opened from a control *outside* the dialog, so
       // Base UI may not see Escape. Close them ourselves.
-      if (event.key === "Escape" && (isMobile || isTablet) && openMobile) {
+      if (event.key === "Escape" && overlayViewport && openMobile) {
         event.preventDefault()
         setOpenMobile(false)
       }
@@ -126,7 +151,7 @@ function SidebarProvider({
 
     window.addEventListener("keydown", handleKeyDown, true)
     return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [toggleSidebar, isMobile, isTablet, openMobile])
+  }, [toggleSidebar, overlayViewport, openMobile])
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
@@ -139,6 +164,7 @@ function SidebarProvider({
       setOpen,
       isMobile,
       isTablet,
+      isTabletPortrait,
       openMobile,
       setOpenMobile,
       toggleSidebar,
@@ -149,6 +175,7 @@ function SidebarProvider({
       setOpen,
       isMobile,
       isTablet,
+      isTabletPortrait,
       openMobile,
       setOpenMobile,
       toggleSidebar,
@@ -191,7 +218,8 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, isTablet, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, isTabletPortrait, state, openMobile, setOpenMobile } =
+    useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -208,7 +236,7 @@ function Sidebar({
     )
   }
 
-  const drawer = (isMobile || isTablet) && openMobile && (
+  const drawer = (isMobile || isTabletPortrait) && openMobile && (
     <Sheet open={openMobile} onOpenChange={setOpenMobile}>
       <SheetContent
         dir={dir}
@@ -218,14 +246,17 @@ function Sidebar({
         data-mobile="true"
         showCloseButton={false}
         className={cn(
-          "w-(--sidebar-width) p-0 text-sidebar-foreground",
-          isMobile && "bg-sidebar",
-          // Tablet overlay is a 256 floating card over the icon rail (6:660).
-          isTablet && "border-0 bg-transparent p-2 shadow-none sm:max-w-64"
+          // Nova `.cn-sheet-content` pins w-3/4 + sm:max-w-sm (384). Beat it.
+          "w-(--sidebar-width)! max-w-none! border-0! bg-transparent! shadow-none! overflow-visible! p-0 text-sidebar-foreground",
+          isMobile && "bg-sidebar!",
+          // Room for the 44px chevron that sits 20px past the 256 card (6:660).
+          isTabletPortrait && "w-auto! bg-transparent! p-2 pr-7"
         )}
         style={
           {
-            "--sidebar-width": isTablet ? SIDEBAR_WIDTH : SIDEBAR_WIDTH_MOBILE,
+            "--sidebar-width": isTabletPortrait
+              ? SIDEBAR_WIDTH
+              : SIDEBAR_WIDTH_MOBILE,
           } as React.CSSProperties
         }
         side={side}
@@ -241,9 +272,11 @@ function Sidebar({
         </SheetHeader>
         <SidebarSurfaceContext.Provider value="sheet">
           <div
+            data-slot="founder-drawer-card"
             className={cn(
-              "flex h-full w-full flex-col",
-              isTablet && "cn-sidebar-inner overflow-hidden"
+              "flex h-full w-full flex-col overflow-visible",
+              isTabletPortrait &&
+                "w-64 rounded-lg bg-sidebar shadow-md ring-1 ring-sidebar-border"
             )}
           >
             {children}
@@ -258,8 +291,10 @@ function Sidebar({
   }
 
   // Tablet portrait stays on the icon rail; expand is the overlay above.
-  const railState = isTablet ? "collapsed" : state
-  const railCollapsible = isTablet || state === "collapsed" ? collapsible : ""
+  // Width/labels are CSS `md:max-lg` so SSR and JS-disabled match hydration.
+  const railState = isTabletPortrait ? "collapsed" : state
+  const railCollapsible =
+    isTabletPortrait || state === "collapsed" ? collapsible : ""
 
   return (
     <>
@@ -282,7 +317,7 @@ function Sidebar({
             variant === "floating" || variant === "inset"
               ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
-            isTablet && "w-[76px]!"
+            "md:max-lg:w-[76px]!"
           )}
         />
         <div
@@ -294,7 +329,7 @@ function Sidebar({
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
-            isTablet && "w-[76px]!",
+            "md:max-lg:w-[76px]!",
             className
           )}
           {...props}
@@ -574,7 +609,7 @@ function SidebarMenuButton({
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { isMobile, isTablet, state } = useSidebar()
+  const { isMobile, isTabletPortrait, state } = useSidebar()
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -608,7 +643,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={isMobile || !(isTablet || state === "collapsed")}
+        hidden={isMobile || !(isTabletPortrait || state === "collapsed")}
         {...tooltip}
       />
     </Tooltip>

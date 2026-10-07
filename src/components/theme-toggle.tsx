@@ -29,7 +29,7 @@ export function ThemeToggle({
   className?: string
 }) {
   const { theme, setTheme } = useTheme()
-  const { state, isMobile, isTablet } = useSidebar()
+  const { state, isMobile, isTabletPortrait } = useSidebar()
   const surface = useSidebarSurface()
   const mounted = useMounted()
 
@@ -37,21 +37,26 @@ export function ThemeToggle({
     appearance === "icon" ||
     (appearance === "auto" &&
       surface === "rail" &&
-      (isTablet || state === "collapsed") &&
+      (isTabletPortrait || state === "collapsed") &&
       !isMobile)
 
   if (!mounted) {
     return (
       <div
         aria-hidden
-        className={cn("h-8", collapsedRail ? "w-8" : "w-full", className)}
+        className={cn(
+          "h-8",
+          collapsedRail ? "w-8" : "w-full",
+          "md:max-lg:size-11 md:max-lg:w-11",
+          className
+        )}
       />
     )
   }
 
   if (collapsedRail) {
     const nextTheme = theme === "dark" ? "light" : "dark"
-    const touch = isTablet || appearance === "icon"
+    const touch = isTabletPortrait || appearance === "icon"
     return (
       <Button
         variant="ghost"
@@ -70,7 +75,7 @@ export function ThemeToggle({
       aria-label="Theme"
       variant="outline"
       spacing={0}
-      className={cn("bg-muted w-full", (isMobile || isTablet) && "h-11", className)}
+      className={cn("bg-muted w-full max-xl:h-11", className)}
       value={[theme === "light" ? "light" : "dark"]}
       onValueChange={(value) => {
         // Single-select group: ignore the empty array when the pressed item
