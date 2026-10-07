@@ -7,6 +7,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
+  // Policy: one retry in CI so a transient failure leaves a second trace to
+  // diagnose, but the CI script runs with --fail-on-flaky-tests (see
+  // `test:e2e:ci`), so a pass-on-retry still fails the run. A retry can
+  // explain a flake; it can never hide one.
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   use: {
