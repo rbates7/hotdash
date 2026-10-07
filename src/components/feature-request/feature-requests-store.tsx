@@ -81,21 +81,24 @@ export function reducer(state: State, action: Action): State {
         }),
       }
 
-    case "set-status":
+    case "set-status": {
+      const target = state.requests.find((r) => r.id === action.id)
+      if (!target || target.status === action.status) return state
       return {
         ...state,
         requests: state.requests.map((r) =>
-          r.id === action.id && r.status !== action.status
-            ? { ...r, status: action.status, updatedAt: action.at }
-            : r
+          r === target ? { ...r, status: action.status, updatedAt: action.at } : r
         ),
       }
+    }
 
-    case "remove":
+    case "remove": {
+      if (!state.requests.some((r) => r.id === action.id)) return state
       return {
         ...state,
         requests: state.requests.filter((r) => r.id !== action.id),
       }
+    }
 
     case "hydrate":
       return action.state ?? state
@@ -105,13 +108,31 @@ export function reducer(state: State, action: Action): State {
   }
 }
 
-/** Reducer state plus whether localStorage has been consulted yet. */
-type Shell = { data: State; hydrated: boolean }
+/**
+ * Reducer state plus two facts about localStorage: whether it has been
+ * consulted yet (`hydrated`), and whether this browser holds a saved copy
+ * (`saved`). The seed is never written on its own — only a real edit, or a
+ * copy found on load, makes `saved` true. Reset clears both the copy and the
+ * flag, so a fresh visit always gets a seed built against *that* day.
+ */
+type Shell = { data: State; hydrated: boolean; saved: boolean }
+
+const EDITS: ReadonlySet<Action["type"]> = new Set(["add", "patch", "set-status", "remove"])
 
 function shellReducer(shell: Shell, action: Action): Shell {
-  return {
-    data: reducer(shell.data, action),
-    hydrated: shell.hydrated || action.type === "hydrate",
+  const data = reducer(shell.data, action)
+  switch (action.type) {
+    case "hydrate":
+      return { data, hydrated: true, saved: action.state !== null }
+    case "reset":
+      return { data, hydrated: shell.hydrated, saved: false }
+    default:
+      // Only a change that actually changed something counts as an edit.
+      return {
+        data,
+        hydrated: shell.hydrated,
+        saved: shell.saved || (EDITS.has(action.type) && data !== shell.data),
+      }
   }
 }
 
@@ -123,37 +144,48 @@ export function initialState(at: Date = now()): State {
 /* ------------------------------------------------------------ persistence */
 
 /**
- * Board state is saved to this browser's localStorage so a reload keeps
- * Dan's ideas and any edits. Bump the version whenever the seed or the shape
- * changes so stale saves are discarded instead of half-applied. There is no
- * server copy and no API behind this page.
+ * Board state is saved to this browser's localStorage — from the first real
+ * edit on, never the untouched seed — so a reload keeps Dan's ideas. Bump
+ * the version whenever the seed or the shape changes so stale saves are
+ * discarded instead of half-applied. There is no server copy and no API
+ * behind this page.
  */
 export const STORAGE_KEY = "hotdash.feature-requests.v1"
 
-function isRequest(value: unknown): value is FeatureRequest {
+const isIso = (v: unknown) => typeof v === "string" && !Number.isNaN(Date.parse(v))
+
+/** One saved card, checked field by field. Anything off and the whole copy is refused. */
+export function isRequest(value: unknown): value is FeatureRequest {
   if (!value || typeof value !== "object") return false
   const v = value as Record<string, unknown>
   return (
     typeof v.id === "string" &&
+    v.id.length > 0 &&
     typeof v.title === "string" &&
+    v.title.trim().length > 0 &&
     typeof v.ask === "string" &&
     typeof v.from === "string" &&
+    v.from.trim().length > 0 &&
     isFeatureStatus(v.status) &&
-    typeof v.createdAt === "string" &&
-    typeof v.updatedAt === "string"
+    isIso(v.createdAt) &&
+    isIso(v.updatedAt) &&
+    (v.sample === undefined || v.sample === true)
   )
 }
 
-function isState(value: unknown): value is State {
+export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object") return false
   const v = value as Record<string, unknown>
-  return (
-    Array.isArray(v.requests) &&
-    v.requests.every(isRequest) &&
-    typeof v.nextId === "number"
-  )
+  if (!Array.isArray(v.requests) || !v.requests.every(isRequest)) return false
+  if (!Number.isInteger(v.nextId) || (v.nextId as number) < 1) return false
+  const ids = new Set(v.requests.map((r) => r.id))
+  return ids.size === v.requests.length
 }
 
+/**
+ * The saved copy, or `null` when there is none or any part of it is bad —
+ * the caller then falls back to the seed rather than half-applying it.
+ */
 export function loadState(storage: Storage | undefined): State | null {
   try {
     const raw = storage?.getItem(STORAGE_KEY)
@@ -173,11 +205,21 @@ export function saveState(storage: Storage | undefined, state: State) {
   }
 }
 
+export function clearState(storage: Storage | undefined) {
+  try {
+    storage?.removeItem(STORAGE_KEY)
+  } catch {
+    // Same as above: nothing to do.
+  }
+}
+
 /* ------------------------------------------------------------------ store */
 
 type Store = State & {
-  /** True once localStorage has been read and writes are flowing. */
+  /** True once localStorage has been read; the board can show real cards. */
   persisted: boolean
+  /** True when this browser holds a saved copy (an edit was made, or one was found on load). */
+  saved: boolean
   addRequest: (input: NewRequestInput) => void
   patchRequest: (id: string, patch: RequestPatch) => void
   setStatus: (id: string, status: FeatureStatus) => void
@@ -188,10 +230,10 @@ type Store = State & {
 const FeatureRequestsContext = React.createContext<Store | null>(null)
 
 export function FeatureRequestsProvider({ children }: { children: React.ReactNode }) {
-  const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
+  const [{ data: state, hydrated: persisted, saved }, dispatch] = React.useReducer(
     shellReducer,
     undefined,
-    () => ({ data: initialState(), hydrated: false })
+    () => ({ data: initialState(), hydrated: false, saved: false })
   )
 
   // The server has no localStorage, so it renders with `persisted: false` and
@@ -202,22 +244,29 @@ export function FeatureRequestsProvider({ children }: { children: React.ReactNod
     dispatch({ type: "hydrate", state: loadState(window.localStorage) })
   }, [])
 
+  // Write only once there is something of the founder's to keep. A first
+  // visit with no edits leaves localStorage untouched, so the seed is not
+  // frozen to the day it was first seen.
   React.useEffect(() => {
-    if (persisted) saveState(window.localStorage, state)
-  }, [persisted, state])
+    if (persisted && saved) saveState(window.localStorage, state)
+  }, [persisted, saved, state])
 
   const value = React.useMemo<Store>(() => {
     const at = () => now().toISOString()
     return {
       ...state,
       persisted,
+      saved,
       addRequest: (input) => dispatch({ type: "add", input, at: at() }),
       patchRequest: (id, patch) => dispatch({ type: "patch", id, patch, at: at() }),
       setStatus: (id, status) => dispatch({ type: "set-status", id, status, at: at() }),
       removeRequest: (id) => dispatch({ type: "remove", id }),
-      resetDemoData: () => dispatch({ type: "reset", at: at() }),
+      resetDemoData: () => {
+        clearState(window.localStorage)
+        dispatch({ type: "reset", at: at() })
+      },
     }
-  }, [state, persisted])
+  }, [state, persisted, saved])
 
   return (
     <FeatureRequestsContext.Provider value={value}>

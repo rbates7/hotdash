@@ -7,6 +7,8 @@ import {
   FeatureRequestsProvider,
   STORAGE_KEY,
   initialState,
+  isRequest,
+  isState,
   loadState,
   reducer,
   saveState,
@@ -135,15 +137,49 @@ describe("localStorage round trip", () => {
     expect(loadState(window.localStorage)).toEqual(state)
   })
 
-  it("ignores garbage, wrong shapes and unknown statuses", () => {
+  it("ignores garbage and wrong shapes", () => {
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     expect(loadState(window.localStorage)).toBeNull()
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests: [] }))
     expect(loadState(window.localStorage)).toBeNull()
-    const bad = initialState()
-    bad.requests[0] = { ...bad.requests[0], status: "done" as never }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bad))
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests: {}, nextId: 1 }))
     expect(loadState(window.localStorage)).toBeNull()
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ requests: [], nextId: 0 }))
+    expect(loadState(window.localStorage)).toBeNull()
+  })
+
+  it("refuses the whole copy when any one item is bad", () => {
+    const corruptions: Array<[string, Record<string, unknown>]> = [
+      ["unknown status", { status: "done" }],
+      ["empty title", { title: "  " }],
+      ["missing title", { title: undefined }],
+      ["empty sender", { from: "" }],
+      ["unparseable createdAt", { createdAt: "yesterday-ish" }],
+      ["non-string updatedAt", { updatedAt: 42 }],
+      ["ask not a string", { ask: null }],
+      ["sample not a boolean true", { sample: "yes" }],
+      ["empty id", { id: "" }],
+    ]
+    for (const [label, patch] of corruptions) {
+      const good = initialState()
+      const bad = { ...good, requests: good.requests.map((r, i) => (i === 4 ? { ...r, ...patch } : r)) }
+      expect(isRequest(bad.requests[4]), label).toBe(false)
+      expect(isState(bad), label).toBe(false)
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bad))
+      expect(loadState(window.localStorage), label).toBeNull()
+    }
+  })
+
+  it("refuses duplicate ids", () => {
+    const good = initialState()
+    const bad = { ...good, requests: [...good.requests, { ...good.requests[0] }] }
+    expect(isState(bad)).toBe(false)
+  })
+
+  it("accepts a sound copy, with or without the sample flag", () => {
+    const good = reducer(initialState(), { type: "add", input: { title: "Mine" }, at: AT })
+    expect(isState(good)).toBe(true)
+    expect(isState(JSON.parse(JSON.stringify(good)))).toBe(true)
   })
 
   it("uses the agreed key", () => {
@@ -152,12 +188,21 @@ describe("localStorage round trip", () => {
 })
 
 function Probe() {
-  const { requests, persisted, addRequest, setStatus, resetDemoData } = useFeatureRequests()
+  const { requests, persisted, saved, addRequest, setStatus, resetDemoData } =
+    useFeatureRequests()
   return (
     <div>
       <span data-testid="persisted">{String(persisted)}</span>
+      <span data-testid="saved">{String(saved)}</span>
+      <button type="button" onClick={() => addRequest({ title: "   " })}>
+        add-nothing
+      </button>
+      <button type="button" onClick={() => setStatus("fr-2", "inbox")}>
+        same-status
+      </button>
       <span data-testid="count">{requests.length}</span>
       <span data-testid="first">{requests[0]?.title ?? ""}</span>
+      <span data-testid="first-date">{requests[0]?.createdAt ?? ""}</span>
       <span data-testid="fr-2-status">
         {requests.find((r) => r.id === "fr-2")?.status ?? ""}
       </span>
@@ -186,13 +231,47 @@ describe("FeatureRequestsProvider persistence", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("10")
   })
 
-  it("persists an added idea and a status change, and rehydrates them after a remount (reload)", () => {
+  it("does not write the untouched seed to localStorage on first load", () => {
+    render(
+      <FeatureRequestsProvider>
+        <Probe />
+      </FeatureRequestsProvider>
+    )
+    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
+    expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+
+    // No-op "edits" do not count either.
+    act(() => screen.getByRole("button", { name: "add-nothing" }).click())
+    act(() => screen.getByRole("button", { name: "same-status" }).click())
+    expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+
+  it("so the seed is dated from whichever day the page is opened", () => {
+    const first = render(
+      <FeatureRequestsProvider>
+        <Probe />
+      </FeatureRequestsProvider>
+    )
+    first.unmount()
+    vi.setSystemTime(new Date("2026-09-10T15:00:00.000Z"))
+    render(
+      <FeatureRequestsProvider>
+        <Probe />
+      </FeatureRequestsProvider>
+    )
+    expect(screen.getByTestId("first-date")).toHaveTextContent("2026-09-10T15:00:00.000Z")
+  })
+
+  it("persists from the first real edit on, and rehydrates after a remount (reload)", () => {
     const first = render(
       <FeatureRequestsProvider>
         <Probe />
       </FeatureRequestsProvider>
     )
     act(() => screen.getByRole("button", { name: "add" }).click())
+    expect(screen.getByTestId("saved")).toHaveTextContent("true")
     act(() => screen.getByRole("button", { name: "park" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("11")
     expect(screen.getByTestId("first")).toHaveTextContent("Probe idea")
@@ -206,22 +285,25 @@ describe("FeatureRequestsProvider persistence", () => {
       </FeatureRequestsProvider>
     )
     expect(screen.getByTestId("persisted")).toHaveTextContent("true")
+    expect(screen.getByTestId("saved")).toHaveTextContent("true")
     expect(screen.getByTestId("count")).toHaveTextContent("11")
     expect(screen.getByTestId("first")).toHaveTextContent("Probe idea")
     expect(screen.getByTestId("fr-2-status")).toHaveTextContent("parked")
   })
 
-  it("Reset throws the browser's edits away and writes the seed back", () => {
+  it("Reset throws the browser's copy away entirely and shows a fresh seed", () => {
     render(
       <FeatureRequestsProvider>
         <Probe />
       </FeatureRequestsProvider>
     )
     act(() => screen.getByRole("button", { name: "add" }).click())
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("10")
     expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
-    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("Probe idea")
+    expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
   it("falls back to the seed when nothing is saved", () => {
@@ -232,5 +314,25 @@ describe("FeatureRequestsProvider persistence", () => {
     )
     expect(screen.getByTestId("count")).toHaveTextContent("10")
     expect(screen.getByTestId("fr-2-status")).toHaveTextContent("inbox")
+  })
+
+  it("falls back to the seed when the saved copy has one bad item, and keeps the bad copy out of the way", () => {
+    const bad = reducer(initialState(), { type: "add", input: { title: "Mine" }, at: AT })
+    bad.requests[3] = { ...bad.requests[3], status: "shipped" as never }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bad))
+    render(
+      <FeatureRequestsProvider>
+        <Probe />
+      </FeatureRequestsProvider>
+    )
+    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
+    expect(screen.getByTestId("saved")).toHaveTextContent("false")
+    expect(screen.getByTestId("count")).toHaveTextContent("10")
+    expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
+    // Nothing is written until the founder edits again; the next edit replaces the bad copy.
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain("shipped")
+    act(() => screen.getByRole("button", { name: "add" }).click())
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("shipped")
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe idea")
   })
 })

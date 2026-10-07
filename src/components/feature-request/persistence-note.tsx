@@ -8,16 +8,22 @@ import { useFeatureRequests } from "@/components/feature-request/feature-request
 /**
  * Says exactly where edits live: this browser only, until a real datastore
  * lands. Also the one way to get the sample cards back. Same shape as the
- * Agent Workplace note so the pages read alike.
+ * Agent Workplace note so the pages read alike. The wording tracks the
+ * truth: the seed alone is never written, so until the first edit there is
+ * nothing saved to speak of.
  */
 export function PersistenceNote() {
-  const { persisted, resetDemoData } = useFeatureRequests()
+  const { persisted, saved, resetDemoData } = useFeatureRequests()
 
   return (
     <span className="text-micro text-muted-foreground inline-flex items-center gap-1.5">
       <HardDriveIcon className="size-3.5" aria-hidden />
       <span data-testid="persistence-note">
-        {persisted ? "Saved in this browser" : "Loading saved ideas…"}
+        {!persisted
+          ? "Loading saved ideas…"
+          : saved
+            ? "Saved in this browser"
+            : "Edits save in this browser"}
       </span>
       <Button
         variant="ghost"
