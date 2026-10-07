@@ -10,14 +10,13 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "TZ=UTC vitest run",
-    "test:tz": "TZ=America/Chicago vitest run src/lib/clock.test.ts src/lib/kpis.test.ts src/components/metrics",
+    "test:tz": "TZ=America/Chicago vitest run src/lib/clock.test.ts src/lib/kpis.test.ts src/components/metrics src/lib/feature-requests src/components/feature-request",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
     "screens:home": "SCREENSHOTS=1 playwright test e2e/home-screens.spec.ts",
     "screens:metrics": "SCREENSHOTS=1 playwright test e2e/metrics-screens.spec.ts",
-    "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts",
-    "test:tz": "TZ=UTC vitest run && TZ=America/Chicago vitest run"
+    "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

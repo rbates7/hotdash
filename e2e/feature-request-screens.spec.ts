@@ -3,6 +3,8 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { NOTE, resetDemoData } from "./support/persistence"
+
 /**
  * Review screenshots for the Feature Request screen, every main state in
  * both themes at desktop width. Opt-in: `SCREENSHOTS=1 pnpm test:e2e` (or
@@ -21,10 +23,15 @@ const OUT_DIRS = [
 test.use({ viewport: { width: 1440, height: 900 } })
 
 const column = (page: Page, name: string) => page.getByRole("region", { name, exact: true })
+const board = (page: Page) => page.getByRole("region", { name: "Feature request intake", exact: true })
 const card = (page: Page, title: string) =>
-  page.getByRole("button", { name: `Open idea: ${title}`, exact: true })
+  board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
+const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
+const rail = (page: Page) => page.locator('[data-slot="sidebar"]').first()
+const newIdea = (page: Page) => actions(page).getByRole("button", { name: "New idea", exact: true })
+const resetButton = (page: Page) => actions(page).getByRole("button", { name: "Reset", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
-const persistence = (page: Page) => page.getByTestId("persistence-note")
+const persistence = (page: Page) => actions(page).getByTestId("persistence-note")
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(250)
@@ -36,7 +43,7 @@ async function shoot(page: Page, name: string) {
 
 async function setTheme(page: Page, theme: "light" | "dark") {
   // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
+  await rail(page).getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
   await expect(page.locator("html")).toHaveClass(
     theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
   )
@@ -48,20 +55,20 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(persistence(page)).toHaveText("Edits save in this browser")
+    await expect(persistence(page)).toHaveText(NOTE.unsaved)
 
     // With data (the seed).
     await shoot(page, `feature-request-board-${theme}`)
 
     // Persistence label, close up.
     for (const dir of OUT_DIRS) {
-      await page.locator("main header").first().screenshot({
+      await page.getByRole("main").locator("header").first().screenshot({
         path: path.join(dir, `feature-request-persistence-label-${theme}.png`),
       })
     }
 
     // Adding.
-    await page.getByRole("button", { name: "New idea", exact: true }).click()
+    await newIdea(page).click()
     const add = dialog(page, "New idea")
     await add.getByRole("textbox", { name: "Idea title" }).fill("Practice plan templates")
     await add.getByRole("textbox", { name: "The ask" }).fill("Reusable weekly plans a coach can tweak.")
@@ -93,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
 
     // Persisted after reload.
     await page.reload()
-    await expect(persistence(page)).toHaveText("Saved in this browser")
+    await expect(persistence(page)).toHaveText(NOTE.saved)
     await expect(card(page, "Practice plan templates")).toBeVisible()
     await expect(column(page, "Triaged").getByRole("button", { name: "Open idea: Import a play from a HUDL link" })).toBeVisible()
     await shoot(page, `feature-request-persisted-after-reload-${theme}`)
@@ -105,15 +112,13 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `feature-request-delete-confirm-${theme}`)
     await page.keyboard.press("Escape")
 
-    // Reset, asking first.
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
-    await expect(page.getByRole("button", { name: "Confirm reset", exact: true })).toBeVisible()
-    for (const dir of OUT_DIRS) {
-      await page.locator("main header").first().screenshot({
-        path: path.join(dir, `feature-request-reset-confirm-${theme}.png`),
-      })
-    }
-    await page.getByRole("button", { name: "Keep edits", exact: true }).click()
+    // Reset, asking first (the shared confirm dialog).
+    await resetButton(page).click()
+    const confirm = page.getByRole("dialog", { name: "Reset demo data?" })
+    await expect(confirm).toBeVisible()
+    await shoot(page, `feature-request-reset-confirm-${theme}`)
+    await confirm.getByRole("button", { name: "Keep my edits", exact: true }).click()
+    await expect(confirm).toBeHidden()
 
     // Empty board.
     await page.evaluate(
@@ -125,9 +130,8 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `feature-request-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await page.getByRole("button", { name: "Reset", exact: true }).click()
-    await page.getByRole("button", { name: "Confirm reset", exact: true }).click()
-    await expect(page.getByTestId("sample-data-tag")).toHaveCount(10)
+    await resetDemoData(page)
+    await expect(page.getByRole("region").getByTestId("sample-data-tag")).toHaveCount(10)
   })
 
   test(`captures the save-failed state (${theme})`, async ({ page }) => {
@@ -142,11 +146,11 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await page.getByRole("button", { name: "New idea", exact: true }).click()
+    await newIdea(page).click()
     const add = dialog(page, "New idea")
     await add.getByRole("textbox", { name: "Idea title" }).fill("Won't fit in this browser")
     await add.getByRole("button", { name: /Add idea/ }).click()
-    await expect(persistence(page)).toHaveText("Couldn't save in this browser")
+    await expect(persistence(page)).toHaveText(NOTE.failed)
     await shoot(page, `feature-request-save-failed-${theme}`)
   })
 }
