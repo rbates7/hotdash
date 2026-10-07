@@ -75,7 +75,7 @@ describe("reducer", () => {
         project: "Imports",
       },
     })
-    expect(state.issues[0].key).toBe("CHLK-419")
+    expect(state.issues[0].key).toBe("CHLK-422")
     expect(state.issues[0].project).toBe("Imports")
   })
 
@@ -326,6 +326,22 @@ describe("saved items are validated one by one (L2)", () => {
 
   it("accepts a well-formed copy", () => {
     expect(isState(good())).toBe(true)
+  })
+
+  it("reads labels as a set: a doubled `bug` label is one bug", () => {
+    const state = good()
+    state.issues[3] = { ...state.issues[3], labels: ["bug", "editor", "bug"] }
+    expect(parseState(state)!.issues[3].labels).toEqual(["bug", "editor"])
+  })
+
+  it("strips unknown label values and treats a missing field as none", () => {
+    const state = good()
+    state.issues[3] = { ...state.issues[3], labels: ["bug", 7, "editor"] as unknown as string[] }
+    expect(parseState(state)!.issues[3].labels).toEqual(["bug", "editor"])
+    const stripped = { ...state.issues[3] }
+    delete (stripped as { labels?: string[] }).labels
+    state.issues[3] = stripped
+    expect(parseState(state)!.issues[3].labels).toEqual([])
   })
 
   it("rejects the whole copy when one issue is malformed", () => {

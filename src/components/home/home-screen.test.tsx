@@ -150,13 +150,13 @@ describe("HomeScreen", () => {
     expect(within(door).getByText("Dev board · Sprint 4")).toBeInTheDocument()
     const columns = within(within(door).getByRole("list", { name: "Columns" })).getAllByRole("listitem")
     expect(columns.map((c) => c.textContent)).toEqual([
-      "3To Do",
+      "4To Do",
       "3In Progress",
-      "2In Review",
-      "3Done",
+      "3In Review",
+      "4Done",
       "2Blocked",
     ])
-    expect(within(door).getByText("3/13 done")).toBeInTheDocument()
+    expect(within(door).getByText("4/16 done")).toBeInTheDocument()
     expect(within(door).getByText("Sprint 4 · 9 days left")).toBeInTheDocument()
   })
 

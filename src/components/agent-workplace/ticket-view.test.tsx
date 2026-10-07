@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW_MS } from "@/test/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
-import { TicketView } from "@/components/agent-workplace/ticket-view"
+import { BUG_TOGGLE, TicketView } from "@/components/agent-workplace/ticket-view"
 
 function renderTicket(key = "CHLK-404") {
   const onClose = vi.fn()
@@ -46,6 +46,33 @@ describe("TicketView properties rail", () => {
     expect(screen.queryByText("Add property")).not.toBeInTheDocument()
     expect(screen.queryByText("Add sub-issues")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Pin issue" })).toBeDisabled()
+  })
+
+  it("tags and untags a ticket as a bug, and the chip follows the labels", async () => {
+    const user = userEvent.setup()
+    // CHLK-402 is not a bug in the seed.
+    renderTicket("CHLK-402")
+    expect(screen.queryByTestId("bug-tag")).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole("button", { name: BUG_TOGGLE.tag })
+    expect(toggle).toHaveAttribute("aria-pressed", "false")
+    await user.click(toggle)
+
+    const untag = screen.getByRole("button", { name: BUG_TOGGLE.untag })
+    expect(untag).toHaveAttribute("aria-pressed", "true")
+    // A user-tagged bug has no crash label, so it reads as coach-reported.
+    expect(screen.getByTestId("bug-tag")).toHaveTextContent("Bug · Coach-reported")
+    expect(screen.getByTestId("bug-tag")).toHaveAttribute("data-source", "coach")
+
+    await user.click(untag)
+    expect(screen.getByRole("button", { name: BUG_TOGGLE.tag })).toBeInTheDocument()
+    expect(screen.queryByTestId("bug-tag")).not.toBeInTheDocument()
+  })
+
+  it("a seeded crash reads as Bug · Crash", () => {
+    renderTicket("CHLK-419")
+    expect(screen.getByTestId("bug-tag")).toHaveTextContent("Bug · Crash")
+    expect(screen.getByRole("button", { name: BUG_TOGGLE.untag })).toBeInTheDocument()
   })
 
   it("shows a way back when the key is unknown", async () => {
