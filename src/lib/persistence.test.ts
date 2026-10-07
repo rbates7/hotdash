@@ -3,8 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   createStorage,
   dedupe,
+  initialShell,
   isFiniteNumber,
   isIsoInstant,
+  persistenceShellReducer,
+  type LoadResult,
+  type PersistenceShell,
 } from "@/lib/persistence"
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
@@ -103,6 +107,77 @@ describe("createStorage", () => {
     off()
     fireStorageEvent(store.key, "{}")
     expect(onChange).toHaveBeenCalledTimes(2)
+  })
+
+  it("subscribe ignores events from other storage areas, even on our key", () => {
+    const onChange = vi.fn()
+    const off = store.subscribe(onChange)
+    store.save(window.localStorage, { n: 1, name: "ours" })
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: store.key, newValue: null, storageArea: window.sessionStorage })
+    )
+    expect(onChange).not.toHaveBeenCalled()
+    off()
+  })
+})
+
+describe("persistenceShellReducer", () => {
+  const seed: Thing = { n: 0, name: "seed" }
+  const empty: LoadResult<Thing> = { state: null, status: "empty" }
+  const found = (state: Thing): LoadResult<Thing> => ({ state, status: "saved" })
+  const edit = (shell: PersistenceShell<Thing>, data: Thing) =>
+    persistenceShellReducer(shell, { type: "edit", data })
+  const hydrate = (shell: PersistenceShell<Thing>, result: LoadResult<Thing>) =>
+    persistenceShellReducer(shell, { type: "hydrate", result, fallback: seed })
+
+  it("starts unhydrated and never-edited", () => {
+    expect(initialShell(seed)).toEqual({
+      data: seed, persisted: false, edited: false, saved: false, saveFailed: false,
+    })
+  })
+
+  it("hydrate applies a saved copy (saved, not edited) or the fallback (neither)", () => {
+    const applied = hydrate(initialShell(seed), found({ n: 1, name: "a" }))
+    expect(applied).toEqual({ data: { n: 1, name: "a" }, persisted: true, edited: false, saved: true, saveFailed: false })
+    for (const status of ["empty", "rejected", "error"] as const) {
+      const none = hydrate(initialShell(seed), { state: null, status })
+      expect(none).toEqual({ data: seed, persisted: true, edited: false, saved: false, saveFailed: false })
+    }
+  })
+
+  it("a hydrate after edits is not an edit: another tab's copy is theirs, nothing is written back", () => {
+    let shell = hydrate(initialShell(seed), empty)
+    shell = edit(shell, { n: 1, name: "mine" })
+    expect(shell.edited).toBe(true)
+    shell = hydrate(shell, found({ n: 2, name: "theirs" }))
+    expect(shell).toMatchObject({ data: { n: 2, name: "theirs" }, edited: false, saved: true })
+  })
+
+  it("a real edit flips edited + saved; a no-op edit returns the very same shell", () => {
+    const shell = hydrate(initialShell(seed), empty)
+    expect(edit(shell, shell.data)).toBe(shell)
+    const changed = edit(shell, { n: 1, name: "changed" })
+    expect(changed).toMatchObject({ data: { n: 1, name: "changed" }, edited: true, saved: true, persisted: true })
+    expect(edit(changed, changed.data)).toBe(changed)
+  })
+
+  it("save-result flips saveFailed, and is identity when nothing changes", () => {
+    const shell = edit(initialShell(seed), { n: 1, name: "a" })
+    expect(persistenceShellReducer(shell, { type: "save-result", ok: true })).toBe(shell)
+    const failed = persistenceShellReducer(shell, { type: "save-result", ok: false })
+    expect(failed.saveFailed).toBe(true)
+    expect(persistenceShellReducer(failed, { type: "save-result", ok: false })).toBe(failed)
+    expect(persistenceShellReducer(failed, { type: "save-result", ok: true }).saveFailed).toBe(false)
+  })
+
+  it("reset returns to never-edited with the given seed, keeping persisted", () => {
+    let shell = hydrate(initialShell(seed), empty)
+    shell = edit(shell, { n: 1, name: "a" })
+    shell = persistenceShellReducer(shell, { type: "save-result", ok: false })
+    const fresh: Thing = { n: 0, name: "fresh seed" }
+    expect(persistenceShellReducer(shell, { type: "reset", data: fresh })).toEqual({
+      data: fresh, persisted: true, edited: false, saved: false, saveFailed: false,
+    })
   })
 })
 

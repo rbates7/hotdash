@@ -24,6 +24,13 @@ export const PERSISTENCE_COPY = {
   failed: "Couldn't save in this browser",
 } as const
 
+/**
+ * The note's accessible name, constant across states, so tests can find it
+ * by role and name (`status` normally, `alert` after a failed save) rather
+ * than by test id.
+ */
+export const PERSISTENCE_NOTE_NAME = "Where edits live"
+
 export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "saved" | "saveFailed">) {
   if (!store.persisted) return PERSISTENCE_COPY.loading
   if (store.saveFailed) return PERSISTENCE_COPY.failed
@@ -57,7 +64,11 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
       ) : (
         <HardDriveIcon className="size-3.5" aria-hidden />
       )}
-      <span data-testid="persistence-note" role={store.saveFailed ? "alert" : undefined}>
+      <span
+        data-testid="persistence-note"
+        role={store.saveFailed ? "alert" : "status"}
+        aria-label={PERSISTENCE_NOTE_NAME}
+      >
         {copy}
       </span>
 

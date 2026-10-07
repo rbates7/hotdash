@@ -140,9 +140,12 @@ export function createStorage<T>(def: StorageDef<T>): ScreenStorage<T> {
     const win = target ?? (typeof window !== "undefined" ? window : undefined)
     if (!win) return () => {}
     const handler = (event: StorageEvent) => {
+      // Only localStorage is ours; a sessionStorage event with the same key
+      // would otherwise be read as "the copy is gone".
+      if (event.storageArea && event.storageArea !== win.localStorage) return
       // `key` is null when the other tab called clear(); treat it as ours.
       if (event.key !== null && event.key !== key) return
-      onChange(load(event.storageArea ?? win.localStorage))
+      onChange(load(win.localStorage))
     }
     win.addEventListener("storage", handler)
     return () => win.removeEventListener("storage", handler)
@@ -179,7 +182,12 @@ export function dedupe<T>(items: readonly T[]): T[] {
 export type PersistenceStatus = {
   /** localStorage has been consulted; the screen shows real data. */
   persisted: boolean
-  /** The user changed something this session. */
+  /**
+   * The user changed something — a *real* change, since the last hydrate.
+   * This is the write gate: nothing is written to the key until it is true,
+   * and a copy merely found on load (or taken from another tab) does not
+   * set it, so loading never writes.
+   */
   edited: boolean
   /** The key currently holds a copy (ours or an earlier session's). */
   saved: boolean
@@ -190,4 +198,62 @@ export type PersistenceStatus = {
 export type PersistenceStore = PersistenceStatus & {
   /** Clear the key and regenerate the seed from now. */
   resetDemoData: () => void
+}
+
+/* -------------------------------------------------------------- shell */
+
+/** A screen's reducer state wrapped in the persistence bookkeeping above. */
+export type PersistenceShell<T> = PersistenceStatus & { data: T }
+
+/**
+ * The events every persisted screen goes through. The screen's own reducer
+ * produces `data`; this layer only decides what each transition means for
+ * the note, the Reset button and the write gate.
+ */
+export type PersistenceEvent<T> =
+  /** localStorage was read (on mount, or because another tab changed it). */
+  | { type: "hydrate"; result: LoadResult<T>; fallback: T }
+  /** The user did something. `data` is the reducer's output for it. */
+  | { type: "edit"; data: T }
+  /** A write to the key finished. */
+  | { type: "save-result"; ok: boolean }
+  /** The key was cleared and the seed regenerated. */
+  | { type: "reset"; data: T }
+
+export function initialShell<T>(data: T): PersistenceShell<T> {
+  return { data, persisted: false, edited: false, saved: false, saveFailed: false }
+}
+
+/**
+ * Shared transitions, so every screen gets the same guarantees:
+ * - a hydrate never counts as an edit (`edited` false → nothing written back);
+ * - an edit that changed nothing (`data === shell.data`) returns the *same*
+ *   shell, so it neither flips `edited`/`saved` nor triggers a write — the
+ *   screen's reducer must return its input for no-ops, which also keeps
+ *   `updatedAt` untouched;
+ * - a save result that changes nothing returns the same shell too;
+ * - reset returns to the never-edited state.
+ */
+export function persistenceShellReducer<T>(
+  shell: PersistenceShell<T>,
+  event: PersistenceEvent<T>
+): PersistenceShell<T> {
+  switch (event.type) {
+    case "hydrate":
+      return {
+        data: event.result.state ?? event.fallback,
+        persisted: true,
+        edited: false,
+        saved: event.result.status === "saved",
+        saveFailed: false,
+      }
+    case "edit":
+      if (event.data === shell.data) return shell
+      return { ...shell, data: event.data, edited: true, saved: true }
+    case "save-result":
+      if (shell.saveFailed === !event.ok) return shell
+      return { ...shell, saveFailed: !event.ok }
+    case "reset":
+      return { data: event.data, persisted: shell.persisted, edited: false, saved: false, saveFailed: false }
+  }
 }
