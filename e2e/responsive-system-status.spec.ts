@@ -33,9 +33,9 @@ for (const vp of VIEWPORTS) {
       await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
       await expect(main(page).getByRole("listitem", { name: "Billing" })).toBeVisible()
 
-      const notGreen = preview(page).getByRole("link", { name: "Not green" })
+      const notGreen = preview(page).getByRole("link", { name: "Not green", exact: true })
       await expectTapTarget(notGreen, "Not green")
-      await expectTapTarget(preview(page).getByRole("link", { name: "Green" }), "Green")
+      await expectTapTarget(preview(page).getByRole("link", { name: "Green", exact: true }), "Green")
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
       await notGreen.click()
@@ -63,7 +63,7 @@ test.describe("responsive System Status (desktop 1440)", () => {
   test("keeps the header row and does not scroll sideways", async ({ page }) => {
     await page.goto("/system-status")
     await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
-    await expect(preview(page).getByRole("link", { name: "Green" })).toBeVisible()
+    await expect(preview(page).getByRole("link", { name: "Green", exact: true })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })

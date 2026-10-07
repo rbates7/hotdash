@@ -17,10 +17,10 @@ export const STATUS_HEADER_META =
 export const STATUS_HEADER_CHIP = "h-6 px-2 max-md:order-first md:order-last"
 
 export const STATUS_PREVIEW =
-  "bg-muted inline-flex items-center rounded-lg p-[3px] max-md:w-full max-xl:h-11 xl:h-8"
+  "bg-muted inline-flex items-center rounded-lg p-[3px] max-md:w-full xl:h-8"
 
 export const STATUS_PREVIEW_OPTION =
-  "text-caption flex items-center rounded-[6px] px-2.5 font-medium tracking-tight transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none max-xl:min-h-10 max-xl:flex-1 max-xl:justify-center xl:h-full xl:flex-none"
+  "text-caption flex items-center rounded-[6px] px-2.5 font-medium tracking-tight transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none max-xl:min-h-11 max-xl:flex-1 max-xl:justify-center xl:h-full xl:flex-none"
 
 export const STATUS_BANNER =
   "flex flex-col gap-3 rounded-xl border px-[18px] py-4 md:flex-row md:items-center md:justify-between md:gap-4 md:px-6 md:py-[22px]"

@@ -18,9 +18,8 @@ describe("System Status responsive layout", () => {
 
   it("makes the preview full-width and 44px below xl, and h-8 on desktop", () => {
     expect(STATUS_PREVIEW).toContain("max-md:w-full")
-    expect(STATUS_PREVIEW).toContain("max-xl:h-11")
     expect(STATUS_PREVIEW).toContain("xl:h-8")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-h-10")
+    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-h-11")
     expect(STATUS_PREVIEW_OPTION).toContain("max-xl:flex-1")
   })
 
