@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { expectReadable } from "./support/contrast"
+
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 844 },
   { name: "tablet-portrait", width: 820, height: 1180 },
@@ -53,6 +55,7 @@ for (const vp of VIEWPORTS) {
         "Open Agent Workplace"
       )
       await expectTapTarget(page.getByRole("link", { name: /Agent blocked/ }), "Needs-you row")
+      await expect(page.getByRole("link", { name: /Agent blocked/ })).toContainText("CHLK-412")
 
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
@@ -91,15 +94,50 @@ test.describe("responsive Home (phone 360 sanity)", () => {
   })
 })
 
+test.describe("responsive Home (tablet-landscape 1180)", () => {
+  test.use({ viewport: { width: 1180, height: 820 } })
+
+  test("B2: doors go from 3 across to 2+1", async ({ page }) => {
+    await page.goto("/home")
+    const doors = page.getByRole("group", { name: "Doors" })
+    const metrics = doors.getByRole("region", { name: "Metrics" })
+    const workplace = doors.getByRole("region", { name: "Agent Workplace" })
+    const inbox = doors.getByRole("region", { name: "Inbox" })
+    await expect(metrics).toBeVisible()
+    await expect(workplace).toBeVisible()
+    await expect(inbox).toBeVisible()
+    const m = await metrics.boundingBox()
+    const w = await workplace.boundingBox()
+    const i = await inbox.boundingBox()
+    expect(m && w && i, "three doors painted").toBeTruthy()
+    expect(Math.abs(m!.y - w!.y), "Metrics and Workplace share a row").toBeLessThan(2)
+    expect(w!.x, "Workplace sits beside Metrics").toBeGreaterThan(m!.x + m!.width - 1)
+    expect(i!.y, "Inbox drops under the first row").toBeGreaterThan(m!.y + m!.height - 1)
+    expect(i!.width, "Inbox spans both columns").toBeGreaterThan(m!.width)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+  })
+})
+
 test.describe("responsive Home (desktop 1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("keeps the three-door row and does not scroll sideways", async ({ page }) => {
+  test("keeps the three doors in one row and does not scroll sideways", async ({ page }) => {
     await page.goto("/home")
     const doors = page.getByRole("group", { name: "Doors" })
-    await expect(doors.getByRole("region", { name: "Metrics" })).toBeVisible()
-    await expect(doors.getByRole("region", { name: "Agent Workplace" })).toBeVisible()
-    await expect(doors.getByRole("region", { name: "Inbox" })).toBeVisible()
+    const metrics = doors.getByRole("region", { name: "Metrics" })
+    const workplace = doors.getByRole("region", { name: "Agent Workplace" })
+    const inbox = doors.getByRole("region", { name: "Inbox" })
+    await expect(metrics).toBeVisible()
+    await expect(workplace).toBeVisible()
+    await expect(inbox).toBeVisible()
+    const m = await metrics.boundingBox()
+    const w = await workplace.boundingBox()
+    const i = await inbox.boundingBox()
+    expect(m && w && i, "three doors painted").toBeTruthy()
+    expect(Math.abs(m!.y - w!.y), "Workplace stays on the first row").toBeLessThan(2)
+    expect(Math.abs(m!.y - i!.y), "Inbox stays on the first row").toBeLessThan(2)
+    expect(w!.x).toBeGreaterThan(m!.x)
+    expect(i!.x).toBeGreaterThan(w!.x)
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
@@ -109,6 +147,46 @@ const TILE_WIDTHS = [
   { name: "1180", width: 1180, height: 820 },
   { name: "1440", width: 1440, height: 900 },
 ] as const
+
+const READABLE_VIEWPORTS = [
+  { name: "390", width: 390, height: 844 },
+  { name: "820", width: 820, height: 1180 },
+  { name: "1180", width: 1180, height: 820 },
+] as const
+
+async function forceTheme(page: Page, theme: "light" | "dark") {
+  await page.addInitScript((t) => localStorage.setItem("theme", t), theme)
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const vp of READABLE_VIEWPORTS) {
+    test.describe(`readable Home (${vp.name} ${theme})`, () => {
+      test.use({ viewport: { width: vp.width, height: vp.height } })
+
+      test(`B2: text clears 4.5:1 in ${theme}`, async ({ page }) => {
+        await forceTheme(page, theme)
+        await page.goto("/home")
+        await expect(page.locator("html")).toHaveClass(
+          theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/
+        )
+        const label = `${theme}/${vp.name}`
+        await expectReadable(page.getByRole("heading", { level: 1, name: "Home" }), `${label}/title`, expect)
+        await expectReadable(page.getByTestId("persistence-note"), `${label}/note`, expect)
+        await expectReadable(
+          page.getByRole("heading", { level: 2, name: "Call Aledo before Friday" }),
+          `${label}/#1`,
+          expect
+        )
+        await expectReadable(page.getByRole("article", { name: "Subscribers" }), `${label}/subscribers`, expect)
+        await expectReadable(
+          page.getByRole("region", { name: "Agent Workplace" }).getByRole("heading", { name: "Agent Workplace" }),
+          `${label}/workplace door`,
+          expect
+        )
+      })
+    })
+  }
+}
 
 for (const vp of TILE_WIDTHS) {
   test.describe(`responsive Home (dev-board tiles ${vp.name})`, () => {
