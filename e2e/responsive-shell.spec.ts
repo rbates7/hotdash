@@ -4,6 +4,7 @@ import { APP_HEADER_NAME } from "../src/components/app-header"
 import {
   CLOSE_DRAWER_NAME,
   COLLAPSE_SIDEBAR_NAME,
+  EXPAND_SIDEBAR_NAME,
 } from "../src/components/app-sidebar"
 import { FOUNDER_NAME } from "../src/components/founder-identity"
 import { navItems } from "../src/lib/nav"
@@ -45,6 +46,63 @@ async function expectMinHit(
   expect(box, label).toBeTruthy()
   expect(box!.width, `${label} width`).toBeGreaterThanOrEqual(min)
   expect(box!.height, `${label} height`).toBeGreaterThanOrEqual(min)
+}
+
+function chevronCircle(chevron: import("@playwright/test").Locator) {
+  return chevron.locator("span").first()
+}
+
+async function expectChevronCircle(chevron: import("@playwright/test").Locator, label: string) {
+  const circle = chevronCircle(chevron)
+  const box = await circle.boundingBox()
+  expect(box, `${label} circle`).toBeTruthy()
+  expect(box!.width, `${label} circle width`).toBe(24)
+  expect(box!.height, `${label} circle height`).toBe(24)
+  const painted = await chevron.evaluate((el) => {
+    const style = getComputedStyle(el)
+    const ctx = document.createElement("canvas").getContext("2d")!
+    ctx.clearRect(0, 0, 1, 1)
+    ctx.fillStyle = style.backgroundColor
+    ctx.fillRect(0, 0, 1, 1)
+    return {
+      alpha: ctx.getImageData(0, 0, 1, 1).data[3],
+      borderTop: style.borderTopWidth,
+      borderRight: style.borderRightWidth,
+      borderBottom: style.borderBottomWidth,
+      borderLeft: style.borderLeftWidth,
+    }
+  })
+  expect(painted.alpha, `${label} background`).toBe(0)
+  expect(Number.parseFloat(painted.borderTop), `${label} border`).toBe(0)
+  expect(Number.parseFloat(painted.borderRight), `${label} border`).toBe(0)
+  expect(Number.parseFloat(painted.borderBottom), `${label} border`).toBe(0)
+  expect(Number.parseFloat(painted.borderLeft), `${label} border`).toBe(0)
+}
+
+function boxesIntersect(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+) {
+  return !(
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.y + a.height <= b.y ||
+    b.y + b.height <= a.y
+  )
+}
+
+async function expectCircleClearsAvatar(
+  chevron: import("@playwright/test").Locator,
+  avatar: import("@playwright/test").Locator,
+  label: string
+) {
+  const circle = await chevronCircle(chevron).boundingBox()
+  const face = await avatar.boundingBox()
+  expect(circle, `${label} circle`).toBeTruthy()
+  expect(face, `${label} avatar`).toBeTruthy()
+  expect(boxesIntersect(circle!, face!), `${label}: circle intersects avatar`).toBe(
+    false
+  )
 }
 
 test.describe("responsive shell (phone 390)", () => {
@@ -143,6 +201,13 @@ test.describe("responsive shell (tablet portrait 820)", () => {
     await gotoHydrated(page)
     await expect(openMenuButton(page)).not.toBeVisible()
     await expect(founderNav(page)).toBeVisible()
+    const railChevron = page.getByRole("button", { name: EXPAND_SIDEBAR_NAME })
+    await expectChevronCircle(railChevron, "820 rail")
+    await expectCircleClearsAvatar(
+      railChevron,
+      page.locator("[data-slot='sidebar-container'] [data-slot='avatar']"),
+      "820 rail"
+    )
     const links = founderNav(page).getByRole("link")
     await expect(links).toHaveCount(NAV_LINK_COUNT)
     await founderNav(page).getByRole("link", { name: "Metrics", exact: true }).click()
@@ -163,6 +228,12 @@ test.describe("responsive shell (tablet portrait 820)", () => {
     expect(Math.abs(box!.width - 256)).toBeLessThanOrEqual(1)
     const chevron = drawer.getByRole("button", { name: COLLAPSE_SIDEBAR_NAME })
     await expect(chevron).toBeVisible()
+    await expectChevronCircle(chevron, "820 drawer")
+    await expectCircleClearsAvatar(
+      chevron,
+      drawer.locator("[data-slot='avatar']"),
+      "820 drawer"
+    )
     await expectChevronFullyHit(page, chevron)
     await expectScrollLock(page, true)
     await expectFocusTrapped(page, drawer)
@@ -259,10 +330,9 @@ test.describe("responsive shell (tablet landscape 1180)", () => {
     const links = founderNav(page).getByRole("link")
     await expect(links).toHaveCount(NAV_LINK_COUNT)
     await expectNavLinkHeights(page, { min: 44 })
-    await expectMinHit(
-      page.getByRole("button", { name: COLLAPSE_SIDEBAR_NAME }),
-      "1180 chevron"
-    )
+    const chevron1180 = page.getByRole("button", { name: COLLAPSE_SIDEBAR_NAME })
+    await expectChevronCircle(chevron1180, "1180")
+    await expectMinHit(chevron1180, "1180 chevron")
     await expectMinHit(page.getByRole("button", { name: "Light" }), "1180 Light toggle")
     await expectMinHit(page.getByRole("button", { name: "Dark" }), "1180 Dark toggle")
     await expectOneAriaCurrent(page)

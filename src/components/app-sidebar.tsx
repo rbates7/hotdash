@@ -60,13 +60,16 @@ function CollapseToggle() {
       onClick={toggleSidebar}
       className={cn(
         "bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm",
-        "md:max-lg:top-1.5 md:max-lg:-right-5 md:max-lg:size-11! md:max-lg:border-0 md:max-lg:bg-transparent md:max-lg:shadow-none md:max-lg:hover:bg-transparent",
-        "lg:max-xl:top-1.5 lg:max-xl:size-11!"
+        // 44px hit, centred on the rail/card edge. Visible 24px circle is
+        // the inner span. Nova outline must lose (Deke 5:363 / 6:493 / 6:660).
+        "md:max-xl:top-1.5 md:max-xl:right-0 md:max-xl:translate-x-1/2 md:max-xl:size-11!",
+        "md:max-xl:border-0! md:max-xl:bg-transparent! md:max-xl:shadow-none! md:max-xl:hover:bg-transparent!",
+        "md:max-xl:dark:bg-transparent! md:max-xl:dark:hover:bg-transparent!"
       )}
     >
       <span
         className={cn(
-          "md:max-lg:bg-sidebar md:max-lg:text-muted-foreground md:max-lg:flex md:max-lg:size-6 md:max-lg:items-center md:max-lg:justify-center md:max-lg:rounded-full md:max-lg:border md:max-lg:shadow-sm"
+          "md:max-xl:bg-sidebar md:max-xl:text-muted-foreground md:max-xl:flex md:max-xl:size-6 md:max-xl:items-center md:max-xl:justify-center md:max-xl:rounded-full md:max-xl:border md:max-xl:shadow-sm"
         )}
       >
         {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
