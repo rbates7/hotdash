@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic"
 
 export default function SalesOpportunitiesPage() {
   // The one read of the clock for this request. The store receives the
-  // instant and derives today (Central), "3 days ago" and "overdue" from
-  // it, so the server HTML and the client's hydration describe the same
-  // moment even across midnight.
+  // instant and derives today (Central), last-touch (`long` style) and
+  // "overdue" from it, so the server HTML and the client's hydration
+  // describe the same moment even across midnight.
   const nowMs = now().getTime()
 
   return (

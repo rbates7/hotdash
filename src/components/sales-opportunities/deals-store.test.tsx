@@ -12,7 +12,6 @@ import {
   initialState,
   isState,
   loadState,
-  loadStateOrSeed,
   normalizeInput,
   parseState,
   reducer,
@@ -212,7 +211,24 @@ describe("shellReducer bookkeeping (the shared shell)", () => {
     const after = shellReducer(pending, hydrate(seed()))
     expect(after.data).toBe(pending.data)
     expect(after.edited).toBe(true)
-    expect(after.saved).toBe(true)
+    // Flags stay as they were — this tab has not written yet, so not "Saved".
+    expect(after.saved).toBe(false)
+    expect(after.saveFailed).toBe(false)
+  })
+
+  it("a failed save is never masked by an incoming copy; their Reset still re-seeds", () => {
+    const pending = shellReducer(fresh(), { type: "add-deal", input: WESTLAKE, at: AT })
+    const failed = shellReducer(pending, { type: "save-result", ok: false })
+    expect(failed).toMatchObject({ edited: true, saved: false, saveFailed: true })
+    const after = shellReducer(failed, hydrate(seed()))
+    expect(after.data).toBe(failed.data)
+    expect(after).toMatchObject({ edited: true, saved: false, saveFailed: true })
+
+    const later = Date.parse("2026-10-07T18:00:00.000Z")
+    const reset = shellReducer(failed, { type: "hydrate", result: { state: null, status: "empty" }, nowMs: later })
+    expect(reset.data).toEqual(initialState(later))
+    expect(reset.nowMs).toBe(later)
+    expect(reset).toMatchObject({ edited: false, saved: false, saveFailed: false })
   })
 
   it("an empty or removed key (Reset in another tab) re-seeds from the event's clock and clears edited", () => {
@@ -292,7 +308,6 @@ describe("isState rejects a bad saved copy", () => {
     // load() is pure: the bad copy is still there and nothing was written.
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
     expect(setItem).not.toHaveBeenCalled()
-    expect(loadStateOrSeed(window.localStorage, FIXED_NOW_MS)).toEqual(seed())
     saveState(window.localStorage, reducer(seed(), { type: "add-deal", input: WESTLAKE, at: AT }))
     expect(dealsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
     expect(loadState(window.localStorage)!.deals).toHaveLength(9)
@@ -332,13 +347,14 @@ describe("localStorage", () => {
 /* ---------------------------------------------------------------- provider */
 
 function Probe({ label = "" }: { label?: string }) {
-  const { deals, today, nowMs, persisted, edited, saved, saveFailed, addDeal, setStage, editDeal, resetDemoData } = useDeals()
+  const { deals, today, now, nowMs, persisted, edited, saved, saveFailed, addDeal, setStage, editDeal, resetDemoData } = useDeals()
   return (
     <div data-testid={`probe${label}`}>
       <span data-testid={`persisted${label}`}>{String(persisted)}</span>
       <span data-testid={`status${label}`}>{`edited=${edited} saved=${saved} failed=${saveFailed}`}</span>
       <span data-testid={`today${label}`}>{today}</span>
       <span data-testid={`now${label}`}>{nowMs}</span>
+      <span data-testid={`now-iso${label}`}>{now.toISOString()}</span>
       <span data-testid={`count${label}`}>{deals.length}</span>
       <span data-testid={`ids${label}`}>{deals.map((d) => d.id).join(",")}</span>
       <span data-testid={`stage-1${label}`}>{deals.find((d) => d.id === "deal-1")?.stage ?? "gone"}</span>
@@ -381,6 +397,7 @@ describe("DealsProvider persistence", () => {
     mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("now")).toHaveTextContent(String(LATE_EVENING_CT_MS))
+    expect(screen.getByTestId("now-iso")).toHaveTextContent(LATE_EVENING_CT.toISOString())
     vi.setSystemTime(LATE_EVENING_CT_MS + 60_000)
     click("win")
     // A touch is stamped at the moment it happens, through the one shared clock.
@@ -453,6 +470,39 @@ describe("DealsProvider persistence", () => {
     click("add")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
     spy.mockRestore()
+  })
+
+  it("a failed save is never masked: an incoming copy keeps 'Couldn't save', and their Reset still re-seeds", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(quotaExceededStorage().setItem)
+    try {
+      mount()
+      click("add")
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+      expect(screen.getByTestId("count")).toHaveTextContent("9")
+
+      // Another tab's copy arrives: ours (unsaved) stays, and so does the failure.
+      const theirs = reducer(seed(), { type: "delete-deal", id: "deal-1" })
+      spy.mockRestore()
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
+      act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
+      expect(screen.getByTestId("count")).toHaveTextContent("9")
+      expect(screen.getByTestId("ids")).toContain("deal-9")
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
+
+      // Their Reset still re-seeds this tab.
+      window.localStorage.removeItem(STORAGE_KEY)
+      act(() => fireStorageEvent(STORAGE_KEY, null))
+      expect(screen.getByTestId("count")).toHaveTextContent("8")
+      expect(screen.getByTestId("ids")).not.toContain("deal-9")
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
+
+      // And the next local edit retries the save — storage works again now.
+      click("add")
+      expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it("re-hydrates when another tab writes the key, and re-seeds with edited=false when another tab clears it", () => {

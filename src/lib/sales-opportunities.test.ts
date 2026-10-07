@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { formatRelative, todayIn } from "@/lib/clock"
+import { formatRelative, formatRelativeDay, todayIn } from "@/lib/clock"
 import {
   CAPS,
   DEAL_FILTERS,
+  LAST_TOUCH_STYLE,
   SEED_DEAL_IDS,
   STAGES,
   countByFilter,
@@ -50,8 +51,9 @@ describe("seed", () => {
     expect(byId("deal-3").nextStepDue).toBe("2026-08-25") // −2, overdue
     expect(byId("deal-5").nextStepDue).toBe("2026-08-26") // −1, overdue
     expect(byId("deal-6").nextStepDue).toBeNull()
-    // Shown through the shared relative formatter, measured from the page's instant.
-    const rel = (id: string) => formatRelative(Date.parse(byId(id).lastTouch), FIXED_NOW_MS)
+    // Last touch uses the calendar-day `long` style, passed explicitly.
+    const rel = (id: string) =>
+      formatRelative(Date.parse(byId(id).lastTouch), FIXED_NOW_MS, { style: LAST_TOUCH_STYLE })
     expect(rel("deal-2")).toBe("Mon, Aug 24")
     expect(rel("deal-1")).toBe("Yesterday")
     expect(rel("deal-7")).toBe("just now")
@@ -86,7 +88,8 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     expect(today).toBe("2026-10-07")
     expect(late.find((d) => d.id === "deal-1")!.nextStepDue).toBe("2026-10-09")
     expect(late.find((d) => d.id === "deal-3")!.nextStepDue).toBe("2026-10-05")
-    const rel = (id: string) => formatRelative(Date.parse(late.find((d) => d.id === id)!.lastTouch), LATE)
+    const rel = (id: string) =>
+      formatRelative(Date.parse(late.find((d) => d.id === id)!.lastTouch), LATE, { style: LAST_TOUCH_STYLE })
     expect(todayIn(new Date(late.find((d) => d.id === "deal-2")!.lastTouch))).toBe("2026-10-04")
     expect(rel("deal-2")).toBe("Sun, Oct 4")
     expect(rel("deal-1")).toBe("Yesterday")
@@ -95,10 +98,14 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     expect(new Date(late.find((d) => d.id === "deal-7")!.lastTouch).getUTCDate()).toBe(8)
   })
 
-  it("a touch at 23:30 CT read the next Central morning is Yesterday, not two hours ago", () => {
+  it("last touch is pinned to the Sales `long` style — exact copy, calendar days", () => {
     // 01:30 CT on the 8th: 2 h after the touch, but a Central day later.
-    expect(formatRelative(LATE, LATE + 2 * 3_600_000)).toBe("Yesterday")
-    expect(formatRelative(LATE, LATE + 20 * 60_000)).toBe("20 min ago")
+    expect(formatRelative(LATE, LATE + 2 * 3_600_000, { style: LAST_TOUCH_STYLE })).toBe("Yesterday")
+    expect(formatRelative(LATE, LATE + 20 * 60_000, { style: LAST_TOUCH_STYLE })).toBe("20 min ago")
+    expect(formatRelative(LATE, LATE, { style: LAST_TOUCH_STYLE })).toBe("just now")
+    // The default `ago` style would lose "Yesterday" and the long form.
+    expect(formatRelative(LATE, LATE + 2 * 3_600_000)).toBe("2h ago")
+    expect(formatRelative(LATE, LATE + 20 * 60_000)).toBe("20m ago")
   })
 
   it("a due date is overdue only once the Central day has passed", () => {
@@ -111,6 +118,10 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     expect(describeDue(deal, "2026-10-06")!.relative).toBe("Due tomorrow")
     expect(describeDue(deal, "2026-10-01")!.relative).toBe("Due in 6 days")
     expect(describeDue({ nextStepDue: null }, "2026-10-01")).toBeNull()
+    // Shared `formatRelativeDay` is a different language — no "Due"/"Overdue".
+    expect(formatRelativeDay("2026-10-07", "2026-10-07")).toBe("Today")
+    expect(formatRelativeDay("2026-10-08", "2026-10-07")).toBe("Tomorrow")
+    expect(formatRelativeDay("2026-10-04", "2026-10-07")).toBe("3 days ago")
   })
 
   it("a closed deal is never flagged overdue", () => {
@@ -128,7 +139,11 @@ describe("Central day math at the edges (run under TZ=UTC and TZ=America/Chicago
     const deals = seedDeals(afterFallBack)
     expect(todayIn(new Date(deals.find((d) => d.id === "deal-2")!.lastTouch))).toBe("2026-10-30")
     expect(todayIn(new Date(deals.find((d) => d.id === "deal-1")!.lastTouch))).toBe("2026-11-01")
-    expect(formatRelative(Date.parse(deals.find((d) => d.id === "deal-1")!.lastTouch), afterFallBack)).toBe("Yesterday")
+    expect(
+      formatRelative(Date.parse(deals.find((d) => d.id === "deal-1")!.lastTouch), afterFallBack, {
+        style: LAST_TOUCH_STYLE,
+      })
+    ).toBe("Yesterday")
   })
 
   it("the long form is day-first, Central, with CT spelled out", () => {

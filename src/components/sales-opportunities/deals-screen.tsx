@@ -9,6 +9,7 @@ import {
   DEAL_FILTERS,
   DEAL_FILTER_LABELS,
   DEFAULT_DEAL_SORT,
+  LAST_TOUCH_STYLE,
   STAGES,
   STAGE_CONFIG,
   countByFilter,
@@ -367,7 +368,7 @@ export function DealsScreen() {
                       <TableCell className={CELL}>{deal.owner}</TableCell>
                       <TableCell className={`${CELL} text-muted-foreground`}>
                         <span title={formatCentralDateTime(deal.lastTouch)}>
-                          {formatRelative(Date.parse(deal.lastTouch), nowMs)}
+                          {formatRelative(Date.parse(deal.lastTouch), nowMs, { style: LAST_TOUCH_STYLE })}
                         </span>
                       </TableCell>
                       <TableCell className={`${CELL} py-2 pr-3 pl-0 text-right`}>

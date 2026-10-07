@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { addDays, now, todayIn } from "../src/lib/clock"
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Sales Opportunities page, every main state in
@@ -42,12 +43,6 @@ const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, 
 const filter = (page: Page, name: string) =>
   deals(page).getByRole("group", { name: "Show deals" }).getByRole("button", { name, exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
-
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // Through the real provider: click the sidebar toggle, not a query param.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
-}
 
 async function fresh(page: Page) {
   await page.goto("/sales-opportunities")
@@ -112,7 +107,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `sales-opportunities-empty-${theme}`)
 
     // Back to the seed for the next run (the filter is still on All).
-    await resetDemoData(page, screen(page))
+    await resetDemoData(page, screen(page), page)
     await expect(rows(page)).toHaveCount(8)
   })
 

@@ -230,11 +230,6 @@ export function loadState(storage: Storage | undefined): State | null {
   return dealsStorage.load(storage).state
 }
 
-/** The saved copy, or a fresh seed dated from `nowMs` when there is none. */
-export function loadStateOrSeed(storage: Storage | undefined, nowMs: number): State {
-  return loadState(storage) ?? initialState(nowMs)
-}
-
 export function saveState(storage: Storage | undefined, state: State): boolean {
   return dealsStorage.save(storage, state)
 }
@@ -253,6 +248,11 @@ type Store = State &
      * the shared shell; never read from a client clock in render.
      */
     nowMs: number
+    /**
+     * The shell clock as a Date. Derived from `shell.nowMs` — there is no
+     * second clock. "Overdue" and last-touch labels measure from this.
+     */
+    now: Date
     /** `nowMs` as a Central calendar day. "Overdue" and "Due in" are measured from it. */
     today: IsoDay
     addDeal: (input: DealInput) => void
@@ -276,6 +276,7 @@ export function DealsProvider({
     initialShell(initialState(ms), ms)
   )
   const { data: state, nowMs, persisted, edited, saved, saveFailed } = shell
+  const nowDate = React.useMemo(() => new Date(nowMs), [nowMs])
   const today = shellToday(shell)
 
   // The server has no localStorage, so it renders with `persisted: false` and
@@ -303,6 +304,7 @@ export function DealsProvider({
     return {
       ...state,
       nowMs,
+      now: nowDate,
       today,
       persisted,
       edited,
@@ -322,7 +324,7 @@ export function DealsProvider({
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
-  }, [state, nowMs, today, persisted, edited, saved, saveFailed])
+  }, [state, nowMs, nowDate, today, persisted, edited, saved, saveFailed])
 
   return <DealsContext.Provider value={value}>{children}</DealsContext.Provider>
 }

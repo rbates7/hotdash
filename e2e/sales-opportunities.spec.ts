@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, formatDate, formatRelative, now, todayIn } from "../src/lib/clock"
+import { LAST_TOUCH_STYLE } from "../src/lib/sales-opportunities"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData } from "./support/persistence"
+import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.sales-opportunities.v1"
 
@@ -38,12 +40,6 @@ async function fresh(page: Page) {
   await expect(rows(page)).toHaveCount(6)
 }
 
-async function setTheme(page: Page, theme: "light" | "dark") {
-  // The theme toggle sits below the nav landmark; role + exact name is unique.
-  await page.getByRole("button", { name: theme === "dark" ? "Dark" : "Light", exact: true }).click()
-  await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
-}
-
 async function addDeal(page: Page, who: string, org: string, what: string, value: string, nextStep: string, due?: string) {
   await deals(page).getByRole("button", { name: "Add deal", exact: true }).click()
   const add = dialog(page, "Add deal")
@@ -56,8 +52,6 @@ async function addDeal(page: Page, who: string, org: string, what: string, value
   await add.getByRole("button", { name: "Add deal", exact: true }).click()
   await expect(add).toBeHidden()
 }
-
-const writes = (page: Page) => writesTo(page, STORAGE_KEY)
 
 test.describe("Sales Opportunities", () => {
   test("is reachable from the sidebar and shows the live deals, soonest next step first", async ({ page }) => {
@@ -99,7 +93,9 @@ test.describe("Sales Opportunities", () => {
     await expect(pruitt).toContainText(formatDate(addDays(day, -2)))
     await expect(pruitt).toContainText("Overdue 2 days")
     // Last touch through the shared relative formatter: a weekday-date once it is older than yesterday.
-    await expect(pruitt).toContainText(formatRelative(Date.parse(`${addDays(day, -6)}T17:00:00.000Z`), now().getTime()))
+    await expect(pruitt).toContainText(
+      formatRelative(Date.parse(`${addDays(day, -6)}T17:00:00.000Z`), now().getTime(), { style: LAST_TOUCH_STYLE })
+    )
     await expect(row(page, /Whitaker/)).toContainText(formatDate(addDays(day, 2)))
     await expect(row(page, /Whitaker/)).toContainText("Yesterday")
     await expect(table(page).locator('tbody tr[data-overdue="true"]')).toHaveCount(2)
@@ -221,7 +217,7 @@ test.describe("Sales Opportunities", () => {
     await expect(note(page)).toHaveText(NOTE.saved)
 
     // Reset: key cleared, seed back, note unsaved, Reset disabled again.
-    await resetDemoData(page, screen(page))
+    await resetDemoData(page, screen(page), page)
     await expect(rows(page)).toHaveCount(6)
     await expect(row(page, /Hale/)).toBeVisible()
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
@@ -254,13 +250,9 @@ test.describe("Sales Opportunities", () => {
     await b.goto("/sales-opportunities")
     await expect(note(b)).toHaveText(NOTE.unsaved)
     await expect(rows(b)).toHaveCount(6)
-    expect(await writes(a)).toBe(0)
-    expect(await writes(b)).toBe(0)
-
-    // Writes are counted after the other tab has visibly taken the change
-    // (web-first), then polled: a loop would overshoot and never match.
-    const settled = async (p: Page, n: number) =>
-      expect.poll(() => writes(p), { intervals: [100, 200, 400], timeout: 2_000 }).toBe(n)
+    const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
+    await settled(a, 0)
+    await settled(b, 0)
 
     // Tab A edits: exactly one write, in A. B hears it and writes nothing.
     await addDeal(a, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote")
@@ -278,7 +270,7 @@ test.describe("Sales Opportunities", () => {
     await settled(b, 1)
 
     // Reset in A: B goes back to the seed with nothing saved; no new writes.
-    await resetDemoData(a, screen(a))
+    await resetDemoData(a, screen(a), a)
     await expect(rows(a)).toHaveCount(6)
     await expect(rows(b)).toHaveCount(6)
     await expect(row(b, /Jordan Reyes/)).toHaveCount(0)
@@ -342,7 +334,7 @@ test.describe("Sales Opportunities", () => {
     }
     await expect(empty).toContainText("No live deals")
     await expect(empty).toContainText("A hunt becomes a deal when someone is actually talking")
-    await resetDemoData(page, screen(page))
+    await resetDemoData(page, screen(page), page)
     await expect(rows(page)).toHaveCount(8)
   })
 })

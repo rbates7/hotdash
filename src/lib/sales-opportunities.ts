@@ -104,7 +104,10 @@ export type Deal = {
   /** Central calendar day the next step is due; null when there is no date. */
   nextStepDue: IsoDay | null
   owner: Owner
-  /** ISO instant of the last conversation; shown via the shared `formatRelative`. */
+  /**
+   * ISO instant of the last conversation; shown via the shared
+   * `formatRelative(..., { style: LAST_TOUCH_STYLE })`.
+   */
   lastTouch: string
   createdAt: string
   updatedAt: string
@@ -388,7 +391,20 @@ export function isOverdue(deal: Pick<Deal, "nextStepDue" | "stage">, today: IsoD
   return d !== null && d < 0
 }
 
-/** "Due 12 Oct 2026 · in 3 days", "Overdue 2 days", "Due today", or null for no date. */
+/**
+ * Last-touch labels on this screen. `long` is the calendar-day style the
+ * Sales copy uses: "just now" · "5 min ago" · "3 h ago" · "Yesterday" ·
+ * "Mon, Oct 5". The shared default (`ago`) would print "1d ago" / "3d ago"
+ * and lose the Central-day "Yesterday" the seed is dated against.
+ */
+export const LAST_TOUCH_STYLE = "long" as const
+
+/**
+ * Where a next step stands, in Sales copy: "Due today", "Due tomorrow",
+ * "Due in 3 days", "Overdue 2 days". The shared `formatRelativeDay` speaks
+ * a different language ("Today" / "in 3 days" / "2 days ago") and has no
+ * overdue wording, so this stays local.
+ */
 export function describeDue(deal: Pick<Deal, "nextStepDue">, today: IsoDay) {
   const d = daysToDue(deal, today)
   if (d === null || deal.nextStepDue === null) return null
