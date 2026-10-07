@@ -59,7 +59,7 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
     <span
       className={cn(
         "text-micro inline-flex items-center gap-1.5",
-        store.saveFailed ? "text-destructive" : "text-muted-foreground"
+        store.saveFailed ? "text-danger-text" : "text-muted-foreground"
       )}
     >
       {store.saveFailed ? (
@@ -84,7 +84,7 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
             <Button
               variant="ghost"
               size="xs"
-              className="text-micro text-muted-foreground h-6 px-1.5"
+              className="text-micro text-muted-foreground h-6 px-1.5 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent"
               disabled={!canReset}
               focusableWhenDisabled
               aria-describedby={canReset ? undefined : hintId}

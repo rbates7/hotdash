@@ -23,7 +23,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
   function renderMetrics(search = "") {
     navigation.params = new URLSearchParams(search)
     return render(
-      <MetricsProvider today={today}>
+      <MetricsProvider nowMs={Date.parse(`${today}T18:00:00.000Z`)}>
         <MetricsTabs />
       </MetricsProvider>
     )
@@ -37,7 +37,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     )
   }
 
-  it("the truth strip's Subscribers card shows the Metrics Subscribers card's value and delta", () => {
+  it("the truth strip's Paying-coaches card shows the Metrics Subscribers card's value and delta", () => {
     const metrics = renderMetrics()
     const metricsCard = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: "Subscribers" })
     const metricsValue = within(metricsCard).getByTestId("metric-value").textContent
@@ -46,7 +46,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     metrics.unmount()
 
     renderHome()
-    const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
+    const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Paying coaches" })
     expect(within(homeCard).getByText(metricsValue!)).toBeInTheDocument()
     expect(homeCard).toHaveTextContent(`${metricsTrend} ${metricsCaption}`)
   })

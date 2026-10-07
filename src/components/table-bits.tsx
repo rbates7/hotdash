@@ -110,7 +110,7 @@ export function Pill({
         tone === "plan" && "bg-muted text-foreground",
         tone === "annual" && "bg-secondary-foreground/15 text-foreground dark:bg-secondary-foreground/20",
         tone === "muted" && "bg-muted text-muted-foreground",
-        tone === "good" && "bg-success/10 text-success",
+        tone === "good" && "bg-success/10 text-success-text",
         className
       )}
       {...props}

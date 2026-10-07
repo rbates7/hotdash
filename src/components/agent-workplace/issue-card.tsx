@@ -9,7 +9,7 @@ export function WorkingBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "bg-success/10 text-success inline-flex h-[18px] shrink-0 items-center rounded-full px-[7px] text-[10px] font-semibold tracking-wide uppercase",
+        "bg-success/10 text-success-text inline-flex h-[18px] shrink-0 items-center rounded-full px-[7px] text-[10px] font-semibold tracking-wide uppercase",
         className
       )}
     >

@@ -168,3 +168,42 @@ export function daysEnding(today: IsoDay | Date, count: number): IsoDay[] {
   const end = toDay(today)
   return Array.from({ length: count }, (_, i) => addDays(end, -(count - 1 - i)))
 }
+
+/* --------------------------------------------------------- relative time */
+
+const WEEKDAY_DATE = new Intl.DateTimeFormat("en-US", {
+  timeZone: CENTRAL,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+})
+
+/**
+ * The one relative-time formatter for the dashboard (Workplace activity and
+ * comments, Inbox rows, Home's Needs-you list, System Status).
+ *
+ * Under an hour is arithmetic; from there it is calendar days in Central —
+ * hours while `from` is still today, "Yesterday" when it fell on the Central
+ * day before `now`'s, otherwise the weekday and date ("Mon, Oct 5"). So a
+ * row from 11pm last night reads "Yesterday" at 1pm, never "14 h ago".
+ *
+ * `long` (default): "just now" · "5 min ago" · "3 h ago" · "Yesterday" · "Mon, Oct 5"
+ * `compact`:        "now"      · "5m"        · "3h"      · "Yesterday" · "Mon, Oct 5"
+ */
+export function formatRelative(
+  fromMs: number,
+  nowMs: number,
+  { style = "long" }: { style?: "long" | "compact" } = {}
+) {
+  const compact = style === "compact"
+  const mins = Math.round((nowMs - fromMs) / 60_000)
+  if (mins < 1) return compact ? "now" : "just now"
+  if (mins < 60) return compact ? `${mins}m` : `${mins} min ago`
+  const days = daysBetween(todayIn(new Date(fromMs)), todayIn(new Date(nowMs)))
+  if (days <= 0) {
+    const hours = Math.floor(mins / 60)
+    return compact ? `${hours}h` : `${hours} h ago`
+  }
+  if (days === 1) return "Yesterday"
+  return WEEKDAY_DATE.format(new Date(fromMs))
+}

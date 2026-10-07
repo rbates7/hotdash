@@ -87,7 +87,7 @@ for (const theme of ["light", "dark"] as const) {
     for (const name of ["MRR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses", "Valuation"]) {
       await card(page, name).getByRole("button", { name: `Remove ${name}` }).click()
     }
-    await expect(page.getByRole("status", { name: "Empty board" })).toBeVisible()
+    await expect(panel(page, "Overview").getByRole("status", { name: "Empty board" })).toBeVisible()
     await shoot(page, `metrics-overview-empty-${theme}`)
     await resetDemoData(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)

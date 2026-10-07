@@ -198,7 +198,7 @@ export function BacklogPanel({
               <span className="text-caption text-muted-foreground">
                 {formatDay(current.startDate)} – {formatDay(current.endDate)}
               </span>
-              <span className="text-micro bg-success/10 text-success rounded-full px-1.5 py-0.5 font-medium">
+              <span className="text-micro bg-success/10 text-success-text rounded-full px-1.5 py-0.5 font-medium">
                 Active
               </span>
             </>

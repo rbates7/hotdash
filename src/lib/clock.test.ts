@@ -10,6 +10,7 @@ import {
   periodBefore,
   daysEnding,
   formatDayShort,
+  formatRelative,
   formatWindowSpan,
   formatPeriod,
   windowsEnding,
@@ -19,6 +20,7 @@ import {
   todayIn,
 } from "@/lib/clock"
 import { MOCK_DAY } from "@/lib/kpis"
+import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 
 afterEach(() => {
   vi.useRealTimers()
@@ -55,7 +57,7 @@ describe("now → today", () => {
 describe("every formatter is Central, never the machine zone", () => {
   // 23:30 CT on 7 Oct 2026 (CDT). In UTC it is already 04:30 on the 8th —
   // the window where a UTC server and a Central browser used to disagree.
-  const LATE = new Date("2026-10-08T04:30:00.000Z")
+  const LATE = LATE_EVENING_CT
 
   it("23:30 CT is still the 7th everywhere an instant is accepted", () => {
     vi.useFakeTimers({ now: LATE })
@@ -166,5 +168,42 @@ describe("periods", () => {
     expect(inPeriod("2026-08-21", period)).toBe(true)
     expect(inPeriod("2026-07-24", period)).toBe(false)
     expect(inPeriod("2026-08-22", period)).toBe(false)
+  })
+})
+
+describe("formatRelative — the one relative-time formatter", () => {
+  // 13:00 CT on Wed 7 Oct 2026.
+  const NOW = Date.parse("2026-10-07T18:00:00.000Z")
+  const ago = (ms: number) => NOW - ms
+  const H = 3_600_000
+
+  it("is arithmetic under an hour, then Central calendar days", () => {
+    expect(formatRelative(ago(20_000), NOW)).toBe("just now")
+    expect(formatRelative(ago(5 * 60_000), NOW)).toBe("5 min ago")
+    expect(formatRelative(ago(3 * H), NOW)).toBe("3 h ago") // 10:00 today
+    expect(formatRelative(ago(12 * H), NOW)).toBe("12 h ago") // 01:00 today
+    expect(formatRelative(ago(14 * H), NOW)).toBe("Yesterday") // 23:00 yesterday — never "14 h ago"
+    expect(formatRelative(ago(36 * H), NOW)).toBe("Yesterday") // 01:00 yesterday
+    expect(formatRelative(ago(38 * H), NOW)).toBe("Mon, Oct 5") // 23:00 Monday
+    expect(formatRelative(ago(10 * 24 * H), NOW)).toBe("Sun, Sep 27")
+  })
+
+  it("compact style for dense rows", () => {
+    expect(formatRelative(ago(20_000), NOW, { style: "compact" })).toBe("now")
+    expect(formatRelative(ago(18 * 60_000), NOW, { style: "compact" })).toBe("18m")
+    expect(formatRelative(ago(2 * H), NOW, { style: "compact" })).toBe("2h")
+    expect(formatRelative(ago(14 * H), NOW, { style: "compact" })).toBe("Yesterday")
+    expect(formatRelative(ago(38 * H), NOW, { style: "compact" })).toBe("Mon, Oct 5")
+  })
+
+  it("reads the calendar in Central even late in the evening (same answer in every process zone)", () => {
+    // 23:30 CT Wed 7 Oct: 22:00 CT is "1 h ago", 23:30 CT Tuesday is "Yesterday"
+    // even though in UTC both instants are on the 8th / the 7th.
+    expect(formatRelative(LATE_EVENING_CT_MS - 1.5 * H, LATE_EVENING_CT_MS)).toBe("1 h ago")
+    expect(formatRelative(LATE_EVENING_CT_MS - 24 * H, LATE_EVENING_CT_MS)).toBe("Yesterday")
+    expect(formatRelative(LATE_EVENING_CT_MS - 48 * H, LATE_EVENING_CT_MS)).toBe("Mon, Oct 5")
+    // And at 00:30 CT, 2 h ago was yesterday in Central (and today in UTC).
+    const justAfterMidnightCt = Date.parse("2026-10-08T05:30:00.000Z")
+    expect(formatRelative(justAfterMidnightCt - 2 * H, justAfterMidnightCt)).toBe("Yesterday")
   })
 })

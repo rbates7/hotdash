@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
 
 const TONE_CLASS: Record<KpiTone, string> = {
-  good: "bg-success/10 text-success",
-  bad: "bg-destructive/10 text-destructive",
+  good: "bg-success/10 text-success-text",
+  bad: "bg-destructive/10 text-danger-text",
   flat: "bg-muted text-muted-foreground",
 }
 
