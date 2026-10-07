@@ -183,8 +183,8 @@ describe("filters, sort, describe", () => {
 
   it("sorts Active then Planned then Idea then Done, dated soonest first", () => {
     const names = sortInitiatives(seed).map((r) => r.name)
-    expect(names[0]).toBe("Saturday volunteer coaching at Alief rec")
-    expect(names[1]).toBe("Equipment drive for Yates High School")
+    expect(names[0]).toBe("Equipment drive for Yates High School")
+    expect(names[1]).toBe("Saturday volunteer coaching at Alief rec")
     expect(names.at(-1)).toBe("Refurbished iPads for a Title I program")
   })
 

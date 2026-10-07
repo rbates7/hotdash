@@ -420,7 +420,7 @@ export function seedInitiatives(today: IsoDay): Initiative[] {
       "Saturday volunteer coaching at Alief rec",
       "volunteer",
       "Alief rec league",
-      daysAgoThisYear(today, 14),
+      null,
       "Weekly, Saturday mornings",
       "active",
       "Trip",
