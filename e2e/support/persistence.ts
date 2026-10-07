@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 
 /** The shared PersistenceNote's copy, mirrored from `@/components/persistence-note`. */
 export const NOTE = {
@@ -19,9 +19,13 @@ export function persistenceNote(page: Page, { failed = false } = {}) {
   return page.getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
 }
 
-/** Reset is behind a confirm on every screen; click through it. */
-export async function resetDemoData(page: Page) {
-  const reset = page.getByRole("button", { name: "Reset", exact: true })
+/**
+ * Reset is behind a confirm on every screen; click through it. Pass `scope`
+ * (e.g. the page header) when more than one Reset button could be on the
+ * page; the confirm dialog is always found on the page.
+ */
+export async function resetDemoData(page: Page, scope: Locator | Page = page) {
+  const reset = scope.getByRole("button", { name: "Reset", exact: true })
   await expect(reset).toBeEnabled()
   await reset.click()
   const dialog = page.getByRole("dialog", { name: "Reset demo data?" })

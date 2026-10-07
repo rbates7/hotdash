@@ -248,7 +248,9 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
   })
 
-  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-dates from now", () => {
+  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key and re-seeds around the request's day", () => {
+    // A client clock that disagrees with the request must not leak into the
+    // reset: the page re-seeds around the day it was served with.
     vi.useFakeTimers({ now: new Date("2026-10-07T18:00:00.000Z"), toFake: ["Date"] })
     const first = mount()
     act(() => screen.getByRole("button", { name: "edit" }).click())
@@ -264,9 +266,10 @@ describe("MetricsProvider persistence", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("today")).toHaveTextContent(TODAY)
     expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
-    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("dates")).toHaveTextContent(TODAY)
+    expect(screen.getByTestId("dates")).not.toHaveTextContent("2026-10-07")
     vi.useRealTimers()
   })
 

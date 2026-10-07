@@ -2,14 +2,7 @@
 
 import * as React from "react"
 
-import {
-  addDays,
-  daysBetween,
-  isIsoDay,
-  now,
-  todayIn,
-  type IsoDay,
-} from "@/lib/clock"
+import { addDays, daysBetween, isIsoDay, type IsoDay } from "@/lib/clock"
 import { SEED_EXPENSE_IDS, seedExpenses } from "@/lib/kpis"
 import {
   DEFAULT_METRIC_IDS,
@@ -281,17 +274,14 @@ type Store = State &
 const MetricsContext = React.createContext<Store | null>(null)
 
 export function MetricsProvider({
-  today: requestToday,
+  today,
   children,
 }: {
+  /** The request's Central calendar day — the one clock read for this page. */
   today: IsoDay
   children: React.ReactNode
 }) {
-  // Reset regenerates from the moment of the click, so after a Reset the
-  // page's "today" is that day, not the request's.
-  const [today, setToday] = React.useState(requestToday)
-
-  const [shell, dispatch] = React.useReducer(shellReducer, requestToday, (day) =>
+  const [shell, dispatch] = React.useReducer(shellReducer, today, (day) =>
     initialShell(initialState(day))
   )
   const { data: state, persisted, edited, saved, saveFailed } = shell
@@ -327,12 +317,11 @@ export function MetricsProvider({
       addExpense: (input) => dispatch({ type: "add-expense", input }),
       removeExpense: (id) => dispatch({ type: "remove-expense", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate from now: the browser returns to the
-        // never-edited state and the seed is dated from this moment.
+        // Clear first, then regenerate around the request's day — never a
+        // client clock read, per the read-once rule: the browser returns to
+        // the never-edited state with the seed this page was served with.
         clearState(window.localStorage)
-        const day = todayIn(now())
-        setToday(day)
-        dispatch({ type: "reset", today: day })
+        dispatch({ type: "reset", today })
       },
     }),
     [state, today, persisted, edited, saved, saveFailed]
