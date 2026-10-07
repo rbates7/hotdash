@@ -16,7 +16,7 @@ const OUT_DIRS = [
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
-const STORAGE_KEY = "hotdash.metrics.v1"
+const STORAGE_KEY = "hotdash.metrics.v2"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
