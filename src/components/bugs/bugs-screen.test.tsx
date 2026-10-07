@@ -16,7 +16,7 @@ import {
 } from "@/components/agent-workplace/issues-store"
 import { TicketView } from "@/components/agent-workplace/ticket-view"
 import { BACK_TO_BUGS, BugsScreen } from "@/components/bugs/bugs-screen"
-import { EMPTY_BUGS, bugHref } from "@/components/bugs/bugs-list"
+import { EMPTY_BUGS, SEED_BUGS_NOTICE, bugHref } from "@/components/bugs/bugs-list"
 
 function renderBugs(search = "", nowMs = FIXED_NOW_MS, extra?: React.ReactNode) {
   navigation.params = new URLSearchParams(search)
@@ -101,6 +101,34 @@ describe("Bugs screen", () => {
 
     await user.click(screen.getByRole("button", { name: BACK_TO_BUGS }))
     expect(navigation.push).toHaveBeenCalledWith("/bugs", { scroll: false })
+  })
+
+  it("shows the sample-data notice on seed bugs", () => {
+    renderBugs()
+    const notice = within(list()).getByRole("note", { name: "Sample data" })
+    expect(notice).toBeInTheDocument()
+    expect(notice).toHaveTextContent(SEED_BUGS_NOTICE)
+  })
+
+  it("hides the notice when every seed bug is untagged and a new ticket is tagged bug", () => {
+    const state = initialState(FIXED_NOW)
+    state.issues = state.issues.map((i) =>
+      i.labels.includes("bug") ? { ...i, labels: i.labels.filter((l) => l !== "bug") } : i
+    )
+    const template = state.issues[0]
+    state.issues.push({
+      ...template,
+      key: "CHLK-999",
+      title: "A new live bug",
+      labels: ["bug"],
+      status: "todo",
+    })
+    saveState(window.localStorage, state)
+
+    renderBugs()
+    expect(within(list()).queryByRole("note", { name: "Sample data" })).not.toBeInTheDocument()
+    expect(within(list()).getByRole("link", { name: /A new live bug/ })).toBeInTheDocument()
+    expect(within(list()).queryByRole("link", { name: /CHLK-419/ })).not.toBeInTheDocument()
   })
 
   it("shows the crash card from the sample fixture, labelled as sample data", () => {

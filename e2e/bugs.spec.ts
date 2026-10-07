@@ -72,6 +72,7 @@ test.describe("Bugs", () => {
     await expect(crashCard(page).getByText("−7 vs previous 7 days")).toBeVisible()
     await expect(crashCard(page).getByTestId("sample-data-tag")).toHaveText("Sample data")
     await expect(crashCard(page).getByText(/Sentry not connected/)).toBeVisible()
+    await expect(list(page).getByRole("note", { name: "Sample data" })).toBeVisible()
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(1)
   })
 
@@ -188,10 +189,15 @@ test.describe("Bugs", () => {
       await setTheme(page, theme)
       await expectReadable(page.getByRole("heading", { level: 1, name: "Bugs" }), `${theme}/title`, expect)
       await expectReadable(crashCard(page), `${theme}/crash card`, expect)
+      await expect(list(page).getByRole("note", { name: "Sample data" })).toBeVisible()
       const nodes = await expectReadable(list(page), `${theme}/bug list`, expect)
       for (const heading of ["To Do", "In Progress", "In Review", "Done"]) {
         expect(nodes.some((n) => n.text === heading), `${theme}: measured "${heading}"`).toBe(true)
       }
+      expect(nodes.some((n) => n.text === "Sample data.")).toBe(true)
+      expect(
+        nodes.some((n) => n.text.includes("example tickets from the Agent Workplace demo board"))
+      ).toBe(true)
       expect(nodes.some((n) => n.text === "Bug · Crash")).toBe(true)
       expect(nodes.some((n) => n.text === "Bug · Coach-reported")).toBe(true)
 

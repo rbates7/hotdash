@@ -264,7 +264,7 @@ export function buildIssues(now: Date): Issue[] {
       key: "CHLK-419",
       title: "Crash opening a shared playbook on iPad",
       description:
-        "Opening a link to a shared book from Messages crashes the app on launch. 12 crash reports in the last two days, all iPadOS 19.",
+        "Opening a link to a shared book from Messages crashes the app on launch. Reports are all iPadOS 19.",
       status: "todo",
       priority: "urgent",
       assigneeId: YOYO,
@@ -368,3 +368,12 @@ export function buildIssues(now: Date): Issue[] {
     }),
   ]
 }
+
+/**
+ * Keys of the demo seed. Dates are relative to `now`, but the keys are not:
+ * any instant produces the same set. Bugs shows the sample-data notice
+ * while any listed bug is one of these.
+ */
+export const SEED_ISSUE_KEYS: ReadonlySet<string> = new Set(
+  buildIssues(new Date(0)).map((i) => i.key)
+)

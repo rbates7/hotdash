@@ -3,12 +3,16 @@
 import Link from "next/link"
 import { BugOffIcon } from "lucide-react"
 
-import { STATUS_TEXT, groupBugs, openBugs } from "@/lib/bugs"
+import { STATUS_TEXT, groupBugs, hasSeedBugs, openBugs } from "@/lib/bugs"
 import { formatRelative } from "@/lib/clock"
 import { PRIORITY_CONFIG, STATUS_CONFIG, actorById, type Actor, type Issue } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { BugTag } from "@/components/bugs/bug-tag"
+import { SampleDataNotice } from "@/components/sample-data"
+
+export const SEED_BUGS_NOTICE =
+  "These are example tickets from the Agent Workplace demo board. Coach names, crash reports and dates are invented."
 
 export const EMPTY_BUGS = "No open bugs"
 
@@ -74,9 +78,11 @@ export function BugsList({
   const groups = groupBugs(issues)
   const open = openBugs(issues).length
   const fixed = groups.find((g) => g.status === "done")?.bugs.length ?? 0
+  const seedNotice = hasSeedBugs(issues)
 
   return (
     <section aria-label="Bug list" className="flex min-w-0 flex-col gap-3">
+      {seedNotice && <SampleDataNotice>{SEED_BUGS_NOTICE}</SampleDataNotice>}
       <p className="text-caption text-muted-foreground -mt-1 tracking-tight">
         Agent Workplace tickets tagged <span className="font-mono">bug</span>, grouped by
         status. {open} open · {fixed} fixed.

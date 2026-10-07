@@ -1,4 +1,5 @@
 import { daysEnding, inPeriod, toDay, type IsoDay, type Period } from "@/lib/clock"
+import { SEED_ISSUE_KEYS } from "@/lib/issues-fixture"
 import type { Kpi } from "@/lib/home"
 import { VS_PREVIOUS_WEEK, weekEnding } from "@/lib/kpis"
 import { trendFor } from "@/lib/metrics"
@@ -45,6 +46,11 @@ export function toggleLabel(labels: readonly string[], label: string): string[] 
 
 export function bugs(issues: readonly Issue[]) {
   return issues.filter(isBug)
+}
+
+/** True while any listed bug is a seed ticket — the sample-data notice's gate. */
+export function hasSeedBugs(issues: readonly Issue[]) {
+  return bugs(issues).some((i) => SEED_ISSUE_KEYS.has(i.key))
 }
 
 /** Everything not yet Done — what "No open bugs" is the absence of. */

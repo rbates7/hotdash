@@ -10,13 +10,14 @@ import {
   crashKpi,
   dailyCrashes,
   groupBugs,
+  hasSeedBugs,
   isBug,
   openBugs,
   toggleLabel,
 } from "@/lib/bugs"
 import { addDays, todayIn } from "@/lib/clock"
 import { STATUS_ORDER } from "@/lib/issues"
-import { YOYO, actors, buildIssues } from "@/lib/issues-fixture"
+import { SEED_ISSUE_KEYS, YOYO, actors, buildIssues } from "@/lib/issues-fixture"
 import { FIXED_NOW, LATE_EVENING_CT } from "@/test/clock"
 
 const seed = () => buildIssues(FIXED_NOW)
@@ -48,6 +49,24 @@ describe("bug filter", () => {
     const open = openBugs(seed())
     expect(open.map((i) => i.key)).toEqual(["CHLK-404", "CHLK-419", "CHLK-420"])
     expect(open.every((i) => i.status !== "done")).toBe(true)
+  })
+
+  it("the sample-data notice's gate is any listed seed bug", () => {
+    expect(hasSeedBugs(seed())).toBe(true)
+    expect(SEED_ISSUE_KEYS.has("CHLK-419")).toBe(true)
+    const untagged = seed().map((i) =>
+      i.labels.includes(BUG_LABEL) ? { ...i, labels: i.labels.filter((l) => l !== BUG_LABEL) } : i
+    )
+    const fresh = { ...seed()[0], key: "CHLK-999", labels: [BUG_LABEL] }
+    expect(SEED_ISSUE_KEYS.has("CHLK-999")).toBe(false)
+    expect(hasSeedBugs(untagged)).toBe(false)
+    expect(hasSeedBugs([...untagged, fresh])).toBe(false)
+    expect(bugs([...untagged, fresh]).map((i) => i.key)).toEqual(["CHLK-999"])
+  })
+
+  it("CHLK-419 does not invent a crash-report count that contradicts the card", () => {
+    const issue = seed().find((i) => i.key === "CHLK-419")!
+    expect(issue.description).not.toMatch(/\d+ crash reports/)
   })
 })
 
