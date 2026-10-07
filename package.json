@@ -17,6 +17,7 @@
     "screens": "SCREENSHOTS=1 playwright test e2e/workplace-screens.spec.ts",
     "screens:home": "SCREENSHOTS=1 playwright test e2e/home-screens.spec.ts",
     "screens:metrics": "SCREENSHOTS=1 playwright test e2e/metrics-screens.spec.ts",
+    "screens:sales": "SCREENSHOTS=1 playwright test e2e/sales-opportunities-screens.spec.ts",
     "screens:system-status": "CI=true SCREENSHOTS=1 playwright test e2e/system-status-screens.spec.ts",
     "screens:product-roadmap": "SCREENSHOTS=1 playwright test e2e/product-roadmap-screens.spec.ts",
     "screens:feature-request": "SCREENSHOTS=1 playwright test e2e/feature-request-screens.spec.ts"
