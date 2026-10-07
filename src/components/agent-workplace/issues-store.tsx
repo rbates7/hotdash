@@ -3,11 +3,11 @@
 import * as React from "react"
 
 import type { Issue, IssuePriority, IssueStatus, Sprint } from "@/lib/issues"
+import { PRIORITY_ORDER, STATUS_ORDER } from "@/lib/issues"
 import {
-  NOW,
   actors as seedActors,
-  issues as seedIssues,
-  sprints as seedSprints,
+  buildIssues,
+  buildSprints,
   RASHAD,
 } from "@/lib/issues-fixture"
 
@@ -16,6 +16,12 @@ export type State = {
   sprints: Sprint[]
   /** Next number for a generated CHLK-n key. */
   nextKey: number
+  /**
+   * The instant every relative figure is measured from, as ISO. Set from
+   * the server's request time on load; moved to the moment of a Reset so
+   * the regenerated seed is fresh. Never taken from a saved copy.
+   */
+  now: string
 }
 
 export type NewIssueInput = {
@@ -37,7 +43,8 @@ export type Action =
   | { type: "start-sprint"; id: string }
   | { type: "complete-sprint"; id: string }
   | { type: "hydrate"; state: State | null }
-  | { type: "reset" }
+  /** Regenerates the seed relative to `at`, so its dates are fresh again. */
+  | { type: "reset"; at: string }
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
@@ -157,48 +164,138 @@ export function reducer(state: State, action: Action): State {
       }
 
     case "hydrate":
-      return action.state ?? state
+      // A saved copy brings its board, never its clock: this page's instant
+      // stays so the saved sprint is measured against today.
+      return action.state ? { ...action.state, now: state.now } : state
 
     case "reset":
-      return initialState()
+      return initialState(new Date(action.at))
   }
 }
 
-/** Reducer state plus whether localStorage has been consulted yet. */
-type Shell = { data: State; hydrated: boolean }
+/** Actions that are the founder's own edits, as opposed to plumbing. */
+const USER_EDITS = new Set<Action["type"]>([
+  "create-issue",
+  "patch-issue",
+  "add-comment",
+  "create-sprint",
+  "start-sprint",
+  "complete-sprint",
+])
+
+/**
+ * Reducer state plus persistence bookkeeping: whether localStorage has been
+ * consulted yet, and whether this browser holds edits worth saving.
+ */
+type Shell = { data: State; hydrated: boolean; dirty: boolean }
 
 function shellReducer(shell: Shell, action: Action): Shell {
   return {
     data: reducer(shell.data, action),
     hydrated: shell.hydrated || action.type === "hydrate",
+    dirty:
+      action.type === "reset"
+        ? false
+        : action.type === "hydrate"
+          ? action.state !== null
+          : shell.dirty || USER_EDITS.has(action.type),
   }
 }
 
-export function initialState(): State {
-  const highest = seedIssues.reduce((max, i) => {
+/**
+ * The demo seed, dated relative to `now`: the active sprint started five
+ * days before it and ends nine days after, comments and activity are hours
+ * before it, and so on. Build it from the instant the page was requested.
+ */
+export function initialState(now: Date): State {
+  const issues = buildIssues(now)
+  const highest = issues.reduce((max, i) => {
     const n = Number(i.key.split("-")[1])
     return Number.isFinite(n) && n > max ? n : max
   }, 0)
-  return { issues: seedIssues, sprints: seedSprints, nextKey: highest + 1 }
+  return {
+    issues,
+    sprints: buildSprints(now),
+    nextKey: highest + 1,
+    now: now.toISOString(),
+  }
 }
 
 /* ------------------------------------------------------------ persistence */
 
 /**
  * Board state is saved to this browser's localStorage so a reload keeps
- * edits. Bump the version whenever the seed or the shape changes so stale
- * saves are discarded instead of half-applied. This is a stand-in until a
- * real datastore exists (CHLK-414); there is no server copy.
+ * edits. This is a stand-in until a real datastore exists (CHLK-414); there
+ * is no server copy.
+ *
+ * Policy — persist only after the first real edit:
+ * - A browser that has never edited the board is never written to, so it
+ *   gets a fresh seed, dated from today, on every load. The seed cannot go
+ *   stale in a browser that only looked at it.
+ * - Once the founder edits something, the whole board is saved and a reload
+ *   restores it. Dates in that copy are whatever they were when edited, so
+ *   a sprint saved on day 0 honestly reads "N days over" after it ends.
+ * - Reset discards the saved copy and regenerates the seed from the moment
+ *   of the reset, returning the browser to the never-edited state.
+ *
+ * Bump the version whenever the seed or the shape changes so saves from an
+ * older build are discarded instead of half-applied. v1 (frozen demo dates)
+ * is ignored entirely.
  */
-export const STORAGE_KEY = "hotdash.agent-workplace.v1"
+export const STORAGE_KEY = "hotdash.agent-workplace.v2"
 
-function isState(value: unknown): value is State {
+const isString = (v: unknown): v is string => typeof v === "string"
+const isStringOrNull = (v: unknown): v is string | null => v === null || isString(v)
+const isIsoDate = (v: unknown): v is string => isString(v) && !Number.isNaN(Date.parse(v))
+
+function isIssue(value: unknown): value is Issue {
+  if (!value || typeof value !== "object") return false
+  const v = value as Record<string, unknown>
+  return (
+    isString(v.key) &&
+    isString(v.title) &&
+    (STATUS_ORDER as string[]).includes(v.status as string) &&
+    (PRIORITY_ORDER as string[]).includes(v.priority as string) &&
+    isStringOrNull(v.assigneeId) &&
+    isStringOrNull(v.sprintId) &&
+    Array.isArray(v.labels) &&
+    v.labels.every(isString) &&
+    isString(v.createdById) &&
+    isIsoDate(v.createdAt) &&
+    isIsoDate(v.updatedAt) &&
+    typeof v.isAgentWorking === "boolean" &&
+    Array.isArray(v.activity) &&
+    Array.isArray(v.comments)
+  )
+}
+
+function isSprint(value: unknown): value is Sprint {
+  if (!value || typeof value !== "object") return false
+  const v = value as Record<string, unknown>
+  return (
+    isString(v.id) &&
+    isString(v.name) &&
+    isIsoDate(v.startDate) &&
+    isIsoDate(v.endDate) &&
+    (v.status === "planned" || v.status === "active" || v.status === "completed")
+  )
+}
+
+/**
+ * Every issue and sprint is checked, not just the envelope: one malformed
+ * item means the whole copy is dropped in favour of the seed, rather than
+ * rendering half a board.
+ */
+export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object") return false
   const v = value as Record<string, unknown>
   return (
     Array.isArray(v.issues) &&
+    v.issues.every(isIssue) &&
     Array.isArray(v.sprints) &&
-    typeof v.nextKey === "number"
+    v.sprints.every(isSprint) &&
+    typeof v.nextKey === "number" &&
+    isIsoDate(v.now)
   )
 }
 
@@ -221,11 +318,23 @@ export function saveState(storage: Storage | undefined, state: State) {
   }
 }
 
-type Store = State & {
+export function clearState(storage: Storage | undefined) {
+  try {
+    storage?.removeItem(STORAGE_KEY)
+  } catch {
+    // Nothing to do; the next load falls back to the seed anyway.
+  }
+}
+
+type Store = Omit<State, "now"> & {
   actors: typeof seedActors
-  /** Fixed clock. A live one would hydrate mismatched against the server. */
+  /**
+   * `State.now` as a Date: the server's request instant, or the moment of
+   * the last Reset. Every relative figure is measured from it; a live
+   * client clock would hydrate mismatched against the server's HTML.
+   */
   now: Date
-  /** True once localStorage has been read and writes are flowing. */
+  /** True once localStorage has been read; edits made after this are saved. */
   persisted: boolean
   createIssue: (input: NewIssueInput) => void
   patchIssue: (key: string, patch: Partial<Issue>) => void
@@ -238,11 +347,18 @@ type Store = State & {
 
 const IssuesContext = React.createContext<Store | null>(null)
 
-export function IssuesProvider({ children }: { children: React.ReactNode }) {
-  const [{ data: state, hydrated: persisted }, dispatch] = React.useReducer(
+export function IssuesProvider({
+  nowMs,
+  children,
+}: {
+  /** `now().getTime()` from the server component rendering this page. */
+  nowMs: number
+  children: React.ReactNode
+}) {
+  const [{ data: state, hydrated: persisted, dirty }, dispatch] = React.useReducer(
     shellReducer,
     undefined,
-    () => ({ data: initialState(), hydrated: false })
+    () => ({ data: initialState(new Date(nowMs)), hydrated: false, dirty: false })
   )
 
   // Server and first client paint both use the seed; the saved copy is
@@ -251,16 +367,22 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "hydrate", state: loadState(window.localStorage) })
   }, [])
 
+  // Write only once there is something of the founder's to keep (see the
+  // persistence policy above); a Reset clears the copy instead.
   React.useEffect(() => {
-    if (persisted) saveState(window.localStorage, state)
-  }, [persisted, state])
+    if (!persisted) return
+    if (dirty) saveState(window.localStorage, state)
+    else clearState(window.localStorage)
+  }, [persisted, dirty, state])
+
+  const now = React.useMemo(() => new Date(state.now), [state.now])
 
   const value = React.useMemo<Store>(() => {
     const at = () => new Date().toISOString()
     return {
       ...state,
       actors: seedActors,
-      now: NOW,
+      now,
       persisted,
       createIssue: (input) => dispatch({ type: "create-issue", input, at: at() }),
       patchIssue: (key, patch) =>
@@ -271,9 +393,11 @@ export function IssuesProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
-      resetDemoData: () => dispatch({ type: "reset" }),
+      // Reset re-dates the seed from right now, not from the page load, so a
+      // save left over from an older session comes back fresh.
+      resetDemoData: () => dispatch({ type: "reset", at: at() }),
     }
-  }, [state, persisted])
+  }, [state, persisted, now])
 
   return (
     <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>
