@@ -55,7 +55,9 @@ export function ResponsiveTable({
     >
       {showStack ? (
         <>
-          <div className="md:hidden">{stacked}</div>
+          <div className="md:hidden" role="list">
+            {stacked}
+          </div>
           <div className="hidden md:block">{children}</div>
         </>
       ) : (
@@ -92,6 +94,7 @@ export function RowCollapse({
   const Comp = onClick ? "button" : "div"
 
   return (
+    <div role="listitem">
     <Comp
       {...(onClick ? { type: "button" as const, onClick } : {})}
       data-slot={ROW_COLLAPSE_SLOT}
@@ -124,12 +127,12 @@ export function RowCollapse({
               {status ? <span className="shrink-0">{status}</span> : null}
             </span>
             {meta.length > 0 ? (
-              <ul className="flex min-w-0 flex-col gap-1">
+              <span className="flex min-w-0 flex-col gap-1">
                 {meta.map((line) => (
-                  <li
+                  <span
                     key={`${line.label}-${line.value}`}
                     className={cn(
-                      "truncate text-xs leading-4",
+                      "block truncate text-xs leading-4",
                       attention && line === meta[1]
                         ? "text-destructive font-medium"
                         : "text-muted-foreground"
@@ -137,9 +140,9 @@ export function RowCollapse({
                   >
                     <span className="sr-only">{line.label}: </span>
                     <span>{line.value}</span>
-                  </li>
+                  </span>
                 ))}
-              </ul>
+              </span>
             ) : null}
             {sample ? <SampleDataTag /> : null}
           </>
@@ -147,5 +150,6 @@ export function RowCollapse({
       </span>
       <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" aria-hidden />
     </Comp>
+    </div>
   )
 }

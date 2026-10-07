@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -36,7 +36,15 @@ describe("ResponsiveTable", () => {
 
   it("phone stack: shows stacked cards below md and hides the overflow scroller", () => {
     render(
-      <ResponsiveTable layout="stack" stacked={<p>Stacked cards</p>}>
+      <ResponsiveTable
+        layout="stack"
+        stacked={
+          <>
+            <RowCollapse title="Westfield" meta={[{ label: "Type", value: "Outreach" }]} />
+            <RowCollapse title="Aledo" />
+          </>
+        }
+      >
         <table aria-label="Deals">
           <tbody>
             <tr>
@@ -46,12 +54,14 @@ describe("ResponsiveTable", () => {
         </table>
       </ResponsiveTable>
     )
-    expect(screen.getByText("Stacked cards")).toBeInTheDocument()
+    expect(screen.getByText("Westfield")).toBeInTheDocument()
     expect(screen.getByRole("table", { name: "Deals" })).toBeInTheDocument()
     const box = tableBox()
     expect(box).toHaveAttribute("data-layout", "stack")
     expect(box?.className).not.toContain("overflow-x-auto")
-    expect(box?.querySelector(".md\\:hidden")).toBeTruthy()
+    const stack = box?.querySelector(".md\\:hidden")
+    expect(stack).toHaveAttribute("role", "list")
+    expect(stack?.querySelectorAll('[role="listitem"]')).toHaveLength(2)
   })
 
   it("tablet/desktop (md+): stack layout keeps the table for the md:block pane", () => {
@@ -125,12 +135,9 @@ describe("RowCollapse", () => {
     expect(row).toHaveAttribute("data-state", "default")
     expect(screen.getByText("Staff seats invite fails on the iPad")).toBeInTheDocument()
     expect(screen.getByText("Open")).toBeInTheDocument()
-    const list = screen.getByRole("list")
-    const items = within(list).getAllByRole("listitem")
-    expect(items).toHaveLength(3)
-    expect(items[0]).toHaveTextContent("Case:")
-    expect(items[0]).toHaveTextContent("#1 · Marcus Hale · Westfield HS")
-    expect(items[2]).toHaveTextContent("Dana")
+    expect(screen.getByText("Case:")).toBeInTheDocument()
+    expect(screen.getByText("#1 · Marcus Hale · Westfield HS")).toBeInTheDocument()
+    expect(screen.getByText("Dana")).toBeInTheDocument()
     expect(screen.getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
   })
 
@@ -144,8 +151,10 @@ describe("RowCollapse", () => {
       />
     )
     const row = screen.getByRole("button", { name: /Overdue clinic/ })
-    expect(row.querySelectorAll("div, p")).toHaveLength(0)
+    expect(row.querySelectorAll("div, p, ul, ol, li")).toHaveLength(0)
     expect(row.querySelectorAll("span").length).toBeGreaterThan(0)
+    expect(row).toHaveAccessibleName(/Type/)
+    expect(row).toHaveAccessibleName(/Outreach/)
   })
 
   it("marks a loading row with aria-busy and a Loading name, not an empty button", () => {
