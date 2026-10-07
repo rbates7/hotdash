@@ -37,7 +37,10 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByText("2 waiting")).toBeVisible()
 
       await expectTapTarget(page.getByRole("button", { name: "Reset" }), "Reset")
-      await expectTapTarget(page.getByRole("link", { name: "My Desk" }), "My Desk")
+      await expectTapTarget(
+        page.getByRole("region", { name: "Number one" }).getByRole("link", { name: "My Desk" }),
+        "My Desk"
+      )
       await expectTapTarget(
         page.getByRole("link", { name: "Open Agent Workplace" }),
         "Open Agent Workplace"

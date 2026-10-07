@@ -12,7 +12,13 @@ import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
 import { NeedsYouDoor } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
-import { HOME_DOORS, HOME_HEADER, HOME_HEADER_META, HOME_INBOX_DOOR } from "@/components/home/responsive"
+import {
+  HOME_DOORS,
+  HOME_HEADER,
+  HOME_HEADER_META,
+  HOME_INBOX_DOOR,
+  HOME_RESET,
+} from "@/components/home/responsive"
 
 /**
  * The founder's pulse for the day: one thing, four numbers, three doors.
@@ -43,7 +49,7 @@ export function HomeScreen({ pulse }: { pulse: string }) {
         <div className={HOME_HEADER_META}>
           {/* Home reads the Workplace's browser-saved board, so it says so
               the same way the Workplace does. */}
-          <PersistenceNote store={store} />
+          <PersistenceNote store={store} resetClassName={HOME_RESET} />
           <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
             Dummy / design mock
           </span>

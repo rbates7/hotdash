@@ -27,6 +27,7 @@ const SIZES = {
 } as const
 
 async function shoot(page: Page, name: string) {
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
   await page.waitForTimeout(250)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })

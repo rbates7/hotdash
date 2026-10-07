@@ -52,6 +52,11 @@ describe("PersistenceNote", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
+  it("accepts extra Reset classes so a screen can grow the tap target", () => {
+    render(<PersistenceNote store={store()} resetClassName="max-xl:h-11!" />)
+    expect(screen.getByRole("button", { name: "Reset" }).className.split(" ")).toContain("max-xl:h-11!")
+  })
+
   it("reads 'Saved in this browser' once something is saved and enables Reset without the hint", () => {
     render(<PersistenceNote store={store({ edited: true, saved: true })} />)
     expect(screen.getByTestId("persistence-note")).toHaveTextContent("Saved in this browser")

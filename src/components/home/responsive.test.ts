@@ -7,6 +7,7 @@ import {
   HOME_HEADER_META,
   HOME_INBOX_DOOR,
   HOME_KPI_HEAD,
+  HOME_RESET,
   HOME_TOUCH,
 } from "@/components/home/responsive"
 
@@ -16,7 +17,7 @@ describe("Home responsive layout", () => {
     expect(HOME_HEADER).toContain("xl:flex-row")
     expect(HOME_HEADER).toContain("xl:justify-between")
     expect(HOME_HEADER_META).toContain("flex-wrap")
-    expect(HOME_HEADER_META).toContain("max-xl:[&_[data-slot=button]]:h-11!")
+    expect(HOME_RESET).toBe("max-xl:h-11! max-xl:px-2.5!")
   })
 
   it("puts doors 1-up on phone, 2+1 on tablet, 3-up on desktop", () => {
@@ -34,6 +35,6 @@ describe("Home responsive layout", () => {
 
   it("lets the truth-strip label wrap and grows compact tap targets", () => {
     expect(HOME_KPI_HEAD).toContain("flex-wrap")
-    expect(HOME_TOUCH).toContain("max-xl:min-h-11")
+    expect(HOME_TOUCH).toContain("max-xl:h-11!")
   })
 })

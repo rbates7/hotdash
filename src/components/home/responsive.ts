@@ -10,13 +10,12 @@
 export const HOME_HEADER =
   "flex flex-col items-stretch gap-3 xl:flex-row xl:items-start xl:justify-between xl:gap-4"
 
-/**
- * Persistence + dummy chip wrap under the title on phone. Reset grows to
- * 44px below `xl` via the shared PersistenceNote's button — we do not
- * edit PersistenceNote itself.
- */
+/** Persistence + dummy chip wrap under the title on phone. */
 export const HOME_HEADER_META =
-  "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 xl:mt-1 xl:shrink-0 xl:gap-2.5 max-xl:[&_[data-slot=button]]:h-11! max-xl:[&_[data-slot=button]]:px-2.5!"
+  "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 xl:mt-1 xl:shrink-0 xl:gap-2.5"
+
+/** Passed to PersistenceNote so Reset is 44px on phone/tablet. */
+export const HOME_RESET = "max-xl:h-11! max-xl:px-2.5!"
 
 export const HOME_DOORS =
   "grid min-h-[200px] flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
@@ -31,4 +30,4 @@ export const HOME_KPI_HEAD =
   "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-0.5"
 
 /** 44px tap target on phone + tablet; desktop chrome stays as-is. */
-export const HOME_TOUCH = "max-xl:min-h-11"
+export const HOME_TOUCH = "max-xl:h-11!"
