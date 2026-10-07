@@ -4,8 +4,14 @@ import userEvent from "@testing-library/user-event"
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { navigation } from "@/test/setup"
-import { MetricsProvider } from "@/components/metrics/metrics-store"
+import {
+  MetricsProvider,
+  initialState,
+  reducer,
+  saveState,
+} from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
+import { SAMPLE_DATA_LABEL } from "@/components/metrics/sample-data"
 
 beforeAll(() => {
   // Recharts' ResponsiveContainer measures itself; jsdom has no layout or
@@ -32,6 +38,8 @@ function renderTabs(search = "") {
 }
 
 const card = (name: string) => screen.getByRole("article", { name })
+const grid = () => screen.getByRole("region", { name: "Metric cards" })
+const cards = () => within(grid()).getAllByRole("article")
 
 describe("MetricsTabs", () => {
   beforeEach(() => {
@@ -40,7 +48,8 @@ describe("MetricsTabs", () => {
 
   it("renders the locked tab set with Overview first", () => {
     renderTabs()
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    const tablist = screen.getByRole("tablist", { name: "Metrics views" })
+    expect(within(tablist).getAllByRole("tab").map((t) => t.textContent)).toEqual([
       "Overview",
       "New Subscribers",
       "Churned Subscribers",
@@ -60,10 +69,83 @@ describe("MetricsTabs", () => {
     expect(navigation.push).toHaveBeenLastCalledWith("?", { scroll: false })
   })
 
+  describe("hydration", () => {
+    it("shows skeletons, never the seed, until localStorage has been read", async () => {
+      saveState(window.localStorage, reducer(initialState(), { type: "remove-metric", id: "arr" }))
+
+      // Watch the DOM from before mount. The layout effect swaps the first
+      // committed frame for the saved board synchronously, so by the time the
+      // observer fires only its *removed* nodes still describe that frame:
+      // they must be the skeleton, and no removed node may ever have been a
+      // seed card.
+      const removed: Element[] = []
+      const observer = new MutationObserver((records) => {
+        for (const r of records) for (const n of r.removedNodes) if (n instanceof Element) removed.push(n)
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+      navigation.params = new URLSearchParams()
+      render(
+        <MetricsProvider>
+          <MetricsTabs />
+        </MetricsProvider>
+      )
+      await Promise.resolve()
+      observer.disconnect()
+
+      const wasSkeleton = (el: Element) =>
+        el.matches('[aria-label="Loading saved metrics"]') ||
+        el.querySelector('[aria-label="Loading saved metrics"]') !== null
+      expect(removed.some(wasSkeleton)).toBe(true)
+      for (const el of removed) {
+        expect(el.matches("[data-metric]") || el.querySelector("[data-metric]")).toBeFalsy()
+        expect(el.textContent).not.toContain("$26,190")
+      }
+
+      // And the committed result is the saved board, not the seed.
+      expect(screen.queryByRole("status", { name: "Loading saved metrics" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("article", { name: "ARR" })).not.toBeInTheDocument()
+      expect(cards()).toHaveLength(7)
+    })
+  })
+
+  describe("sample data labelling", () => {
+    it("every metric card carries a visible Sample data tag", () => {
+      renderTabs()
+      for (const c of cards()) {
+        expect(within(c).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      }
+      expect(cards()).toHaveLength(8)
+    })
+
+    it("an added extra carries it too", async () => {
+      const user = userEvent.setup()
+      renderTabs()
+      await user.click(screen.getByRole("button", { name: "Add metric" }))
+      await user.click(await screen.findByRole("button", { name: /^NPS/ }))
+      expect(within(card("NPS")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    })
+
+    it.each([
+      ["tab=new", "New subscribers"],
+      ["tab=churned", "Churned subscribers"],
+      ["tab=expenses", "Expenses"],
+    ])("the %s table is labelled as sample data", (search, tableName) => {
+      renderTabs(search)
+      const table = screen.getByRole("table", { name: tableName })
+      const strip = table.closest("[class*='rounded-xl']")!.querySelector("[data-testid=sample-data-tag]")
+      expect(strip).toHaveTextContent(SAMPLE_DATA_LABEL)
+    })
+
+    it("the Expenses tab card is labelled as sample data", () => {
+      renderTabs("tab=expenses")
+      expect(within(card("Expenses")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    })
+  })
+
   describe("Overview", () => {
     it("shows the eight default cards, in order, with value, trend and caption", () => {
       renderTabs()
-      const names = screen.getAllByRole("article").map((a) => a.getAttribute("aria-label"))
+      const names = cards().map((a) => a.getAttribute("aria-label"))
       expect(names).toEqual([
         "MRR",
         "ARR",
@@ -105,7 +187,7 @@ describe("MetricsTabs", () => {
       renderTabs()
       await user.click(within(card("Revenue")).getByRole("button", { name: "Remove Revenue" }))
       expect(screen.queryByRole("article", { name: "Revenue" })).not.toBeInTheDocument()
-      expect(screen.getAllByRole("article")).toHaveLength(7)
+      expect(cards()).toHaveLength(7)
 
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
@@ -130,7 +212,7 @@ describe("MetricsTabs", () => {
       const valuation = card("Valuation")
       expect(within(valuation).getByTestId("metric-value")).toHaveTextContent("$1.10M")
       expect(within(valuation).getByText("ARR × 3.5 · illustrative only")).toBeInTheDocument()
-      expect(screen.getAllByRole("article")).toHaveLength(9)
+      expect(cards()).toHaveLength(9)
       expect(screen.queryByRole("dialog", { name: "Add a metric" })).not.toBeInTheDocument()
     })
 
@@ -140,8 +222,8 @@ describe("MetricsTabs", () => {
       for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
         await user.click(within(card(name)).getByRole("button", { name: `Remove ${name}` }))
       }
-      expect(screen.queryAllByRole("article")).toHaveLength(0)
-      expect(screen.getByRole("status")).toHaveTextContent("No metrics on the board")
+      expect(screen.queryByRole("region", { name: "Metric cards" })).not.toBeInTheDocument()
+      expect(screen.getByRole("status", { name: "Empty board" })).toHaveTextContent("No metrics on the board")
 
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
@@ -156,7 +238,7 @@ describe("MetricsTabs", () => {
         const picker = await screen.findByRole("dialog", { name: "Add a metric" })
         await user.click(within(picker).getAllByRole("button")[0])
       }
-      expect(screen.getAllByRole("article")).toHaveLength(15)
+      expect(cards()).toHaveLength(15)
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       expect(await screen.findByText("All metrics are on the board")).toBeInTheDocument()
     })

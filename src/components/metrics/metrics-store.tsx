@@ -158,7 +158,10 @@ export function saveState(storage: Storage | undefined, state: State) {
 }
 
 type Store = State & {
-  /** True once localStorage has been read and writes are flowing. */
+  /**
+   * True once localStorage has been read and writes are flowing. Until then
+   * the state is the seed and must not be shown as if it were the user's.
+   */
   persisted: boolean
   addMetric: (id: MetricId) => void
   removeMetric: (id: MetricId) => void
@@ -177,9 +180,11 @@ export function MetricsProvider({ children }: { children: React.ReactNode }) {
     () => ({ data: initialState(), hydrated: false })
   )
 
-  // Server and first client paint both use the seed; the saved copy is
-  // applied after mount so the HTML never mismatches.
-  React.useEffect(() => {
+  // The server has no localStorage, so it renders with `persisted: false` and
+  // the page shows skeletons rather than the seed. On the client the saved
+  // copy is read in a *layout* effect — it runs before the browser paints, so
+  // the first frame a user sees is already their data, never the seed.
+  React.useLayoutEffect(() => {
     dispatch({ type: "hydrate", state: loadState(window.localStorage) })
   }, [])
 

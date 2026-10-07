@@ -77,6 +77,7 @@ export function OverviewPanel() {
       {visible.length === 0 ? (
         <div
           role="status"
+          aria-label="Empty board"
           className="border-surface-border text-muted-foreground flex min-h-[176px] w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-6 text-center"
         >
           <p className="text-body text-foreground font-medium">No metrics on the board</p>
@@ -85,9 +86,9 @@ export function OverviewPanel() {
           </p>
         </div>
       ) : (
-        <div
-          className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
+        <section
           aria-label="Metric cards"
+          className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
         >
           {visible.map((id: MetricId) => {
             const snapshot = snapshotFor(id, expenses)
@@ -101,7 +102,7 @@ export function OverviewPanel() {
               />
             )
           })}
-        </div>
+        </section>
       )}
       <AddMetric />
     </div>

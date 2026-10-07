@@ -3,8 +3,10 @@
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ExpensesPanel } from "@/components/metrics/expenses-panel"
+import { useMetrics } from "@/components/metrics/metrics-store"
 import { OverviewPanel } from "@/components/metrics/overview-panel"
 import {
   ChurnedSubscribersTable,
@@ -27,9 +29,37 @@ function isTab(value: string | null): value is MetricsTab {
   return METRICS_TABS.some((t) => t.value === value)
 }
 
+/**
+ * Stands in for a panel until localStorage has been read. Showing the seed
+ * here would flash numbers the user may have changed; the Overview's shape
+ * is a card grid, the rest are tables.
+ */
+function PanelSkeleton({ tab }: { tab: MetricsTab }) {
+  if (tab === "overview") {
+    return (
+      <div
+        role="status"
+        aria-label="Loading saved metrics"
+        className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
+      >
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-[176px] rounded-xl" />
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div role="status" aria-label="Loading saved metrics" className="flex flex-col gap-[18px]">
+      {tab === "expenses" && <Skeleton className="h-[176px] w-full max-w-[420px] rounded-xl" />}
+      <Skeleton className="h-72 w-full rounded-xl" />
+    </div>
+  )
+}
+
 export function MetricsTabs() {
   const router = useRouter()
   const params = useSearchParams()
+  const { persisted } = useMetrics()
 
   const requested = params.get("tab")
   const tab: MetricsTab = isTab(requested) ? requested : DEFAULT_TAB
@@ -47,6 +77,12 @@ export function MetricsTabs() {
     [params, router]
   )
 
+  const panel = (value: MetricsTab, content: React.ReactNode) => (
+    <TabsContent value={value}>
+      {persisted ? content : <PanelSkeleton tab={value} />}
+    </TabsContent>
+  )
+
   return (
     <Tabs
       value={tab}
@@ -55,6 +91,7 @@ export function MetricsTabs() {
     >
       <TabsList
         variant="line"
+        aria-label="Metrics views"
         className="border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px]"
       >
         {METRICS_TABS.map((t) => (
@@ -68,18 +105,10 @@ export function MetricsTabs() {
         ))}
       </TabsList>
 
-      <TabsContent value="overview">
-        <OverviewPanel />
-      </TabsContent>
-      <TabsContent value="new">
-        <NewSubscribersTable />
-      </TabsContent>
-      <TabsContent value="churned">
-        <ChurnedSubscribersTable />
-      </TabsContent>
-      <TabsContent value="expenses">
-        <ExpensesPanel />
-      </TabsContent>
+      {panel("overview", <OverviewPanel />)}
+      {panel("new", <NewSubscribersTable />)}
+      {panel("churned", <ChurnedSubscribersTable />)}
+      {panel("expenses", <ExpensesPanel />)}
     </Tabs>
   )
 }

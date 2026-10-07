@@ -165,6 +165,19 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("expense-count")).toHaveTextContent("9")
   })
 
+  it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
+    saveState(window.localStorage, reducer(initialState(), { type: "remove-metric", id: "arr" }))
+    // render() flushes layout effects synchronously; no awaiting here on
+    // purpose — the saved copy must already be in place when it returns.
+    render(
+      <MetricsProvider>
+        <Probe />
+      </MetricsProvider>
+    )
+    expect(screen.getByTestId("persisted")).toHaveTextContent("true")
+    expect(screen.getByTestId("visible")).not.toHaveTextContent("arr")
+  })
+
   it("falls back to the seed when nothing is saved", async () => {
     render(
       <MetricsProvider>
