@@ -18,14 +18,18 @@ const DAY = 24 * HOUR
 
 export const RASHAD = "rashad"
 export const MAY = "may"
+/** Owns the Bugs page (founder-dashboard-screens.md: "Bugs — Yo-Yo's page"). */
+export const YOYO = "yoyo"
 
 /**
- * Roster. Humans are the two people who touch this board; agents use the
- * placeholder names from the requirements doc — do not swap in real ones.
+ * Roster. Humans are the people who touch this board (Yo-Yo owns Bugs);
+ * agents use the placeholder names from the requirements doc — do not swap
+ * in real ones.
  */
 export const actors: Actor[] = [
   { id: RASHAD, name: "Rashad", kind: "human", initials: "RB", tone: "brand" },
   { id: MAY, name: "May", kind: "human", initials: "MW", tone: "neutral" },
+  { id: YOYO, name: "Yo-Yo", kind: "human", initials: "YY", tone: "neutral" },
   { id: "grok-1", name: "Grok-1", kind: "agent", initials: "G1" },
   { id: "grok-2", name: "Grok-2", kind: "agent", initials: "G2" },
   { id: "grok-3", name: "Grok-3", kind: "agent", initials: "G3" },
@@ -139,7 +143,8 @@ export function buildIssues(now: Date): Issue[] {
       priority: "urgent",
       assigneeId: "grok-1",
       sprintId: "sprint-4",
-      labels: ["editor", "ipad"],
+      // A coach reported it, so it is a bug too: Bugs shows this same ticket.
+      labels: ["editor", "ipad", "bug", "coach-reported"],
       createdAt: hoursAgo(17),
       updatedAt: hoursAgo(0.4),
       isAgentWorking: true,
@@ -252,6 +257,51 @@ export function buildIssues(now: Date): Issue[] {
       updatedAt: hoursAgo(40),
       isAgentWorking: false,
       blockerReason: "Need a sample .vsdx from a coach.",
+    }),
+
+    // ---- bugs (Yo-Yo's; the Bugs page is a view of these) -----------------
+    issue({
+      key: "CHLK-419",
+      title: "Crash opening a shared playbook on iPad",
+      description:
+        "Opening a link to a shared book from Messages crashes the app on launch. 12 crash reports in the last two days, all iPadOS 19.",
+      status: "todo",
+      priority: "urgent",
+      assigneeId: YOYO,
+      sprintId: "sprint-4",
+      labels: ["bug", "crash", "ipad", "sharing"],
+      createdById: YOYO,
+      createdAt: hoursAgo(5),
+      updatedAt: hoursAgo(3),
+      isAgentWorking: false,
+    }),
+    issue({
+      key: "CHLK-420",
+      title: "Route arrows vanish after undo",
+      description:
+        "Coach Ortiz (Aledo): undoing a player move also wipes the route arrows on that player. Repros on iPad and web.",
+      status: "in_review",
+      priority: "high",
+      assigneeId: YOYO,
+      sprintId: "sprint-4",
+      labels: ["bug", "coach-reported", "editor"],
+      createdById: YOYO,
+      createdAt: hoursAgo(50),
+      updatedAt: hoursAgo(7),
+      isAgentWorking: false,
+    }),
+    issue({
+      key: "CHLK-421",
+      title: "Crash exporting a book to PDF",
+      status: "done",
+      priority: "high",
+      assigneeId: YOYO,
+      sprintId: "sprint-4",
+      labels: ["bug", "crash"],
+      createdById: YOYO,
+      createdAt: hoursAgo(96),
+      updatedAt: hoursAgo(31),
+      isAgentWorking: false,
     }),
 
     // ---- backlog -----------------------------------------------------------

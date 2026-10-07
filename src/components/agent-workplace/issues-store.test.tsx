@@ -75,7 +75,7 @@ describe("reducer", () => {
         project: "Imports",
       },
     })
-    expect(state.issues[0].key).toBe("CHLK-419")
+    expect(state.issues[0].key).toBe("CHLK-422")
     expect(state.issues[0].project).toBe("Imports")
   })
 
@@ -327,12 +327,19 @@ describe("saved items are validated one by one (L2)", () => {
     expect(isState(good())).toBe(true)
   })
 
+  it("reads labels as a set: a doubled `bug` label is one bug", () => {
+    const state = good()
+    state.issues[3] = { ...state.issues[3], labels: ["bug", "editor", "bug"] }
+    expect(parseState(state)!.issues[3].labels).toEqual(["bug", "editor"])
+  })
+
   it("rejects the whole copy when one issue is malformed", () => {
     for (const bad of [
       { status: "shipped" },
       { priority: "p0" },
       { key: 404 },
       { labels: "billing" },
+      { labels: ["bug", 7] },
       { createdAt: "yesterday" },
       { assigneeId: 7 },
       { isAgentWorking: "yes" },

@@ -159,22 +159,22 @@ describe("boardPreview", () => {
     const preview = boardPreview(issues, sprints, actors, NOW)
     expect(preview?.sprint.name).toBe("Sprint 4")
     expect(preview?.columns.map((c) => [c.label, c.count])).toEqual([
-      ["To Do", 3],
+      ["To Do", 4],
       ["In Progress", 3],
-      ["In Review", 2],
-      ["Done", 3],
+      ["In Review", 3],
+      ["Done", 4],
       ["Blocked", 2],
     ])
     expect(preview?.working).toBe(3)
-    expect(preview?.progress).toEqual({ done: 3, total: 13, pct: 23 })
+    expect(preview?.progress).toEqual({ done: 4, total: 16, pct: 25 })
     expect(preview?.daysLeft).toBe(9)
   })
 
   it("ignores backlog issues outside the sprint", () => {
     const preview = boardPreview(issues, sprints, actors, NOW)
     const total = preview!.columns.reduce((sum, c) => sum + c.count, 0)
-    expect(total).toBe(13)
-    expect(issues.length).toBeGreaterThan(13)
+    expect(total).toBe(16)
+    expect(issues.length).toBeGreaterThan(16)
   })
 
   it("is null when no sprint is running", () => {

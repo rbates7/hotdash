@@ -5,6 +5,7 @@ import { formatRelative } from "@/lib/clock"
 import {
   ArrowLeftIcon,
   ArrowUpIcon,
+  BugIcon,
   ChevronDownIcon,
   EllipsisIcon,
   FolderIcon,
@@ -23,6 +24,7 @@ import {
   actorById,
   formatDay,
 } from "@/lib/issues"
+import { BUG_LABEL, isBug, toggleLabel } from "@/lib/bugs"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,8 +35,12 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { useIssues } from "@/components/agent-workplace/issues-store"
+import { BugTag } from "@/components/bugs/bug-tag"
 
 const NOT_YET = "Not in this pass"
+
+/** What the bug toggle says in each state; the Bugs e2e clicks these. */
+export const BUG_TOGGLE = { tag: "Tag as bug", untag: "Untag bug" } as const
 
 function RailSection({
   title,
@@ -81,9 +87,12 @@ function RailRow({
 export function TicketView({
   issueKey,
   onClose,
+  backLabel = "Back to the board",
 }: {
   issueKey: string
   onClose: () => void
+  /** What the back control says; Bugs opens the same view over its list. */
+  backLabel?: string
 }) {
   const { issues, sprints, actors, now, patchIssue, addComment } = useIssues()
   const [draft, setDraft] = React.useState("")
@@ -97,7 +106,7 @@ export function TicketView({
         <p className="text-body font-medium">Issue {issueKey} not found</p>
         <Button variant="outline" size="sm" onClick={onClose}>
           <ArrowLeftIcon aria-hidden />
-          Back to the board
+          {backLabel}
         </Button>
       </div>
     )
@@ -108,6 +117,7 @@ export function TicketView({
   const assignee = actorById(actors, issue.assigneeId)
   const author = actorById(actors, issue.createdById)
   const sprint = sprints.find((s) => s.id === issue.sprintId) ?? null
+  const bug = isBug(issue)
 
   function send() {
     if (!draft.trim()) return
@@ -123,7 +133,7 @@ export function TicketView({
             variant="ghost"
             size="icon-sm"
             onClick={onClose}
-            aria-label="Back to the board"
+            aria-label={backLabel}
           >
             <ArrowLeftIcon />
           </Button>
@@ -163,6 +173,11 @@ export function TicketView({
         </header>
 
         <div className="max-w-3xl pr-6">
+          {bug && (
+            <p className="mb-2 flex items-center gap-2">
+              <BugTag issue={issue} withSource />
+            </p>
+          )}
           <h1 className="text-display-sm font-semibold">{issue.title}</h1>
 
           {issue.description ? (
@@ -499,6 +514,25 @@ export function TicketView({
                     ))}
                   </PopoverContent>
                 </Popover>
+              </RailRow>
+
+              {/* Bugs is a view of tickets tagged `bug`; this is the one
+                  place a ticket enters or leaves that view. */}
+              <RailRow label="Bug">
+                <button
+                  type="button"
+                  aria-pressed={bug}
+                  onClick={() =>
+                    patchIssue(issue.key, { labels: toggleLabel(issue.labels, BUG_LABEL) })
+                  }
+                  className={cn(
+                    "text-body hover:bg-muted -ml-1.5 flex items-center gap-1.5 rounded-md px-1.5 py-0.5",
+                    !bug && "text-muted-foreground"
+                  )}
+                >
+                  <BugIcon className={cn("size-3.5", bug && "text-danger-text")} aria-hidden />
+                  {bug ? BUG_TOGGLE.untag : BUG_TOGGLE.tag}
+                </button>
               </RailRow>
             </RailSection>
 

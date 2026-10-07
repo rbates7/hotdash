@@ -12,6 +12,7 @@ import {
 } from "@/lib/issues-fixture"
 import {
   createStorage,
+  dedupe,
   isBoolean,
   isIsoInstant,
   isOptionalString,
@@ -324,7 +325,8 @@ export function parseIssue(value: unknown): Issue | null {
     priority: v.priority,
     assigneeId: v.assigneeId,
     sprintId: v.sprintId,
-    labels: v.labels,
+    // Labels are a set: a copy that says `bug` twice reads as one bug.
+    labels: dedupe(v.labels),
     createdById: v.createdById,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
