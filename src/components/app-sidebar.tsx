@@ -117,9 +117,14 @@ export function AppSidebar() {
       <SidebarSeparator />
 
       <SidebarFooter>
-        <div className="flex group-data-[collapsible=icon]:justify-center">
+        {/* A named region, so the theme control has a landmark of its own
+            and tests can scope to it instead of searching the page. */}
+        <section
+          aria-label="Appearance"
+          className="flex group-data-[collapsible=icon]:justify-center"
+        >
           <ThemeToggle />
-        </div>
+        </section>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Help">

@@ -287,11 +287,6 @@ export function loadState(storage: Storage | undefined): State | null {
   return metricsStorage.load(storage).state
 }
 
-/** The saved copy brought up to `today`, or a fresh seed when there is none. */
-export function loadStateOrSeed(storage: Storage | undefined, today: IsoDay): State {
-  const saved = loadState(storage)
-  return saved ? shiftSeed(saved, today).state : initialState(today)
-}
 
 export function saveState(storage: Storage | undefined, state: State): boolean {
   return metricsStorage.save(storage, state)
@@ -304,9 +299,11 @@ export function clearState(storage: Storage | undefined) {
 type Store = State &
   PersistenceStore & {
     /**
-     * Today's calendar day (America/Chicago), read once per request on the
-     * server and passed in, so SSR and hydration agree and nothing in the
-     * tree reads the machine clock.
+     * Today's calendar day (America/Chicago), derived from the shell's clock:
+     * the request's instant on mount (so SSR and hydration agree), then the
+     * moment of a Reset or of a re-seed after another tab's Reset, or the
+     * day of a later copy this tab adopted. Nothing in the tree reads the
+     * machine clock directly.
      */
     today: IsoDay
     addMetric: (id: MetricId) => void

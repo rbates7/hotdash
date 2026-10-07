@@ -23,8 +23,8 @@ import {
 import { initialShell } from "@/lib/persistence"
 
 /** Drive the shell (hydrate/reset live there, not in the board reducer) and return its data. */
-const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1]) =>
-  shellReducer({ ...initialShell(state, Date.parse(state.now)), persisted: true }, action).data
+const viaShell = (state: ReturnType<typeof initialState>, action: Parameters<typeof shellReducer>[1], nowMs = FIXED_NOW_MS) =>
+  shellReducer({ ...initialShell(state, nowMs), persisted: true }, action).data
 import { fireStorageEvent, quotaExceededStorage } from "@/test/storage"
 
 const AT = "2026-08-27T15:00:00.000Z"
@@ -137,10 +137,7 @@ describe("localStorage round trip", () => {
       at: AT,
     })
     saveState(window.localStorage, state)
-    // Everything but the page's clock round-trips; the clock is never saved.
-    const { now: _now, ...saved } = state
-    void _now
-    expect(loadState(window.localStorage)).toEqual(saved)
+    expect(loadState(window.localStorage)).toEqual(state)
     expect(loadStateOrSeed(window.localStorage, FIXED_NOW)).toEqual(state)
   })
 
@@ -312,11 +309,15 @@ describe("now lives in store state (L1)", () => {
     }
   })
 
-  it("a saved copy never brings its own clock", () => {
+  it("a saved copy never brings its own clock (there is none in it: the clock lives in the shell)", () => {
     const saved = initialState(new Date(FIXED_NOW_MS - 3 * DAY))
-    const state = viaShell(initialState(FIXED_NOW), { type: "hydrate", result: { state: saved, status: "saved" }, nowMs: FIXED_NOW_MS })
-    expect(state.now).toBe(FIXED_NOW.toISOString())
-    expect(state.sprints).toEqual(saved.sprints)
+    const shell = shellReducer(
+      { ...initialShell(initialState(FIXED_NOW), FIXED_NOW_MS), persisted: true },
+      { type: "hydrate", result: { state: saved, status: "saved" }, nowMs: FIXED_NOW_MS - 3 * DAY }
+    )
+    expect(shell.nowMs).toBe(FIXED_NOW_MS)
+    expect(shell.data.sprints).toEqual(saved.sprints)
+    expect(shell.data).not.toHaveProperty("now")
   })
 })
 
