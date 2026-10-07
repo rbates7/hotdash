@@ -3,7 +3,7 @@ import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { CLINICS_MOCK_DAY, seedClinics, type ClinicInput } from "@/lib/clinics"
-import type { LoadResult } from "@/lib/persistence"
+import { initialShell, type LoadResult } from "@/lib/persistence"
 import {
   ClinicsProvider,
   STORAGE_KEY,
@@ -12,7 +12,7 @@ import {
   isState,
   loadState,
   loadStateOrSeed,
-  matchesStored,
+  parseState,
   reducer,
   saveState,
   shellReducer,
@@ -92,29 +92,31 @@ describe("reducer", () => {
     expect(reducer(s, { type: "remove", id: "clinic-9" })).toBe(s)
   })
 
-  it("hydrate takes the saved copy whole, stripped; an empty result re-seeds", () => {
-    const edited = reducer(initialState(TODAY), { type: "remove", id: "clinic-1" })
-    const dirty = { ...edited, extra: true } as unknown as State
-    const s = reducer(initialState(TODAY), hydrate(dirty))
-    expect(s).toEqual(edited)
-    expect("extra" in s).toBe(false)
-    expect(reducer(edited, hydrate(null, "2026-10-07"))).toEqual(initialState("2026-10-07"))
-  })
-
-  it("reset regenerates the seed around the given day", () => {
-    const s = reducer(reducer(initialState(TODAY), { type: "add", input: KATY }), { type: "reset", today: "2026-10-07" })
-    expect(s).toEqual(initialState("2026-10-07"))
-  })
 })
 
-describe("shellReducer", () => {
-  const fresh = { data: initialState(TODAY), hydrated: false, edited: false, saved: false, saveFailed: false }
+describe("shellReducer (the shared persistence shell around the list)", () => {
+  const fresh = initialShell(initialState(TODAY))
 
-  it("a hydrate marks the shell persisted, clears edited and reports whether the key held a copy", () => {
-    const saved = shellReducer(fresh, hydrate(initialState(TODAY)))
-    expect(saved).toMatchObject({ hydrated: true, edited: false, saved: true, saveFailed: false })
-    const empty = shellReducer({ ...fresh, edited: true, saveFailed: true }, hydrate(null))
-    expect(empty).toMatchObject({ hydrated: true, edited: false, saved: false, saveFailed: false })
+  it("hydrate takes the saved copy whole; an empty result (nothing saved, or a Reset elsewhere) re-seeds around the day", () => {
+    const edited = reducer(initialState(TODAY), { type: "remove", id: "clinic-1" })
+    const s = shellReducer(fresh, hydrate(edited))
+    expect(s.data).toEqual(edited)
+    expect(s).toMatchObject({ persisted: true, edited: false, saved: true, saveFailed: false, edits: 0 })
+    const reseeded = shellReducer({ ...s, edited: true, saveFailed: true }, hydrate(null, "2026-10-07"))
+    expect(reseeded.data).toEqual(initialState("2026-10-07"))
+    expect(reseeded).toMatchObject({ persisted: true, edited: false, saved: false, saveFailed: false })
+  })
+
+  it("a hydrate never moves the edit counter, so it can never cause a write", () => {
+    const after = shellReducer(shellReducer(fresh, { type: "add", input: KATY }), hydrate(initialState(TODAY)))
+    expect(after.edits).toBe(1)
+    expect(after.edited).toBe(false)
+  })
+
+  it("reset regenerates the seed around the given day and returns to the never-edited state", () => {
+    const s = shellReducer(shellReducer(fresh, { type: "add", input: KATY }), { type: "reset", today: "2026-10-07" })
+    expect(s.data).toEqual(initialState("2026-10-07"))
+    expect(s).toMatchObject({ edited: false, saved: false, saveFailed: false })
   })
 
   it("a no-op edit returns the same shell, so nothing re-renders or writes", () => {
@@ -123,6 +125,7 @@ describe("shellReducer", () => {
     expect(shellReducer(shell, { type: "remove", id: "nope" })).toBe(shell)
     const edited = shellReducer(shell, { type: "remove", id: "clinic-1" })
     expect(edited.edited).toBe(true)
+    expect(edited.edits).toBe(1)
   })
 
   it("save-result records success or failure without touching data", () => {
@@ -162,11 +165,13 @@ describe("isState rejects a bad saved copy", () => {
     expect(isState({ ...good, extra: 1 })).toBe(true)
   })
 
-  it("stripState drops unknown keys at both levels", () => {
+  it("stripState / parseState drop unknown keys at both levels; parseState rejects a bad copy", () => {
     const dirty = { ...good, extra: 1, clinics: [{ ...good.clinics[0], bogus: true }] } as unknown as State
     const clean = stripState(dirty)
     expect(Object.keys(clean)).toEqual(["clinics", "nextId"])
     expect("bogus" in clean.clinics[0]).toBe(false)
+    expect(parseState(dirty)).toEqual(clean)
+    expect(parseState({ ...good, nextId: 1 })).toBeNull()
   })
 
   it("a rejected copy is parked under <key>.rejected and the page gets the seed", () => {
@@ -174,7 +179,7 @@ describe("isState rejects a bad saved copy", () => {
     const raw = JSON.stringify({ ...good, nextId: 1 })
     window.localStorage.setItem(STORAGE_KEY, raw)
     expect(loadState(window.localStorage)).toBeNull()
-    expect(window.localStorage.getItem(clinicsStorage.rejectedKey)).toBe(raw)
+    expect(clinicsStorage.rejected(window.localStorage).map((c) => c.raw)).toEqual([raw])
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(loadStateOrSeed(window.localStorage, TODAY)).toEqual(initialState(TODAY))
   })
@@ -197,16 +202,18 @@ describe("localStorage", () => {
     const s = reducer(initialState(TODAY), { type: "add", input: KATY })
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
-    expect(saveState(quotaExceededStorage() as unknown as Storage, s)).toBe(false)
+    // A different copy, so the byte comparison does not short-circuit the write.
+    const other = reducer(s, { type: "remove", id: "clinic-1" })
+    expect(saveState(quotaExceededStorage() as unknown as Storage, other)).toBe(false)
   })
 
-  it("matchesStored is true only when the bytes are identical", () => {
+  it("saving the identical copy again is a no-op write (the shared save compares bytes)", () => {
     const s = initialState(TODAY)
-    expect(matchesStored(window.localStorage, s)).toBe(false)
-    saveState(window.localStorage, s)
-    expect(matchesStored(window.localStorage, s)).toBe(true)
-    expect(matchesStored(window.localStorage, { ...s, nextId: 10 })).toBe(false)
-    expect(matchesStored(undefined, s)).toBe(false)
+    expect(saveState(window.localStorage, s)).toBe(true)
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    expect(saveState(window.localStorage, s)).toBe(true)
+    expect(setItem).not.toHaveBeenCalled()
+    setItem.mockRestore()
   })
 })
 
@@ -368,7 +375,7 @@ describe("ClinicsProvider", () => {
     act(() => fireStorageEvent(STORAGE_KEY, "{not json"))
     expect(screen.getByTestId("count")).toHaveTextContent("8")
     expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
-    expect(window.localStorage.getItem(clinicsStorage.rejectedKey)).toBe("{not json")
+    expect(clinicsStorage.rejected(window.localStorage)[0]?.raw).toBe("{not json")
   })
 
   describe("two tabs", () => {

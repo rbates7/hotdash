@@ -4,7 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, now, todayIn } from "../src/lib/clock"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
 /**
  * Review screenshots for the Clinics page, every main state in both themes
@@ -60,7 +60,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(header(page).getByTestId("persistence-note")).toHaveText(NOTE.unsaved)
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
     await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
 
     // Default, with data: Upcoming over Past.
@@ -142,7 +142,7 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `clinics-empty-${theme}`)
 
     // Back to the seed for the next run.
-    await resetDemoData(page)
+    await resetDemoData(page, header(page))
     await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
 
     // Save failed: a browser whose storage refuses our key.
@@ -159,7 +159,7 @@ for (const theme of ["light", "dark"] as const) {
     await setTheme(failing, theme)
     const fm = await openMenu(failing, "Upcoming clinics", "Austin staff install")
     await fm.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
-    await expect(header(failing).getByRole("alert")).toHaveText(NOTE.failed)
+    await expect(persistenceNote(failing, { failed: true })).toHaveText(NOTE.failed)
     await shoot(failing, `clinics-save-failed-${theme}`)
     await context.close()
   })

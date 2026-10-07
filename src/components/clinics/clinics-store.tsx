@@ -17,8 +17,12 @@ import {
 import {
   createStorage,
   dedupe,
+  initialShell,
   isFiniteNumber,
+  persistenceShellReducer,
+  usePersistenceSync,
   type LoadResult,
+  type PersistenceShell,
   type PersistenceStore,
   type Storage,
 } from "@/lib/persistence"
@@ -26,7 +30,7 @@ import {
 /**
  * What is saved. Deliberately no clock in here: `today` belongs to the
  * request, never to the copy, so two tabs serialise the same edits to the
- * same bytes and a hydrate can be compared against storage verbatim.
+ * same bytes and the shared `save` can skip an identical write.
  */
 export type State = {
   clinics: Clinic[]
@@ -43,7 +47,11 @@ export type Action =
   | { type: "save-result"; ok: boolean }
   | { type: "reset"; today: IsoDay }
 
-export function reducer(state: State, action: Action): State {
+/** The founder's own edits, as opposed to persistence plumbing. */
+export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
+
+/** The list's own transitions. Returns its input for a no-op, as the shared shell requires. */
+export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "add": {
       const clinic: Clinic = { id: `clinic-${state.nextId}`, ...normalizeInput(action.input) }
@@ -72,61 +80,32 @@ export function reducer(state: State, action: Action): State {
     case "remove":
       if (!state.clinics.some((c) => c.id === action.id)) return state
       return { ...state, clinics: state.clinics.filter((c) => c.id !== action.id) }
-
-    case "hydrate":
-      // A saved copy replaces ours whole; an empty or removed key (a Reset
-      // in another tab, or nothing saved yet) puts this tab back on the seed.
-      return action.result.state ? stripState(action.result.state) : initialState(action.today)
-
-    case "save-result":
-      return state
-
-    case "reset":
-      return initialState(action.today)
   }
 }
 
-/** Actions that are the founder's own edits, as opposed to plumbing. */
-const USER_EDITS = new Set<Action["type"]>(["add", "update", "set-attendance", "remove"])
-
 /**
- * Reducer state plus persistence bookkeeping (`PersistenceStatus`): whether
- * localStorage has been consulted, whether the founder changed something
- * this session, whether the key holds a copy, and whether the last write
- * failed.
+ * The shared persistence shell around the list. A saved copy replaces ours
+ * whole; an empty or removed key (nothing saved yet, or a Reset in another
+ * tab) puts this tab back on the seed around the request's day. Everything
+ * else — hydrates never write, no-op edits are identity, `saved` follows
+ * the write's result — is the shared reducer's business.
  */
-type Shell = {
-  data: State
-  hydrated: boolean
-  edited: boolean
-  saved: boolean
-  saveFailed: boolean
-}
+type Shell = PersistenceShell<State>
 
 export function shellReducer(shell: Shell, action: Action): Shell {
-  const data = reducer(shell.data, action)
   switch (action.type) {
     case "hydrate":
-      // Whatever arrived is already in storage (or storage is empty), so
-      // there is nothing of ours to write: `edited` goes back to false and
-      // the save effect stays quiet. This is what stops two tabs trading
-      // writes forever.
-      return {
-        data,
-        hydrated: true,
-        edited: false,
-        saved: action.result.status === "saved",
-        saveFailed: false,
-      }
+      return persistenceShellReducer(shell, {
+        type: "hydrate",
+        result: action.result,
+        fallback: initialState(action.today),
+      })
     case "save-result":
-      return { ...shell, saved: action.ok ? true : shell.saved, saveFailed: !action.ok }
+      return persistenceShellReducer(shell, action)
     case "reset":
-      return { data, hydrated: shell.hydrated, edited: false, saved: false, saveFailed: false }
+      return persistenceShellReducer(shell, { type: "reset", data: initialState(action.today) })
     default:
-      // A no-op edit (same values saved again) leaves the shell untouched,
-      // so nothing re-renders and nothing is written.
-      if (data === shell.data) return shell
-      return { ...shell, data, edited: shell.edited || USER_EDITS.has(action.type) }
+      return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
@@ -170,12 +149,16 @@ export function stripState(state: State): State {
   return { clinics: state.clinics.map(stripClinic), nextId: state.nextId }
 }
 
-export const clinicsStorage = createStorage<State>({ key: STORAGE_KEY, validate: isState })
+/** The storage `parse`: validate every row, then keep only the known keys. */
+export function parseState(value: unknown): State | null {
+  return isState(value) ? stripState(value) : null
+}
+
+export const clinicsStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
 
 /** Read the saved copy; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
-  const saved = clinicsStorage.load(storage).state
-  return saved ? stripState(saved) : null
+  return clinicsStorage.load(storage).state
 }
 
 /** The saved copy, or a fresh seed around `today` when there is none. */
@@ -189,19 +172,6 @@ export function saveState(storage: Storage | undefined, state: State): boolean {
 
 export function clearState(storage: Storage | undefined) {
   clinicsStorage.clear(storage)
-}
-
-/**
- * Whether `state` serialises to exactly what the key already holds. The
- * save effect skips the write when it does — a hydrate from another tab
- * followed by an identical re-save must not echo back.
- */
-export function matchesStored(storage: Storage | undefined, state: State) {
-  try {
-    return storage?.getItem(STORAGE_KEY) === JSON.stringify(state)
-  } catch {
-    return false
-  }
 }
 
 type Store = State &
@@ -230,14 +200,10 @@ export function ClinicsProvider({
 }) {
   const today = React.useMemo(() => todayIn(new Date(nowMs)), [nowMs])
 
-  const [{ data: state, hydrated: persisted, edited, saved, saveFailed }, dispatch] =
-    React.useReducer(shellReducer, today, (day) => ({
-      data: initialState(day),
-      hydrated: false,
-      edited: false,
-      saved: false,
-      saveFailed: false,
-    }))
+  const [shell, dispatch] = React.useReducer(shellReducer, today, (day) =>
+    initialShell(initialState(day))
+  )
+  const { data: state, persisted, edited, saved, saveFailed } = shell
 
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
@@ -247,22 +213,14 @@ export function ClinicsProvider({
     dispatch({ type: "hydrate", result: clinicsStorage.load(window.localStorage), today })
   }, [today])
 
-  // Another tab wrote or cleared the key: take its copy (or go back to the
-  // seed) rather than overwriting it with ours on the next edit.
-  React.useEffect(
-    () => clinicsStorage.subscribe((result) => dispatch({ type: "hydrate", result, today })),
+  // Other tabs and writes, the shared way: a hydrate never writes; only a
+  // moving edit count does, and an identical copy is skipped by `save`.
+  const onHydrate = React.useCallback(
+    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, today }),
     [today]
   )
-
-  // Write only after a real edit, and only when the bytes would change. A
-  // visit that changes nothing leaves storage untouched; a hydrate never
-  // writes (it clears `edited`); an edit that lands on what is already
-  // stored is skipped. The result feeds the note: "Saved" only on success.
-  React.useEffect(() => {
-    if (!persisted || !edited) return
-    if (matchesStored(window.localStorage, state)) return
-    dispatch({ type: "save-result", ok: saveState(window.localStorage, state) })
-  }, [persisted, edited, state])
+  const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
+  usePersistenceSync({ storage: clinicsStorage, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(
     () => ({
@@ -277,8 +235,9 @@ export function ClinicsProvider({
       setAttendance: (id, attendance) => dispatch({ type: "set-attendance", id, attendance }),
       removeClinic: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate around the page's day: the browser
-        // returns to the never-edited state and other tabs hear the clear.
+        // Clear first, then regenerate around the request's day — never a
+        // client clock read, per the read-once rule. Other tabs hear the
+        // clear and re-seed too.
         clearState(window.localStorage)
         dispatch({ type: "reset", today })
       },

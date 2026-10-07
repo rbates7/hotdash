@@ -15,7 +15,7 @@ import {
   saveState,
 } from "@/components/clinics/clinics-store"
 import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
-import { PERSISTENCE_COPY } from "@/components/persistence-note"
+import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME, RESET_DISABLED_HINT } from "@/components/persistence-note"
 
 /** Noon Central on the day the mock was drawn, so rows match it verbatim. */
 const NOW_MS = new Date("2026-08-28T17:00:00.000Z").getTime()
@@ -48,7 +48,9 @@ describe("ClinicsScreen", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Clinics" })).toBeInTheDocument()
     expect(screen.getByText(LEDE)).toBeInTheDocument()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    // Disabled but reachable, with the shared hint, per the shared note.
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
     const header = screen.getByRole("heading", { level: 1, name: "Clinics" }).closest("header")!
     expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     expect(screen.getByRole("button", { name: "Add clinic" })).toBeEnabled()
@@ -361,8 +363,8 @@ describe("ClinicsScreen", () => {
     renderScreen()
     const menu = await openMenu(user, "Houston Offensive Staff Clinic")
     await user.click(within(menu).getByRole("menuitem", { name: "Mark skipped" }))
-    expect(screen.getByRole("alert")).toHaveTextContent(PERSISTENCE_COPY.failed)
-    expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled()
+    expect(screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })).toHaveTextContent(PERSISTENCE_COPY.failed)
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
     spy.mockRestore()
   })
 })

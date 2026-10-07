@@ -1,8 +1,8 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
-import { expectReadable } from "./support/contrast"
-import { NOTE, resetDemoData } from "./support/persistence"
+import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
+import { NOTE, countWrites, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
 
 const STORAGE_KEY = "hotdash.clinics.v1"
 
@@ -28,7 +28,7 @@ const bodyRows = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   table(page, name).locator("tbody").getByRole("row")
 const row = (page: Page, name: "Upcoming clinics" | "Past clinics", re: RegExp) =>
   table(page, name).getByRole("row", { name: re })
-const note = (page: Page) => header(page).getByTestId("persistence-note")
+const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
 const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add clinic", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
@@ -70,24 +70,6 @@ async function fillClinic(
   if (values.demos !== undefined) await d.getByLabel("Demos").fill(values.demos)
 }
 
-/**
- * Count writes to our key from inside the page, so a two-tab run can prove
- * the stores settle instead of trading saves. Installed before any script
- * on every page of the context.
- */
-async function countWrites(context: BrowserContext, key: string) {
-  await context.addInitScript((k) => {
-    const w = window as unknown as { __writes: number }
-    w.__writes = 0
-    const original = Storage.prototype.setItem
-    Storage.prototype.setItem = function (name: string, value: string) {
-      if (name === k) w.__writes += 1
-      return original.call(this, name, value)
-    }
-  }, key)
-}
-const writes = (page: Page) => page.evaluate(() => (window as unknown as { __writes: number }).__writes)
-
 test.describe("Clinics", () => {
   test("is reachable from the sidebar and shows the mock's two sections", async ({ page }) => {
     await page.goto("/home")
@@ -120,6 +102,23 @@ test.describe("Clinics", () => {
     await expect(past).toContainText("14 leads · 11 emails · 3 demos")
     await expect(past.getByTestId("status-pill")).toHaveText("Done")
     await expect(row(page, "Upcoming clinics", /Midweek CHLK walkthrough/).getByTestId("type-pill")).toHaveText("Zoom")
+  })
+
+  test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
+    await freshClinics(page)
+    // One shared probe for every screen; if it stopped seeing unreadable
+    // text, every contrast assertion below would pass vacuously.
+    await expectProbeCatchesSabotage(header(page).getByTestId("sample-data-tag"), "header tag", expect)
+    const first = row(page, "Upcoming clinics", /Houston Offensive Staff Clinic/)
+    await expectProbeCatchesSabotage(first.getByTestId("sample-data-tag"), "row tag", expect)
+    await expectProbeCatchesSabotage(first.getByTestId("status-pill"), "status pill", expect)
+    await setTheme(page, "dark")
+    await expectProbeCatchesSabotage(
+      row(page, "Past clinics", /Spring Houston walk-through/).getByTestId("status-pill"),
+      "status pill (dark)",
+      expect
+    )
+    await setTheme(page, "light")
   })
 
   test("labels every seed row as sample data, readable at ≥ 4.5:1 on every text node, light and dark; status pills too", async ({ page }) => {
@@ -230,7 +229,7 @@ test.describe("Clinics", () => {
     await expect(row(page, "Past clinics", /Katy spring install/)).toBeVisible()
 
     // Reset (through the shared helper's confirm) clears the key and puts the seed back.
-    await resetDemoData(page)
+    await resetDemoData(page, header(page))
     await expect(bodyRows(page, "Past clinics")).toHaveCount(4)
     await expect(table(page, "Past clinics").getByText("Katy spring install")).toHaveCount(0)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
@@ -282,7 +281,7 @@ test.describe("Clinics", () => {
     await expect(back).toContainText("Today")
     await expect(back).toHaveAttribute("data-clinic", "clinic-9")
 
-    await resetDemoData(page)
+    await resetDemoData(page, header(page))
     await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
   })
 
@@ -305,8 +304,10 @@ test.describe("Clinics", () => {
       if (label === "button:Add clinic") break
     }
     expect(seen.at(-1), seen.join(" | ")).toBe("button:Add clinic")
-    // The disabled Reset is not a stop, and the header has no hidden traps.
-    expect(seen.some((s) => s.startsWith("button:Reset"))).toBe(false)
+    // The disabled Reset is a stop on purpose (focusable, with the shared
+    // hint as its description), and nothing else sits between the h1 and Add.
+    expect(seen, seen.join(" | ")).toEqual(["button:Reset", "button:Add clinic"])
+    await expect(resetButton(page)).toHaveAccessibleDescription(/nothing to reset/)
 
     await page.keyboard.press("Enter")
     const add = dialog(page, "Add clinic")
@@ -352,7 +353,7 @@ test.describe("Clinics", () => {
     await expect(confirm).toBeHidden()
     await expect(table(page, "Past clinics").getByText("Keyboard clinic")).toHaveCount(0)
 
-    await resetDemoData(page)
+    await resetDemoData(page, header(page))
   })
 
   test("a save that fails is announced, never claimed, and Reset stays disabled", async ({ browser }) => {
@@ -373,9 +374,8 @@ test.describe("Clinics", () => {
     // The edit took in memory…
     await expect(row(page, "Upcoming clinics", /Austin staff install/).getByTestId("attendance")).toHaveText("Skipped")
     // …but the note says it could not be kept, as an alert, and Reset has nothing to reset.
-    const alert = header(page).getByRole("alert")
-    await expect(alert).toHaveText(NOTE.failed)
-    await expect(note(page)).not.toContainText("Saved")
+    await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
+    await expect(note(page, { failed: true })).not.toContainText("Saved")
     await expect(resetButton(page)).toBeDisabled()
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
@@ -384,6 +384,7 @@ test.describe("Clinics", () => {
   test("two tabs stay in sync and the writes settle: one per edit, none for a hydrate", async ({ browser }) => {
     const context = await browser.newContext()
     await countWrites(context, STORAGE_KEY)
+    const writes = (p: Page) => writesTo(p, STORAGE_KEY)
     const a = await context.newPage()
     const b = await context.newPage()
     await a.goto("/clinics")
@@ -416,7 +417,7 @@ test.describe("Clinics", () => {
     expect(await writes(b)).toBe(1)
 
     // Reset in A (behind its confirm): B hears the clear and re-seeds, with nothing to reset.
-    await resetDemoData(a)
+    await resetDemoData(a, header(a))
     await expect(bodyRows(b, "Upcoming clinics")).toHaveCount(4)
     await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Planned")
     await expect(note(b)).toHaveText(NOTE.unsaved)
@@ -435,7 +436,14 @@ test.describe("Clinics", () => {
     await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
     await expect(note(page)).toHaveText(NOTE.unsaved)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
-    expect(await page.evaluate((key) => localStorage.getItem(`${key}.rejected`), STORAGE_KEY)).toContain('"webinar"')
+    // Parked as the shared helper's `{ at, raw, why }[]`, newest first.
+    const parked = await page.evaluate(
+      (key) => JSON.parse(localStorage.getItem(`${key}.rejected`) ?? "[]") as { raw: string; why: string }[],
+      STORAGE_KEY
+    )
+    expect(parked).toHaveLength(1)
+    expect(parked[0].why).toBe("failed validation")
+    expect(parked[0].raw).toContain('"webinar"')
     await page.evaluate((key) => localStorage.removeItem(`${key}.rejected`), STORAGE_KEY)
   })
 })

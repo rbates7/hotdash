@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CELL, HEAD, TableCard } from "@/components/metrics/table-bits"
+import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { SampleDataTag } from "@/components/sample-data"
 import { AttendanceText, StatusPill, TypePill } from "@/components/clinics/clinic-pills"
 import { SPAWN_LABEL, SPAWN_SOON, type DialogFocus } from "@/components/clinics/clinic-dialog"
