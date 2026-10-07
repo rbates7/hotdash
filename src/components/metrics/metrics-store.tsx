@@ -24,7 +24,11 @@ import {
   isBoolean,
   isFiniteNumber,
   isString,
+  initialShell,
+  persistenceShellReducer,
+  usePersistenceSync,
   type LoadResult,
+  type PersistenceShell,
   type PersistenceStore,
   type Storage,
 } from "@/lib/persistence"
@@ -57,7 +61,11 @@ export type Action =
   | { type: "save-result"; ok: boolean }
   | { type: "reset"; today: IsoDay }
 
-export function reducer(state: State, action: Action): State {
+/** The user's own edits, as opposed to persistence plumbing. */
+export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
+
+/** The board's own transitions. Returns its input for a no-op (e.g. a duplicate add). */
+export function reducer(state: State, action: EditAction): State {
   switch (action.type) {
     case "add-metric":
       if (state.visible.includes(action.id)) return state
@@ -87,20 +95,13 @@ export function reducer(state: State, action: Action): State {
       }
     }
 
-    case "remove-expense":
+    case "remove-expense": {
+      if (!state.expenses.some((e) => e.id === action.id)) return state
       return {
         ...state,
         expenses: state.expenses.filter((e) => e.id !== action.id),
       }
-
-    case "hydrate":
-      return action.result.state ? shiftSeed(action.result.state, action.today) : state
-
-    case "save-result":
-      return state
-
-    case "reset":
-      return initialState(action.today)
+    }
   }
 }
 
@@ -129,46 +130,30 @@ export function shiftSeed(state: State, today: IsoDay): State {
   }
 }
 
-/** Actions that are the user's own edits, as opposed to plumbing. */
-const USER_EDITS = new Set<Action["type"]>([
-  "add-metric",
-  "remove-metric",
-  "set-chart",
-  "add-expense",
-  "remove-expense",
-])
-
 /**
- * Reducer state plus persistence bookkeeping: whether localStorage has
- * been consulted, whether the user changed anything, whether the key holds
- * a copy, and whether the last write failed.
+ * The shared persistence shell around the board. Hydrate brings a saved copy
+ * forward to today (`shiftSeed`) or, with no copy — nothing saved, or another
+ * tab's Reset — falls back to a fresh seed; everything else is the shared
+ * reducer's business (no-op edits return the same shell, hydrates never
+ * write, `saved` follows the write's result).
  */
-type Shell = {
-  data: State
-  hydrated: boolean
-  edited: boolean
-  saved: boolean
-  saveFailed: boolean
-}
+type Shell = PersistenceShell<State>
 
-function shellReducer(shell: Shell, action: Action): Shell {
-  const data = reducer(shell.data, action)
+export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
     case "hydrate":
-      return {
-        data,
-        hydrated: true,
-        // A copy from another tab or session is theirs; nothing new of ours.
-        edited: shell.edited,
-        saved: action.result.status === "saved",
-        saveFailed: false,
-      }
+      return persistenceShellReducer(shell, {
+        type: "hydrate",
+        result: action.result,
+        fallback: initialState(action.today),
+        adopt: (saved) => shiftSeed(saved, action.today),
+      })
     case "save-result":
-      return { ...shell, data, saved: action.ok ? true : shell.saved, saveFailed: !action.ok }
+      return persistenceShellReducer(shell, action)
     case "reset":
-      return { data, hydrated: shell.hydrated, edited: false, saved: false, saveFailed: false }
+      return persistenceShellReducer(shell, { type: "reset", data: initialState(action.today) })
     default:
-      return { ...shell, data, edited: shell.edited || USER_EDITS.has(action.type) }
+      return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
@@ -215,7 +200,8 @@ function isExpense(value: unknown): value is Expense {
     isString(v.id) &&
     isString(v.category) &&
     isFiniteNumber(v.amount) &&
-    v.amount >= 0 &&
+    Number.isInteger(v.amount) &&
+    v.amount >= 1 &&
     isIsoDay(v.date) &&
     isBoolean(v.recurring)
   )
@@ -305,14 +291,10 @@ export function MetricsProvider({
   // page's "today" is that day, not the request's.
   const [today, setToday] = React.useState(requestToday)
 
-  const [{ data: state, hydrated: persisted, edited, saved, saveFailed }, dispatch] =
-    React.useReducer(shellReducer, requestToday, (day) => ({
-      data: initialState(day),
-      hydrated: false,
-      edited: false,
-      saved: false,
-      saveFailed: false,
-    }))
+  const [shell, dispatch] = React.useReducer(shellReducer, requestToday, (day) =>
+    initialShell(initialState(day))
+  )
+  const { data: state, persisted, edited, saved, saveFailed } = shell
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
@@ -322,20 +304,14 @@ export function MetricsProvider({
     dispatch({ type: "hydrate", result: metricsStorage.load(window.localStorage), today })
   }, [today])
 
-  // Another tab wrote or cleared the key: take its copy rather than
-  // overwriting it with ours on the next edit.
-  React.useEffect(
-    () => metricsStorage.subscribe((result) => dispatch({ type: "hydrate", result, today })),
+  // Other tabs and writes, the shared way: a hydrate never writes; only a
+  // moving edit count does. The result feeds the note.
+  const onHydrate = React.useCallback(
+    (result: LoadResult<State>) => dispatch({ type: "hydrate", result, today }),
     [today]
   )
-
-  // Write only after a real edit. A visit that changes nothing leaves
-  // storage untouched, so the seed keeps tracking today on later visits.
-  // The result feeds the note: "Saved" only when the write succeeded.
-  React.useEffect(() => {
-    if (!persisted || !edited) return
-    dispatch({ type: "save-result", ok: saveState(window.localStorage, state) })
-  }, [persisted, edited, state])
+  const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
+  usePersistenceSync({ storage: metricsStorage, shell, onHydrate, onSaved })
 
   const value = React.useMemo<Store>(
     () => ({

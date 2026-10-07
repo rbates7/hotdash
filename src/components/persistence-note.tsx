@@ -24,6 +24,13 @@ export const PERSISTENCE_COPY = {
   failed: "Couldn't save in this browser",
 } as const
 
+/**
+ * The note's accessible name, constant across states, so tests can find it
+ * by role and name (`status` normally, `alert` after a failed save) rather
+ * than by test id.
+ */
+export const PERSISTENCE_NOTE_NAME = "Where edits live"
+
 export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "saved" | "saveFailed">) {
   if (!store.persisted) return PERSISTENCE_COPY.loading
   if (store.saveFailed) return PERSISTENCE_COPY.failed
@@ -40,10 +47,13 @@ export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "sav
  * Pass any store that exposes `PersistenceStore` (Agent Workplace / Home
  * via `useIssues()`, Metrics via `useMetrics()`).
  */
+export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
+
 export function PersistenceNote({ store }: { store: PersistenceStore }) {
   const [confirming, setConfirming] = React.useState(false)
   const copy = persistenceCopy(store)
   const canReset = store.persisted && store.saved
+  const hintId = React.useId()
 
   return (
     <span
@@ -57,11 +67,18 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
       ) : (
         <HardDriveIcon className="size-3.5" aria-hidden />
       )}
-      <span data-testid="persistence-note" role={store.saveFailed ? "alert" : undefined}>
+      <span
+        data-testid="persistence-note"
+        role={store.saveFailed ? "alert" : "status"}
+        aria-label={PERSISTENCE_NOTE_NAME}
+      >
         {copy}
       </span>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
+        {/* Disabled Reset stays in the tab order (focusableWhenDisabled) and
+            describes why it is off, so keyboard and screen-reader users get
+            the same hint a pointer user gets from the title. */}
         <DialogTrigger
           render={
             <Button
@@ -69,10 +86,12 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
               size="xs"
               className="text-micro text-muted-foreground h-6 px-1.5"
               disabled={!canReset}
+              focusableWhenDisabled
+              aria-describedby={canReset ? undefined : hintId}
               title={
                 canReset
                   ? "Discard this browser's edits and restore the demo data"
-                  : "Nothing is saved in this browser yet"
+                  : RESET_DISABLED_HINT
               }
             >
               <RotateCcwIcon aria-hidden />
@@ -80,6 +99,11 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
             </Button>
           }
         />
+        {!canReset && (
+          <span id={hintId} className="sr-only">
+            {RESET_DISABLED_HINT}
+          </span>
+        )}
         <DialogContent className="sm:max-w-sm!">
           <DialogHeader>
             <DialogTitle>Reset demo data?</DialogTitle>
