@@ -1,6 +1,22 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import {
+  addDays,
+  formatDate,
+  formatPeriod,
+  now,
+  periodEnding,
+  todayIn,
+} from "../src/lib/metrics/clock"
+
 const STORAGE_KEY = "hotdash.metrics.v1"
+
+/**
+ * Today on the founder's calendar (America/Chicago), from the same helper the
+ * page uses. Read per test so a run that straddles Chicago midnight compares
+ * against the day the page itself rendered with.
+ */
+const today = () => todayIn(now())
 
 // Every role lookup below is scoped by name, directly or through a named
 // ancestor, so a sibling panel mid-transition can never match.
@@ -32,7 +48,13 @@ test.describe("Metrics", () => {
     await page.getByRole("link", { name: "Metrics", exact: true }).click()
     await expect(page).toHaveURL(/\/metrics$/)
     await expect(page.getByRole("heading", { level: 1, name: "Metrics" })).toBeVisible()
-    await expect(page.getByText("25 Jul – 21 Aug 2026")).toBeVisible()
+    // Real clock: the header is the trailing four weeks ending on today's
+    // Central date — never a frozen period passed off as current.
+    const day = today()
+    const range = page.getByTestId("date-range")
+    await expect(range).toBeVisible()
+    await expect(range).toHaveText(formatPeriod(periodEnding(day)))
+    await expect(range).toContainText(formatDate(day))
 
     for (const name of ["Overview", "New Subscribers", "Churned Subscribers", "Expenses"]) {
       await expect(tab(page, name)).toBeVisible()
@@ -45,7 +67,7 @@ test.describe("Metrics", () => {
     await expect(mrr.getByTestId("trend")).toHaveText("+4.2%")
     await expect(mrr.getByText("compared to last month")).toBeVisible()
     // Recharts draws once it has measured its box.
-    await expect(mrr.getByRole("img", { name: "MRR, six-month bar chart" })).toBeVisible()
+    await expect(mrr.getByRole("img", { name: /^MRR, six-month bar chart, / })).toBeVisible()
   })
 
   test("labels every hard-coded number as sample data, in both themes", async ({ page }) => {
@@ -78,7 +100,7 @@ test.describe("Metrics", () => {
     const fresh = table(page, "New subscribers")
     await expect(fresh.getByRole("columnheader")).toHaveText(["Name / Email", "Plan", "Signup Date"])
     await expect(fresh.getByRole("row")).toHaveCount(9)
-    await expect(fresh.getByRole("row", { name: /Alisha Patel/ })).toContainText("18 Aug 2026")
+    await expect(fresh.getByRole("row", { name: /Alisha Patel/ })).toContainText(formatDate(addDays(today(), -3)))
 
     await tab(page, "Churned Subscribers").click()
     await expect(page).toHaveURL(/tab=churned$/)
@@ -126,7 +148,7 @@ test.describe("Metrics", () => {
 
     await card(page, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
-    await expect(card(page, "MRR").getByRole("img", { name: "MRR, six-month line chart" })).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month line chart, / })).toBeVisible()
 
     await page.reload()
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
@@ -149,8 +171,10 @@ test.describe("Metrics", () => {
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
-    // Default date is "today" on the page's frozen clock, not the machine's.
-    await expect(dialog.getByLabel("Date")).toHaveValue("2026-08-21")
+    // Default date is today on the page's clock (Central), capped there.
+    const day = today()
+    await expect(dialog.getByLabel("Date")).toHaveValue(day)
+    await expect(dialog.getByLabel("Date")).toHaveAttribute("max", day)
     await dialog.getByRole("switch", { name: "Recurring" }).click()
     await dialog.getByRole("button", { name: "Add expense", exact: true }).click()
     await expect(dialog).toBeHidden()
@@ -158,7 +182,7 @@ test.describe("Metrics", () => {
     const expenses = table(page, "Expenses")
     const row = expenses.getByRole("row", { name: /Vercel/ })
     await expect(row).toContainText("$160")
-    await expect(row).toContainText("21 Aug 2026")
+    await expect(row).toContainText(formatDate(day))
     await expect(row).toContainText("Yes")
     await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
 

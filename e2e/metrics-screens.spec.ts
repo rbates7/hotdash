@@ -49,7 +49,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.reload()
     await setTheme(page, theme)
     await expect(page.getByTestId("persistence-note")).toHaveText("Saved in this browser")
-    await expect(card(page, "MRR").getByRole("img", { name: "MRR, six-month bar chart" })).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, six-month bar chart, / })).toBeVisible()
 
     // Overview with data.
     await shoot(page, `metrics-overview-${theme}`)
@@ -98,7 +98,7 @@ for (const theme of ["light", "dark"] as const) {
 
     await tab(page, "Expenses").click()
     await expect(page.getByRole("table", { name: "Expenses" })).toBeVisible()
-    await expect(card(page, "Expenses").getByRole("img", { name: "Expenses, six-month bar chart" })).toBeVisible()
+    await expect(card(page, "Expenses").getByRole("img", { name: /^Expenses, six-month bar chart, / })).toBeVisible()
     await shoot(page, `metrics-expenses-${theme}`)
 
     // Add-expense dialog, filled in.
