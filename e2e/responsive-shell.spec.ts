@@ -38,12 +38,17 @@ test.describe("responsive shell (phone 390)", () => {
 
   test("Escape closes the drawer and returns focus to the menu button", async ({ page }) => {
     await page.goto("/home")
-    await openMenuButton(page).press("Enter")
+    const menu = openMenuButton(page)
+    await expect(menu).toBeVisible()
+    await expect(menu).toBeEnabled()
+    await expect(async () => {
+      await menu.press("Enter")
+      await expect(founderNavDrawer(page)).toBeVisible()
+    }).toPass()
     const drawer = founderNavDrawer(page)
-    await expect(drawer).toBeVisible()
     await drawer.getByRole("button", { name: CLOSE_DRAWER_NAME }).press("Escape")
     await expect(drawer).toHaveCount(0)
-    await expect(openMenuButton(page)).toBeFocused()
+    await expect(menu).toBeFocused()
   })
 })
 

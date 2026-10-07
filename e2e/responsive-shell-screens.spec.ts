@@ -14,7 +14,6 @@ test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
 const OUT_DIRS = [
   path.resolve("docs/screenshots/responsive-shell"),
-  path.resolve("artifacts/responsive-shell"),
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
