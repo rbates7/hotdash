@@ -34,6 +34,34 @@ describe("persistenceCopy", () => {
 })
 
 describe("PersistenceNote", () => {
+  it("uses develop's root classes when no className or resetClassName is passed", () => {
+    render(<PersistenceNote store={store()} />)
+    const root = screen.getByTestId("persistence-note").parentElement
+    expect(root).not.toBeNull()
+    const tokens = root!.className.split(/\s+/).filter(Boolean)
+    expect(tokens).toEqual([
+      "text-micro",
+      "inline-flex",
+      "items-center",
+      "gap-1.5",
+      "text-muted-foreground",
+    ])
+    expect(tokens).not.toContain("max-w-full")
+    expect(tokens).not.toContain("shrink-0")
+    expect(tokens).not.toContain("flex-wrap")
+  })
+
+  it("applies an optional className only when a screen passes one", () => {
+    render(
+      <PersistenceNote
+        store={store()}
+        className="max-w-full shrink-0 flex-wrap"
+      />
+    )
+    const tokens = screen.getByTestId("persistence-note").parentElement!.className.split(/\s+/)
+    expect(tokens).toEqual(expect.arrayContaining(["max-w-full", "shrink-0", "flex-wrap"]))
+  })
+
   it("reads 'Edits save in this browser' before the first save; Reset is disabled but reachable and explains why", async () => {
     const user = userEvent.setup()
     render(<PersistenceNote store={store()} />)
