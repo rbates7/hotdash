@@ -65,6 +65,11 @@ async function openDetail(page: Page, width: number) {
     await page.getByRole("menuitem", { name: "Edit", exact: true }).click()
   }
   await expect(dialog(page, "Edit clinic")).toBeVisible()
+  if (width < 768) {
+    const remove = dialog(page, "Edit clinic").getByRole("button", { name: "Delete clinic", exact: true })
+    await expect(remove).toBeVisible()
+    await remove.scrollIntoViewIfNeeded()
+  }
 }
 
 async function showEmpty(page: Page) {

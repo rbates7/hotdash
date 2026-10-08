@@ -4,6 +4,7 @@ import * as React from "react"
 import { TargetIcon } from "lucide-react"
 
 import { isIsoDay, type IsoDay } from "@/lib/clock"
+import { cn } from "@/lib/utils"
 import {
   ATTENDANCES,
   ATTENDANCE_LABEL,
@@ -40,6 +41,15 @@ import { useClinics } from "@/components/clinics/clinics-store"
 export const CLINIC_SHEET_CLASS =
   "flex max-h-[90dvh]! w-full! max-w-none! flex-col overflow-y-auto rounded-t-xl! p-4! [&_[data-slot=sheet-close]]:size-11!"
 
+/** 44px below xl (phone + tablet). Desktop ≥1280 keeps Nova h-8 / h-7. */
+export const CLINIC_TOUCH = "max-xl:h-11! max-xl:min-h-11!"
+
+/** Dialog × is icon-sm (28px). Beat it below xl; 1440 stays Nova. */
+export const CLINIC_DIALOG_CLOSE = "max-xl:[&_[data-slot=dialog-close]]:size-11!"
+
+/** Type + attendance: one column on phone so "Staff meeting" / "Skipped" fit. */
+export const TYPE_ATTEND_GRID = "grid grid-cols-1 gap-3 md:grid-cols-2"
+
 /**
  * Phone (<768) opens the existing form as a bottom sheet (Deke 7:47).
  * Tablet and desktop keep the centered dialog. ≥1280 chrome is unchanged.
@@ -69,7 +79,7 @@ export function ClinicOverlay({
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={dialogClassName} initialFocus={initialFocus}>
+      <DialogContent className={cn(CLINIC_DIALOG_CLOSE, dialogClassName)} initialFocus={initialFocus}>
         {children}
       </DialogContent>
     </Dialog>
@@ -161,12 +171,15 @@ export function ClinicDialog({
   onOpenChange,
   clinic,
   focus = "name",
+  onDelete,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** `null` adds; a clinic edits it. */
   clinic: Clinic | null
   focus?: DialogFocus
+  /** Phone sheet only — opens the existing DeleteDialog. */
+  onDelete?: (clinic: Clinic) => void
 }) {
   const leadsRef = React.useRef<HTMLInputElement>(null)
   const nameRef = React.useRef<HTMLInputElement>(null)
@@ -179,7 +192,13 @@ export function ClinicDialog({
     >
       {/* The popup unmounts when closed, so the form (and its draft) is
           fresh on every open — no effect needed to reset it. */}
-      <ClinicForm clinic={clinic} onDone={() => onOpenChange(false)} nameRef={nameRef} leadsRef={leadsRef} />
+      <ClinicForm
+        clinic={clinic}
+        onDone={() => onOpenChange(false)}
+        onDelete={clinic && onDelete ? () => onDelete(clinic) : undefined}
+        nameRef={nameRef}
+        leadsRef={leadsRef}
+      />
     </ClinicOverlay>
   )
 }
@@ -187,15 +206,18 @@ export function ClinicDialog({
 function ClinicForm({
   clinic,
   onDone,
+  onDelete,
   nameRef,
   leadsRef,
 }: {
   clinic: Clinic | null
   onDone: () => void
+  onDelete?: () => void
   nameRef: React.RefObject<HTMLInputElement | null>
   leadsRef: React.RefObject<HTMLInputElement | null>
 }) {
   const { today, addClinic, updateClinic } = useClinics()
+  const phone = useIsMobile()
   const [draft, setDraft] = React.useState<Draft>(() => draftFrom(clinic, today))
   const uid = React.useId()
   const id = (field: string) => `${uid}-${field}`
@@ -248,6 +270,7 @@ function ClinicForm({
             maxLength={CLINIC_LIMITS.name}
             placeholder="e.g. Houston Offensive Staff Clinic"
             required
+            className={CLINIC_TOUCH}
           />
         </div>
 
@@ -262,6 +285,7 @@ function ClinicForm({
               value={draft.date}
               onChange={(e) => set("date", e.target.value)}
               required
+              className={CLINIC_TOUCH}
             />
           </div>
           <div className="grid gap-1.5">
@@ -274,6 +298,7 @@ function ClinicForm({
               onChange={(e) => set("city", e.target.value)}
               maxLength={CLINIC_LIMITS.city}
               placeholder={draft.type === "zoom" ? "Remote" : "e.g. Houston"}
+              className={CLINIC_TOUCH}
             />
           </div>
         </div>
@@ -288,10 +313,11 @@ function ClinicForm({
             onChange={(e) => set("host", e.target.value)}
             maxLength={CLINIC_LIMITS.host}
             placeholder="Who is putting it on"
+            className={CLINIC_TOUCH}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={TYPE_ATTEND_GRID} data-testid="type-attend-fields">
           <div className="grid gap-1.5">
             <span id={id("type-label")} className="text-caption font-medium">
               Type
@@ -312,7 +338,10 @@ function ClinicForm({
                 <ToggleGroupItem
                   key={t}
                   value={t}
-                  className="text-caption max-md:min-h-11! px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                  className={cn(
+                    "text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!",
+                    CLINIC_TOUCH
+                  )}
                 >
                   {CLINIC_TYPE_LABEL[t]}
                 </ToggleGroupItem>
@@ -338,7 +367,10 @@ function ClinicForm({
                 <ToggleGroupItem
                   key={a}
                   value={a}
-                  className="text-caption max-md:min-h-11! px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                  className={cn(
+                    "text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!",
+                    CLINIC_TOUCH
+                  )}
                 >
                   {ATTENDANCE_LABEL[a]}
                 </ToggleGroupItem>
@@ -366,6 +398,7 @@ function ClinicForm({
                   value={draft.collected[key]}
                   onChange={(e) => setCount(key, e.target.value)}
                   placeholder="0"
+                  className={CLINIC_TOUCH}
                 />
               </div>
             ))}
@@ -383,6 +416,7 @@ function ClinicForm({
               onChange={(e) => set("owner", e.target.value)}
               maxLength={CLINIC_LIMITS.owner}
               placeholder={DEFAULT_OWNER}
+              className={CLINIC_TOUCH}
             />
           </div>
           <div className="grid gap-1.5">
@@ -395,12 +429,26 @@ function ClinicForm({
               onChange={(e) => set("notes", e.target.value)}
               maxLength={CLINIC_LIMITS.notes}
               rows={2}
-              className="min-h-9"
+              className={cn("min-h-9", CLINIC_TOUCH)}
               placeholder="Anything the next person needs to know"
             />
           </div>
         </div>
       </div>
+
+      {editing && onDelete && phone ? (
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(CLINIC_TOUCH, "text-destructive")}
+          onClick={() => {
+            onDone()
+            onDelete()
+          }}
+        >
+          Delete clinic
+        </Button>
+      ) : null}
 
       <DialogFooter className="sm:justify-between">
         {/* Reqs: a clinic that closes can spawn a Sales Opportunity.
@@ -416,7 +464,7 @@ function ClinicForm({
             disabled
             title={SPAWN_SOON}
             aria-describedby={id("spawn-hint")}
-            className="max-md:h-11! max-md:min-h-11!"
+            className={CLINIC_TOUCH}
           >
             <TargetIcon aria-hidden />
             {SPAWN_LABEL}
@@ -426,10 +474,10 @@ function ClinicForm({
           </span>
         </span>
         <span className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onDone} className="max-md:h-11! max-md:min-h-11!">
+          <Button type="button" variant="outline" onClick={onDone} className={CLINIC_TOUCH}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid} className="max-md:h-11! max-md:min-h-11!">
+          <Button type="submit" disabled={!valid} className={CLINIC_TOUCH}>
             {editing ? "Save changes" : "Add clinic"}
           </Button>
         </span>

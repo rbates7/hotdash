@@ -77,6 +77,13 @@ export function isTabletHiddenColumn(past: boolean, column: ClinicColumn) {
 
 const TABLET_HIDE = "hidden xl:table-cell"
 
+/**
+ * Nova `.cn-table-cell` nowrap beats `CELL`. Below xl the Name column is the
+ * one that yields: constrain it and truncate name / host / notes so Status
+ * and the ⋯ stay inside the card (820 / 1180).
+ */
+export const TABLET_NAME_CELL = "max-xl:max-w-0 max-xl:min-w-0 max-xl:whitespace-normal!"
+
 function RowMenu({ clinic, actions }: { clinic: Clinic; actions: RowActions }) {
   const others = ATTENDANCES.filter((a) => a !== clinic.attendance)
   return (
@@ -88,7 +95,7 @@ function RowMenu({ clinic, actions }: { clinic: Clinic; actions: RowActions }) {
             size="icon-xs"
             aria-label={`Actions for ${clinic.name}`}
             title="Edit, record, mark or delete"
-            className="text-muted-foreground opacity-60 group-hover/row:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 md:max-xl:h-11! md:max-xl:w-11!"
+            className="text-muted-foreground opacity-60 group-hover/row:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 md:max-xl:h-11! md:max-xl:w-11! md:max-xl:opacity-100!"
           />
         }
       >
@@ -147,8 +154,10 @@ function ClinicCards({
 }) {
   if (rows.length === 0) {
     return (
-      <div role="status" className="text-muted-foreground px-4 py-8 text-center text-sm">
-        {emptyText}
+      <div role="listitem">
+        <div role="status" className="text-muted-foreground px-4 py-8 text-center text-sm">
+          {emptyText}
+        </div>
       </div>
     )
   }
@@ -217,7 +226,7 @@ export function ClinicsSection({
                     {c}
                   </TableHead>
                 ))}
-                <TableHead className={cn(HEAD, "w-10")}>
+                <TableHead className={cn(HEAD, "w-10 max-xl:w-11")}>
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
@@ -242,29 +251,37 @@ export function ClinicsSection({
                     : c.host
                   return (
                     <TableRow key={c.id} className="group/row hover:bg-transparent" data-clinic={c.id}>
-                      <TableCell className={CELL}>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-label font-semibold tracking-tight">{c.name}</span>
-                            {isSeedClinic(c) && <SampleDataTag />}
+                      <TableCell className={cn(CELL, TABLET_NAME_CELL)}>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="flex min-w-0 flex-wrap items-center gap-1.5 max-xl:flex-nowrap">
+                            <span className="text-label font-semibold tracking-tight max-xl:truncate">
+                              {c.name}
+                            </span>
+                            {isSeedClinic(c) && <SampleDataTag className="max-xl:shrink-0" />}
                           </span>
                           {past ? (
                             <>
                               {hostLine ? (
-                                <span className="text-caption text-muted-foreground xl:hidden">{hostLine}</span>
+                                <span className="text-caption text-muted-foreground max-xl:truncate xl:hidden">
+                                  {hostLine}
+                                </span>
                               ) : null}
                               {c.host ? (
-                                <span className="text-caption text-muted-foreground hidden xl:inline">{c.host}</span>
+                                <span className="text-caption text-muted-foreground hidden xl:inline">
+                                  {c.host}
+                                </span>
                               ) : null}
                             </>
                           ) : (
                             c.host && (
-                              <span className="text-caption text-muted-foreground">{c.host}</span>
+                              <span className="text-caption text-muted-foreground max-xl:truncate">
+                                {c.host}
+                              </span>
                             )
                           )}
                           {c.notes && (
                             <span
-                              className="text-caption text-muted-foreground line-clamp-1"
+                              className="text-caption text-muted-foreground line-clamp-1 max-xl:min-w-0"
                               title={c.notes}
                             >
                               {c.notes}
@@ -316,10 +333,10 @@ export function ClinicsSection({
                       <TableCell className={cn(CELL, isTabletHiddenColumn(past, "Owner") && TABLET_HIDE)}>
                         {c.owner}
                       </TableCell>
-                      <TableCell className={CELL}>
+                      <TableCell className={cn(CELL, "max-xl:w-px")}>
                         <StatusPill status={status} />
                       </TableCell>
-                      <TableCell className={cn(CELL, "py-2 pr-3 pl-0 text-right")}>
+                      <TableCell className={cn(CELL, "py-2 pr-3 pl-0 text-right max-xl:w-px")}>
                         <RowMenu clinic={c} actions={actions} />
                       </TableCell>
                     </TableRow>

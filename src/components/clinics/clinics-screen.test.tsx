@@ -1,13 +1,19 @@
 import * as React from "react"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CLINICS_MOCK_DAY, CLINIC_LIMITS } from "@/lib/clinics"
-import { SPAWN_LABEL, SPAWN_SOON } from "@/components/clinics/clinic-dialog"
+import {
+  CLINIC_TOUCH,
+  SPAWN_LABEL,
+  SPAWN_SOON,
+  TYPE_ATTEND_GRID,
+} from "@/components/clinics/clinic-dialog"
 import { ClinicsScreen, LEDE } from "@/components/clinics/clinics-screen"
 import {
   COLUMNS,
+  TABLET_NAME_CELL,
   TABLET_PAST_COLUMNS,
   TABLET_UPCOMING_COLUMNS,
   isTabletHiddenColumn,
@@ -248,6 +254,9 @@ describe("ClinicsScreen", () => {
     it("the menu offers edit, record, the two other attendance marks, a disabled spawn and delete", async () => {
       const user = userEvent.setup()
       renderScreen()
+      expect(screen.getByRole("button", { name: "Actions for Houston Offensive Staff Clinic" })).toHaveClass(
+        "md:max-xl:opacity-100!"
+      )
       const menu = await openMenu(user, "Houston Offensive Staff Clinic")
       expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual([
         "Edit",
@@ -444,6 +453,78 @@ describe("ClinicsScreen", () => {
       expect(dialog).toBeInTheDocument()
       expect(dialog).toHaveAttribute("data-side", "bottom")
       expect(within(dialog).getByLabelText("Name")).toHaveValue("Houston Offensive Staff Clinic")
+    })
+
+    it("constrains the Name cell below xl so Status and the row menu can fit", () => {
+      expect(TABLET_NAME_CELL).toMatch(/max-xl:max-w-0/)
+      expect(TABLET_NAME_CELL).toMatch(/max-xl:whitespace-normal!/)
+      renderScreen()
+      expect(within(row("Upcoming clinics", /Houston Offensive/)).getAllByRole("cell")[0].className).toMatch(
+        /max-xl:max-w-0/
+      )
+    })
+
+    it("stacks Type and attendance on phone and keeps Delete clinic off the desktop form", async () => {
+      expect(TYPE_ATTEND_GRID).toMatch(/grid-cols-1/)
+      expect(TYPE_ATTEND_GRID).toMatch(/md:grid-cols-2/)
+      expect(CLINIC_TOUCH).toMatch(/max-xl:h-11!/)
+      const user = userEvent.setup()
+      renderScreen()
+      await user.click(screen.getByRole("button", { name: "Add clinic" }))
+      const dialog = await screen.findByRole("dialog", { name: "Add clinic" })
+      expect(within(dialog).getByTestId("type-attend-fields").className).toMatch(/grid-cols-1/)
+      expect(within(dialog).getByLabelText("Name")).toHaveClass("max-xl:h-11!")
+      expect(within(dialog).getByRole("button", { name: "Staff meeting" })).toHaveClass("max-xl:h-11!")
+      expect(within(dialog).getByRole("button", { name: "Add clinic" })).toHaveClass("max-xl:h-11!")
+      expect(within(dialog).queryByRole("button", { name: "Delete clinic" })).not.toBeInTheDocument()
+    })
+
+    it("wraps an empty section status in a listitem so it is not a direct child of the list", () => {
+      saveState(window.localStorage, {
+        ...initialState(CLINICS_MOCK_DAY),
+        clinics: initialState(CLINICS_MOCK_DAY).clinics.filter((c) => c.date < CLINICS_MOCK_DAY),
+      })
+      mockPhone()
+      renderScreen()
+      const list = within(section("Upcoming clinics")).getByRole("list")
+      const item = within(list).getByRole("listitem")
+      expect(within(item).getByRole("status")).toHaveTextContent("Nothing on the calendar")
+    })
+
+    it("the phone sheet Delete clinic opens the existing confirm and then removes the row", async () => {
+      const user = userEvent.setup()
+      mockPhone()
+      renderScreen()
+      await user.click(
+        within(within(section("Upcoming clinics")).getByRole("list")).getByRole("button", {
+          name: /Houston Offensive Staff Clinic/,
+        })
+      )
+      const edit = await screen.findByRole("dialog", { name: "Edit clinic" })
+      const remove = within(edit).getByRole("button", { name: "Delete clinic" })
+      expect(remove).toHaveClass("max-xl:h-11!")
+      await user.click(remove)
+      const confirm = await screen.findByRole("dialog", { name: "Delete this clinic?" })
+      expect(within(confirm).getByRole("button", { name: "Delete" })).toHaveClass("max-xl:h-11!")
+      await user.click(within(confirm).getByRole("button", { name: "Keep it" }))
+      expect(screen.queryByRole("dialog", { name: "Delete this clinic?" })).not.toBeInTheDocument()
+      expect(
+        within(within(section("Upcoming clinics")).getByRole("list")).getByRole("button", {
+          name: /Houston Offensive Staff Clinic/,
+        })
+      ).toBeInTheDocument()
+
+      await user.click(
+        within(within(section("Upcoming clinics")).getByRole("list")).getByRole("button", {
+          name: /Houston Offensive Staff Clinic/,
+        })
+      )
+      await user.click(within(await screen.findByRole("dialog", { name: "Edit clinic" })).getByRole("button", { name: "Delete clinic" }))
+      await user.click(within(await screen.findByRole("dialog", { name: "Delete this clinic?" })).getByRole("button", { name: "Delete" }))
+      expect(screen.queryByText("Houston Offensive Staff Clinic")).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { level: 1, name: "Clinics" })).toHaveFocus()
+      })
     })
   })
 

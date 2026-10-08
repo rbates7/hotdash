@@ -15,7 +15,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
-import { ClinicDialog, ClinicOverlay, type DialogFocus } from "@/components/clinics/clinic-dialog"
+import {
+  CLINIC_TOUCH,
+  ClinicDialog,
+  ClinicOverlay,
+  type DialogFocus,
+} from "@/components/clinics/clinic-dialog"
 import { useClinics } from "@/components/clinics/clinics-store"
 import { ClinicsSection, type RowActions } from "@/components/clinics/clinics-section"
 
@@ -65,12 +70,12 @@ function DeleteDialog({
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" className="max-md:h-11! max-md:min-h-11!" onClick={() => onOpenChange(false)}>
+        <Button variant="outline" className={CLINIC_TOUCH} onClick={() => onOpenChange(false)}>
           Keep it
         </Button>
         <Button
           variant="destructive"
-          className="max-md:h-11! max-md:min-h-11!"
+          className={CLINIC_TOUCH}
           onClick={() => {
             if (clinic) onConfirm(clinic)
           }}
@@ -95,6 +100,8 @@ export function ClinicsScreen() {
   const store = useClinics()
   const { today, clinics, persisted, setAttendance, removeClinic } = store
   const { upcoming, past } = React.useMemo(() => splitClinics(clinics, today), [clinics, today])
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  const focusTitleAfterDelete = React.useRef(false)
 
   const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<Target<{ focus: DialogFocus }> | null>(null)
@@ -113,7 +120,13 @@ export function ClinicsScreen() {
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
       <header className="relative flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div className="min-w-0 max-md:pr-[132px]">
-          <h1 className="text-display-sm font-semibold tracking-tight">Clinics</h1>
+          <h1
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-display-sm font-semibold tracking-tight outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          >
+            Clinics
+          </h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:mt-1">
@@ -180,15 +193,32 @@ export function ClinicsScreen() {
         }}
         clinic={editing?.clinic ?? null}
         focus={editing?.focus}
+        onDelete={(clinic) => {
+          setEditing((t) => (t ? { ...t, open: false } : t))
+          setDeleting({ clinic, open: true })
+        }}
       />
       <DeleteDialog
         target={deleting}
         onOpenChange={(open) => {
-          if (!open) setDeleting((t) => (t ? { ...t, open: false } : t))
+          if (!open) {
+            setDeleting((t) => (t ? { ...t, open: false } : t))
+            if (focusTitleAfterDelete.current) {
+              focusTitleAfterDelete.current = false
+              requestAnimationFrame(() => titleRef.current?.focus())
+            }
+          }
         }}
         onConfirm={(clinic) => {
           removeClinic(clinic.id)
+          focusTitleAfterDelete.current = true
           setDeleting((t) => (t ? { ...t, open: false } : t))
+          requestAnimationFrame(() => {
+            if (focusTitleAfterDelete.current) {
+              focusTitleAfterDelete.current = false
+              titleRef.current?.focus()
+            }
+          })
         }}
       />
     </div>
