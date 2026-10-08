@@ -32,6 +32,7 @@ import { ContactEditDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import { CARD, CARD_LIST } from "@/components/crm/crm-row-actions"
+import { backToList, useListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
 import { CRM_44, CRM_LINK_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
@@ -55,6 +56,8 @@ export function ContactDetail({ contactId }: { contactId: string }) {
   const router = useRouter()
   const [confirming, setConfirming] = React.useState(false)
   const contact = store.contactById(contactId)
+  // The breadcrumb steps back to the list only when this record was opened from it.
+  useListReturn("/crm/contacts", `/crm/contacts/${contactId}`)
 
   if (!store.persisted) return <CrmSkeleton label="Loading saved contact" />
 
@@ -81,7 +84,11 @@ export function ContactDetail({ contactId }: { contactId: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <p className="text-muted-foreground text-xs">
-        <Link href="/crm/contacts" className={cn("hover:underline", CRM_LINK_44)}>
+        <Link
+          href="/crm/contacts"
+          onClick={(event) => backToList(event, "/crm/contacts", () => router.back())}
+          className={cn("hover:underline", CRM_LINK_44)}
+        >
           Contacts
         </Link>{" "}
         / {name}

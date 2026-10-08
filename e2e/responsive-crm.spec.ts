@@ -733,7 +733,9 @@ for (const theme of ["light", "dark"] as const) {
           const pressed = statusFilter(page).locator("[aria-current='page']")
           await expect(pressed).toHaveText(name)
           await settle(pressed)
-          for (const other of await statusFilter(page).locator("a:not([aria-current])").all()) {
+          const others = statusFilter(page).locator("a:not([aria-current])")
+          expect(await others.count()).toBe(4)
+          for (const other of await others.all()) {
             const ratio = await backgroundContrast(pressed, other)
             expect(ratio, `${theme}/${size} ${name} pressed vs ${await other.textContent()} ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
           }

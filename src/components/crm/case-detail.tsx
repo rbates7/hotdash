@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { PaperclipIcon, TrashIcon } from "lucide-react"
 
 import {
@@ -19,6 +20,7 @@ import { CasePrioritySelect } from "@/components/crm/case-priority-select"
 import { CaseStatusPath } from "@/components/crm/case-status-path"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { CaseDeleteDialog } from "@/components/crm/crm-delete-dialogs"
+import { backToList, useListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
 import { CRM_44, CRM_ICON_44, CRM_LINK_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
@@ -28,8 +30,11 @@ import * as React from "react"
 
 export function CaseDetail({ caseId }: { caseId: string }) {
   const store = useCrm()
+  const router = useRouter()
   const [confirming, setConfirming] = React.useState(false)
   const caseRow = store.caseById(caseId)
+  // The breadcrumb steps back to the list only when this record was opened from it.
+  useListReturn("/crm/cases", `/crm/cases/${caseId}`)
 
   if (!store.persisted) return <CrmSkeleton label="Loading saved case" />
 
@@ -57,7 +62,11 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">
-            <Link href="/crm/cases" className={cn("hover:underline", CRM_LINK_44)}>
+            <Link
+              href="/crm/cases"
+              onClick={(event) => backToList(event, "/crm/cases", () => router.back())}
+              className={cn("hover:underline", CRM_LINK_44)}
+            >
               Cases
             </Link>{" "}
             / #{caseRow.caseNumber}

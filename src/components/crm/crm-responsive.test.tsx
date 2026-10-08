@@ -1,7 +1,7 @@
 import * as React from "react"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
@@ -36,6 +36,10 @@ beforeAll(() => {
       disconnect() {}
     }
   )
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
 })
 
 beforeEach(() => {

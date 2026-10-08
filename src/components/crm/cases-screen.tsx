@@ -42,6 +42,7 @@ import {
   useListFocus,
   useRowDialogs,
 } from "@/components/crm/crm-row-actions"
+import { clearListReturn, rememberListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 
@@ -84,7 +85,10 @@ function CaseRowMenu({ caseRow, onDelete }: { caseRow: Case; onDelete: (caseRow:
         {
           label: "Open case",
           icon: <ArrowRightIcon aria-hidden />,
-          onSelect: () => router.push(`/crm/cases/${caseRow.id}`),
+          onSelect: () => {
+            rememberListReturn(`/crm/cases/${caseRow.id}`)
+            router.push(`/crm/cases/${caseRow.id}`)
+          },
         },
         {
           label: "Delete case",
@@ -135,7 +139,14 @@ function CaseSheet({
         lines={caseCardMeta(caseRow, contact, org, store.nowMs).map((line) => line.value)}
         actionsLabel="Case actions"
       >
-        <Link href={`/crm/cases/${caseRow.id}`} className={SHEET_ACTION} onClick={() => onOpenChange(false)}>
+        <Link
+          href={`/crm/cases/${caseRow.id}`}
+          className={SHEET_ACTION}
+          onClick={() => {
+            rememberListReturn(`/crm/cases/${caseRow.id}`)
+            onOpenChange(false)
+          }}
+        >
           <ArrowRightIcon aria-hidden />
           Open case
         </Link>
@@ -175,6 +186,8 @@ export function CasesScreen() {
   const [sheetId, setSheetId] = React.useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const rowDialog = useRowDialogs<Case, CaseAction>()
+  // Back on the list: any recorded way back has been used or is stale.
+  React.useEffect(() => clearListReturn(), [])
 
   if (!store.persisted) return <CrmTableSkeleton label="Loading saved cases" />
 
@@ -263,11 +276,14 @@ export function CasesScreen() {
                 return (
                   <TableRow key={row.id} data-case={row.id} className={TABLET_WRAP}>
                     <TableCell className={cn(`${CELL} text-muted-foreground`, TABLET_HIDE)}>
-                      <Link href={`/crm/cases/${row.id}`}>#{row.caseNumber}</Link>
+                      <Link href={`/crm/cases/${row.id}`} onClick={() => rememberListReturn(`/crm/cases/${row.id}`)}>
+                        #{row.caseNumber}
+                      </Link>
                     </TableCell>
                     <TableCell className={`${CELL} max-w-96`}>
                       <Link
                         href={`/crm/cases/${row.id}`}
+                        onClick={() => rememberListReturn(`/crm/cases/${row.id}`)}
                         className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11 md:max-xl:flex-wrap md:max-xl:gap-x-1.5 md:max-xl:gap-y-0.5 md:max-xl:py-1"
                       >
                         <span className="truncate md:max-xl:basis-full md:max-xl:whitespace-normal">
@@ -281,7 +297,7 @@ export function CasesScreen() {
                       </Link>
                     </TableCell>
                     <TableCell className={CELL}>
-                      <span className="flex items-center gap-2 md:max-xl:[&>div]:min-w-0 md:max-xl:[&_p]:max-w-40 md:max-xl:[&_p]:truncate">
+                      <span className="flex items-center gap-2 md:max-xl:[&>div]:min-w-0 md:max-xl:[&_p]:max-w-40 md:max-xl:[&_p]:[overflow-wrap:anywhere]">
                         <CrmAvatar
                           firstName={contact?.firstName}
                           lastName={contact?.lastName}

@@ -41,6 +41,7 @@ import {
   useListFocus,
   useRowDialogs,
 } from "@/components/crm/crm-row-actions"
+import { clearListReturn, rememberListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 import { CRM_44 } from "@/components/crm/crm-touch"
@@ -70,6 +71,8 @@ export const CARD_PLAN_PILL = "card-plan-pill"
 const TABLET_HIDE = "md:max-xl:hidden"
 /** The "…" column exists only on tablet. */
 const TABLET_ONLY = "hidden md:max-xl:table-cell"
+/** Tablet cells wrap so the table fits 768px; `!` beats Nova's unlayered nowrap. */
+const TABLET_WRAP = "md:max-xl:[&>td]:whitespace-normal!"
 
 type ContactAction = "edit" | "delete"
 
@@ -125,7 +128,10 @@ function ContactRowMenu({
         {
           label: "Open contact",
           icon: <ArrowRightIcon aria-hidden />,
-          onSelect: () => router.push(`/crm/contacts/${contact.id}`),
+          onSelect: () => {
+            rememberListReturn(`/crm/contacts/${contact.id}`)
+            router.push(`/crm/contacts/${contact.id}`)
+          },
         },
         {
           label: "Edit contact",
@@ -186,7 +192,10 @@ function ContactSheet({
         <Link
           href={`/crm/contacts/${contact.id}`}
           className={SHEET_ACTION}
-          onClick={() => onOpenChange(false)}
+          onClick={() => {
+            rememberListReturn(`/crm/contacts/${contact.id}`)
+            onOpenChange(false)
+          }}
         >
           <ArrowRightIcon aria-hidden />
           Open contact
@@ -217,6 +226,8 @@ export function ContactsScreen() {
   const [sheetId, setSheetId] = React.useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const rowDialog = useRowDialogs<Contact, ContactAction>()
+  // Back on the list: any recorded way back has been used or is stale.
+  React.useEffect(() => clearListReturn(), [])
 
   React.useEffect(() => {
     const current = searchParams.get("q") ?? ""
@@ -328,22 +339,23 @@ export function ContactsScreen() {
                 const org = orgOf(store.organizations, contact.organizationId)
                 const name = contactDisplayName(contact)
                 return (
-                  <TableRow key={contact.id} data-contact={contact.id}>
+                  <TableRow key={contact.id} data-contact={contact.id} className={TABLET_WRAP}>
                     <TableCell className={CELL}>
                       <Link
                         href={`/crm/contacts/${contact.id}`}
-                        className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11"
+                        onClick={() => rememberListReturn(`/crm/contacts/${contact.id}`)}
+                        className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11 md:max-xl:flex-wrap"
                       >
                         <CrmAvatar
                           firstName={contact.firstName}
                           lastName={contact.lastName}
                           email={contact.email}
                         />
-                        <span className="truncate">{name}</span>
+                        <span className="truncate md:max-xl:min-w-0 md:max-xl:whitespace-normal md:max-xl:[overflow-wrap:anywhere]">{name}</span>
                         {isSeedContact(contact.id) ? <SampleDataTag /> : null}
                       </Link>
                       {/* Tablet: Email folds under Name. */}
-                      <span className="text-caption text-muted-foreground hidden pl-8 md:max-xl:block">
+                      <span className="text-caption text-muted-foreground hidden pl-8 md:max-xl:block md:max-xl:[overflow-wrap:anywhere]">
                         {contact.email}
                       </span>
                     </TableCell>
