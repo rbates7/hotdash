@@ -266,6 +266,27 @@ export function RoadmapBoard() {
       : { kind: "column", column: current.column }
   }
 
+  function resolvePendingFocus() {
+    const pending = pendingFocus.current
+    if (!pending) return document.querySelector<HTMLElement>("[data-roadmap-heading]")
+    const cardEl =
+      pending.kind === "card"
+        ? document.querySelector<HTMLElement>(`[data-roadmap-card="${pending.id}"]`)
+        : null
+    const columnEl =
+      pending.kind === "column"
+        ? document.querySelector<HTMLElement>(`[data-roadmap-column="${pending.column}"]`)
+        : null
+    const heading = document.querySelector<HTMLElement>("[data-roadmap-heading]")
+    const columnCanTakeFocus = columnEl && !columnEl.classList.contains("contents")
+    return cardEl ?? (columnCanTakeFocus ? columnEl : null) ?? heading
+  }
+
+  function openEdit(id: string) {
+    pendingFocus.current = { kind: "card", id }
+    setEditingId(id)
+  }
+
   function handleClose(reason: BetCloseReason = "dismiss") {
     if (!editingId || closingId.current === editingId) return
     closingId.current = editingId
@@ -280,27 +301,13 @@ export function RoadmapBoard() {
 
   React.useLayoutEffect(() => {
     if (editingId || !pendingFocus.current || !persisted) return
-    const pending = pendingFocus.current
-    pendingFocus.current = null
-    const cardEl =
-      pending.kind === "card"
-        ? document.querySelector<HTMLElement>(`[data-roadmap-card="${pending.id}"]`)
-        : null
-    const columnEl =
-      pending.kind === "column"
-        ? document.querySelector<HTMLElement>(`[data-roadmap-column="${pending.column}"]`)
-        : null
-    const heading = document.querySelector<HTMLElement>("[data-roadmap-heading]")
-    const focusable = (el: HTMLElement | null) => {
-      if (!el) return false
-      if (getComputedStyle(el).display === "contents") return false
-      return el.getClientRects().length > 0
-    }
-    const el =
-      (focusable(cardEl) ? cardEl : null) ??
-      (focusable(columnEl) ? columnEl : null) ??
-      heading
-    el?.focus()
+    resolvePendingFocus()?.focus()
+  }, [editingId, persisted, items])
+
+  React.useEffect(() => {
+    if (editingId || !pendingFocus.current || !persisted) return
+    const id = window.setTimeout(() => resolvePendingFocus()?.focus(), 0)
+    return () => window.clearTimeout(id)
   }, [editingId, persisted, items])
 
   if (!persisted) return <BoardSkeleton layout={layout} />
@@ -354,7 +361,7 @@ export function RoadmapBoard() {
             column={column}
             cards={inColumn(items, column)}
             listed={listed}
-            onEdit={setEditingId}
+            onEdit={openEdit}
             focusRequest={focusRequest}
             onMoved={onMoved}
             onFocusConsumed={onFocusConsumed}

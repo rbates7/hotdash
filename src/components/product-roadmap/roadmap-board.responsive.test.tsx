@@ -1,5 +1,5 @@
 import * as React from "react"
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -134,7 +134,7 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     const dialog = await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })
     await user.click(within(dialog).getByRole("button", { name: "Close" }))
     expect(screen.queryByRole("dialog", { name: "Bet: Flag Football 2026" })).toBeNull()
-    expect(card("Flag Football 2026")).toHaveFocus()
+    await waitFor(() => expect(card("Flag Football 2026")).toHaveFocus())
   })
 
   it("after Delete, focus moves to the next Now card", async () => {
@@ -145,7 +145,7 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     await user.click(within(dialog).getByRole("button", { name: "Delete" }))
     await user.click(within(dialog).getByRole("button", { name: "Confirm delete" }))
     expect(screen.queryByRole("article", { name: "Flag Football 2026" })).toBeNull()
-    expect(card("Play share links")).toHaveFocus()
+    await waitFor(() => expect(card("Play share links")).toHaveFocus())
   })
 
   it("after Move from the sheet, focus moves to the next card in the old column", async () => {
@@ -153,15 +153,19 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     render(<Screen />)
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" }))
     const dialog = await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })
-    await user.click(within(dialog).getByRole("group", { name: "Column" }).getByRole("button", { name: "Next" }))
+    await user.click(
+      within(within(dialog).getByRole("group", { name: "Column" })).getByRole("button", { name: "Next" })
+    )
     expect(screen.queryByRole("dialog", { name: "Bet: Flag Football 2026" })).toBeNull()
-    expect(card("Play share links")).toHaveFocus()
+    await waitFor(() => expect(card("Play share links")).toHaveFocus())
   })
 
   it("after Delete of the last card, focus moves to the column heading", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<Screen />)
-    await user.click(screen.getByRole("group", { name: "Filter by column" }).getByRole("button", { name: /Later/ }))
+    await user.click(
+      within(screen.getByRole("group", { name: "Filter by column" })).getByRole("button", { name: /Later/ })
+    )
     await user.click(within(card("Auto-scout from film")).getByRole("button", { name: "Edit" }))
     const first = await screen.findByRole("dialog", { name: "Bet: Auto-scout from film" })
     await user.click(within(first).getByRole("button", { name: "Delete" }))

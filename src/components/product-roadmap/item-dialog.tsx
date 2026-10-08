@@ -104,6 +104,7 @@ function RoadmapDialogContent({
   showStockClose,
   trapFocus,
   sheetOverlay,
+  finalFocus,
 }: {
   className?: string
   children: React.ReactNode
@@ -113,6 +114,7 @@ function RoadmapDialogContent({
   trapFocus?: boolean
   /** Phone sheet backdrop; desktop keeps develop's `dialog-overlay`. */
   sheetOverlay?: boolean
+  finalFocus?: DialogPrimitive.Popup.Props["finalFocus"]
 }) {
   const ref = React.useRef<HTMLDivElement | null>(null)
 
@@ -149,6 +151,7 @@ function RoadmapDialogContent({
           className
         )}
         onKeyDown={onKeyDown}
+        finalFocus={finalFocus}
       >
         {children}
         {showStockClose && (
@@ -475,6 +478,7 @@ function EditBetBody({
       showStockClose={compact}
       trapFocus={compact}
       sheetOverlay={phone}
+      finalFocus={compact ? false : undefined}
       onKeyDown={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
           event.preventDefault()

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
@@ -11,8 +11,29 @@ import { SOURCE_CHIP_TITLE, TICKETS_TITLE } from "@/components/product-roadmap/r
 import { RoadmapProvider, STORAGE_KEY } from "@/components/product-roadmap/roadmap-store"
 
 const NOW = Date.parse("2026-10-07T15:00:00.000Z")
+const nativeMatchMedia = window.matchMedia
+
+function mockDesktop() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
+// jsdom has no matchMedia; treat the suite as desktop so the three-column
+// board and the existing dialog stay (same as Feature Request #30).
+beforeEach(() => {
+  mockDesktop()
+})
 
 afterEach(() => {
+  window.matchMedia = nativeMatchMedia
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
