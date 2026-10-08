@@ -55,7 +55,6 @@ async function visibleHeaders(tbl: Locator) {
 async function expectClinicsReadable(page: Page, theme: "light" | "dark") {
   await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/h1`, expect)
   await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
-  const upcoming = region(page, "Upcoming clinics")
   const surface = cards(page, "Upcoming clinics").or(table(page, "Upcoming clinics"))
   await expectReadable(surface.getByTestId("status-pill").first(), `${theme}/upcoming status`, expect)
   await expectReadable(surface.getByTestId("sample-data-tag").first(), `${theme}/upcoming sample`, expect)
