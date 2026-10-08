@@ -1,5 +1,5 @@
 import { now } from "@/lib/clock"
-import { HeaderActions } from "@/components/product-roadmap/header-actions"
+import { RoadmapHeader } from "@/components/product-roadmap/roadmap-header"
 import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
 import { RoadmapProvider } from "@/components/product-roadmap/roadmap-store"
 
@@ -19,15 +19,7 @@ export default function ProductRoadmapPage() {
   return (
     <RoadmapProvider nowMs={nowMs}>
       <div className="flex min-w-0 flex-col gap-5">
-        <header className="flex min-h-10 flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-display-sm font-semibold tracking-tight">Product Roadmap</h1>
-            <p className="text-label text-muted-foreground mt-1 tracking-tight">
-              Signed bets, in order. Tickets live in Agent Workplace.
-            </p>
-          </div>
-          <HeaderActions />
-        </header>
+        <RoadmapHeader />
         <RoadmapBoard />
       </div>
     </RoadmapProvider>
