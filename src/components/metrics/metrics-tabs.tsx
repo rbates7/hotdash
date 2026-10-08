@@ -9,6 +9,13 @@ import { ExpensesPanel } from "@/components/metrics/expenses-panel"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { OverviewPanel } from "@/components/metrics/overview-panel"
 import {
+  METRICS_GRID,
+  METRICS_TAB,
+  METRICS_TABLIST,
+  METRICS_TABS_FADE,
+  METRICS_TABS_WRAP,
+} from "@/components/metrics/responsive"
+import {
   ChurnedSubscribersTable,
   NewSubscribersTable,
 } from "@/components/metrics/subscribers-tables"
@@ -40,7 +47,7 @@ function PanelSkeleton({ tab }: { tab: MetricsTab }) {
       <div
         role="status"
         aria-label="Loading saved metrics"
-        className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
+        className={METRICS_GRID}
       >
         {Array.from({ length: 8 }, (_, i) => (
           <Skeleton key={i} className="h-[176px] rounded-xl" />
@@ -89,21 +96,24 @@ export function MetricsTabs() {
       onValueChange={(value) => setTab(value as MetricsTab)}
       className="min-w-0 gap-[18px]"
     >
-      <TabsList
-        variant="line"
-        aria-label="Metrics views"
-        className="border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px]"
-      >
-        {METRICS_TABS.map((t) => (
-          <TabsTrigger
-            key={t.value}
-            value={t.value}
-            className="text-label flex-none px-3.5 py-1.5 font-medium tracking-tight"
-          >
-            {t.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      <div className={METRICS_TABS_WRAP}>
+        <TabsList
+          variant="line"
+          aria-label="Metrics views"
+          className={METRICS_TABLIST}
+        >
+          {METRICS_TABS.map((t) => (
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className={METRICS_TAB}
+            >
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <div data-testid="metrics-tabs-fade" className={METRICS_TABS_FADE} />
+      </div>
 
       {panel("overview", <OverviewPanel />)}
       {panel("new", <NewSubscribersTable />)}

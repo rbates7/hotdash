@@ -36,8 +36,10 @@ async function shoot(page: Page, name: string) {
 // mid-transition can never match. The Expenses card lives on two panels.
 const panel = (page: Page, name: string) => page.getByRole("tabpanel", { name, exact: true })
 const grid = (page: Page) => panel(page, "Overview").getByRole("region", { name: "Metric cards" })
-const card = (page: Page, name: string) => grid(page).getByRole("article", { name, exact: true })
-const expensesCard = (page: Page) => panel(page, "Expenses").getByRole("article", { name: "Expenses", exact: true })
+const card = (page: Page, name: string) =>
+  grid(page).getByRole("article", { name: new RegExp(`^${name}\\b`) })
+const expensesCard = (page: Page) =>
+  panel(page, "Expenses").getByRole("article", { name: /^Expenses\b/ })
 const tab = (page: Page, name: string) =>
   page.getByRole("tablist", { name: "Metrics views" }).getByRole("tab", { name, exact: true })
 

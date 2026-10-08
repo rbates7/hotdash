@@ -1,6 +1,6 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
@@ -17,8 +17,28 @@ import { MetricsTabs } from "@/components/metrics/metrics-tabs"
  * screen actually renders for the same day — not the fixture both read —
  * so a formatting or wiring slip on either side fails here.
  */
+const nativeMatchMedia = window.matchMedia
+
+function mockDesktop() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
 describe("Home ↔ Metrics parity (rendered)", () => {
   const today = todayIn(FIXED_NOW)
+
+  beforeEach(() => mockDesktop())
+  afterEach(() => {
+    window.matchMedia = nativeMatchMedia
+  })
 
   function renderMetrics(search = "") {
     navigation.params = new URLSearchParams(search)
@@ -39,7 +59,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
 
   it("the truth strip's Subscribers card shows the Metrics Subscribers card's value and delta", () => {
     const metrics = renderMetrics()
-    const metricsCard = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: "Subscribers" })
+    const metricsCard = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^Subscribers\b/ })
     const metricsValue = within(metricsCard).getByTestId("metric-value").textContent
     const metricsTrend = within(metricsCard).getByTestId("trend").textContent
     const metricsCaption = within(metricsCard).getByText(/vs previous/).textContent
@@ -53,7 +73,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
 
   it("the Metrics door's MRR span is the Metrics MRR card's series", () => {
     const metrics = renderMetrics()
-    const mrr = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: "MRR" })
+    const mrr = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^MRR\b/ })
     const name = within(mrr).getByRole("img").getAttribute("aria-label")!
     // "…: to 10 Apr $23,800, …, to 27 Aug $26,190"
     const values = [...name.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")))
@@ -73,7 +93,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     const grid = screen.getByRole("region", { name: "Metric cards" })
     const rendered = Object.fromEntries(
       ["MRR", "ARR", "Subscribers", "Churn Rate"].map((name) => {
-        const card = within(grid).getByRole("article", { name })
+        const card = within(grid).getByRole("article", { name: new RegExp(`^${name}\\b`) })
         return [name, within(card).getByTestId("metric-value").textContent]
       })
     )
