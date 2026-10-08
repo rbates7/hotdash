@@ -657,16 +657,23 @@ test.describe("responsive Metrics B3–B4–B5–B7 (phone 390)", () => {
     await expect(brett.getByText("$199")).toBeVisible()
     await expect(brett.getByText("Lifetime value")).toHaveClass(/sr-only/)
     const ltvSpan = brett.locator("[aria-hidden]").filter({ hasText: "LTV" })
-    const valueSpan = brett.getByText("$199")
-    const ltvRect = await ltvSpan.evaluate((el) => {
-      const r = el.getBoundingClientRect()
-      return { right: r.right }
+    const gap = await ltvSpan.evaluate((el) => {
+      const a = el.getBoundingClientRect()
+      const pill = el.parentElement
+      if (!pill) return -1
+      const walker = document.createTreeWalker(pill, NodeFilter.SHOW_TEXT)
+      let valueNode: Text | null = null
+      while (walker.nextNode()) {
+        if (/^\$[\d,]+$/.test((walker.currentNode.textContent ?? "").trim())) {
+          valueNode = walker.currentNode as Text
+        }
+      }
+      if (!valueNode) return -1
+      const range = document.createRange()
+      range.selectNodeContents(valueNode)
+      return range.getBoundingClientRect().left - a.right
     })
-    const valueRect = await valueSpan.evaluate((el) => {
-      const r = el.getBoundingClientRect()
-      return { left: r.left }
-    })
-    expect(valueRect.left - ltvRect.right, "drawn gap between LTV and value").toBeGreaterThan(0)
+    expect(gap, "drawn gap between LTV and value").toBeGreaterThan(0)
     const pill = brett.locator("span.inline-flex").filter({ hasText: "$199" })
     await expectReadable(pill, "390/light LTV pill", expect)
     await setTheme(page, "dark")
