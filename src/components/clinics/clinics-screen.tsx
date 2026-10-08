@@ -4,10 +4,9 @@ import * as React from "react"
 import { PlusIcon, PresentationIcon } from "lucide-react"
 
 import { describeClinic, splitClinics, type Attendance, type Clinic } from "@/lib/clinics"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -16,7 +15,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
-import { ClinicDialog, type DialogFocus } from "@/components/clinics/clinic-dialog"
+import {
+  CLINIC_TOUCH,
+  ClinicDialog,
+  ClinicOverlay,
+  type DialogFocus,
+} from "@/components/clinics/clinic-dialog"
 import { useClinics } from "@/components/clinics/clinics-store"
 import { ClinicsSection, type RowActions } from "@/components/clinics/clinics-section"
 
@@ -57,32 +61,36 @@ function DeleteDialog({
 }) {
   const clinic = target?.clinic ?? null
   return (
-    <Dialog open={target?.open ?? false} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm!">
-        <DialogHeader>
-          <DialogTitle>Delete this clinic?</DialogTitle>
-          <DialogDescription>
-            {clinic ? describeClinic(clinic) : ""} comes off the list. There is no server copy to
-            recover it from.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Keep it
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              if (clinic) onConfirm(clinic)
-            }}
-          >
-            Delete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ClinicOverlay open={target?.open ?? false} onOpenChange={onOpenChange} dialogClassName="sm:max-w-sm!">
+      <DialogHeader>
+        <DialogTitle>Delete this clinic?</DialogTitle>
+        <DialogDescription>
+          {clinic ? describeClinic(clinic) : ""} comes off the list. There is no server copy to
+          recover it from.
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" className={CLINIC_TOUCH} onClick={() => onOpenChange(false)}>
+          Keep it
+        </Button>
+        <Button
+          variant="destructive"
+          className={CLINIC_TOUCH}
+          onClick={() => {
+            if (clinic) onConfirm(clinic)
+          }}
+        >
+          Delete
+        </Button>
+      </DialogFooter>
+    </ClinicOverlay>
   )
 }
+
+/** Add clinic: 44px below xl (Deke 10:720 / 10:980); h-9 at ≥1280. */
+const ADD_CLINIC_CLASS = "max-xl:h-11! max-xl:min-h-11! max-xl:px-4! xl:h-9 xl:px-3.5"
+/** Home's #25 hook — Clinics-only, PersistenceNote itself is untouched. */
+const RESET_CLASS = "max-xl:h-11! max-xl:px-2.5!"
 
 /**
  * The page: header, then Upcoming and Past as the mock stacks them. Must
@@ -92,6 +100,8 @@ export function ClinicsScreen() {
   const store = useClinics()
   const { today, clinics, persisted, setAttendance, removeClinic } = store
   const { upcoming, past } = React.useMemo(() => splitClinics(clinics, today), [clinics, today])
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  const focusTitleAfterDelete = React.useRef(false)
 
   const [adding, setAdding] = React.useState(false)
   const [editing, setEditing] = React.useState<Target<{ focus: DialogFocus }> | null>(null)
@@ -108,15 +118,25 @@ export function ClinicsScreen() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-display-sm font-semibold tracking-tight">Clinics</h1>
+      <header className="relative flex flex-col gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
+        <div className="min-w-0 max-md:pr-[132px]">
+          <h1
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-display-sm font-semibold tracking-tight outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          >
+            Clinics
+          </h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
-        <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5">
-          <PersistenceNote store={store} />
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:mt-1">
+          <PersistenceNote store={store} resetClassName={RESET_CLASS} />
           <SampleDataTag className="h-6 px-2" />
-          <Button size="sm" className="h-9 px-3.5" onClick={() => setAdding(true)}>
+          <Button
+            size="sm"
+            className={cn(ADD_CLINIC_CLASS, "max-md:absolute max-md:top-0 max-md:right-0")}
+            onClick={() => setAdding(true)}
+          >
             <PlusIcon aria-hidden />
             Add clinic
           </Button>
@@ -136,7 +156,12 @@ export function ClinicsScreen() {
           <p className="text-caption">
             Every row has been removed. Add a clinic, or Reset to bring the sample rows back.
           </p>
-          <Button size="sm" variant="outline" className="mt-1" onClick={() => setAdding(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className={cn("mt-1", ADD_CLINIC_CLASS)}
+            onClick={() => setAdding(true)}
+          >
             <PlusIcon aria-hidden />
             Add clinic
           </Button>
@@ -168,15 +193,32 @@ export function ClinicsScreen() {
         }}
         clinic={editing?.clinic ?? null}
         focus={editing?.focus}
+        onDelete={(clinic) => {
+          setEditing((t) => (t ? { ...t, open: false } : t))
+          setDeleting({ clinic, open: true })
+        }}
       />
       <DeleteDialog
         target={deleting}
         onOpenChange={(open) => {
-          if (!open) setDeleting((t) => (t ? { ...t, open: false } : t))
+          if (!open) {
+            setDeleting((t) => (t ? { ...t, open: false } : t))
+            if (focusTitleAfterDelete.current) {
+              focusTitleAfterDelete.current = false
+              requestAnimationFrame(() => titleRef.current?.focus())
+            }
+          }
         }}
         onConfirm={(clinic) => {
           removeClinic(clinic.id)
+          focusTitleAfterDelete.current = true
           setDeleting((t) => (t ? { ...t, open: false } : t))
+          requestAnimationFrame(() => {
+            if (focusTitleAfterDelete.current) {
+              focusTitleAfterDelete.current = false
+              titleRef.current?.focus()
+            }
+          })
         }}
       />
     </div>
