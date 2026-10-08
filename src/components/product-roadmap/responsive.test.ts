@@ -14,9 +14,10 @@ import {
   ROADMAP_INPUT,
   ROADMAP_OPTION,
   ROADMAP_PHONE_NEW_BET,
+  ROADMAP_COMPACT_BOARD_QUERY,
   ROADMAP_PRESSED,
-  ROADMAP_PRESSED_BELOW_XL,
   ROADMAP_RESET,
+  ROADMAP_THREE_COL_MIN,
   ROADMAP_SEGMENT,
   ROADMAP_SHEET,
   ROADMAP_SWITCHER,
@@ -41,7 +42,7 @@ describe("Product Roadmap responsive layout", () => {
     expect(ROADMAP_ICON).toBe("max-xl:size-11!")
   })
 
-  it("uses equal segments + one column on phone, 2-col on tablet portrait, three columns on desktop", () => {
+  it("uses equal segments + one column on phone, 2-col below 1180, three columns at ≥1180", () => {
     expect(ROADMAP_SWITCHER).toContain("h-12")
     expect(ROADMAP_SWITCHER).toContain("w-full")
     expect(ROADMAP_SWITCHER).not.toContain("overflow-x-auto")
@@ -49,7 +50,10 @@ describe("Product Roadmap responsive layout", () => {
     expect(ROADMAP_SEGMENT).toContain("h-11")
     expect(ROADMAP_PRESSED).toContain("aria-pressed:bg-primary!")
     expect(ROADMAP_PRESSED).toContain("aria-pressed:text-primary-foreground!")
-    expect(ROADMAP_PRESSED_BELOW_XL).toContain("max-xl:aria-pressed:bg-primary!")
+    expect(ROADMAP_PRESSED).toContain("aria-pressed:border-primary!")
+    expect(ROADMAP_PRESSED).not.toContain("max-xl:")
+    expect(ROADMAP_THREE_COL_MIN).toBe(1180)
+    expect(ROADMAP_COMPACT_BOARD_QUERY).toBe("(min-width: 768px) and (max-width: 1179px)")
     expect(ROADMAP_BOARD_PHONE).toContain("flex-col")
     expect(ROADMAP_BOARD_TABLET).toContain("grid-cols-2")
     expect(ROADMAP_BOARD_DESKTOP).toContain("grid-cols-3")

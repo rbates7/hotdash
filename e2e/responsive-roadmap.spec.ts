@@ -14,8 +14,8 @@ import { setTheme } from "./support/theme"
 
 /**
  * Product Roadmap at phone / tablet / desktop (Deke 13:2202, 13:2423, 13:2650,
- * 13:2968). Phone and 820: Now/Next/Later segments + cards of the selected
- * column (1-col / 2-col). 1180 and desktop keep three columns. The existing
+ * 13:2968). Phone and 768–1179: Now/Next/Later segments + cards of the selected
+ * column (1-col / 2-col). ≥1180 and desktop keep three columns. The existing
  * edit dialog docks as a bottom sheet below `md`.
  */
 
@@ -226,9 +226,11 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expect(sheet).toBeVisible()
     await expectSheetDocked(page, sheet)
     await expect(sheet.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
-    await expect(sheet.getByRole("group", { name: "Column" })).toBeVisible()
+    await expect(sheet.getByRole("group", { name: "Column" })).toHaveCount(0)
     await expectAllTargets44(sheet, "390 sheet")
     await expectUnclipped(sheet.getByLabel("Why it matters"), "390 why")
+    await sheet.getByLabel("Why it matters").fill("x".repeat(280))
+    await expectUnclipped(sheet.getByLabel("Why it matters"), "390 edit 280 why")
     await expectNoOverflowX(page)
 
     await sheet.getByRole("button", { name: "Delete", exact: true }).click()
@@ -268,7 +270,9 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expectScrollLock(page, false)
   })
 
-  test("Delete and Move return focus to the next card", async ({ page }) => {
+  test("Delete returns focus to the next card; toolbar Move does not steal it back", async ({
+    page,
+  }) => {
     await fresh(page)
     await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
     const first = dialog(page, "Bet: Flag Football 2026")
@@ -277,11 +281,54 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expect(first).toBeHidden()
     await expect(card(page, "Play share links")).toBeFocused()
 
-    await card(page, "Play share links").getByRole("button", { name: "Edit" }).click()
-    const moved = dialog(page, "Bet: Play share links")
-    await moved.getByRole("group", { name: "Column" }).getByRole("button", { name: "Next" }).click()
-    await expect(moved).toBeHidden()
-    await expect(card(page, "iPad forced updates")).toBeFocused()
+    const who = card(page, "Play share links")
+    await who.getByRole("button", { name: "Move down" }).press("Enter")
+    await expect(who.getByRole("button", { name: "Move down" })).toBeFocused()
+    await expect(who).not.toBeFocused()
+  })
+
+  test("closing Edit then a keyboard Move or New bet does not jump back to the old card", async ({
+    page,
+  }) => {
+    await fresh(page)
+    const who = "Flag Football 2026"
+    await card(page, who).getByRole("button", { name: "Edit" }).click()
+    const sheet = dialog(page, `Bet: ${who}`)
+    await expect(sheet).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(sheet).toBeHidden()
+    await expect(card(page, who)).toBeFocused()
+
+    await card(page, who).getByRole("button", { name: "Move down" }).press("Enter")
+    await expect(card(page, who).getByRole("button", { name: "Move down" })).toBeFocused()
+    await expect(card(page, who)).not.toBeFocused()
+
+    const add = header(page).getByRole("button", { name: "New bet", exact: true })
+    await add.click()
+    const created = dialog(page, "New bet")
+    await expect(created).toBeVisible()
+    await created.getByRole("button", { name: "Cancel", exact: true }).click()
+    await expect(created).toBeHidden()
+    await expect(add).toBeFocused()
+    await expect(card(page, who)).not.toBeFocused()
+  })
+
+  test("closing New bet returns focus to the New bet button", async ({ page }) => {
+    await fresh(page)
+    const add = header(page).getByRole("button", { name: "New bet", exact: true })
+    await add.click()
+    const created = dialog(page, "New bet")
+    await expect(created).toBeVisible()
+    await created.getByRole("button", { name: "Cancel", exact: true }).click()
+    await expect(created).toBeHidden()
+    await expect(add).toBeFocused()
+  })
+
+  test("exactly one New bet is visible and one data-roadmap-heading exists", async ({ page }) => {
+    await fresh(page)
+    await expect(page.getByRole("button", { name: "New bet", exact: true })).toHaveCount(1)
+    await expect(page.getByRole("button", { name: "New bet", exact: true })).toBeVisible()
+    expect(await page.locator("[data-roadmap-heading]").count()).toBe(1)
   })
 })
 
@@ -323,12 +370,14 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
         actions(page).getByRole("button", { name: "New bet", exact: true }),
         "New bet"
       )
-      await expect(header(page).getByRole("button", { name: "New bet", exact: true })).toHaveCount(1)
+      await expect(page.getByRole("button", { name: "New bet", exact: true })).toHaveCount(1)
+      expect(await page.locator("[data-roadmap-heading]").count()).toBe(1)
 
       await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
       const d = dialog(page, "Bet: Flag Football 2026")
       await expect(d).toBeVisible()
       await expect(d.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
+      await expect(d.getByRole("group", { name: "Column" })).toHaveCount(0)
       await expectAllTargets44(d, `${VIEWPORTS[name].width} dialog`)
       await expectUnclipped(d.getByLabel("Why it matters"), `${VIEWPORTS[name].width} why`)
       await d.getByLabel("Why it matters").fill("x".repeat(280))
@@ -347,6 +396,47 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
   })
 }
 
+/* --------------------------------------------------- 1024 / 1100 (820 layout) */
+
+for (const width of [1024, 1100] as const) {
+  test.describe(`responsive Product Roadmap (${width})`, () => {
+    test.use({ viewport: { width, height: 768 } })
+
+    test("uses the 820 layout: no card overflow, no page x-overflow, every control 44px", async ({
+      page,
+    }) => {
+      await fresh(page)
+      await expect(chips(page)).toBeVisible()
+      await expect(column(page, "Now").getByRole("article")).toHaveCount(3)
+      await expect(column(page, "Next")).toHaveCount(0)
+      const first = await card(page, "Flag Football 2026").boundingBox()
+      const second = await card(page, "Play share links").boundingBox()
+      expect(first && second, "first two Now cards painted").toBeTruthy()
+      expect(Math.abs(first!.y - second!.y), `${width} is a 2-column card grid`).toBeLessThan(4)
+
+      const viewport = page.viewportSize()!
+      for (const title of ["Flag Football 2026", "Play share links", "iPad forced updates"]) {
+        const box = await card(page, title).boundingBox()
+        expect(box, `${title} painted`).toBeTruthy()
+        expect(box!.x, `${title} starts on screen`).toBeGreaterThanOrEqual(0)
+        expect(box!.x + box!.width, `${title} ends on screen`).toBeLessThanOrEqual(viewport.width + 1)
+      }
+
+      await expect(page.getByRole("button", { name: "New bet", exact: true })).toHaveCount(1)
+      await expectAllTargets44(main(page), `${width} main`)
+      expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+      await expectNoOverflowX(page)
+
+      await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
+      const d = dialog(page, "Bet: Flag Football 2026")
+      await expect(d).toBeVisible()
+      await expect(d.getByRole("group", { name: "Column" })).toHaveCount(0)
+      await expectAllTargets44(d, `${width} dialog`)
+      await page.keyboard.press("Escape")
+    })
+  })
+}
+
 /* ---------------------------------------------------------------- desktop */
 
 test.describe("responsive Product Roadmap (desktop 1440)", () => {
@@ -359,6 +449,8 @@ test.describe("responsive Product Roadmap (desktop 1440)", () => {
     await expect(column(page, "Next").getByRole("article")).toHaveCount(3)
     await expect(column(page, "Later").getByRole("article")).toHaveCount(2)
     await expect(actions(page).getByRole("button", { name: "New bet", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "New bet", exact: true })).toHaveCount(1)
+    expect(await page.locator("[data-roadmap-heading]").count()).toBe(1)
     await expect(board(page).getByRole("list")).toHaveCount(0)
 
     const boxes = []
@@ -372,7 +464,8 @@ test.describe("responsive Product Roadmap (desktop 1440)", () => {
 
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
-    await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
+    const edit = card(page, "Flag Football 2026").getByRole("button", { name: "Edit" })
+    await edit.click()
     const d = dialog(page, "Bet: Flag Football 2026")
     await expect(d).toBeVisible()
     const why = d.getByLabel("Why it matters")
@@ -386,6 +479,13 @@ test.describe("responsive Product Roadmap (desktop 1440)", () => {
     await expect(confirm).toBeVisible()
     await expect(confirm).toHaveClass(/cn-button-variant-destructive/)
     await page.keyboard.press("Escape")
+    await expect(d).toBeHidden()
+    await expect(edit).toBeFocused()
+    await expect(card(page, "Flag Football 2026")).not.toBeFocused()
+
+    await card(page, "Flag Football 2026").getByRole("button", { name: "Move down" }).press("Enter")
+    await expect(card(page, "Flag Football 2026").getByRole("button", { name: "Move down" })).toBeFocused()
+    await expect(card(page, "Flag Football 2026")).not.toBeFocused()
 
     const add = actions(page).getByRole("button", { name: "New bet", exact: true })
     await add.click()
@@ -395,6 +495,21 @@ test.describe("responsive Product Roadmap (desktop 1440)", () => {
     expect(newWhy, "New bet why painted").toBeTruthy()
     expect(newWhy!.height, "New bet why is develop rows (~60px)").toBeGreaterThanOrEqual(48)
     expect(newWhy!.height, "New bet why is develop rows (~60px)").toBeLessThanOrEqual(88)
+    await created.getByRole("button", { name: "Cancel", exact: true }).click()
+    await expect(created).toBeHidden()
+    await expect(add).toBeFocused()
+    await expect(card(page, "Flag Football 2026")).not.toBeFocused()
+  })
+
+  test("closing New bet returns focus to the New bet button", async ({ page }) => {
+    await fresh(page)
+    const add = actions(page).getByRole("button", { name: "New bet", exact: true })
+    await add.click()
+    const created = dialog(page, "New bet")
+    await expect(created).toBeVisible()
+    await created.getByRole("button", { name: "Cancel", exact: true }).click()
+    await expect(created).toBeHidden()
+    await expect(add).toBeFocused()
   })
 })
 
@@ -404,6 +519,7 @@ const READABLE = [
   ["390", VIEWPORTS.phone],
   ["820", VIEWPORTS["tablet-portrait"]],
   ["1180", VIEWPORTS["tablet-landscape"]],
+  ["1440", VIEWPORTS.desktop],
 ] as const
 
 for (const theme of ["light", "dark"] as const) {
@@ -436,9 +552,9 @@ for (const theme of ["light", "dark"] as const) {
         await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
         const sheet = dialog(page, "Bet: Flag Football 2026")
         await expect(sheet).toBeVisible()
+        await expect(sheet.getByRole("group", { name: "Column" })).toHaveCount(0)
         await expectReadable(sheet.getByLabel("Why it matters"), `${label}/why`, expect)
         await expectPressedContrast(sheet.getByRole("group", { name: "Owner" }), `${label}/owner`)
-        await expectPressedContrast(sheet.getByRole("group", { name: "Column" }), `${label}/column`)
         await expectReadable(
           sheet.getByRole("button", { name: "Cancel", exact: true }),
           `${label}/cancel`,
@@ -465,6 +581,8 @@ for (const theme of ["light", "dark"] as const) {
         await newBet.click()
         const created = dialog(page, "New bet")
         await expect(created).toBeVisible()
+        await expectPressedContrast(created.getByRole("group", { name: "Owner" }), `${label}/new-bet owner`)
+        await expectPressedContrast(created.getByRole("group", { name: "Column" }), `${label}/new-bet column`)
         await expectReadable(
           created.getByRole("button", { name: "Cancel", exact: true }),
           `${label}/new-bet cancel`,

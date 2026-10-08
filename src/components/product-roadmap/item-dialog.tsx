@@ -181,10 +181,6 @@ const DIALOG_CLASS =
   // Tablet (md–xl) stays a centered dialog but must fit the viewport.
   `bg-surface w-full sm:max-w-xl! overflow-hidden rounded-xl border p-0! gap-0! shadow-lg md:max-xl:max-h-[calc(100dvh-2rem)] md:max-xl:overflow-y-auto ${ROADMAP_SHEET}`
 
-/** Develop's Owner / Column pressed fill. Unchanged at xl+ for the pixel diff. */
-const DESKTOP_PRESSED =
-  "aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!"
-
 function SheetHandle() {
   return <div aria-hidden className={ROADMAP_SHEET_HANDLE} />
 }
@@ -214,7 +210,6 @@ function OwnerPicker({
   value: RoadmapOwner
   onChange: (owner: RoadmapOwner) => void
 }) {
-  const compact = useCompact()
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel>Owner</FieldLabel>
@@ -233,7 +228,7 @@ function OwnerPicker({
           <ToggleGroupItem
             key={owner}
             value={owner}
-            className={cn(compact ? ROADMAP_PRESSED : DESKTOP_PRESSED, ROADMAP_OPTION)}
+            className={cn(ROADMAP_PRESSED, ROADMAP_OPTION)}
           >
             {owner}
           </ToggleGroupItem>
@@ -381,7 +376,7 @@ export function NewBetDialog({ trigger }: { trigger: React.ReactElement }) {
                   key={c}
                   value={c}
                   title={COLUMN_CONFIG[c].description}
-                  className={cn(compact ? ROADMAP_PRESSED : DESKTOP_PRESSED, ROADMAP_OPTION)}
+                  className={cn(ROADMAP_PRESSED, ROADMAP_OPTION)}
                 >
                   {COLUMN_CONFIG[c].label}
                 </ToggleGroupItem>
@@ -415,7 +410,7 @@ export function EditBetDialog({
   item: RoadmapItem | null
   onClose: (reason?: BetCloseReason) => void
 }) {
-  const { patchItem, removeItem, moveItem } = useRoadmap()
+  const { patchItem, removeItem } = useRoadmap()
 
   return (
     <Dialog
@@ -432,7 +427,6 @@ export function EditBetDialog({
           onClose={onClose}
           onSave={(patch) => patchItem(item.id, patch)}
           onDelete={() => removeItem(item.id)}
-          onMove={(column) => moveItem(item.id, column)}
         />
       )}
     </Dialog>
@@ -444,13 +438,11 @@ function EditBetBody({
   onClose,
   onSave,
   onDelete,
-  onMove,
 }: {
   item: RoadmapItem
   onClose: (reason?: BetCloseReason) => void
   onSave: (patch: { title: string; why: string; owner: RoadmapOwner; window: string }) => void
   onDelete: () => void
-  onMove: (column: RoadmapColumn) => void
 }) {
   const { nowMs } = useRoadmap()
   const phone = useIsMobile()
@@ -531,38 +523,6 @@ function EditBetBody({
           <OwnerPicker value={owner} onChange={setOwner} />
           <WindowField value={targetWindow} onChange={setWindow} />
         </div>
-
-        {compact && (
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel>Column</FieldLabel>
-            <ToggleGroup
-              aria-label="Column"
-              variant="outline"
-              size="sm"
-              value={[item.column]}
-              onValueChange={(next) => {
-                if (isColumn(next[0]) && next[0] !== item.column) {
-                  onMove(next[0])
-                  onClose("move")
-                }
-              }}
-            >
-              {COLUMN_ORDER.map((c) => (
-                <ToggleGroupItem
-                  key={c}
-                  value={c}
-                  title={COLUMN_CONFIG[c].description}
-                  className={cn(ROADMAP_PRESSED, ROADMAP_OPTION)}
-                >
-                  {COLUMN_CONFIG[c].label}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            <p className="text-caption text-muted-foreground">
-              {COLUMN_CONFIG[item.column].description}
-            </p>
-          </div>
-        )}
 
         <p className="text-caption text-muted-foreground">
           Signed{" "}

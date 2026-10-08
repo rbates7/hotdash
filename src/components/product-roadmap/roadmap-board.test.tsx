@@ -59,8 +59,8 @@ describe("board", () => {
     expect(titlesIn("Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates"])
     expect(titlesIn("Next")).toEqual(["Web import from a link", "Staff seats", "CSV web import"])
     expect(titlesIn("Later")).toEqual(["Auto-scout from film", "Parent recap emails"])
-    expect(within(column("Now")).getByLabelText("3 bets")).toHaveTextContent("3")
-    expect(within(column("Later")).getByLabelText("2 bets")).toHaveTextContent("2")
+    expect(within(column("Now")).getByText((_, node) => node?.textContent === "3 bets")).toBeInTheDocument()
+    expect(within(column("Later")).getByText((_, node) => node?.textContent === "2 bets")).toBeInTheDocument()
     expect(within(column("Now")).getByRole("heading", { level: 2, name: "Now" })).toBeInTheDocument()
   })
 
@@ -202,6 +202,21 @@ describe("board", () => {
     expect(within(added).queryByTestId("sample-data-tag")).toBeNull()
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Practice plan templates")
+  })
+
+  it("closing Edit on desktop returns focus to the Edit button, not the article", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    const edit = within(card("Flag Football 2026")).getByRole("button", { name: "Edit" })
+    await user.click(edit)
+    expect(await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })).toBeInTheDocument()
+    await user.keyboard("{Escape}")
+    expect(screen.queryByRole("dialog", { name: "Bet: Flag Football 2026" })).not.toBeInTheDocument()
+    expect(edit).toHaveFocus()
+    expect(card("Flag Football 2026")).not.toHaveFocus()
+    await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Move down" }))
+    expect(card("Flag Football 2026")).not.toHaveFocus()
+    expect(edit).not.toHaveFocus()
   })
 
   it("edits a bet; rewriting drops the sample tag; a no-op edit cannot be saved", async () => {

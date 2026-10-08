@@ -9,6 +9,7 @@ import { RoadmapProvider } from "@/components/product-roadmap/roadmap-store"
 import {
   ROADMAP_BOARD_DESKTOP,
   ROADMAP_BOARD_TABLET,
+  ROADMAP_COMPACT_BOARD_QUERY,
   ROADMAP_PRESSED,
   ROADMAP_RESET,
 } from "@/components/product-roadmap/responsive"
@@ -41,11 +42,13 @@ function mockViewport(width: number) {
     matches:
       query === PHONE_QUERY
         ? width <= PHONE_MAX_WIDTH
-        : query === TABLET_PORTRAIT_QUERY
-          ? width >= TABLET_MIN_WIDTH && width <= TABLET_PORTRAIT_MAX_WIDTH
-          : query === TABLET_QUERY
-            ? width >= TABLET_MIN_WIDTH && width <= TABLET_MAX_WIDTH
-            : false,
+        : query === ROADMAP_COMPACT_BOARD_QUERY
+          ? width >= TABLET_MIN_WIDTH && width < 1180
+          : query === TABLET_PORTRAIT_QUERY
+            ? width >= TABLET_MIN_WIDTH && width <= TABLET_PORTRAIT_MAX_WIDTH
+            : query === TABLET_QUERY
+              ? width >= TABLET_MIN_WIDTH && width <= TABLET_MAX_WIDTH
+              : false,
     media: query,
     onchange: null,
     addListener: vi.fn(),
@@ -76,9 +79,9 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     render(<Screen />)
     const chips = screen.getByRole("group", { name: "Filter by column" })
     expect(within(chips).getAllByRole("button").map((t) => t.textContent)).toEqual([
-      "Now3",
-      "Next3",
-      "Later2",
+      "Now3 bets",
+      "Next3 bets",
+      "Later2 bets",
     ])
     expect(within(chips).getByRole("button", { name: /Now/ })).toHaveAttribute(
       "aria-pressed",
@@ -123,8 +126,32 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" }))
     const dialog = await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })
     expect(within(dialog).getByRole("button", { name: "Delete" })).toBeInTheDocument()
-    expect(within(dialog).getByRole("group", { name: "Column" })).toBeInTheDocument()
+    expect(within(dialog).queryByRole("group", { name: "Column" })).toBeNull()
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument()
+  })
+
+  it("compact Edit has no Column toggle; typed title, why, owner, and window persist", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    render(<Screen />)
+    await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" }))
+    const dialog = await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })
+    expect(within(dialog).queryByRole("group", { name: "Column" })).toBeNull()
+    const title = within(dialog).getByRole("textbox", { name: "Bet title" })
+    await user.clear(title)
+    await user.type(title, "Renamed Flag bet")
+    const why = within(dialog).getByRole("textbox", { name: "Why it matters" })
+    await user.clear(why)
+    await user.type(why, "Typed why stays after Save.")
+    await user.click(within(within(dialog).getByRole("group", { name: "Owner" })).getByRole("button", { name: "Mace" }))
+    const windowField = within(dialog).getByRole("textbox", { name: "Target window" })
+    await user.clear(windowField)
+    await user.type(windowField, "Nov 2026")
+    await user.click(within(dialog).getByRole("button", { name: /Save/ }))
+    expect(screen.queryByRole("dialog", { name: "Bet: Flag Football 2026" })).toBeNull()
+    const edited = card("Renamed Flag bet")
+    expect(edited).toHaveTextContent("Typed why stays after Save.")
+    expect(edited).toHaveTextContent("Mace")
+    expect(edited).toHaveTextContent("Nov 2026")
   })
 
   it("the × closes the sheet and focus returns to the card", async () => {
@@ -148,16 +175,17 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     await waitFor(() => expect(card("Play share links")).toHaveFocus())
   })
 
-  it("after Move from the sheet, focus moves to the next card in the old column", async () => {
+  it("after close, a Move does not jump focus back to the edited card", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<Screen />)
-    await user.click(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" }))
+    const who = card("Flag Football 2026")
+    await user.click(within(who).getByRole("button", { name: "Edit" }))
     const dialog = await screen.findByRole("dialog", { name: "Bet: Flag Football 2026" })
-    await user.click(
-      within(within(dialog).getByRole("group", { name: "Column" })).getByRole("button", { name: "Next" })
-    )
-    expect(screen.queryByRole("dialog", { name: "Bet: Flag Football 2026" })).toBeNull()
-    await waitFor(() => expect(card("Play share links")).toHaveFocus())
+    await user.click(within(dialog).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(who).toHaveFocus())
+    await user.click(within(who).getByRole("button", { name: "Move down" }))
+    await waitFor(() => expect(within(who).getByRole("button", { name: "Move down" })).toHaveFocus())
+    expect(who).not.toHaveFocus()
   })
 
   it("after Delete of the last card, focus moves to the column heading", async () => {
@@ -196,6 +224,25 @@ describe("tablet portrait (820): switcher + 2-column grid of the selected column
     expect(within(column("Now")).getAllByRole("article")).toHaveLength(3)
     expect(screen.queryByRole("region", { name: "Next" })).toBeNull()
     expect(within(column("Now")).getAllByRole("listitem")).toHaveLength(3)
+  })
+})
+
+describe("1024–1179: 820 layout (switcher + 2-col), not three columns", () => {
+  it("uses the switcher at 1024", () => {
+    mockViewport(1024)
+    render(<Screen />)
+    expect(screen.getByRole("group", { name: "Filter by column" })).toBeInTheDocument()
+    expect(board().className).toContain(ROADMAP_BOARD_TABLET)
+    expect(within(column("Now")).getAllByRole("article")).toHaveLength(3)
+    expect(screen.queryByRole("region", { name: "Next" })).toBeNull()
+  })
+
+  it("uses the switcher at 1100", () => {
+    mockViewport(1100)
+    render(<Screen />)
+    expect(screen.getByRole("group", { name: "Filter by column" })).toBeInTheDocument()
+    expect(board().className).toContain(ROADMAP_BOARD_TABLET)
+    expect(screen.queryByRole("region", { name: "Later" })).toBeNull()
   })
 })
 

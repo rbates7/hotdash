@@ -6,11 +6,18 @@
  * and grow to 44px below 1280. The existing edit dialog docks as a bottom
  * sheet below `md`.
  *
- * Breakpoints (Tailwind + `use-mobile`):
+ * Breakpoints (Tailwind + `use-mobile` + local 1180 query):
  * - default / phone (<768): Now/Next/Later segments + one column of cards
- * - tablet portrait (768–1023, 820): same switcher + 2-column card grid
- * - 1180 and desktop (≥1024 / ≥1280): three columns; chrome at `xl` is unchanged
+ * - 768–1179 (820 / 1024 / 1100): same switcher + 2-column card grid
+ * - ≥1180 (Deke 13:2968 and desktop): three columns; chrome at `xl` is unchanged
+ *
+ * Three columns start at 1180, not 1024: the card toolbar is ~255px
+ * (4 × 44 icons + Edit, no wrap) and overflows a 3-col card at 1024–1175.
  */
+
+/** Switcher + 2-col board. Three columns only at `ROADMAP_THREE_COL_MIN`. */
+export const ROADMAP_THREE_COL_MIN = 1180
+export const ROADMAP_COMPACT_BOARD_QUERY = `(min-width: 768px) and (max-width: ${ROADMAP_THREE_COL_MIN - 1}px)`
 
 /** Page header: title + New bet on phone; title | actions on md+. */
 export const ROADMAP_HEADER =
@@ -45,16 +52,14 @@ export const ROADMAP_SWITCHER =
 export const ROADMAP_SEGMENT =
   "inline-flex h-11! min-h-11! flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-sm font-medium"
 
-/** Pressed filters match Sales #29 (`aria-pressed:bg-primary!`) at every width. */
+/**
+ * Pressed Owner / Column / segments: Sales #29 + FR Status
+ * (`aria-pressed:bg-primary!`) at every width, including xl+. develop's
+ * `brand/12` wash is 1.16:1 light / 1.12:1 dark and fails 3:1. This is the
+ * only intentional desktop pixel change.
+ */
 export const ROADMAP_PRESSED =
   "aria-pressed:bg-primary! aria-pressed:text-primary-foreground! aria-pressed:border-primary!"
-
-/**
- * Owner / Column in the existing dialogs: develop's brand wash stays at xl+.
- * Below 1280 the same items use primary so pressed vs unpressed clears 3:1.
- */
-export const ROADMAP_PRESSED_BELOW_XL =
-  "max-xl:aria-pressed:bg-primary! max-xl:aria-pressed:text-primary-foreground! max-xl:aria-pressed:border-primary!"
 
 export const ROADMAP_BOARD_PHONE = "flex min-w-0 flex-col gap-2.5"
 export const ROADMAP_BOARD_TABLET = "grid grid-cols-2 items-start gap-3.5"
