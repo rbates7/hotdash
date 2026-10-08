@@ -25,6 +25,7 @@ import {
   METRICS_SHEET_HEADER,
   METRICS_TOUCH,
 } from "@/components/metrics/responsive"
+import { useMetricsSheetTabTrap } from "@/components/metrics/sheet-tab-trap"
 import { SampleDataTag } from "@/components/sample-data"
 
 function PickerChoices({
@@ -88,6 +89,7 @@ function AddMetric() {
   const compact = phone || tablet
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
+  useMetricsSheetTabTrap(compact && open)
 
   function pick(id: MetricId) {
     addMetric(id)

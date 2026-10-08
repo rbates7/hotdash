@@ -64,6 +64,7 @@ import {
   SortableHead,
   TableCard,
 } from "@/components/table-bits"
+import { useMetricsSheetTabTrap } from "@/components/metrics/sheet-tab-trap"
 
 function ExpenseForm({
   header,
@@ -168,6 +169,7 @@ function AddExpenseDialog() {
   const phone = useIsMobile()
   const period = periodEnding(today)
   const [open, setOpen] = React.useState(false)
+  useMetricsSheetTabTrap(phone && open)
   const [category, setCategory] = React.useState("")
   const [amount, setAmount] = React.useState("")
   const [date, setDate] = React.useState(today)
