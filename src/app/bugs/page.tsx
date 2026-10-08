@@ -2,6 +2,7 @@ import { Suspense } from "react"
 
 import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
+import { WORKPLACE_RESET } from "@/components/agent-workplace/responsive"
 import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { BugsScreen } from "@/components/bugs/bugs-screen"
 
@@ -33,10 +34,8 @@ export default function BugsPage() {
           {/* Phone (Deke 12:1465): the note, then the badge on its own line. */}
           <div className="flex items-center gap-2.5 max-md:flex-col max-md:items-start max-md:gap-2">
             {/* Edits here are Workplace edits, so the note is the Workplace's.
-                Below 1280 its Reset is a 44px hit, like every control here. */}
-            <span className="contents max-xl:[&_button]:h-11! max-xl:[&_button]:min-w-11">
-              <WorkplacePersistenceNote />
-            </span>
+                Below 1280 its Reset is a 44px hit via the shared Workplace class. */}
+            <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
               Dummy / design mock
             </span>

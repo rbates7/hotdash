@@ -253,6 +253,67 @@ test.describe("responsive Bugs (desktop 1440)", () => {
   })
 })
 
+
+/**
+ * Non-text contrast (WCAG 1.4.11) of an icon: its `currentColor` against
+ * the composited background behind it. Colours go through a 1×1 canvas so
+ * oklch() and alpha resolve the way the browser paints them.
+ */
+async function iconContrast(locator: Locator) {
+  return locator.evaluate((el) => {
+    const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", {
+      willReadFrequently: true,
+    })!
+    const rgba = (colour: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = colour
+      ctx.fillRect(0, 0, 1, 1)
+      const d = ctx.getImageData(0, 0, 1, 1).data
+      return [d[0], d[1], d[2], d[3] / 255]
+    }
+    const layers: number[][] = []
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const bg = rgba(getComputedStyle(n).backgroundColor)
+      if (bg[3] > 0) layers.push(bg)
+      if (bg[3] === 1) break
+    }
+    let bg = [255, 255, 255]
+    for (const l of layers.reverse()) bg = bg.map((v, i) => v * (1 - l[3]) + l[i] * l[3])
+    const f = rgba(getComputedStyle(el).color)
+    const fg = bg.map((v, i) => v * (1 - f[3]) + f[i] * f[3])
+    const lum = (p: number[]) => {
+      const [r, g, b] = p.map((v) => {
+        v /= 255
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const [a, b] = [lum(fg), lum(bg)]
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+  })
+}
+
+/**
+ * The route's error boundary. The store validates every saved copy, so
+ * nothing real reaches it; the test breaks `Date.parse` after hydration
+ * and opens a ticket, so a render inside the /bugs segment throws.
+ */
+async function forceErrorState(page: Page) {
+  await expect(bug(page, "CHLK-419")).toBeVisible()
+  // Patch and click in one task so no clock tick re-renders (and throws) first.
+  await page.evaluate(() => {
+    Date.parse = () => {
+      throw new Error("e2e: forced Bugs render error")
+    }
+    document.querySelector<HTMLAnchorElement>("a[href*='issue=CHLK-419']")!.click()
+  })
+  const alert = page
+    .getByRole("heading", { name: "Bugs couldn’t render" })
+    .locator("xpath=ancestor::*[@role='alert'][1]")
+  await expect(alert).toBeVisible()
+  return alert
+}
+
 /* --------------------------------------------------------------- readable */
 
 const READABLE = [
@@ -289,6 +350,28 @@ for (const theme of ["light", "dark"] as const) {
         await setTheme(page, theme)
         await expectBugsReadable(page, `${theme}/${size}/empty`)
       })
+
+      test(`error state: readable and every action 44×44 in ${theme}`, async ({ page }) => {
+        await fresh(page)
+        await setTheme(page, theme)
+        const alert = await forceErrorState(page)
+        await expectReadable(alert, `${theme}/${size}/error`, expect)
+        await expectAllTargets44(alert, `${theme}/${size}/error`)
+        expect(await iconContrast(alert.locator("svg").first()), "error icon ≥ 3:1").toBeGreaterThanOrEqual(3)
+        await expectNoOverflowX(page)
+      })
+
+      if (size === "390") {
+        test(`phone card chevron clears 3:1 in ${theme}`, async ({ page }) => {
+          await fresh(page)
+          await setTheme(page, theme)
+          const chevrons = list(page).getByTestId("bug-chevron")
+          await expect(chevrons.first()).toBeVisible()
+          for (const chevron of await chevrons.all()) {
+            expect(await iconContrast(chevron), "chevron ≥ 3:1").toBeGreaterThanOrEqual(3)
+          }
+        })
+      }
     })
   }
 }
