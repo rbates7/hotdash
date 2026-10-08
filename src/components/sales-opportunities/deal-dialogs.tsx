@@ -37,6 +37,35 @@ import {
 } from "@/components/ui/select"
 import { normalizeInput, useDeals } from "@/components/sales-opportunities/deals-store"
 
+/* ------------------------------------------------------------- touch */
+
+/*
+ * Below 1280 these dialogs open from the phone sheet and the tablet row menu,
+ * so every control is a 44px hit there. Nova's `.cn-*` classes are unlayered,
+ * hence the `!`. Desktop (≥1280) keeps Nova's sizes untouched.
+ */
+/** Inputs, the date field and select triggers. */
+const FIELD = "max-xl:h-11!"
+/** Footer Cancel / Save / Delete. */
+const FOOTER_BUTTON = "max-xl:h-11!"
+/**
+ * Nova's destructive button text is 3.7:1 on its own tint; below 1280 (where
+ * this confirm now opens from the phone sheet) it uses the text-safe danger
+ * token. Desktop keeps develop's look.
+ */
+const DESTRUCTIVE_TEXT = "max-xl:text-danger-text!"
+/** Select options. */
+const OPTION = "max-xl:min-h-11"
+/**
+ * The popup: the stock × grows to 44×44, and on a phone a tall form scrolls
+ * inside the screen instead of running off it.
+ */
+const DIALOG = "max-xl:[&>[data-slot=dialog-close]]:size-11! max-md:max-h-[calc(100dvh-2rem)] max-md:overflow-y-auto"
+/** Keeps the title and description clear of the 44px ×. */
+const HEADER = "max-xl:pr-10"
+/** Two fields side by side on tablet and desktop, stacked on a phone. */
+const PAIR = "max-md:grid-cols-1"
+
 /* ----------------------------------------------------------------- form */
 
 type Draft = {
@@ -132,12 +161,12 @@ function StageSelect({ value, onChange }: { value: Stage; onChange: (s: Stage) =
       }}
       items={STAGES.map((s) => ({ value: s, label: STAGE_CONFIG[s].label }))}
     >
-      <SelectTrigger aria-label="Stage" className="w-full">
+      <SelectTrigger aria-label="Stage" className={`w-full ${FIELD}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {STAGES.map((s) => (
-          <SelectItem key={s} value={s}>
+          <SelectItem key={s} value={s} className={OPTION}>
             {STAGE_CONFIG[s].label}
           </SelectItem>
         ))}
@@ -155,12 +184,12 @@ function OwnerSelect({ value, onChange }: { value: Owner; onChange: (o: Owner) =
       }}
       items={OWNERS.map((o) => ({ value: o, label: o }))}
     >
-      <SelectTrigger aria-label="Owner" className="w-full">
+      <SelectTrigger aria-label="Owner" className={`w-full ${FIELD}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {OWNERS.map((o) => (
-          <SelectItem key={o} value={o}>
+          <SelectItem key={o} value={o} className={OPTION}>
             {o}
           </SelectItem>
         ))}
@@ -181,9 +210,10 @@ function DealFields({
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => onChange({ ...draft, [key]: value })
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid grid-cols-2 gap-3 ${PAIR}`}>
         <Field label="Who" hint={`${draft.who.length}/${CAPS.who}`}>
           <Input
+            className={FIELD}
             autoFocus={autoFocus}
             value={draft.who}
             onChange={(e) => set("who", e.target.value)}
@@ -195,6 +225,7 @@ function DealFields({
         </Field>
         <Field label="School / org" hint={`${draft.org.length}/${CAPS.org}`}>
           <Input
+            className={FIELD}
             value={draft.org}
             onChange={(e) => set("org", e.target.value)}
             maxLength={CAPS.org}
@@ -204,9 +235,10 @@ function DealFields({
           />
         </Field>
       </div>
-      <div className="grid grid-cols-[1fr_140px] gap-3">
+      <div className={`grid grid-cols-[1fr_140px] gap-3 ${PAIR}`}>
         <Field label="What they're buying" hint={`${draft.what.length}/${CAPS.what}`}>
           <Input
+            className={FIELD}
             value={draft.what}
             onChange={(e) => set("what", e.target.value)}
             maxLength={CAPS.what}
@@ -217,6 +249,7 @@ function DealFields({
         </Field>
         <Field label="Value (USD)" hint="optional">
           <Input
+            className={FIELD}
             type="text"
             inputMode="numeric"
             value={draft.value}
@@ -237,9 +270,10 @@ function DealFields({
           <OwnerSelect value={draft.owner} onChange={(o) => set("owner", o)} />
         </Field>
       </div>
-      <div className="grid grid-cols-[1fr_160px] gap-3">
+      <div className={`grid grid-cols-[1fr_160px] gap-3 ${PAIR}`}>
         <Field label="Next step" hint={`${draft.nextStep.length}/${CAPS.nextStep}`}>
           <Input
+            className={FIELD}
             value={draft.nextStep}
             onChange={(e) => set("nextStep", e.target.value)}
             maxLength={CAPS.nextStep}
@@ -250,6 +284,7 @@ function DealFields({
         </Field>
         <Field label="Due" hint="optional · Central">
           <Input
+            className={FIELD}
             type="date"
             value={draft.nextStepDue}
             onChange={(e) => set("nextStepDue", e.target.value)}
@@ -274,6 +309,8 @@ export type DialogControl = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   trigger?: React.ReactElement | null
+  /** Where focus lands on close, when the opener may be gone (a deleted deal's card). */
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
 }
 
 function useDialogOpen({ open, onOpenChange }: DialogControl) {
@@ -288,7 +325,7 @@ function useDialogOpen({ open, onOpenChange }: DialogControl) {
 
 /* ------------------------------------------------------------ add / edit */
 
-export function AddDealDialog({ trigger, ...control }: DialogControl = {}) {
+export function AddDealDialog({ trigger, finalFocus, ...control }: DialogControl = {}) {
   const { addDeal } = useDeals()
   const [open, setOpen] = useDialogOpen(control)
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT)
@@ -326,9 +363,9 @@ export function AddDealDialog({ trigger, ...control }: DialogControl = {}) {
           }
         />
       )}
-      <DialogContent className="sm:max-w-lg!">
+      <DialogContent className={`sm:max-w-lg! ${DIALOG}`} finalFocus={finalFocus}>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <DialogHeader>
+          <DialogHeader className={HEADER}>
             <DialogTitle>Add deal</DialogTitle>
             <DialogDescription>
               Someone is actually talking. Who, what they&apos;re buying, the next step and
@@ -337,10 +374,10 @@ export function AddDealDialog({ trigger, ...control }: DialogControl = {}) {
           </DialogHeader>
           <DealFields draft={draft} onChange={setDraft} autoFocus />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
+            <Button type="button" variant="outline" className={FOOTER_BUTTON} onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!input}>
+            <Button type="submit" className={FOOTER_BUTTON} disabled={!input}>
               Add deal
             </Button>
           </DialogFooter>
@@ -350,7 +387,7 @@ export function AddDealDialog({ trigger, ...control }: DialogControl = {}) {
   )
 }
 
-export function EditDealDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
+export function EditDealDialog({ deal, trigger, finalFocus, ...control }: { deal: Deal } & DialogControl) {
   const { editDeal } = useDeals()
   const [open, setOpen] = useDialogOpen(control)
   const [draft, setDraft] = React.useState<Draft>(() => draftFrom(deal))
@@ -394,9 +431,9 @@ export function EditDealDialog({ deal, trigger, ...control }: { deal: Deal } & D
           }
         />
       )}
-      <DialogContent className="sm:max-w-lg!">
+      <DialogContent className={`sm:max-w-lg! ${DIALOG}`} finalFocus={finalFocus}>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <DialogHeader>
+          <DialogHeader className={HEADER}>
             <DialogTitle>Edit deal</DialogTitle>
             <DialogDescription>
               {deal.who} · {deal.org}. Saving counts as a touch. Saved in this browser only.
@@ -404,10 +441,10 @@ export function EditDealDialog({ deal, trigger, ...control }: { deal: Deal } & D
           </DialogHeader>
           <DealFields draft={draft} onChange={setDraft} autoFocus />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
+            <Button type="button" variant="outline" className={FOOTER_BUTTON} onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSave}>
+            <Button type="submit" className={FOOTER_BUTTON} disabled={!canSave}>
               Save changes
             </Button>
           </DialogFooter>
@@ -419,7 +456,7 @@ export function EditDealDialog({ deal, trigger, ...control }: { deal: Deal } & D
 
 /* -------------------------------------------------------- next step done */
 
-export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
+export function NextStepDoneDialog({ deal, trigger, finalFocus, ...control }: { deal: Deal } & DialogControl) {
   const { completeNextStep } = useDeals()
   const [open, setOpen] = useDialogOpen(control)
   const [nextStep, setNextStep] = React.useState("")
@@ -465,18 +502,19 @@ export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal }
           }
         />
       )}
-      <DialogContent className="sm:max-w-md!">
+      <DialogContent className={`sm:max-w-md! ${DIALOG}`} finalFocus={finalFocus}>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <DialogHeader>
+          <DialogHeader className={HEADER}>
             <DialogTitle>Next step done</DialogTitle>
             <DialogDescription>
               &ldquo;{deal.nextStep}&rdquo; is done for {deal.who}. Every live deal keeps a
               next step — what is it now?
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-[1fr_160px] gap-3">
+          <div className={`grid grid-cols-[1fr_160px] gap-3 ${PAIR}`}>
             <Field label="New next step" hint={`${nextStep.length}/${CAPS.nextStep}`}>
               <Input
+                className={FIELD}
                 autoFocus
                 value={nextStep}
                 onChange={(e) => setNextStep(e.target.value)}
@@ -488,6 +526,7 @@ export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal }
             </Field>
             <Field label="Due" hint="optional · Central">
               <Input
+                className={FIELD}
                 type="date"
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
@@ -497,10 +536,10 @@ export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal }
             </Field>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
+            <Button type="button" variant="outline" className={FOOTER_BUTTON} onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!valid}>
+            <Button type="submit" className={FOOTER_BUTTON} disabled={!valid}>
               Save next step
             </Button>
           </DialogFooter>
@@ -512,7 +551,7 @@ export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal }
 
 /* ----------------------------------------------------------------- delete */
 
-export function DeleteDealDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
+export function DeleteDealDialog({ deal, trigger, finalFocus, ...control }: { deal: Deal } & DialogControl) {
   const { deleteDeal } = useDeals()
   const [open, setOpen] = useDialogOpen(control)
   return (
@@ -534,8 +573,8 @@ export function DeleteDealDialog({ deal, trigger, ...control }: { deal: Deal } &
           }
         />
       )}
-      <DialogContent className="sm:max-w-sm!">
-        <DialogHeader>
+      <DialogContent className={`sm:max-w-sm! ${DIALOG}`} finalFocus={finalFocus}>
+        <DialogHeader className={HEADER}>
           <DialogTitle>Delete this deal?</DialogTitle>
           <DialogDescription>
             {deal.who} · {deal.org} · {deal.what}. This browser holds the only copy; there is
@@ -543,11 +582,12 @@ export function DeleteDealDialog({ deal, trigger, ...control }: { deal: Deal } &
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" className={FOOTER_BUTTON} onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
             variant="destructive"
+            className={`${FOOTER_BUTTON} ${DESTRUCTIVE_TEXT}`}
             onClick={() => {
               deleteDeal(deal.id)
               setOpen(false)

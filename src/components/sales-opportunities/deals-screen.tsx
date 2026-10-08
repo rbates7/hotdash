@@ -12,7 +12,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { formatRelative } from "@/lib/clock"
+import { formatDayShort, formatRelative } from "@/lib/clock"
 import { formatCurrency } from "@/lib/metrics"
 import {
   DEAL_FILTERS,
@@ -70,6 +70,7 @@ import {
   DeleteDealDialog,
   EditDealDialog,
   NextStepDoneDialog,
+  type DialogControl,
 } from "@/components/sales-opportunities/deal-dialogs"
 import { useDeals } from "@/components/sales-opportunities/deals-store"
 
@@ -138,7 +139,8 @@ function StageMenu({ deal, variant = "pill" }: { deal: Deal; variant?: "pill" | 
           }}
         >
           {STAGES.map((s) => (
-            <DropdownMenuRadioItem key={s} value={s} closeOnClick>
+            // 44px rows below 1280, where this menu opens from the tablet pill and the phone sheet.
+            <DropdownMenuRadioItem key={s} value={s} closeOnClick className={STAGE_ITEM}>
               {STAGE_CONFIG[s].label}
             </DropdownMenuRadioItem>
           ))}
@@ -171,13 +173,18 @@ function WhoCell({ deal, lastTouch }: { deal: Deal; lastTouch: string }) {
   )
 }
 
-/** "Next step · date · Overdue 2 days" — the one-line form for the phone card and sheet. */
-function nextStepLine(deal: Deal, today: string) {
+/**
+ * "Next step · date · Overdue 2 days" — the one-line form for the phone card
+ * and sheet. The card drops the year ("5 Oct", Deke 9:339) so the relative
+ * part is not cut off; the sheet keeps the full date.
+ */
+function nextStepLine(deal: Deal, today: string, { short = false }: { short?: boolean } = {}) {
   const due = describeDue(deal, today)
   if (!due) return `${deal.nextStep} · No date`
+  const date = short && deal.nextStepDue ? formatDayShort(deal.nextStepDue) : due.date
   // A closed deal is not late or early; the date alone is the record.
-  if (STAGE_CONFIG[deal.stage].closed) return `${deal.nextStep} · ${due.date}`
-  return `${deal.nextStep} · ${due.date} · ${due.relative}`
+  if (STAGE_CONFIG[deal.stage].closed) return `${deal.nextStep} · ${date}`
+  return `${deal.nextStep} · ${date} · ${due.relative}`
 }
 
 /** "Org · What they're buying · Value", honest about a value nobody knows yet. */
@@ -280,19 +287,22 @@ function DealActionDialogs({
   deal,
   action,
   onClose,
+  finalFocus,
 }: {
   deal: Deal
   action: DealAction | null
   onClose: () => void
+  finalFocus?: DialogControl["finalFocus"]
 }) {
   const close = (open: boolean) => {
     if (!open) onClose()
   }
+  const control = { trigger: null, onOpenChange: close, finalFocus }
   return (
     <>
-      <NextStepDoneDialog deal={deal} trigger={null} open={action === "done"} onOpenChange={close} />
-      <EditDealDialog deal={deal} trigger={null} open={action === "edit"} onOpenChange={close} />
-      <DeleteDealDialog deal={deal} trigger={null} open={action === "delete"} onOpenChange={close} />
+      <NextStepDoneDialog deal={deal} open={action === "done"} {...control} />
+      <EditDealDialog deal={deal} open={action === "edit"} {...control} />
+      <DeleteDealDialog deal={deal} open={action === "delete"} {...control} />
     </>
   )
 }
@@ -360,37 +370,57 @@ function RowMenu({ deal }: { deal: Deal }) {
   )
 }
 
+/** Stage menu rows: 44px below 1280 (tablet pill, phone sheet); desktop keeps Nova's rows. */
+const STAGE_ITEM = "max-xl:min-h-11"
+
+/**
+ * The stock Nova × (`cn-sheet-close`, top-3 right-3) as a 44×44 hit below
+ * 1280; `!` beats Nova's unlayered `icon-sm` size. The header pads right so
+ * its text never runs under it.
+ */
+const SHEET_CLOSE = "max-xl:[&>[data-slot=sheet-close]]:size-11!"
+
 const SHEET_ACTION =
   "hover:bg-muted focus-visible:ring-ring/50 flex h-12 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium focus-visible:ring-[3px] focus-visible:outline-none"
 
 /**
  * Phone (<768): the card's detail and actions as a bottom sheet (Deke 9:530).
  * The ✓ row keeps the table's "Next step done" action; every row opens the
- * same dialogs the desktop icons do.
+ * same dialogs the desktop icons do. The stock Nova × closes it, grown to a
+ * 44px hit below 1280.
  */
 function DealSheet({
-  deal,
+  deal: current,
   open,
   onOpenChange,
   returnFocus,
+  afterDelete,
 }: {
   deal: Deal | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
   returnFocus: React.RefObject<HTMLElement | null>
+  /** Where focus goes once the deal (and its card) is gone. */
+  afterDelete: () => HTMLElement | null
 }) {
   const { today, nowMs } = useDeals()
   const { action, queue, flush, clear } = useDeferredAction()
+  // Keep the last deal shown so a Delete confirm can finish closing (and hand
+  // focus on) after the deal itself has left the store.
+  const [shown, setShown] = React.useState(current)
+  if (current && current !== shown) setShown(current)
+  const deal = current ?? shown
   if (!deal) return null
   const late = isOverdue(deal, today)
   const pick = (next: DealAction) => () => {
     queue(next)
     onOpenChange(false)
   }
-  // Back to the card the sheet came from — unless it is gone (deleted).
+  // Back to the card the sheet came from — or, once it is deleted, the next
+  // card (else the list heading).
   const backToCard = () => {
     const card = returnFocus.current
-    return card?.isConnected ? card : true
+    return card?.isConnected ? card : (afterDelete() ?? true)
   }
   return (
     <>
@@ -403,13 +433,15 @@ function DealSheet({
       >
         <SheetContent
           side="bottom"
-          showCloseButton={false}
-          // A dialog queued from here opens after this lands, so it returns to the card too.
           finalFocus={backToCard}
-          className="max-h-[90dvh] gap-3 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
+          onKeyDown={wrapTab}
+          className={cn(
+            "max-h-[90dvh] gap-3 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]",
+            SHEET_CLOSE
+          )}
         >
           <div aria-hidden className="bg-muted-foreground/30 mx-auto mt-2 h-1 w-9 shrink-0 rounded-full" />
-          <SheetHeader className="gap-1 px-4 pt-0 pb-0">
+          <SheetHeader className="gap-1 px-4 pt-0 pb-0 max-xl:pr-14">
             <div className="flex items-center gap-2">
               <SheetTitle className="text-body font-semibold tracking-tight">{deal.who}</SheetTitle>
               <StageBadge stage={deal.stage} />
@@ -447,9 +479,34 @@ function DealSheet({
           </div>
         </SheetContent>
       </Sheet>
-      <DealActionDialogs deal={deal} action={action} onClose={clear} />
+      {/* A dialog queued from here opens after the sheet closes; it returns to the card too. */}
+      <DealActionDialogs deal={deal} action={action} onClose={clear} finalFocus={backToCard} />
     </>
   )
+}
+
+/**
+ * Base UI wraps Tab at the sheet's ends through a focus guard and a
+ * requestAnimationFrame, so for a frame focus sits outside the sheet. Wrap
+ * synchronously instead: Tab on the last control goes to the first, Shift+Tab
+ * on the first goes to the last.
+ */
+function wrapTab(event: React.KeyboardEvent<HTMLElement>) {
+  if (event.key !== "Tab") return
+  const tabbable = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])"
+    )
+  ).filter((el) => el.getClientRects().length > 0)
+  if (tabbable.length === 0) return
+  const first = tabbable[0]
+  const last = tabbable[tabbable.length - 1]
+  const target = event.shiftKey
+    ? document.activeElement === first && last
+    : document.activeElement === last && first
+  if (!target) return
+  event.preventDefault()
+  target.focus()
 }
 
 /* ------------------------------------------------------------- states */
@@ -524,6 +581,20 @@ export function DealsScreen() {
   const [sheetId, setSheetId] = React.useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const lastCard = React.useRef<HTMLElement | null>(null)
+  const lastCardIndex = React.useRef(0)
+  const sectionRef = React.useRef<HTMLElement | null>(null)
+  // After Delete from the sheet: the card now in its place, else the one
+  // before it, else the list heading, else the picked filter.
+  const afterDelete = () => {
+    const section = sectionRef.current
+    if (!section) return null
+    const remaining = Array.from(section.querySelectorAll<HTMLElement>("[data-slot='row-collapse']"))
+    return (
+      remaining[Math.min(lastCardIndex.current, remaining.length - 1)] ??
+      section.querySelector<HTMLElement>("[data-deals-heading]") ??
+      section.querySelector<HTMLElement>("[aria-pressed='true']")
+    )
+  }
   const lastTouch = (deal: Deal) =>
     formatRelative(Date.parse(deal.lastTouch), nowMs, { style: LAST_TOUCH_STYLE })
 
@@ -535,7 +606,7 @@ export function DealsScreen() {
     )
 
   return (
-    <section aria-label="Deals" className="flex flex-col gap-[18px]">
+    <section ref={sectionRef} aria-label="Deals" className="flex flex-col gap-[18px]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FilterGroup value={filter} onChange={setFilter} />
         <div className="flex flex-wrap items-center gap-2.5">
@@ -554,7 +625,9 @@ export function DealsScreen() {
       ) : (
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between gap-2 px-0.5">
-            <h2 className="text-label font-semibold tracking-tight">{FILTER_TITLE[filter]}</h2>
+            <h2 data-deals-heading tabIndex={-1} className="text-label font-semibold tracking-tight">
+              {FILTER_TITLE[filter]}
+            </h2>
             <div className="flex items-center gap-2">
               {overdue > 0 && (
                 <span className="text-micro text-danger-text inline-flex items-center gap-1 font-semibold">
@@ -577,7 +650,10 @@ export function DealsScreen() {
               className="[&_[role=listitem]:last-child>*]:border-b-0"
               onClickCapture={(event) => {
                 const card = (event.target as Element).closest<HTMLElement>("[data-slot='row-collapse']")
-                if (card) lastCard.current = card
+                if (!card) return
+                lastCard.current = card
+                const all = Array.from(event.currentTarget.querySelectorAll("[data-slot='row-collapse']"))
+                lastCardIndex.current = Math.max(0, all.indexOf(card))
               }}
               stacked={visible.map((deal) => (
                 <RowCollapse
@@ -586,7 +662,7 @@ export function DealsScreen() {
                   status={<StageBadge stage={deal.stage} />}
                   meta={[
                     { label: "Deal", value: dealLine(deal) },
-                    { label: "Next step", value: nextStepLine(deal, today) },
+                    { label: "Next step", value: nextStepLine(deal, today, { short: true }) },
                   ]}
                   sample={deal.sample}
                   attention={isOverdue(deal, today)}
@@ -687,6 +763,7 @@ export function DealsScreen() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         returnFocus={lastCard}
+        afterDelete={afterDelete}
       />
     </section>
   )

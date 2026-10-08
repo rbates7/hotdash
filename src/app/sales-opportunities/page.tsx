@@ -35,10 +35,8 @@ export default function SalesOpportunitiesPage() {
             <AddDealDialog />
           </div>
           <div className="flex flex-wrap items-center gap-2.5 pt-1 max-md:w-full">
-            {/* Below 1280 the note's Reset is a 44px hit, like every control here. */}
-            <span className="contents max-xl:[&_button]:h-11! max-xl:[&_button]:min-w-11">
-              <DealsPersistenceNote />
-            </span>
+            {/* Below 1280 the note's Reset is a 44px hit (DEALS_RESET), like every control here. */}
+            <DealsPersistenceNote />
             <SampleDataTag className="h-6 px-2" />
           </div>
         </header>
