@@ -11,10 +11,20 @@ import {
 } from "@/lib/roadmap/roadmap"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
-import { EditBetDialog } from "@/components/product-roadmap/item-dialog"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { EditBetDialog, type BetCloseReason } from "@/components/product-roadmap/item-dialog"
 import { RoadmapCard, type FocusRequest } from "@/components/product-roadmap/roadmap-card"
+import {
+  ROADMAP_BOARD_DESKTOP,
+  ROADMAP_BOARD_PHONE,
+  ROADMAP_BOARD_TABLET,
+  ROADMAP_PRESSED,
+  ROADMAP_SEGMENT,
+  ROADMAP_SWITCHER,
+} from "@/components/product-roadmap/responsive"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
+import { useIsMobile, useIsTabletPortrait } from "@/hooks/use-mobile"
 
 /**
  * The page-wide notice above the board. The shared `SampleDataNotice` is
@@ -64,17 +74,149 @@ function ColumnHead({ column, count }: { column: RoadmapColumn; count: number })
   )
 }
 
-/** Three columns of grey blocks while localStorage is being read. */
-export function BoardSkeleton() {
+function boardClass(layout: "phone" | "tablet" | "desktop") {
+  if (layout === "phone") return ROADMAP_BOARD_PHONE
+  if (layout === "tablet") return ROADMAP_BOARD_TABLET
+  return ROADMAP_BOARD_DESKTOP
+}
+
+function useBoardLayout(): "phone" | "tablet" | "desktop" {
+  const phone = useIsMobile()
+  const tabletPortrait = useIsTabletPortrait()
+  if (phone) return "phone"
+  if (tabletPortrait) return "tablet"
+  return "desktop"
+}
+
+function ColumnSwitcher({
+  selected,
+  onSelect,
+  counts,
+}: {
+  selected: RoadmapColumn
+  onSelect: (column: RoadmapColumn) => void
+  counts: Record<RoadmapColumn, number>
+}) {
+  return (
+    <ToggleGroup
+      aria-label="Filter by column"
+      variant="outline"
+      size="sm"
+      spacing={0}
+      value={[selected]}
+      onValueChange={(next) => {
+        const value = next[0]
+        if (value === "now" || value === "next" || value === "later") onSelect(value)
+      }}
+      className={ROADMAP_SWITCHER}
+    >
+      {COLUMN_ORDER.map((column) => {
+        const count = counts[column]
+        return (
+          <ToggleGroupItem
+            key={column}
+            value={column}
+            className={cn(ROADMAP_SEGMENT, ROADMAP_PRESSED)}
+          >
+            {COLUMN_CONFIG[column].label}
+            <span
+              aria-label={`${count} ${count === 1 ? "bet" : "bets"}`}
+              className="text-caption font-semibold tabular-nums"
+            >
+              {count}
+            </span>
+          </ToggleGroupItem>
+        )
+      })}
+    </ToggleGroup>
+  )
+}
+
+function Column({
+  column,
+  cards,
+  listed,
+  onEdit,
+  focusRequest,
+  onMoved,
+  onFocusConsumed,
+}: {
+  column: RoadmapColumn
+  cards: ReturnType<typeof inColumn>
+  listed?: boolean
+  onEdit: (id: string) => void
+  focusRequest: FocusRequest | null
+  onMoved: (request: FocusRequest) => void
+  onFocusConsumed: () => void
+}) {
+  const body =
+    cards.length === 0 ? (
+      <p className="border-border text-caption text-muted-foreground rounded-xl border border-dashed px-3 py-4 text-center">
+        Nothing in {COLUMN_CONFIG[column].label}
+      </p>
+    ) : listed ? (
+      <div role="list" className="contents">
+        {cards.map((card, index) => (
+          <div key={card.id} role="listitem" className="min-w-0">
+            <RoadmapCard
+              item={card}
+              index={index}
+              count={cards.length}
+              onEdit={onEdit}
+              focusRequest={focusRequest}
+              onMoved={onMoved}
+              onFocusConsumed={onFocusConsumed}
+            />
+          </div>
+        ))}
+      </div>
+    ) : (
+      cards.map((card, index) => (
+        <RoadmapCard
+          key={card.id}
+          item={card}
+          index={index}
+          count={cards.length}
+          onEdit={onEdit}
+          focusRequest={focusRequest}
+          onMoved={onMoved}
+          onFocusConsumed={onFocusConsumed}
+        />
+      ))
+    )
+
+  return (
+    <section
+      aria-label={COLUMN_CONFIG[column].label}
+      data-roadmap-column={column}
+      tabIndex={-1}
+      className={cn(
+        listed ? "contents" : "flex min-w-0 flex-col gap-2.5",
+        "outline-none"
+      )}
+    >
+      {listed ? null : <ColumnHead column={column} count={cards.length} />}
+      {body}
+    </section>
+  )
+}
+
+/** Grey blocks while localStorage is being read. Column count matches the layout. */
+export function BoardSkeleton({
+  layout = "desktop",
+}: {
+  layout?: "phone" | "tablet" | "desktop"
+}) {
+  const columns = layout === "phone" ? 1 : layout === "tablet" ? 2 : 3
   return (
     <div
       role="status"
       aria-label="Loading saved bets"
       aria-busy
-      className="grid grid-cols-3 items-start gap-3.5"
+      className={boardClass(layout)}
     >
-      {COLUMN_ORDER.map((column, col) => (
-        <div key={column} className="flex flex-col gap-2.5">
+      {Array.from({ length: columns }, (_, col) => (
+        <div key={col} className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between px-0.5">
             <Skeleton className="h-4 w-14" />
             <Skeleton className="h-5 w-5 rounded-full" />
@@ -103,14 +245,74 @@ export function BoardSkeleton() {
 export function RoadmapBoard() {
   const { items, persisted } = useRoadmap()
   const [editingId, setEditingId] = React.useState<string | null>(null)
+  const [phoneColumn, setPhoneColumn] = React.useState<RoadmapColumn>("now")
   const [focusRequest, setFocusRequest] = React.useState<FocusRequest | null>(null)
+  const layout = useBoardLayout()
+  const pendingFocus = React.useRef<
+    { kind: "card"; id: string } | { kind: "column"; column: RoadmapColumn } | null
+  >(null)
+  const closingId = React.useRef<string | null>(null)
   const onMoved = React.useCallback((request: FocusRequest) => setFocusRequest(request), [])
   const onFocusConsumed = React.useCallback(() => setFocusRequest(null), [])
 
-  if (!persisted) return <BoardSkeleton />
+  function rememberNeighbor(id: string) {
+    const current = items.find((item) => item.id === id)
+    if (!current) return
+    const col = inColumn(items, current.column)
+    const idx = col.findIndex((item) => item.id === id)
+    const next = col[idx + 1] ?? col[idx - 1]
+    pendingFocus.current = next
+      ? { kind: "card", id: next.id }
+      : { kind: "column", column: current.column }
+  }
+
+  function handleClose(reason: BetCloseReason = "dismiss") {
+    if (!editingId || closingId.current === editingId) return
+    closingId.current = editingId
+    if (reason === "delete" || reason === "move") rememberNeighbor(editingId)
+    else pendingFocus.current = { kind: "card", id: editingId }
+    setEditingId(null)
+  }
+
+  React.useLayoutEffect(() => {
+    if (editingId) closingId.current = null
+  }, [editingId])
+
+  React.useLayoutEffect(() => {
+    if (editingId || !pendingFocus.current || !persisted) return
+    const pending = pendingFocus.current
+    pendingFocus.current = null
+    const cardEl =
+      pending.kind === "card"
+        ? document.querySelector<HTMLElement>(`[data-roadmap-card="${pending.id}"]`)
+        : null
+    const columnEl =
+      pending.kind === "column"
+        ? document.querySelector<HTMLElement>(`[data-roadmap-column="${pending.column}"]`)
+        : null
+    const heading = document.querySelector<HTMLElement>("[data-roadmap-heading]")
+    const focusable = (el: HTMLElement | null) => {
+      if (!el) return false
+      if (getComputedStyle(el).display === "contents") return false
+      return el.getClientRects().length > 0
+    }
+    const el =
+      (focusable(cardEl) ? cardEl : null) ??
+      (focusable(columnEl) ? columnEl : null) ??
+      heading
+    el?.focus()
+  }, [editingId, persisted, items])
+
+  if (!persisted) return <BoardSkeleton layout={layout} />
 
   const sampleCount = items.filter((i) => i.sample).length
   const editing = items.find((i) => i.id === editingId) ?? null
+  const counts = Object.fromEntries(
+    COLUMN_ORDER.map((column) => [column, inColumn(items, column).length])
+  ) as Record<RoadmapColumn, number>
+
+  const filtered = layout === "desktop" ? COLUMN_ORDER : [phoneColumn]
+  const listed = layout !== "desktop"
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -132,40 +334,35 @@ export function RoadmapBoard() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 items-start gap-3.5" aria-label="Roadmap sequence">
-        {COLUMN_ORDER.map((column) => {
-          const cards = inColumn(items, column)
-          return (
-            <section
-              key={column}
-              aria-label={COLUMN_CONFIG[column].label}
-              className="flex min-w-0 flex-col gap-2.5"
-            >
-              <ColumnHead column={column} count={cards.length} />
-              {cards.length === 0 ? (
-                <p className="border-border text-caption text-muted-foreground rounded-xl border border-dashed px-3 py-4 text-center">
-                  Nothing in {COLUMN_CONFIG[column].label}
-                </p>
-              ) : (
-                cards.map((card, index) => (
-                  <RoadmapCard
-                    key={card.id}
-                    item={card}
-                    index={index}
-                    count={cards.length}
-                    onEdit={setEditingId}
-                    focusRequest={focusRequest}
-                    onMoved={onMoved}
-                    onFocusConsumed={onFocusConsumed}
-                  />
-                ))
-              )}
-            </section>
-          )
-        })}
+      {layout !== "desktop" && (
+        <>
+          <h2 data-roadmap-heading tabIndex={-1} className="sr-only">
+            {COLUMN_CONFIG[phoneColumn].label}
+          </h2>
+          <ColumnSwitcher selected={phoneColumn} onSelect={setPhoneColumn} counts={counts} />
+        </>
+      )}
+
+      <div
+        role="region"
+        aria-label="Roadmap sequence"
+        className={boardClass(layout)}
+      >
+        {filtered.map((column) => (
+          <Column
+            key={column}
+            column={column}
+            cards={inColumn(items, column)}
+            listed={listed}
+            onEdit={setEditingId}
+            focusRequest={focusRequest}
+            onMoved={onMoved}
+            onFocusConsumed={onFocusConsumed}
+          />
+        ))}
       </div>
 
-      <EditBetDialog item={editing} onClose={() => setEditingId(null)} />
+      <EditBetDialog item={editing} onClose={handleClose} />
     </div>
   )
 }
