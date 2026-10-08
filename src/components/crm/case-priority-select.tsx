@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCrm } from "@/components/crm/crm-store"
+import { CRM_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
 
 export function CasePrioritySelect({
   caseId,
@@ -29,12 +30,12 @@ export function CasePrioritySelect({
       }}
       items={CASE_PRIORITIES.map((item) => ({ value: item, label: PRIORITY_LABELS[item] }))}
     >
-      <SelectTrigger size="sm" aria-label="Priority">
+      <SelectTrigger size="sm" aria-label="Priority" className={CRM_44}>
         <SelectValue>{PRIORITY_LABELS[priority]}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {CASE_PRIORITIES.map((item) => (
-          <SelectItem key={item} value={item}>
+          <SelectItem key={item} value={item} className={CRM_ROW_44}>
             {PRIORITY_LABELS[item]}
           </SelectItem>
         ))}

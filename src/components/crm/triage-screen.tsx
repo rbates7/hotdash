@@ -47,7 +47,7 @@ export function TriageScreen() {
               className="bg-card rounded-xl border px-4 py-3.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-center gap-2.5">
+                <span className="flex items-center gap-2.5 max-md:min-w-0">
                   <CrmAvatar name={thread.senderName ?? thread.senderEmail} />
                     <span className="flex flex-col leading-tight">
                       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">

@@ -5,6 +5,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useCrm } from "@/components/crm/crm-store"
+import { CRM_44 } from "@/components/crm/crm-touch"
 
 export function NoteComposer({ caseId }: { caseId: string }) {
   const { addNote } = useCrm()
@@ -29,7 +30,7 @@ export function NoteComposer({ caseId }: { caseId: string }) {
         required
       />
       <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={!body.trim()}>
+        <Button type="submit" size="sm" className={CRM_44} disabled={!body.trim()}>
           Add note
         </Button>
       </div>

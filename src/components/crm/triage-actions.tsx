@@ -19,7 +19,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import { useCrm } from "@/components/crm/crm-store"
+import {
+  CRM_44,
+  CRM_DANGER_TEXT,
+  CRM_DIALOG,
+  CRM_DIALOG_HEADER,
+  CRM_ICON_44,
+  CRM_ROW_44,
+} from "@/components/crm/crm-touch"
 
 export function TriageActions({
   threadId,
@@ -51,24 +60,30 @@ export function TriageActions({
   }, [contacts, organizations, query])
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button size="sm" onClick={() => promoteTriage(threadId)}>
+    <div className="flex items-center gap-1.5 max-md:flex-wrap">
+      <Button size="sm" className={CRM_44} onClick={() => promoteTriage(threadId)}>
         Promote to case
       </Button>
-      <Button size="sm" variant="outline" onClick={() => setIsLinkOpen(true)}>
+      <Button size="sm" variant="outline" className={CRM_44} onClick={() => setIsLinkOpen(true)}>
         Link contact
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button size="icon-sm" variant="ghost" aria-label="More actions" />}
+          render={
+            <Button size="icon-sm" variant="ghost" aria-label="More actions" className={CRM_ICON_44} />
+          }
         >
           <ChevronDownIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => ignoreTriage(threadId)}>
+          <DropdownMenuItem className={CRM_ROW_44} onClick={() => ignoreTriage(threadId)}>
             Ignore this thread
           </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => ignoreSender(senderEmail)}>
+          <DropdownMenuItem
+            variant="destructive"
+            className={cn(CRM_ROW_44, CRM_DANGER_TEXT)}
+            onClick={() => ignoreSender(senderEmail)}
+          >
             Always ignore {senderEmail}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -81,8 +96,8 @@ export function TriageActions({
           if (!open) setQuery("")
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className={CRM_DIALOG}>
+          <DialogHeader className={CRM_DIALOG_HEADER}>
             <DialogTitle>Link to an existing contact</DialogTitle>
             <DialogDescription>
               Attach {senderName ?? senderEmail}’s thread to someone already in the CRM.
@@ -93,8 +108,10 @@ export function TriageActions({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search contacts…"
             aria-label="Search contacts to link"
+            className={CRM_44}
           />
-          <ul className="flex max-h-64 flex-col gap-1">
+          {/* 44px rows below 1280 outgrow max-h-64; the dialog itself scrolls on a phone. */}
+          <ul className="flex max-h-64 flex-col gap-1 max-xl:max-h-none">
             {options.length === 0 ? (
               <li className="text-muted-foreground px-1 py-4 text-center text-sm">No matches.</li>
             ) : (
@@ -102,7 +119,10 @@ export function TriageActions({
                 <li key={contact.id}>
                   <button
                     type="button"
-                    className="hover:bg-muted flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm"
+                    className={cn(
+                      "hover:bg-muted flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm",
+                      "max-xl:min-h-11 max-xl:gap-2 max-md:flex-wrap"
+                    )}
                     onClick={() => {
                       linkTriage(threadId, contact.id)
                       setIsLinkOpen(false)

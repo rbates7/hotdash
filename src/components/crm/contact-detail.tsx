@@ -2,24 +2,20 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { TrashIcon } from "lucide-react"
 
 import {
+  PRIORITY_LABELS,
   contactDisplayName,
   formatCrmDateTime,
   formatCrmRelative,
+  type Case,
 } from "@/lib/crm/crm"
 import { isSeedCase, isSeedContact } from "@/lib/crm/fixture"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -29,17 +25,39 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
+import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
 import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge, PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { ContactEditDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
+import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
+import { CARD, CARD_LIST } from "@/components/crm/crm-row-actions"
+import { backToList, useListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
+import { CRM_44, CRM_LINK_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
+
+/**
+ * A phone card for one of the contact's cases. The contact is the page, so
+ * the lines are the case number and "Priority priority · last activity".
+ */
+export function contactCaseCardMeta(caseRow: Case, nowMs: number): RowCollapseMeta[] {
+  return [
+    { label: "Case", value: `#${caseRow.caseNumber}` },
+    {
+      label: "Priority",
+      value: `${PRIORITY_LABELS[caseRow.priority]} priority · ${formatCrmRelative(caseRow.lastActivityAt, nowMs)}`,
+    },
+  ]
+}
 
 export function ContactDetail({ contactId }: { contactId: string }) {
   const store = useCrm()
+  const router = useRouter()
   const [confirming, setConfirming] = React.useState(false)
   const contact = store.contactById(contactId)
+  // The breadcrumb steps back to the list only when this record was opened from it.
+  useListReturn("/crm/contacts", `/crm/contacts/${contactId}`)
 
   if (!store.persisted) return <CrmSkeleton label="Loading saved contact" />
 
@@ -66,7 +84,11 @@ export function ContactDetail({ contactId }: { contactId: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <p className="text-muted-foreground text-xs">
-        <Link href="/crm/contacts" className="hover:underline">
+        <Link
+          href="/crm/contacts"
+          onClick={(event) => backToList(event, "/crm/contacts", () => router.back())}
+          className={cn("hover:underline", CRM_LINK_44)}
+        >
           Contacts
         </Link>{" "}
         / {name}
@@ -95,6 +117,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
             variant="outline"
             onClick={() => setConfirming(true)}
             aria-label={`Delete ${name}`}
+            className={CRM_44}
           >
             <TrashIcon aria-hidden />
             Delete
@@ -135,6 +158,21 @@ export function ContactDetail({ contactId }: { contactId: string }) {
         </p>
       ) : (
         <TableCard>
+          <ResponsiveTable
+            layout="stack"
+            className={CARD_LIST}
+            stacked={cases.map((caseRow) => (
+              <RowCollapse
+                key={caseRow.id}
+                title={caseRow.subject}
+                status={<StatusBadge status={caseRow.status} />}
+                meta={contactCaseCardMeta(caseRow, store.nowMs)}
+                sample={isSeedCase(caseRow.id)}
+                className={CARD}
+                onClick={() => router.push(`/crm/cases/${caseRow.id}`)}
+              />
+            ))}
+          >
           <Table aria-label={`Cases for ${name}`}>
             <TableHeader>
               <TableRow>
@@ -152,7 +190,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                   <TableCell className={`${CELL} max-w-96`}>
                     <Link
                       href={`/crm/cases/${caseRow.id}`}
-                      className="flex items-center gap-2 truncate font-medium hover:underline"
+                      className={cn("flex items-center gap-2 truncate font-medium hover:underline", CRM_ROW_44)}
                     >
                       {caseRow.subject}
                       {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
@@ -171,33 +209,16 @@ export function ContactDetail({ contactId }: { contactId: string }) {
               ))}
             </TableBody>
           </Table>
+          </ResponsiveTable>
         </TableCard>
       )}
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent className="sm:max-w-sm!">
-          <DialogHeader>
-            <DialogTitle>Delete this contact?</DialogTitle>
-            <DialogDescription>
-              {name} and their cases come off the list. There is no server copy to recover from.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
-              Keep them
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                store.deleteContact(contact.id)
-                setConfirming(false)
-              }}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ContactDeleteDialog
+        contactId={contact.id}
+        name={name}
+        open={confirming}
+        onOpenChange={setConfirming}
+      />
     </div>
   )
 }
