@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, NotebookPenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, ChevronRightIcon, NotebookPenIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { formatRelative, type IsoDay } from "@/lib/clock"
 import {
@@ -27,12 +27,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
 import { TodoDialog } from "@/components/my-desk/todo-dialog"
 import { saveState, useMyDesk } from "@/components/my-desk/my-desk-store"
+import {
+  DESK_ACTION,
+  DESK_ACTIONS,
+  DESK_ADD,
+  DESK_ADD_INLINE,
+  DESK_CHECK,
+  DESK_DELETE_TEXT,
+  DESK_DIALOG,
+  DESK_FOOTER,
+  DESK_HEADER,
+  DESK_HEADER_ACTIONS,
+  DESK_HEADER_PAD,
+  DESK_HEADER_TITLE,
+  DESK_OPEN,
+  DESK_PANES,
+  DESK_RESET,
+  DESK_ROW,
+  DESK_ROW_BODY,
+  DESK_SCRATCH,
+  DESK_SHEET_ACTION,
+  DESK_SHEET_CLOSE,
+  DESK_UNDO,
+} from "@/components/my-desk/responsive"
 
 export const LEDE = "Personal — not the agent board"
 export const TODAY_FOOTER = "Personal list. Not Issues. Not agent work."
@@ -50,7 +80,7 @@ export const FINISHED_EARLIER_COPY =
  */
 function ScreenSkeleton() {
   return (
-    <div role="status" aria-label="Loading saved desk" className="grid min-h-[min(560px,calc(100svh-10rem))] grid-cols-1 gap-4 lg:grid-cols-2">
+    <div role="status" aria-label="Loading saved desk" className={DESK_PANES}>
       {[0, 1].map((i) => (
         <div key={i} className="flex flex-col gap-3 rounded-xl ring-1 ring-foreground/10 p-4">
           <div className="flex items-center justify-between">
@@ -70,16 +100,18 @@ function DeleteDialog({
   target,
   onOpenChange,
   onConfirm,
+  finalFocus,
 }: {
   target: Target<object> | null
   onOpenChange: (open: boolean) => void
   onConfirm: (todo: Todo) => void
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
   const todo = target?.todo ?? null
   return (
     <Dialog open={target?.open ?? false} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm!">
-        <DialogHeader>
+      <DialogContent className={`sm:max-w-sm! ${DESK_DIALOG}`} finalFocus={finalFocus}>
+        <DialogHeader className={DESK_HEADER_PAD}>
           <DialogTitle>Delete this to-do?</DialogTitle>
           <DialogDescription className="min-w-0 [overflow-wrap:anywhere]">
             {todo ? describeTodo(todo) : ""} comes off the list. There is no server copy to recover
@@ -87,11 +119,12 @@ function DeleteDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" className={DESK_FOOTER} onClick={() => onOpenChange(false)}>
             Keep it
           </Button>
           <Button
             variant="destructive"
+            className={`${DESK_FOOTER} ${DESK_DELETE_TEXT}`}
             onClick={() => {
               if (todo) onConfirm(todo)
             }}
@@ -104,18 +137,173 @@ function DeleteDialog({
   )
 }
 
+/**
+ * Base UI wraps Tab at the sheet's ends through a focus guard and a
+ * requestAnimationFrame, so for a frame focus sits outside the sheet. Wrap
+ * synchronously instead: Tab on the last control goes to the first, Shift+Tab
+ * on the first goes to the last.
+ */
+function wrapTab(event: React.KeyboardEvent<HTMLElement>) {
+  if (event.key !== "Tab") return
+  const tabbable = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])"
+    )
+  ).filter((el) => el.getClientRects().length > 0)
+  if (tabbable.length === 0) return
+  const first = tabbable[0]
+  const last = tabbable[tabbable.length - 1]
+  const target = event.shiftKey
+    ? document.activeElement === first && last
+    : document.activeElement === last && first
+  if (!target) return
+  event.preventDefault()
+  target.focus()
+}
+
+type SheetAction = "edit" | "delete"
+
+function useDeferredAction() {
+  const [action, setAction] = React.useState<SheetAction | null>(null)
+  const queued = React.useRef<SheetAction | null>(null)
+  return {
+    action,
+    queue: (next: SheetAction) => {
+      queued.current = next
+    },
+    flush: () => {
+      if (queued.current) setAction(queued.current)
+      queued.current = null
+    },
+    clear: () => setAction(null),
+  }
+}
+
+function TodoSheet({
+  todo: current,
+  today,
+  open,
+  onOpenChange,
+  returnFocus,
+  afterDelete,
+  onToggle,
+  onConfirmDelete,
+}: {
+  todo: Todo | undefined
+  today: IsoDay
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  returnFocus: React.RefObject<HTMLElement | null>
+  afterDelete: () => HTMLElement | null
+  onToggle: (todo: Todo) => void
+  onConfirmDelete: (todo: Todo) => void
+}) {
+  const { action, queue, flush, clear } = useDeferredAction()
+  const [shown, setShown] = React.useState(current)
+  if (current && current !== shown) setShown(current)
+  const todo = current ?? shown
+  if (!todo) return null
+  const carryFrom = carryFromLabel(todo.createdOn, today)
+  const carrySpoken = carryFromSpoken(todo.createdOn, today)
+  const pick = (next: SheetAction) => () => {
+    queue(next)
+    onOpenChange(false)
+  }
+  const backToCard = () => {
+    const card = returnFocus.current
+    return card?.isConnected ? card : (afterDelete() ?? true)
+  }
+  return (
+    <>
+      <Sheet
+        open={open}
+        onOpenChange={onOpenChange}
+        onOpenChangeComplete={(next) => {
+          if (!next) flush()
+        }}
+      >
+        <SheetContent
+          side="bottom"
+          finalFocus={backToCard}
+          onKeyDown={wrapTab}
+          className={cn(
+            "max-h-[90dvh] gap-3 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]",
+            DESK_SHEET_CLOSE
+          )}
+        >
+          <div aria-hidden className="bg-muted-foreground/30 mx-auto mt-2 h-1 w-9 shrink-0 rounded-full" />
+          <SheetHeader className="gap-1 px-4 pt-0 pb-0 max-xl:pr-14">
+            <SheetTitle className="text-body font-semibold tracking-tight">{todo.title}</SheetTitle>
+            <SheetDescription
+              className={
+                todo.note
+                  ? "text-caption text-muted-foreground min-w-0 [overflow-wrap:anywhere]"
+                  : "sr-only"
+              }
+            >
+              {todo.note || "Personal to-do"}
+            </SheetDescription>
+            {carryFrom && carrySpoken ? (
+              <p data-testid="sheet-carry-from" className="text-micro text-muted-foreground tracking-tight">
+                <span aria-hidden="true">{carryFrom}</span>
+                <span className="sr-only">{carrySpoken}</span>
+              </p>
+            ) : null}
+            {isSeedTodo(todo) && <SampleDataTag className="h-5 self-start" />}
+          </SheetHeader>
+          <div role="group" aria-label="To-do actions" className="flex flex-col px-2 pb-2">
+            <button type="button" className={DESK_SHEET_ACTION} onClick={() => onToggle(todo)}>
+              <CheckIcon className="size-4" aria-hidden />
+              {todo.done ? "Mark open" : "Mark done"}
+            </button>
+            <button type="button" className={DESK_SHEET_ACTION} onClick={pick("edit")}>
+              <PencilIcon className="size-4" aria-hidden />
+              Edit
+            </button>
+            <button type="button" className={cn(DESK_SHEET_ACTION, "text-danger-text")} onClick={pick("delete")}>
+              <Trash2Icon className="size-4" aria-hidden />
+              Delete
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+      <TodoDialog
+        open={action === "edit"}
+        onOpenChange={(next) => {
+          if (!next) clear()
+        }}
+        todo={todo}
+        finalFocus={backToCard}
+      />
+      <DeleteDialog
+        target={{ todo, open: action === "delete" }}
+        onOpenChange={(next) => {
+          if (!next) clear()
+        }}
+        onConfirm={(item) => {
+          onConfirmDelete(item)
+          clear()
+        }}
+        finalFocus={backToCard}
+      />
+    </>
+  )
+}
+
 function TodoRow({
   todo,
   today,
   onEdit,
   onDelete,
   onToggle,
+  onOpen,
 }: {
   todo: Todo
   today: IsoDay
   onEdit: (todo: Todo) => void
   onDelete: (todo: Todo) => void
   onToggle: (todo: Todo) => void
+  onOpen: (todo: Todo, trigger: HTMLElement) => void
 }) {
   const carryFrom = carryFromLabel(todo.createdOn, today)
   const carrySpoken = carryFromSpoken(todo.createdOn, today)
@@ -124,65 +312,80 @@ function TodoRow({
     <li
       data-todo={todo.id}
       data-done={todo.done ? "true" : "false"}
-      className="flex items-start gap-3 border-t border-border px-2.5 py-3 first:border-t-0"
+      className={DESK_ROW}
     >
-      <Button
-        type="button"
-        size="icon-xs"
-        variant={todo.done ? "default" : "outline"}
-        role="checkbox"
-        aria-checked={todo.done}
-        aria-label={todo.title}
-        aria-describedby={carrySpoken ? carryId : undefined}
-        className={cn(
-          "mt-0.5 size-4 rounded-[4px] border",
-          todo.done
-            ? "bg-foreground text-background border-foreground hover:bg-foreground hover:text-background"
-            : "bg-background text-foreground border-border"
-        )}
-        onClick={() => onToggle(todo)}
-      >
-        {todo.done ? <CheckIcon className="size-2.5" aria-hidden /> : null}
-      </Button>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start gap-2">
-          <p
-            className={cn(
-              "min-w-0 text-[13px] leading-snug font-medium tracking-tight [overflow-wrap:anywhere]",
-              todo.done ? "text-foreground line-through decoration-foreground" : "text-foreground"
-            )}
-          >
-            {todo.title}
-          </p>
-          {carryFrom && carrySpoken ? (
-            <span
-              id={carryId}
-              data-testid="carry-from"
-              className="text-micro text-muted-foreground tracking-tight"
+      <div className={DESK_ROW_BODY}>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant={todo.done ? "default" : "outline"}
+          role="checkbox"
+          aria-checked={todo.done}
+          aria-label={todo.title}
+          aria-describedby={carrySpoken ? carryId : undefined}
+          className={cn(
+            DESK_CHECK,
+            todo.done
+              ? "bg-foreground text-background border-foreground hover:bg-foreground hover:text-background"
+              : "bg-background text-foreground border-border"
+          )}
+          onClick={() => onToggle(todo)}
+        >
+          {todo.done ? <CheckIcon className="size-2.5 max-xl:size-4" aria-hidden /> : null}
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start gap-2">
+            <p
+              aria-hidden="true"
+              className={cn(
+                "min-w-0 text-[13px] leading-snug font-medium tracking-tight [overflow-wrap:anywhere]",
+                todo.done ? "text-foreground line-through decoration-foreground" : "text-foreground"
+              )}
             >
-              <span aria-hidden="true">{carryFrom}</span>
-              <span className="sr-only">{carrySpoken}</span>
-            </span>
+              {todo.title}
+            </p>
+            {carryFrom && carrySpoken ? (
+              <span
+                id={carryId}
+                data-testid="carry-from"
+                className="text-micro text-muted-foreground tracking-tight"
+              >
+                <span aria-hidden="true">{carryFrom}</span>
+                <span className="sr-only">{carrySpoken}</span>
+              </span>
+            ) : null}
+            {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
+          </div>
+          {todo.note ? (
+            <p
+              className={cn(
+                "text-caption mt-0.5 min-w-0 leading-snug tracking-tight [overflow-wrap:anywhere]",
+                todo.done ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {todo.note}
+            </p>
           ) : null}
-          {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
         </div>
-        {todo.note ? (
-          <p
-            className={cn(
-              "text-caption mt-0.5 min-w-0 leading-snug tracking-tight [overflow-wrap:anywhere]",
-              todo.done ? "text-foreground" : "text-muted-foreground"
-            )}
-          >
-            {todo.note}
-          </p>
-        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Open ${todo.title}`}
+          data-todo-open={todo.id}
+          className={DESK_OPEN}
+          onClick={(event) => onOpen(todo, event.currentTarget)}
+        >
+          <ChevronRightIcon aria-hidden />
+        </Button>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className={DESK_ACTIONS}>
         <Button
           type="button"
           variant="outline"
           size="xs"
           aria-label={`Edit ${todo.title}`}
+          className={DESK_ACTION}
           onClick={() => onEdit(todo)}
         >
           <PencilIcon aria-hidden />
@@ -193,6 +396,7 @@ function TodoRow({
           variant="outline"
           size="xs"
           aria-label={`Delete ${todo.title}`}
+          className={cn(DESK_ACTION, DESK_DELETE_TEXT)}
           onClick={() => onDelete(todo)}
         >
           <Trash2Icon aria-hidden />
@@ -320,7 +524,7 @@ function ScratchPane() {
           onBlur={() => flush(draft)}
           maxLength={TODO_LIMITS.scratch}
           aria-label="Scratch"
-          className="min-h-[220px] flex-1 resize-none rounded-md border-0 bg-transparent p-0 shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={DESK_SCRATCH}
         />
       </CardContent>
       <div className="text-micro text-muted-foreground border-t px-4 py-3">{NOTES_FOOTER}</div>
@@ -344,17 +548,75 @@ export function MyDeskScreen() {
   const visible = todaysTodos(todos, today)
   const open = openCount(visible)
 
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  const listRef = React.useRef<HTMLUListElement>(null)
+  const pendingFocus = React.useRef<string | "heading" | null>(null)
+  const fromSheet = React.useRef(false)
+
+  const [sheetId, setSheetId] = React.useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
+  const lastOpen = React.useRef<HTMLElement | null>(null)
+  const lastOpenIndex = React.useRef(0)
+
+  const afterDelete = () => {
+    const list = listRef.current
+    if (!list) return titleRef.current
+    const remaining = Array.from(list.querySelectorAll<HTMLElement>("[data-todo-open]"))
+    return remaining[Math.min(lastOpenIndex.current, remaining.length - 1)] ?? titleRef.current
+  }
+
+  const dialogFinalFocus = () => {
+    if (!fromSheet.current) return true
+    const card = lastOpen.current
+    return card?.isConnected ? card : (afterDelete() ?? true)
+  }
+
+  React.useLayoutEffect(() => {
+    if (!pendingFocus.current || !persisted) return
+    const pending = pendingFocus.current
+    pendingFocus.current = null
+    const el =
+      pending === "heading"
+        ? titleRef.current
+        : document.querySelector<HTMLElement>(`[data-todo="${pending}"] [role="checkbox"]`)
+    el?.focus()
+  }, [todos, persisted])
+
+  function rememberNeighbor(todo: Todo) {
+    const idx = visible.findIndex((t) => t.id === todo.id)
+    const next = visible[idx + 1] ?? visible[idx - 1]
+    pendingFocus.current = next ? next.id : "heading"
+  }
+
+  function confirmDelete(todo: Todo) {
+    if (!fromSheet.current) rememberNeighbor(todo)
+    removeTodo(todo.id)
+    setRemoved(todo)
+    setDeleting((t) => (t ? { ...t, open: false } : t))
+    if (sheetId === todo.id) {
+      setSheetOpen(false)
+      setSheetId(null)
+    }
+    fromSheet.current = false
+  }
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-display-sm font-semibold tracking-tight">My Desk</h1>
+      <header className={DESK_HEADER}>
+        <div className={DESK_HEADER_TITLE}>
+          <h1
+            ref={titleRef}
+            tabIndex={-1}
+            className="text-display-sm font-semibold tracking-tight outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          >
+            My Desk
+          </h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
-        <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5">
-          <PersistenceNote store={store} />
+        <div className={DESK_HEADER_ACTIONS}>
+          <PersistenceNote store={store} resetClassName={DESK_RESET} />
           <SampleDataTag className="h-6 px-2" />
-          <Button size="sm" className="h-9 px-3.5" onClick={() => setAdding(true)}>
+          <Button size="sm" className={DESK_ADD} onClick={() => setAdding(true)}>
             <PlusIcon aria-hidden />
             Add to-do
           </Button>
@@ -364,7 +626,7 @@ export function MyDeskScreen() {
       {!persisted ? (
         <ScreenSkeleton />
       ) : (
-        <div className="grid min-h-[min(560px,calc(100svh-10rem))] flex-1 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+        <div className={DESK_PANES}>
           <Card className="flex h-full min-h-[min(560px,calc(100svh-10rem))] flex-1" size="sm" role="region" aria-label="Today list">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between gap-3">
@@ -384,7 +646,7 @@ export function MyDeskScreen() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1 px-2 pt-1">
+            <CardContent className="min-h-0 flex-1 px-2 pt-1 max-xl:overflow-x-hidden">
               {visible.length === 0 ? (
                 <div
                   role="status"
@@ -396,21 +658,37 @@ export function MyDeskScreen() {
                   <p className="text-caption text-muted-foreground">
                     {todos.length === 0 ? EMPTY_COPY : FINISHED_EARLIER_COPY}
                   </p>
-                  <Button size="sm" variant="outline" className="mt-1" onClick={() => setAdding(true)}>
+                  <Button size="sm" variant="outline" className={cn("mt-1", DESK_ADD_INLINE)} onClick={() => setAdding(true)}>
                     <PlusIcon aria-hidden />
                     Add to-do
                   </Button>
                 </div>
               ) : (
-                <ul>
+                <ul ref={listRef}>
                   {visible.map((todo) => (
                     <TodoRow
                       key={todo.id}
                       todo={todo}
                       today={today}
-                      onEdit={(t) => setEditing({ todo: t, open: true })}
-                      onDelete={(t) => setDeleting({ todo: t, open: true })}
+                      onEdit={(t) => {
+                        fromSheet.current = false
+                        setEditing({ todo: t, open: true })
+                      }}
+                      onDelete={(t) => {
+                        fromSheet.current = false
+                        setDeleting({ todo: t, open: true })
+                      }}
                       onToggle={(t) => toggleTodo(t.id)}
+                      onOpen={(t, trigger) => {
+                        lastOpen.current = trigger
+                        lastOpenIndex.current = Math.max(
+                          0,
+                          visible.findIndex((row) => row.id === t.id)
+                        )
+                        fromSheet.current = true
+                        setSheetId(t.id)
+                        setSheetOpen(true)
+                      }}
                     />
                   ))}
                 </ul>
@@ -429,6 +707,7 @@ export function MyDeskScreen() {
                   type="button"
                   variant="outline"
                   size="xs"
+                  className={DESK_UNDO}
                   onClick={() => {
                     restoreTodo(removed)
                     setRemoved(null)
@@ -452,16 +731,27 @@ export function MyDeskScreen() {
           if (!open) setEditing((t) => (t ? { ...t, open: false } : t))
         }}
         todo={editing?.todo ?? null}
+        finalFocus={dialogFinalFocus}
       />
       <DeleteDialog
         target={deleting}
         onOpenChange={(open) => {
           if (!open) setDeleting((t) => (t ? { ...t, open: false } : t))
         }}
-        onConfirm={(todo) => {
-          removeTodo(todo.id)
-          setRemoved(todo)
-          setDeleting((t) => (t ? { ...t, open: false } : t))
+        onConfirm={confirmDelete}
+        finalFocus={dialogFinalFocus}
+      />
+      <TodoSheet
+        todo={visible.find((t) => t.id === sheetId) ?? todos.find((t) => t.id === sheetId)}
+        today={today}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        returnFocus={lastOpen}
+        afterDelete={afterDelete}
+        onToggle={(t) => toggleTodo(t.id)}
+        onConfirmDelete={(item) => {
+          fromSheet.current = true
+          confirmDelete(item)
         }}
       />
     </div>
