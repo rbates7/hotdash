@@ -41,12 +41,16 @@ export default function BugsError({
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>
       )}
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={reset}>
+      {/* Below 1280 both actions are 44px hits and stack on phone; the
+          destructive label uses the readable danger token there (Nova's
+          text-destructive on its own tint is ~3.4:1). Desktop is unchanged. */}
+      <div className="flex gap-2 max-md:flex-col">
+        <Button variant="outline" onClick={reset} className="max-xl:h-11!">
           Try again
         </Button>
         <Button
           variant="destructive"
+          className="max-xl:text-danger-text! max-xl:h-11!"
           onClick={() => {
             clearState(window.localStorage)
             reset()
