@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/clock"
 import type { FeatureRequest } from "@/lib/feature-requests/feature-requests"
 import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
+import { FR_ROADMAP_HINT } from "@/components/feature-request/responsive"
 
 export const ROADMAP_HINT_TITLE =
   "Shown on this board only. The Product Roadmap page isn't wired yet, so nothing has been sent anywhere."
@@ -41,13 +42,14 @@ export function RequestCard({
   return (
     <button
       type="button"
+      data-fr-card={request.id}
       onClick={() => onOpen(request.id)}
       aria-label={`Open idea: ${request.title}`}
       aria-describedby={describedBy}
       className={cn(
         "bg-surface border-surface-border hover:border-foreground/15 hover:bg-surface-hover",
         "focus-visible:ring-ring/50 flex w-full min-w-0 flex-col gap-2 rounded-xl border px-3.5 pt-3.5 pb-3 text-left",
-        "transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+        "min-h-11 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
       )}
     >
       <span className="text-label leading-[1.35] font-semibold tracking-tight">
@@ -60,7 +62,7 @@ export function RequestCard({
         </span>
       )}
 
-      <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+      <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
         <span
           id={fromId}
           className="bg-muted border-surface-border text-micro text-foreground inline-flex h-5 items-center rounded-full border px-2 font-medium whitespace-nowrap"
@@ -76,16 +78,12 @@ export function RequestCard({
         </time>
         {request.sample && <SampleDataTag id={sampleId} />}
         {request.status === "roadmap" && (
-          <span
-            id={hintId}
-            title={ROADMAP_HINT_TITLE}
-            className="bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap"
-          >
-            <ArrowRightIcon className="size-2.5" aria-hidden />
+          <span id={hintId} title={ROADMAP_HINT_TITLE} className={FR_ROADMAP_HINT}>
+            <ArrowRightIcon className="size-2.5 max-xl:size-3.5" aria-hidden />
             Roadmap
           </span>
         )}
-      </div>
+      </span>
     </button>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { ChevronRightIcon, MapIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { formatDate, formatRelative } from "@/lib/clock"
@@ -17,14 +18,116 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
+  DialogOverlay,
+  DialogPortal,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
+import {
+  FR_CONFIRM_DELETE,
+  FR_ICON,
+  FR_INPUT,
+  FR_PRESSED,
+  FR_SHEET,
+  FR_SHEET_HANDLE,
+  FR_STATUS,
+  FR_TEXTAREA,
+  FR_TITLE,
+  FR_TOUCH,
+} from "@/components/feature-request/responsive"
 import { SampleDataTag } from "@/components/sample-data"
+
+export type IdeaCloseReason = "dismiss" | "delete" | "move"
+
+/**
+ * Base UI wraps Tab at the dialog's ends through a focus guard and a
+ * requestAnimationFrame, so for a frame focus sits outside the sheet. Own
+ * the whole Tab cycle synchronously (Sales #29 wrap, plus mid-list steps)
+ * so Playwright never samples the guard.
+ */
+function tabbablesIn(root: HTMLElement) {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      "button, [href], input, select, textarea, [tabindex]"
+    )
+  ).filter((el) => {
+    if (el === root) return false
+    if (el.closest("[data-base-ui-focus-guard]")) return false
+    if ("disabled" in el && (el as HTMLButtonElement).disabled) return false
+    if (el.tabIndex < 0) return false
+    if (el.getAttribute("aria-hidden") === "true") return false
+    const r = el.getClientRects()
+    return r.length > 0 && r[0]!.width > 0 && r[0]!.height > 0
+  })
+}
+
+function wrapTabAt(root: HTMLElement, event: KeyboardEvent) {
+  if (event.key !== "Tab") return
+  const tabbable = tabbablesIn(root)
+  if (tabbable.length === 0) return
+  const current = document.activeElement
+  const idx = current instanceof HTMLElement ? tabbable.indexOf(current) : -1
+  const target = event.shiftKey
+    ? tabbable[idx <= 0 ? tabbable.length - 1 : idx - 1]
+    : tabbable[idx === -1 || idx === tabbable.length - 1 ? 0 : idx + 1]
+  if (!target) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  target.focus()
+}
+
+function FrDialogContent({
+  className,
+  children,
+  onKeyDown,
+}: {
+  className?: string
+  children: React.ReactNode
+  onKeyDown?: React.KeyboardEventHandler<HTMLElement>
+}) {
+  const ref = React.useRef<HTMLDivElement | null>(null)
+
+  React.useLayoutEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const root = ref.current
+      if (root) wrapTabAt(root, event)
+    }
+    const onFocusIn = (event: FocusEvent) => {
+      const root = ref.current
+      const next = event.target
+      if (!root || !(next instanceof Node) || root.contains(next)) return
+      const list = tabbablesIn(root)
+      if (list.length === 0) return
+      list[0]!.focus()
+    }
+    document.addEventListener("keydown", onKey, true)
+    document.addEventListener("focusin", onFocusIn, true)
+    return () => {
+      document.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("focusin", onFocusIn, true)
+    }
+  }, [])
+
+  return (
+    <DialogPortal>
+      <DialogOverlay data-slot="sheet-overlay" />
+      <DialogPrimitive.Popup
+        ref={ref}
+        data-slot="dialog-content"
+        className={cn(
+          "cn-dialog-content fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
+          className
+        )}
+        onKeyDown={onKeyDown}
+      >
+        {children}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  )
+}
 
 export const MOVE_TO_ROADMAP = "Move to On Roadmap"
 export const ROADMAP_HANDOFF_NOTE =
@@ -32,12 +135,17 @@ export const ROADMAP_HANDOFF_NOTE =
 
 const DIALOG_CLASS =
   // Nova's .cn-dialog-content pins sm:max-w-sm, so the override has to be
-  // scoped to the same breakpoint and marked important to win.
-  "bg-surface w-full sm:max-w-xl! overflow-hidden rounded-xl border p-0! gap-0! shadow-lg"
+  // scoped to the same breakpoint and marked important to win. On phone the
+  // same dialog docks as a bottom sheet (no Feature Request sheet frame).
+  `bg-surface w-full sm:max-w-xl! overflow-hidden rounded-xl border p-0! gap-0! shadow-lg ${FR_SHEET}`
+
+function SheetHandle() {
+  return <div aria-hidden className={FR_SHEET_HANDLE} />
+}
 
 function Crumbs({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 px-4 pt-4">
+    <div className="flex items-center gap-1.5 px-4 pt-4 max-md:pt-2">
       <span className="text-caption text-muted-foreground">Feature Request</span>
       <ChevronRightIcon className="text-faint-foreground size-3.5" aria-hidden />
       {children}
@@ -62,7 +170,10 @@ function Field({
   )
 }
 
-const INPUT = "border-border text-body bg-background rounded-lg border px-2.5 py-1.5 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+const INPUT = cn(
+  "border-border text-body bg-background rounded-lg border px-2.5 py-1.5 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+  FR_INPUT
+)
 
 /* --------------------------------------------------------------- new idea */
 
@@ -95,8 +206,7 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
       }}
     >
       <DialogTrigger render={trigger} />
-      <DialogContent
-        showCloseButton={false}
+      <FrDialogContent
         className={DIALOG_CLASS}
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -105,13 +215,14 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
           }
         }}
       >
+        <SheetHandle />
         <Crumbs>
           <DialogTitle className="text-caption font-medium">New idea</DialogTitle>
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label="Close"
-            className="ml-auto"
+            className={cn("ml-auto", FR_TOUCH, FR_ICON)}
             onClick={() => setOpen(false)}
           >
             <XIcon />
@@ -129,7 +240,10 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             placeholder="What's the idea?"
             aria-label="Idea title"
             maxLength={LIMITS.title}
-            className="text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none"
+            className={cn(
+              "text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none",
+              FR_TITLE
+            )}
           />
           <textarea
             value={ask}
@@ -138,7 +252,10 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             aria-label="The ask"
             maxLength={LIMITS.ask}
             rows={4}
-            className="text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none"
+            className={cn(
+              "text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none",
+              FR_TEXTAREA
+            )}
           />
           <div className="flex items-end gap-3">
             <Field label="From">
@@ -157,16 +274,16 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
           </div>
         </div>
 
-        <div className="border-border mt-4 flex items-center justify-end gap-3 border-t px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <div className="border-border mt-4 flex items-center justify-end gap-3 border-t px-4 py-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <Button variant="ghost" size="sm" className={FR_TOUCH} onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={submit} disabled={!title.trim()}>
+          <Button size="sm" className={FR_TOUCH} onClick={submit} disabled={!title.trim()}>
             Add idea
             <kbd className="text-micro bg-background/20 ml-1 rounded px-1">⌘↵</kbd>
           </Button>
         </div>
-      </DialogContent>
+      </FrDialogContent>
     </Dialog>
   )
 }
@@ -179,7 +296,7 @@ export function EditIdeaDialog({
 }: {
   /** The card being viewed; `null` closes the dialog. */
   request: FeatureRequest | null
-  onClose: () => void
+  onClose: (reason?: IdeaCloseReason) => void
 }) {
   const { now, patchRequest, setStatus, removeRequest } = useFeatureRequests()
 
@@ -187,7 +304,7 @@ export function EditIdeaDialog({
     <Dialog
       open={request !== null}
       onOpenChange={(next) => {
-        if (!next) onClose()
+        if (!next) onClose("dismiss")
       }}
     >
       {request && (
@@ -218,7 +335,7 @@ function EditIdeaBody({
   request: FeatureRequest
   /** The request instant from the store; "Added Sat, Aug 22" (`formatRelative` long) is measured from it. */
   now: Date
-  onClose: () => void
+  onClose: (reason?: IdeaCloseReason) => void
   onSave: (
     patch: { title: string; ask: string; from: string },
     status: FeatureStatus
@@ -241,12 +358,11 @@ function EditIdeaBody({
   function save(nextStatus: FeatureStatus = status) {
     if (!title.trim()) return
     onSave({ title, ask, from }, nextStatus)
-    onClose()
+    onClose(nextStatus !== request.status ? "move" : "dismiss")
   }
 
   return (
-    <DialogContent
-      showCloseButton={false}
+    <FrDialogContent
       className={DIALOG_CLASS}
       onKeyDown={(event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -257,6 +373,7 @@ function EditIdeaBody({
     >
       {/* The visible title is the editable input below; this names the dialog
           after the card so assistive tech and tests can find it. */}
+      <SheetHandle />
       <DialogTitle className="sr-only">Idea: {request.title}</DialogTitle>
       <Crumbs>
         <span className="text-caption font-medium">
@@ -267,8 +384,8 @@ function EditIdeaBody({
           variant="ghost"
           size="icon-sm"
           aria-label="Close"
-          className="ml-auto"
-          onClick={onClose}
+          className={cn("ml-auto", FR_TOUCH, FR_ICON)}
+          onClick={() => onClose("dismiss")}
         >
           <XIcon />
         </Button>
@@ -284,17 +401,23 @@ function EditIdeaBody({
           placeholder="What's the idea?"
           aria-label="Idea title"
           maxLength={LIMITS.title}
-          className="text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none"
+          className={cn(
+            "text-title-lg placeholder:text-muted-foreground bg-transparent font-semibold outline-none",
+            FR_TITLE
+          )}
         />
-        <textarea
-          value={ask}
-          onChange={(e) => setAsk(e.target.value)}
-          placeholder="The ask, in one line."
-          aria-label="The ask"
-          maxLength={LIMITS.ask}
-          rows={3}
-          className="text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none"
-        />
+          <textarea
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            placeholder="The ask, in one line."
+            aria-label="The ask"
+            maxLength={LIMITS.ask}
+            rows={3}
+            className={cn(
+              "text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none",
+              FR_TEXTAREA
+            )}
+          />
 
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <Field label="From">
@@ -336,7 +459,7 @@ function EditIdeaBody({
                 key={s}
                 value={s}
                 title={STATUS_CONFIG[s].description}
-                className="aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!"
+                className={cn(FR_PRESSED, FR_STATUS)}
               >
                 {STATUS_CONFIG[s].label}
               </ToggleGroupItem>
@@ -358,6 +481,7 @@ function EditIdeaBody({
               <Button
                 variant="outline"
                 size="sm"
+                className={FR_TOUCH}
                 onClick={() => save("roadmap")}
                 disabled={!title.trim()}
               >
@@ -372,21 +496,27 @@ function EditIdeaBody({
         </div>
       </div>
 
-      <div className="border-border mt-4 flex items-center gap-3 border-t px-4 py-3">
+      <div className="border-border mt-4 flex items-center gap-3 border-t px-4 py-3 max-xl:flex-wrap max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {confirmingDelete ? (
           <>
             <Button
               variant="destructive"
               size="sm"
+              className={cn(FR_CONFIRM_DELETE, FR_TOUCH)}
               onClick={() => {
                 onDelete()
-                onClose()
+                onClose("delete")
               }}
             >
               <Trash2Icon />
               Confirm delete
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={FR_TOUCH}
+              onClick={() => setConfirmingDelete(false)}
+            >
               Keep it
             </Button>
           </>
@@ -394,7 +524,7 @@ function EditIdeaBody({
           <Button
             variant="ghost"
             size="sm"
-            className="text-danger-text hover:text-danger-text"
+            className={cn("text-danger-text hover:text-danger-text", FR_TOUCH)}
             onClick={() => setConfirmingDelete(true)}
           >
             <Trash2Icon />
@@ -403,11 +533,12 @@ function EditIdeaBody({
         )}
 
         <div className="ml-auto flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button variant="ghost" size="sm" className={FR_TOUCH} onClick={() => onClose("dismiss")}>
             Cancel
           </Button>
           <Button
             size="sm"
+            className={FR_TOUCH}
             onClick={() => save()}
             disabled={!canSave}
             title={canSave ? undefined : "Nothing to save yet"}
@@ -417,6 +548,6 @@ function EditIdeaBody({
           </Button>
         </div>
       </div>
-    </DialogContent>
+    </FrDialogContent>
   )
 }
