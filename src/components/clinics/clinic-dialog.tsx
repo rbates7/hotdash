@@ -430,7 +430,7 @@ function ClinicForm({
               onChange={(e) => set("notes", e.target.value)}
               maxLength={CLINIC_LIMITS.notes}
               rows={2}
-              className={cn("min-h-9", CLINIC_TOUCH)}
+              className="min-h-9 max-xl:min-h-16!"
               placeholder="Anything the next person needs to know"
             />
           </div>
@@ -441,7 +441,7 @@ function ClinicForm({
         <Button
           type="button"
           variant="outline"
-          className={cn(CLINIC_TOUCH, "text-destructive")}
+          className={cn(CLINIC_TOUCH, "text-danger-text!")}
           onClick={() => {
             onDone()
             onDelete()

@@ -109,6 +109,13 @@ async function visibleHeaders(tbl: Locator) {
   )
 }
 
+async function expectNotesUnclipped(form: Locator, label: string) {
+  const notes = form.getByLabel("Notes")
+  await notes.scrollIntoViewIfNeeded()
+  const extra = await notes.evaluate((el) => el.scrollHeight - el.clientHeight)
+  expect(extra, `${label} notes clip ${extra}px`).toBeLessThanOrEqual(1)
+}
+
 async function expectFormTouch(form: Locator, label: string) {
   await expectMinHit(form.getByRole("button", { name: /Save changes|Add clinic/, exact: true }), `${label} Save`)
   await expectMinHit(form.getByRole("button", { name: "Staff meeting", exact: true }), `${label} Staff meeting`)
@@ -161,8 +168,15 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expectMinHit(edit.getByRole("button", { name: "Close", exact: true }), "sheet close")
     await expectMinHit(edit.getByRole("button", { name: "Cancel", exact: true }), "sheet Cancel")
     await expectFormTouch(edit, "phone sheet")
+    await expectNotesUnclipped(edit, "phone sheet")
     await expectReadable(edit.getByRole("heading", { name: "Edit clinic" }), "phone/edit sheet title", expect)
     await expectReadable(edit.getByText(/Dates are calendar days/), "phone/edit sheet copy", expect)
+    const remove = edit.getByRole("button", { name: "Delete clinic", exact: true })
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectReadable(remove, `${theme}/Delete clinic`, expect)
+    }
+    await setTheme(page, "light")
     await expectNoPageOverflowX(page)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
@@ -264,6 +278,7 @@ test.describe("responsive Clinics (tablet portrait 820)", () => {
     const edit = dialog(page, "Edit clinic")
     await expect(edit).toBeVisible()
     await expectFormTouch(edit, "820 dialog")
+    await expectNotesUnclipped(edit, "820 dialog")
     await expectReadable(edit.getByRole("heading", { name: "Edit clinic" }), "820/edit dialog title", expect)
     await expectReadable(edit.getByText(/Dates are calendar days/), "820/edit dialog copy", expect)
     await expect(edit.getByRole("button", { name: "Delete clinic", exact: true })).toHaveCount(0)
