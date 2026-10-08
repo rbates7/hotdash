@@ -5,7 +5,7 @@ import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
-import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -85,11 +85,9 @@ function PickerChoices({
 function AddMetric() {
   const { addMetric } = useMetrics()
   const phone = useIsMobile()
-  const tablet = useIsTablet()
-  const compact = phone || tablet
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
-  useMetricsSheetTabTrap(compact && open)
+  useMetricsSheetTabTrap(phone && open)
 
   function pick(id: MetricId) {
     addMetric(id)
@@ -101,14 +99,14 @@ function AddMetric() {
       ref={triggerRef}
       size="sm"
       className={`h-9 px-3.5 ${METRICS_TOUCH}`}
-      onClick={compact ? () => setOpen(true) : undefined}
+      onClick={phone ? () => setOpen(true) : undefined}
     >
       <PlusIcon aria-hidden />
       Add metric
     </Button>
   )
 
-  if (compact) {
+  if (phone) {
     return (
       <>
         {trigger}

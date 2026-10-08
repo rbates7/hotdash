@@ -139,11 +139,11 @@ function ExpenseForm({
           </label>
         </div>
         <label className="text-body flex items-center gap-2.5 pt-1 max-xl:min-h-11!">
-          {/* Base UI names the switch from the wrapping label. */}
+          {/* Base UI names the switch from the wrapping label. The label is
+              the 44px target; Nova's 32×18 pill stays its own size. */}
           <Switch
             checked={recurring}
             onCheckedChange={(checked) => setRecurring(Boolean(checked))}
-            className="max-xl:min-h-11! max-xl:min-w-11!"
           />
           Recurring
         </label>

@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -56,6 +57,24 @@ const NEW_SORT_LABEL: Record<NewKey, string> = {
   signupDate: "Signup date",
 }
 
+/** Per-key words for the phone Sort menu (Mack B7). Dates and money are not A–Z. */
+function sortDirectionWords(key: string, dir: "asc" | "desc") {
+  if (key === "signupDate" || key === "churnDate") {
+    return dir === "asc" ? "Oldest first" : "Newest first"
+  }
+  if (key === "lifetimeValue") {
+    return dir === "asc" ? "Lowest first" : "Highest first"
+  }
+  return dir === "asc" ? "A–Z" : "Z–A"
+}
+
+function sortButtonLabel<K extends string>(labels: Record<K, string>, sort: Sort<K> | null) {
+  if (!sort) return "Sort: Default"
+  const words = sortDirectionWords(sort.key, sort.dir)
+  const spoken = words.includes("–") ? words : words.toLowerCase()
+  return `Sort: ${labels[sort.key]}, ${spoken}`
+}
+
 function SortMenu<K extends string>({
   keys,
   labels,
@@ -69,28 +88,31 @@ function SortMenu<K extends string>({
   onSort: (key: K) => void
   label: string
 }) {
-  const current = sort ? labels[sort.key] : "Default"
   return (
     <div className={METRICS_SORT}>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button variant="outline" size="sm" className={`h-9 px-3.5 ${METRICS_TOUCH}`}>
-              Sort: {current}
+              {sortButtonLabel(labels, sort)}
             </Button>
           }
         />
         <DropdownMenuContent align="end" aria-label={label}>
-          {keys.map((key) => (
-            <DropdownMenuItem
-              key={key}
-              onClick={() => onSort(key)}
-              className="max-xl:min-h-11!"
-            >
-              {labels[key]}
-              {sort?.key === key ? (sort.dir === "asc" ? " · A–Z" : " · Z–A") : ""}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuRadioGroup value={sort?.key ?? ""}>
+            {keys.map((key) => (
+              <DropdownMenuRadioItem
+                key={key}
+                value={key}
+                closeOnClick
+                onClick={() => onSort(key)}
+                className="max-xl:min-h-11!"
+              >
+                {labels[key]}
+                {sort?.key === key ? ` · ${sortDirectionWords(key, sort.dir)}` : ""}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -122,6 +144,7 @@ export function NewSubscribersTable({ rows }: { rows?: NewSubscriber[] }) {
         stacked={sorted.map((s) => (
           <RowCollapse
             key={s.id}
+            className="[&>svg]:hidden"
             title={s.name}
             status={<Pill tone={PLAN_TONE[s.plan]}>{s.plan}</Pill>}
             sample
@@ -204,8 +227,15 @@ export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }
         stacked={sorted.map((s) => (
           <RowCollapse
             key={s.id}
+            className="[&>svg]:hidden"
             title={s.name}
-            status={<Pill tone="muted">{formatCurrency(s.lifetimeValue)}</Pill>}
+            status={
+              <Pill tone="muted">
+                <span aria-hidden>LTV </span>
+                <span className="sr-only">Lifetime value </span>
+                {formatCurrency(s.lifetimeValue)}
+              </Pill>
+            }
             sample
             meta={[
               { label: "Email", value: s.email },

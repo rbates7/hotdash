@@ -79,19 +79,38 @@ async function expectAllTargets44(scope: Locator, label: string) {
         el.getAttribute("aria-label") ?? (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 48)
       const formValue = el.tagName === "INPUT" && el.getAttribute("aria-hidden") === "true"
       const disabled = el.getAttribute("aria-disabled") === "true" || (el as HTMLButtonElement).disabled
+      const wrap = el.closest("label")
       return {
         name: `${el.tagName.toLowerCase()} "${name}"`,
+        role: el.getAttribute("role"),
+        accessibleName: name,
         width: r.width,
         height: r.height,
+        labelHeight: wrap?.getBoundingClientRect().height ?? 0,
         painted: r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && !formValue && !disabled,
       }
     })
   )
   const painted = measured.filter((m) => m.painted)
   expect(painted.length, `${label}: controls measured`).toBeGreaterThan(0)
-  const small = painted
-    .filter((m) => m.width < 44 || m.height < 44)
-    .map((m) => `${m.name} ${m.width.toFixed(1)}×${m.height.toFixed(1)}`)
+
+  const small: string[] = []
+  for (const m of painted) {
+    if (m.width >= 44 && m.height >= 44) continue
+    if (m.role === "switch" && m.labelHeight >= 44) {
+      const sw = scope.getByRole("switch", { name: m.accessibleName, exact: true })
+      const wrap = sw.locator("xpath=ancestor::label[1]")
+      const before = await sw.getAttribute("aria-checked")
+      await wrap.click()
+      const after = await sw.getAttribute("aria-checked")
+      if (after && after !== before) {
+        await wrap.click()
+        await expect(sw).toHaveAttribute("aria-checked", before ?? "false")
+        continue
+      }
+    }
+    small.push(`${m.name} ${m.width.toFixed(1)}×${m.height.toFixed(1)}`)
+  }
   expect(small, `${label}: every control ≥ 44×44`).toEqual([])
 }
 
@@ -374,12 +393,6 @@ for (const [size, viewport] of [
       await page.keyboard.press("Escape")
     })
 
-    test("chart toggle pressed vs unpressed is ≥3:1", async ({ page }) => {
-      await fresh(page)
-      const group = card(page, "MRR").getByRole("group", { name: "MRR chart type" })
-      await expectPressedContrast(group, `${size} MRR`)
-    })
-
     for (const theme of ["light", "dark"] as const) {
       test(`expectReadable on restyled controls (${theme})`, async ({ page }) => {
         await fresh(page)
@@ -398,22 +411,118 @@ for (const [size, viewport] of [
   })
 }
 
-test.describe("responsive Metrics (tab focus ring)", () => {
+const TAB_NAMES = ["Overview", "New Subscribers", "Churned Subscribers", "Expenses"] as const
+
+async function expectTabHitsAndUnderline(page: Page, size: string) {
+  const list = tablist(page)
+  await settle(list)
+  const listBox = await list.evaluate((el) => ({
+    scroll: (el as HTMLElement).scrollHeight,
+    client: (el as HTMLElement).clientHeight,
+  }))
+  expect(listBox.scroll, `${size} tablist: no vertical scroll`).toBeLessThanOrEqual(listBox.client + 1)
+
+  for (const name of TAB_NAMES) {
+    const t = tab(page, name)
+    await t.scrollIntoViewIfNeeded()
+    await settle(t)
+    await t.click()
+    await expect(t).toHaveAttribute("aria-selected", "true")
+    await settle(t)
+
+    const box = await t.boundingBox()
+    expect(box, `${size} ${name}: painted`).toBeTruthy()
+    const hits = await page.evaluate(
+      ({ x, top, bottom }) => {
+        const at = (px: number, py: number) => {
+          const el = document.elementFromPoint(px, py)
+          return el?.closest("[role='tab']")?.textContent?.replace(/\s+/g, " ").trim() ?? null
+        }
+        return { top: at(x, top), bottom: at(x, bottom) }
+      },
+      { x: box!.x + box!.width / 2, top: box!.y + 2, bottom: box!.y + box!.height - 2 }
+    )
+    expect(hits.top, `${size} ${name}: top+2`).toBe(name)
+    expect(hits.bottom, `${size} ${name}: bottom-2`).toBe(name)
+
+    const underline = await t.evaluate((el, listEl) => {
+      const after = getComputedStyle(el, "::after")
+      const height = parseFloat(after.height)
+      const bottom = parseFloat(after.bottom)
+      const tabRect = el.getBoundingClientRect()
+      const listRect = (listEl as HTMLElement).getBoundingClientRect()
+      const afterBottom = tabRect.bottom - bottom
+      const afterTop = afterBottom - height
+      const opacity = Number(after.opacity)
+      return {
+        height,
+        opacity,
+        inside:
+          afterTop >= listRect.top - 1 &&
+          afterBottom <= listRect.bottom + 1 &&
+          after.left !== "auto",
+      }
+    }, await list.elementHandle())
+    expect(underline.height, `${size} ${name}: 2px underline`).toBeGreaterThanOrEqual(1.5)
+    expect(underline.opacity, `${size} ${name}: underline visible`).toBeGreaterThan(0.9)
+    expect(underline.inside, `${size} ${name}: underline inside tablist`).toBe(true)
+
+    await t.focus()
+    await expect(t).toBeFocused()
+    expect(await t.evaluate((el) => el.matches(":focus-visible"))).toBe(true)
+    const shadow = await t.evaluate((el) => getComputedStyle(el).boxShadow)
+    expect(shadow, `${size} ${name}: ring drawn inset`).toContain("inset")
+    const clipped = await t.evaluate((el) => {
+      const tabRect = el.getBoundingClientRect()
+      let node = el.parentElement
+      while (node) {
+        const cs = getComputedStyle(node)
+        const clips = (v: string) => v === "hidden" || v === "auto" || v === "scroll"
+        if (clips(cs.overflowX) || clips(cs.overflowY)) {
+          const r = node.getBoundingClientRect()
+          if (clips(cs.overflowY) && (tabRect.top < r.top - 1 || tabRect.bottom > r.bottom + 1)) {
+            return true
+          }
+          if (
+            clips(cs.overflowX) &&
+            tabRect.left >= 0 &&
+            tabRect.right <= window.innerWidth &&
+            (tabRect.left < r.left - 1 || tabRect.right > r.right + 1)
+          ) {
+            return true
+          }
+        }
+        node = node.parentElement
+      }
+      return false
+    })
+    expect(clipped, `${size} ${name}: focus ring not clipped by overflow`).toBe(false)
+  }
+}
+
+test.describe("responsive Metrics (B1 tablist)", () => {
   for (const [size, viewport] of [
     ["390", VIEWPORTS.phone],
     ["820", VIEWPORTS["tablet-portrait"]],
+    ["1180", VIEWPORTS["tablet-landscape"]],
   ] as const) {
-    test(`a Tab-focused tab shows its ring inside the tab at ${size}`, async ({ page }) => {
+    test(`tabs are fully hittable, the underline is inside the list, and the focus ring is not clipped at ${size}`, async ({
+      page,
+    }) => {
       await page.setViewportSize(viewport)
       await fresh(page)
-      const first = tab(page, "Overview")
-      await first.focus()
-      await expect(first).toBeFocused()
-      expect(await first.evaluate((el) => el.matches(":focus-visible"))).toBe(true)
-      const shadow = await first.evaluate((el) => getComputedStyle(el).boxShadow)
-      expect(shadow, "ring drawn inset").toContain("inset")
+      await expectTabHitsAndUnderline(page, size)
     })
   }
+
+  test("the tablist stays 32px at 1440", async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS.desktop)
+    await fresh(page)
+    const box = await tablist(page).boundingBox()
+    expect(box, "1440 tablist painted").toBeTruthy()
+    expect(box!.height, "1440 tablist is Nova h-8").toBeGreaterThanOrEqual(31)
+    expect(box!.height, "1440 tablist is Nova h-8").toBeLessThanOrEqual(33)
+  })
 })
 
 /* ---------------------------------------------------------------- desktop */
@@ -446,9 +555,231 @@ test.describe("responsive Metrics (desktop 1440)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
-  test("pressed chart toggle is solid primary at 1440", async ({ page }) => {
-    await fresh(page)
-    const group = card(page, "MRR").getByRole("group", { name: "MRR chart type" })
-    await expectPressedContrast(group, "1440 MRR")
+})
+
+/* ------------------------------------------------------ Mack B2–B8, r2 */
+
+for (const [size, viewport] of [
+  ["390", VIEWPORTS.phone],
+  ["820", VIEWPORTS["tablet-portrait"]],
+  ["1180", VIEWPORTS["tablet-landscape"]],
+] as const) {
+  test.describe(`responsive Metrics B2 Recurring switch (${size})`, () => {
+    test.use({ viewport })
+
+    test("the Recurring switch stays a 32×18 pill and the label is the 44px target", async ({
+      page,
+    }) => {
+      await fresh(page, "/metrics?tab=expenses")
+      await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
+      const sheet = dialog(page, "Add expense")
+      await expect(sheet).toBeVisible()
+      const sw = sheet.getByRole("switch", { name: "Recurring" })
+      const box = await sw.boundingBox()
+      expect(box, `${size} switch painted`).toBeTruthy()
+      expect(box!.width, `${size} switch is a pill`).toBeGreaterThanOrEqual(box!.height * 1.5)
+      expect(box!.width, `${size} switch ~32 wide`).toBeGreaterThanOrEqual(28)
+      expect(box!.width, `${size} switch ~32 wide`).toBeLessThanOrEqual(36)
+      expect(box!.height, `${size} switch ~18 tall`).toBeGreaterThanOrEqual(16)
+      expect(box!.height, `${size} switch ~18 tall`).toBeLessThanOrEqual(22)
+
+      const wrap = sw.locator("xpath=ancestor::label[1]")
+      const wrapBox = await wrap.boundingBox()
+      expect(wrapBox!.height, `${size} Recurring label`).toBeGreaterThanOrEqual(44)
+
+      await expect(sw).toHaveAttribute("aria-checked", "false")
+      await wrap.getByText("Recurring", { exact: true }).click()
+      await expect(sw).toHaveAttribute("aria-checked", "true")
+      await wrap.getByText("Recurring", { exact: true }).click()
+      await expect(sw).toHaveAttribute("aria-checked", "false")
+      await page.keyboard.press("Escape")
+    })
+  })
+}
+
+test.describe("responsive Metrics B3–B4–B5–B7 (phone 390)", () => {
+  test.use({ viewport: VIEWPORTS.phone })
+
+  test("subscriber cards hide the chevron and are not buttons", async ({ page }) => {
+    await fresh(page, "/metrics?tab=new")
+    const neu = panel(page, "New Subscribers").getByRole("list")
+    await expect(neu.getByRole("listitem")).toHaveCount(8)
+    await expect(neu.locator("[data-slot=row-collapse] svg.lucide-chevron-right >> visible=true")).toHaveCount(0)
+    await expect(neu.getByRole("button")).toHaveCount(0)
+    await expect(neu.getByRole("link")).toHaveCount(0)
+
+    await tab(page, "Churned Subscribers").click()
+    const churned = panel(page, "Churned Subscribers").getByRole("list")
+    await expect(churned.getByRole("listitem")).toHaveCount(5)
+    await expect(churned.locator("[data-slot=row-collapse] svg.lucide-chevron-right >> visible=true")).toHaveCount(0)
+    await expect(churned.getByRole("button")).toHaveCount(0)
+    await expect(churned.getByRole("link")).toHaveCount(0)
+  })
+
+  test("the churned LTV pill is labelled and reads at ≥4.5:1", async ({ page }) => {
+    await fresh(page, "/metrics?tab=churned")
+    const brett = panel(page, "Churned Subscribers")
+      .getByRole("listitem")
+      .filter({ hasText: "Brett Holloway" })
+    await expect(brett.getByText("LTV")).toBeVisible()
+    await expect(brett.getByText("$199")).toBeVisible()
+    await expect(brett.getByText("Lifetime value")).toHaveClass(/sr-only/)
+    const pill = brett.locator("span.inline-flex").filter({ hasText: "$199" })
+    await expectReadable(pill, "390/light LTV pill", expect)
+    await setTheme(page, "dark")
+    await expectReadable(pill, "390/dark LTV pill", expect)
+  })
+
+  test("the phone Sort menu uses per-key direction words", async ({ page }) => {
+    await fresh(page, "/metrics?tab=churned")
+    const churned = panel(page, "Churned Subscribers")
+    const sort = churned.getByRole("button", { name: /Sort:/ })
+    await expect(sort).toHaveText("Sort: Churn date, newest first")
+
+    await sort.click()
+    const menu = page.getByRole("menu")
+    await expect(menu).toBeVisible()
+    await menu.getByRole("menuitemradio", { name: /Lifetime value/ }).click()
+    await expect(sort).toHaveText("Sort: Lifetime value, highest first")
+    await expect(churned.getByRole("listitem").first()).toContainText("$398")
+
+    await sort.click()
+    await page.getByRole("menu").getByRole("menuitemradio", { name: /Lifetime value/ }).click()
+    await expect(sort).toHaveText("Sort: Lifetime value, lowest first")
+    await expect(churned.getByRole("listitem").first()).toContainText("$79")
+
+    await tab(page, "New Subscribers").click()
+    await expect(panel(page, "New Subscribers").getByRole("button", { name: /Sort:/ })).toHaveText(
+      "Sort: Signup date, newest first"
+    )
   })
 })
+
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`responsive Metrics B5 Expenses pin (390 ${theme})`, () => {
+    test.use({ viewport: VIEWPORTS.phone })
+
+    test("the Expenses pin matches the card surface and stays put", async ({ page }) => {
+      await fresh(page, "/metrics?tab=expenses")
+      await setTheme(page, theme)
+      const expenses = table(page, "Expenses")
+      await expect(expenses).toBeVisible()
+      const firstTd = expenses.locator("tbody tr").first().locator("td").first()
+      const scroller = expenses.locator("xpath=ancestor::*[@data-slot='responsive-table']")
+
+      const paint = await firstTd.evaluate((td) => {
+        let card: HTMLElement | null = td.parentElement
+        while (
+          card &&
+          !/(?:^|\s)bg-surface(?:\s|$)/.test(typeof card.className === "string" ? card.className : "")
+        ) {
+          card = card.parentElement
+        }
+        const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+        const parse = (css: string) => {
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.fillStyle = css
+          ctx.fillRect(0, 0, 1, 1)
+          return [...ctx.getImageData(0, 0, 1, 1).data]
+        }
+        return {
+          td: parse(getComputedStyle(td).backgroundColor),
+          card: card ? parse(getComputedStyle(card).backgroundColor) : null,
+          shadow: getComputedStyle(td).boxShadow,
+        }
+      })
+      expect(paint.card, `${theme}: TableCard found`).toBeTruthy()
+      expect(paint.td, `${theme}: first td bg equals TableCard`).toEqual(paint.card)
+      expect(paint.shadow, `${theme}: pin divider`).toMatch(/inset/i)
+
+      await scroller.evaluate((el) => {
+        ;(el as HTMLElement).scrollLeft = (el as HTMLElement).scrollWidth
+      })
+      const pinned = await firstTd.evaluate((td) => {
+        const scroller = td.closest("[data-slot='responsive-table']") as HTMLElement
+        const tdRect = td.getBoundingClientRect()
+        const scRect = scroller.getBoundingClientRect()
+        const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+        ctx.fillStyle = getComputedStyle(td).backgroundColor
+        ctx.fillRect(0, 0, 1, 1)
+        const [, , , a] = ctx.getImageData(0, 0, 1, 1).data
+        return {
+          tdLeft: tdRect.left,
+          scLeft: scRect.left,
+          alpha: a / 255,
+          scrollLeft: scroller.scrollLeft,
+        }
+      })
+      expect(pinned.scrollLeft, `${theme}: table scrolled`).toBeGreaterThan(8)
+      expect(Math.abs(pinned.tdLeft - pinned.scLeft), `${theme}: pin stays at left 0`).toBeLessThan(2)
+      expect(pinned.alpha, `${theme}: pin opaque`).toBe(1)
+    })
+  })
+}
+
+for (const [size, viewport] of [
+  ["820", VIEWPORTS["tablet-portrait"]],
+  ["1180", VIEWPORTS["tablet-landscape"]],
+] as const) {
+  test.describe(`responsive Metrics B6 Add metric popover (${size})`, () => {
+    test.use({ viewport })
+
+    test("Add metric is a popover at tablet, not a full-width sheet", async ({ page }) => {
+      await fresh(page)
+      const add = panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true })
+      await add.click()
+      const picker = dialog(page, "Add a metric")
+      await expect(picker).toBeVisible()
+      await settle(picker)
+      const box = await picker.boundingBox()
+      expect(box, `${size} picker painted`).toBeTruthy()
+      expect(box!.width, `${size} picker ≤ 512`).toBeLessThanOrEqual(512)
+      await expect(picker, `${size} picker in viewport`).toBeInViewport({ ratio: 1 })
+      await expect(picker.getByRole("button", { name: "Close", exact: true })).toHaveCount(0)
+
+      const rows = picker.getByRole("button")
+      expect(await rows.count(), `${size} picker rows`).toBeGreaterThan(0)
+      for (const row of await rows.all()) {
+        const rowBox = await row.boundingBox()
+        expect(rowBox!.height, `${size} picker row`).toBeGreaterThanOrEqual(44)
+        const labelBox = await row.locator("span").nth(0).boundingBox()
+        const valueBox = await row.locator("span").nth(1).boundingBox()
+        expect(valueBox!.x - labelBox!.x, `${size} label-to-value`).toBeLessThanOrEqual(480)
+      }
+
+      await page.keyboard.press("Escape")
+      await expect(picker).toBeHidden()
+      await expect(add).toBeFocused()
+
+      await add.click()
+      await expect(picker).toBeVisible()
+      await main(page).getByRole("heading", { level: 1, name: "Metrics" }).click()
+      await expect(picker).toBeHidden()
+      await expect(add).toBeFocused()
+    })
+  })
+}
+
+for (const [size, viewport] of [
+  ["390", VIEWPORTS.phone],
+  ["820", VIEWPORTS["tablet-portrait"]],
+  ["1180", VIEWPORTS["tablet-landscape"]],
+  ["1440", VIEWPORTS.desktop],
+] as const) {
+  for (const theme of ["light", "dark"] as const) {
+    test.describe(`responsive Metrics B8 pressed contrast (${size} ${theme})`, () => {
+      test.use({ viewport })
+
+      test(`chart toggle pressed vs unpressed is ≥3:1 at ${size} ${theme}`, async ({ page }) => {
+        await fresh(page)
+        await setTheme(page, theme)
+        const groups = page.getByRole("group", { name: / chart type$/ })
+        await expect(groups).toHaveCount(8)
+        for (const group of await groups.all()) {
+          const name = (await group.getAttribute("aria-label")) ?? "chart type"
+          await expectPressedContrast(group, `${size}/${theme} ${name}`)
+        }
+      })
+    })
+  }
+}

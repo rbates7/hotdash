@@ -30,6 +30,8 @@ describe("Metrics responsive layout", () => {
 
   it("scrolls tabs with a peek fade and 44px inset-ring hits", () => {
     expect(METRICS_TABLIST).toContain("overflow-x-auto")
+    expect(METRICS_TABLIST).toContain("max-xl:h-auto!")
+    expect(METRICS_TABLIST).toContain("max-xl:overflow-y-hidden")
     expect(METRICS_TABS_FADE).toContain("from-background")
     expect(METRICS_TABS_FADE).toContain("max-md:block")
     expect(METRICS_TAB).toContain("max-xl:min-h-11!")
@@ -46,7 +48,12 @@ describe("Metrics responsive layout", () => {
   it("pins Expenses' first column on phone only, and leaves desktop overflow alone", () => {
     expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_th:first-child]:sticky")
     expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_td:first-child]:sticky")
+    expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_th:first-child]:bg-surface")
+    expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_td:first-child]:bg-surface")
+    expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_th:first-child]:shadow-[inset_-1px_0_0_var(--color-border)]")
+    expect(METRICS_EXPENSE_PIN).toContain("max-md:[&_td:first-child]:shadow-[inset_-1px_0_0_var(--color-border)]")
     expect(METRICS_EXPENSE_PIN).toContain("xl:overflow-visible!")
+    expect(METRICS_EXPENSE_PIN).not.toContain("bg-background")
     expect(METRICS_EXPENSE_PIN).not.toContain("xl:[&_th:first-child]:sticky")
     expect(METRICS_SORT_HEAD).toContain("max-xl:[&_button]:min-h-11!")
   })

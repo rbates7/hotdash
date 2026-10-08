@@ -1,5 +1,5 @@
 import * as React from "react"
-import { render, screen, within } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -114,11 +114,73 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
     expect(brett).toHaveTextContent("12 Jan 2026 → 8 Aug 2026")
   })
 
+  it("labels every churned LTV pill with visible LTV and SR Lifetime value matching the desktop row", () => {
+    renderTabs("tab=churned")
+    const list = screen.getByRole("list")
+    const items = within(list).getAllByRole("listitem")
+    expect(items).toHaveLength(5)
+
+    const table = screen.getByRole("table", { name: "Churned subscribers", hidden: true })
+    const rows = within(table)
+      .getAllByRole("row", { hidden: true })
+      .filter((row) => within(row).queryAllByRole("cell", { hidden: true }).length > 0)
+    expect(rows).toHaveLength(5)
+
+    for (const item of items) {
+      const collapse = item.querySelector("[data-slot='row-collapse']") as HTMLElement
+      const title = collapse.querySelector(".font-semibold")?.textContent?.trim()
+      expect(title).toBeTruthy()
+      const row = rows.find((r) => r.textContent?.includes(title!))
+      expect(row, `desktop row for ${title}`).toBeTruthy()
+      const cells = within(row!).getAllByRole("cell", { hidden: true })
+      const ltv = cells[cells.length - 1].textContent?.trim()
+      expect(ltv).toMatch(/^\$[\d,]+$/)
+
+      const visibleLtv = within(item).getByText("LTV")
+      expect(visibleLtv).toHaveAttribute("aria-hidden", "true")
+      const pill = visibleLtv.parentElement as HTMLElement
+      const sr = within(pill).getByText("Lifetime value")
+      expect(sr).toHaveClass("sr-only")
+      const visible = (pill.textContent ?? "").replace(sr.textContent ?? "", "").replace(/\s+/g, " ").trim()
+      expect(visible).toMatch(/^LTV \$[\d,]+$/)
+      expect(visible).toBe(`LTV ${ltv}`)
+      expect(within(pill).getByText("Lifetime value")).toHaveClass("sr-only")
+      expect(item.textContent?.replace(/\s+/g, " ")).toContain(`Lifetime value ${ltv}`)
+    }
+  })
+
+  it("hides the RowCollapse chevron on New and Churned cards", () => {
+    renderTabs("tab=new")
+    const neu = screen.getByRole("list")
+    for (const collapse of neu.querySelectorAll("[data-slot='row-collapse']")) {
+      expect(collapse.className).toContain("[&>svg]:hidden")
+    }
+    expect(within(neu).queryAllByRole("button")).toHaveLength(0)
+
+    cleanup()
+    renderTabs("tab=churned")
+    const churned = screen.getByRole("list")
+    for (const collapse of churned.querySelectorAll("[data-slot='row-collapse']")) {
+      expect(collapse.className).toContain("[&>svg]:hidden")
+    }
+    expect(within(churned).queryAllByRole("button")).toHaveLength(0)
+  })
+
+  it("names the phone Sort button with the current direction", () => {
+    renderTabs("tab=new")
+    expect(screen.getByRole("button", { name: "Sort: Signup date, newest first" })).toBeInTheDocument()
+
+    cleanup()
+    renderTabs("tab=churned")
+    expect(screen.getByRole("button", { name: "Sort: Churn date, newest first" })).toBeInTheDocument()
+  })
+
   it("keeps the Expenses table with a phone-only pin class, not the shared pinFirst paint", () => {
     renderTabs("tab=expenses")
     const scroller = screen.getByRole("table", { name: "Expenses" }).closest("[data-slot='responsive-table']")!
     expect(scroller).not.toHaveAttribute("data-pin-first")
     expect(scroller.className).toContain("max-md:[&_th:first-child]:sticky")
+    expect(scroller.className).toContain("max-md:[&_td:first-child]:bg-surface")
     expect(scroller.className).toContain("xl:overflow-visible!")
     expect(screen.getByTestId("metrics-expenses-fade")).toBeInTheDocument()
   })
@@ -146,16 +208,17 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
   })
 })
 
-describe("tablet (768–1279): Add metric is a sheet, tables stay tables", () => {
+describe("tablet (768–1279): Add metric is a popover, tables stay tables", () => {
   beforeEach(() => mockViewport(820))
 
-  it("opens Add metric as a sheet with the stock ×", async () => {
+  it("opens Add metric as a popover, not a sheet", async () => {
     const user = userEvent.setup()
     renderTabs()
     await user.click(screen.getByRole("button", { name: "Add metric" }))
-    const sheet = await screen.findByRole("dialog", { name: "Add a metric" })
-    expect(within(sheet).getByRole("button", { name: "Close" })).toBeInTheDocument()
-    await user.click(within(sheet).getByRole("button", { name: "Close" }))
+    const picker = await screen.findByRole("dialog", { name: "Add a metric" })
+    expect(within(picker).queryByRole("button", { name: "Close" })).not.toBeInTheDocument()
+    expect(within(picker).getByRole("button", { name: /^CAC/ })).toBeInTheDocument()
+    await user.keyboard("{Escape}")
     expect(screen.queryByRole("dialog", { name: "Add a metric" })).not.toBeInTheDocument()
   })
 

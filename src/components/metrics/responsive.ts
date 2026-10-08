@@ -40,7 +40,7 @@ export const METRICS_PRESSED =
 export const METRICS_TABS_WRAP = "relative min-w-0"
 
 export const METRICS_TABLIST =
-  "border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px] max-md:[-ms-overflow-style:none] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+  "border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px] max-xl:h-auto! max-xl:overflow-y-hidden max-md:[-ms-overflow-style:none] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
 
 export const METRICS_TABS_FADE =
   "from-background pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-8 bg-gradient-to-l to-transparent max-md:block"
@@ -91,10 +91,11 @@ export const METRICS_SORT_HEAD =
 /**
  * Expenses: pin Category on phone only (Deke 7:141). Do not pass
  * `pinFirst` — that paints `bg-background` on the first column at every
- * width and would change desktop pixels. Overflow-x stays below `xl`.
+ * width and would change desktop pixels. Phone paint matches TableCard
+ * (`bg-surface`) with an inset right-edge divider. Overflow-x stays below `xl`.
  */
 export const METRICS_EXPENSE_PIN =
-  "xl:overflow-visible! max-md:[&_th:first-child]:bg-background max-md:[&_td:first-child]:bg-background max-md:[&_th:first-child]:sticky max-md:[&_td:first-child]:sticky max-md:[&_th:first-child]:left-0 max-md:[&_td:first-child]:left-0 max-md:[&_th:first-child]:z-10 max-md:[&_td:first-child]:z-10"
+  "xl:overflow-visible! max-md:[&_th:first-child]:bg-surface max-md:[&_td:first-child]:bg-surface max-md:[&_th:first-child]:sticky max-md:[&_td:first-child]:sticky max-md:[&_th:first-child]:left-0 max-md:[&_td:first-child]:left-0 max-md:[&_th:first-child]:z-10 max-md:[&_td:first-child]:z-10 max-md:[&_th:first-child]:shadow-[inset_-1px_0_0_var(--color-border)] max-md:[&_td:first-child]:shadow-[inset_-1px_0_0_var(--color-border)]"
 
 export const METRICS_EXPENSE_FADE =
   "from-surface pointer-events-none absolute inset-y-0 right-0 z-20 hidden w-7 bg-gradient-to-l to-transparent max-md:block"
