@@ -474,10 +474,10 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
     test("the Yates name is left-aligned, single-line, and not clipped vertically", async ({ page }) => {
       await fresh(page)
       const yates = table(page).getByRole("row", { name: /Equipment drive for Yates/ })
-      const name = yates.getByTestId("initiative-name")
-      await expect(name).toBeVisible()
-      await expect(name).toHaveAttribute("title", YATES)
-      const paint = await name.evaluate((el) => {
+      const nameLink = yates.getByTestId("initiative-name")
+      await expect(nameLink).toBeVisible()
+      await expect(nameLink).toHaveAttribute("title", YATES)
+      const paint = await nameLink.evaluate((el) => {
         const cell = el.closest("td")
         if (!cell) return null
         const node = (el.querySelector("span") ?? el).firstChild
