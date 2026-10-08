@@ -31,6 +31,7 @@
     "screens:responsive-home": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-home-screens.spec.ts",
     "screens:responsive-feature-request": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-feature-request-screens.spec.ts",
     "screens:responsive-shell": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-shell-screens.spec.ts",
+    "screens:responsive-bugs": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-bugs-screens.spec.ts",
     "screens:responsive-clinics": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-clinics-screens.spec.ts",
     "screens:responsive-sales": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-sales-screens.spec.ts",
     "screens:responsive-roadmap": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-roadmap-screens.spec.ts"
