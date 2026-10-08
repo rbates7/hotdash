@@ -351,7 +351,10 @@ export function ContactsScreen() {
                           lastName={contact.lastName}
                           email={contact.email}
                         />
-                        <span className="truncate md:max-xl:min-w-0 md:max-xl:whitespace-normal md:max-xl:[overflow-wrap:anywhere]">{name}</span>
+                        {/* Tablet: a name too long for the line wraps beside the avatar (never under it). */}
+                        <span className="truncate md:max-xl:max-w-[calc(100%-2rem)] md:max-xl:min-w-0 md:max-xl:whitespace-normal md:max-xl:[overflow-wrap:anywhere]">
+                          {name}
+                        </span>
                         {isSeedContact(contact.id) ? <SampleDataTag /> : null}
                       </Link>
                       {/* Tablet: Email folds under Name. */}

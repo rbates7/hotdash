@@ -975,7 +975,15 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expect(row.getByText(LONG_NAME_TEXT, { exact: true })).toBeVisible()
       // Folded under the Name at tablet (its own column is desktop-only).
       await expect(row.locator("span", { hasText: LONG_EMAIL })).toBeVisible()
-      await expect(t.getByRole("row", { name: new RegExp(escapeRe(NAMELESS_EMAIL)) })).toBeVisible()
+      const nameless = t.getByRole("row", { name: new RegExp(escapeRe(NAMELESS_EMAIL)) })
+      await expect(nameless).toBeVisible()
+      // An email-as-name wraps beside its avatar, not on a line of its own under it.
+      for (const [who, initials, text] of [[nameless, "AD", NAMELESS_EMAIL], [row, "CM", LONG_NAME_TEXT]] as const) {
+        const link = who.getByRole("cell").first().getByRole("link")
+        const avatar = (await link.getByText(initials, { exact: true }).boundingBox())!
+        const nameTop = (await link.getByText(text, { exact: true }).boundingBox())!.y
+        expect(nameTop, `${size} ${initials}: name starts on the avatar's line`).toBeLessThan(avatar.y + avatar.height)
+      }
       await expect(t.locator("span", { hasText: LONG_EMAIL_NO_ORG })).toBeVisible()
       await expectTableFits(page, "Contacts", `${size} Contacts`)
     })

@@ -297,7 +297,7 @@ export function CasesScreen() {
                       </Link>
                     </TableCell>
                     <TableCell className={CELL}>
-                      <span className="flex items-center gap-2 md:max-xl:[&>div]:min-w-0 md:max-xl:[&_p]:max-w-40 md:max-xl:[&_p]:[overflow-wrap:anywhere]">
+                      <span className="flex items-center gap-2 md:max-xl:[&>div]:min-w-0 md:max-xl:[&_p]:max-w-40 md:max-xl:[&_p]:[overflow-wrap:break-word]">
                         <CrmAvatar
                           firstName={contact?.firstName}
                           lastName={contact?.lastName}
