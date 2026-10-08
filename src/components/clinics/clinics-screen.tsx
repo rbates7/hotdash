@@ -84,6 +84,8 @@ function DeleteDialog({
 
 /** Add clinic: 44px below xl (Deke 10:720 / 10:980); h-9 at ≥1280. */
 const ADD_CLINIC_CLASS = "max-xl:h-11! max-xl:min-h-11! max-xl:px-4! xl:h-9 xl:px-3.5"
+/** Home's #25 hook — Clinics-only, PersistenceNote itself is untouched. */
+const RESET_CLASS = "max-xl:h-11! max-xl:px-2.5!"
 
 /**
  * The page: header, then Upcoming and Past as the mock stacks them. Must
@@ -115,7 +117,7 @@ export function ClinicsScreen() {
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:mt-1">
-          <PersistenceNote store={store} />
+          <PersistenceNote store={store} resetClassName={RESET_CLASS} />
           <SampleDataTag className="h-6 px-2" />
           <Button
             size="sm"

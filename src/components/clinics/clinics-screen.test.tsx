@@ -84,6 +84,7 @@ describe("ClinicsScreen", () => {
     // Disabled but reachable, with the shared hint, per the shared note.
     expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
     expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass("max-xl:h-11!")
     const header = screen.getByRole("heading", { level: 1, name: "Clinics" }).closest("header")!
     expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     expect(screen.getByRole("button", { name: "Add clinic" })).toBeEnabled()

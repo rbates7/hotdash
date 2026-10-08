@@ -23,6 +23,7 @@ const table = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
 const cards = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']:visible`)
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add clinic", exact: true })
+const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
 async function freshClinics(page: Page) {
@@ -71,6 +72,7 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expect(cards(page, "Past clinics")).toHaveCount(4)
     await expect(table(page, "Upcoming clinics")).toHaveCount(0)
     await expectMinHit(addButton(page), "phone Add clinic")
+    await expectMinHit(resetButton(page), "phone Reset")
     await expectMinHit(cards(page, "Upcoming clinics").first(), "phone card")
     await expectNoPageOverflowX(page)
 
@@ -129,6 +131,7 @@ test.describe("responsive Clinics (tablet portrait 820)", () => {
       "Status",
     ])
     await expectMinHit(addButton(page), "tablet Add clinic")
+    await expectMinHit(resetButton(page), "tablet Reset")
     await expectMinHit(
       table(page, "Upcoming clinics").getByRole("button", {
         name: "Actions for Houston Offensive Staff Clinic",
@@ -169,6 +172,7 @@ test.describe("responsive Clinics (tablet landscape 1180)", () => {
       "Status",
     ])
     await expectMinHit(addButton(page), "1180 Add clinic")
+    await expectMinHit(resetButton(page), "1180 Reset")
     await expectMinHit(
       table(page, "Upcoming clinics").getByRole("button", {
         name: "Actions for Houston Offensive Staff Clinic",
@@ -207,6 +211,9 @@ test.describe("responsive Clinics (desktop 1440)", () => {
     expect(box, "desktop Add").toBeTruthy()
     expect(box!.height, "desktop Add stays Nova sm, not 44").toBeLessThan(44)
     await expect(add).toHaveCSS("height", "28px")
+    const resetBox = await resetButton(page).boundingBox()
+    expect(resetBox, "desktop Reset").toBeTruthy()
+    expect(resetBox!.height, "desktop Reset stays PersistenceNote h-6").toBeLessThan(44)
     const houston = table(page, "Upcoming clinics").getByRole("row", { name: /Houston Offensive/ })
     await expect(houston).toContainText("in 15 days")
     await expect(houston.getByRole("cell").nth(2)).toHaveText("Houston")
