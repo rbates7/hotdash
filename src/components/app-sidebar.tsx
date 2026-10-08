@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -7,10 +8,12 @@ import {
   ChevronRightIcon,
   CircleQuestionMarkIcon,
   LogOutIcon,
+  XIcon,
 } from "lucide-react"
 
 import { isActiveRoute, navItems } from "@/lib/nav"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { cn } from "@/lib/utils"
+import { FounderIdentity } from "@/components/founder-identity"
 import { Button } from "@/components/ui/button"
 import {
   Sidebar,
@@ -24,54 +27,97 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
   useSidebar,
+  useSidebarSurface,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 
+export const CLOSE_DRAWER_NAME = "Close"
+export const EXPAND_SIDEBAR_NAME = "Expand sidebar"
+export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
+
 /**
- * Round chevron straddling the sidebar's right edge. Replaces the stock
- * `SidebarTrigger`, whose panel icon and inline placement don't match the
- * design.
+ * Deke tablet including 1180 (768–1279): 44px rows. Desktop ≥1280 keeps h-8.
+ * Portrait icon-rail squares are applied on the rail container, not here,
+ * so the 256 overlay can show full labels.
+ */
+const TABLET_ROW = "max-xl:h-11!"
+
+/**
+ * Round chevron straddling the sidebar's right edge. Visible glyph stays 24px;
+ * hit area is 44×44 on tablet portrait (6:493) and at 1180 (5:363).
  */
 function CollapseToggle() {
-  const { state, toggleSidebar } = useSidebar()
-  const collapsed = state === "collapsed"
+  const { state, isTabletPortrait, toggleSidebar } = useSidebar()
+  const surface = useSidebarSurface()
+  const collapsed =
+    surface === "rail" && (isTabletPortrait || state === "collapsed")
 
   return (
     <Button
+      data-slot="sidebar-collapse"
       variant="outline"
       size="icon-xs"
       onClick={toggleSidebar}
-      className="bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm"
+      className={cn(
+        "bg-sidebar text-muted-foreground hover:text-foreground absolute top-4 -right-3 z-20 size-6 rounded-full border shadow-sm",
+        // 44px hit, centred on the rail/card edge. Visible 24px circle is
+        // the inner span. Nova outline must lose (Deke 5:363 / 6:493 / 6:660).
+        "md:max-xl:top-1.5 md:max-xl:right-0 md:max-xl:translate-x-1/2 md:max-xl:size-11!",
+        "md:max-xl:border-0! md:max-xl:bg-transparent! md:max-xl:shadow-none! md:max-xl:hover:bg-transparent!",
+        "md:max-xl:dark:bg-transparent! md:max-xl:dark:hover:bg-transparent!"
+      )}
     >
-      {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-      <span className="sr-only">
-        {collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      <span
+        className={cn(
+          "md:max-xl:bg-sidebar md:max-xl:text-muted-foreground md:max-xl:flex md:max-xl:size-6 md:max-xl:items-center md:max-xl:justify-center md:max-xl:rounded-full md:max-xl:border md:max-xl:shadow-sm"
+        )}
+      >
+        {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
       </span>
+      <span className="sr-only">
+        {collapsed ? EXPAND_SIDEBAR_NAME : COLLAPSE_SIDEBAR_NAME}
+      </span>
+    </Button>
+  )
+}
+
+function DrawerClose() {
+  const { setOpenMobile } = useSidebar()
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-11! shrink-0"
+      onClick={() => setOpenMobile(false)}
+    >
+      <XIcon aria-hidden />
+      <span className="sr-only">{CLOSE_DRAWER_NAME}</span>
     </Button>
   )
 }
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  // Route changes close the overlay. Same-page clicks are handled on the link.
+  React.useEffect(() => {
+    setOpenMobile(false)
+  }, [pathname, setOpenMobile])
+
+  const closeOverlay = React.useCallback(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
 
   return (
     <Sidebar collapsible="icon" variant="floating">
-      <SidebarHeader className="relative">
-        <div className="flex items-center gap-2 p-1">
-          <Avatar className="size-8 shrink-0">
-            {/* `!` beats Nova's `.cn-avatar-fallback` muted default. */}
-            <AvatarFallback className="bg-brand! text-brand-foreground! text-xs font-semibold">
-              RB
-            </AvatarFallback>
-          </Avatar>
-          <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-muted-foreground text-[0.625rem] font-medium tracking-widest uppercase">
-              Founder
-            </span>
-            <span className="truncate text-sm font-semibold">Rashad Bates</span>
-          </div>
+      <SidebarHeader className="relative overflow-visible">
+        <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center md:max-lg:justify-center">
+          <FounderIdentity />
+          {isMobile ? <DrawerClose /> : <CollapseToggle />}
         </div>
-        <CollapseToggle />
       </SidebarHeader>
 
       <SidebarSeparator />
@@ -79,38 +125,44 @@ export function AppSidebar() {
       {/* The one named navigation landmark for the rail, so tests and
           assistive tech can scope to it by name instead of a data-slot. */}
       <SidebarContent>
-        <nav aria-label="Founder dashboard" className="flex min-h-0 flex-1 flex-col">
+        <nav
+          aria-label="Founder dashboard"
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-              {navItems.map((item) => {
-                const active = !item.external && isActiveRoute(pathname, item.href)
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      isActive={active}
-                      tooltip={item.label}
-                      render={
-                        item.external ? (
-                          <a
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          />
-                        ) : (
-                          <Link href={item.href} />
-                        )
-                      }
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                {navItems.map((item) => {
+                  const active =
+                    !item.external && isActiveRoute(pathname, item.href)
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.label}
+                        className={TABLET_ROW}
+                        render={
+                          item.external ? (
+                            <a
+                              href={item.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={closeOverlay}
+                            />
+                          ) : (
+                            <Link href={item.href} onClick={closeOverlay} />
+                          )
+                        }
+                      >
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </nav>
       </SidebarContent>
 
@@ -121,13 +173,16 @@ export function AppSidebar() {
             and tests can scope to it instead of searching the page. */}
         <section
           aria-label="Appearance"
-          className="flex group-data-[collapsible=icon]:justify-center"
+          className="flex group-data-[collapsible=icon]:justify-center md:max-lg:justify-center"
         >
           <ThemeToggle />
         </section>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Help">
+            <SidebarMenuButton
+              tooltip="Help"
+              className={TABLET_ROW}
+            >
               <CircleQuestionMarkIcon />
               <span>Help</span>
             </SidebarMenuButton>
@@ -135,7 +190,10 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Logout"
-              className="text-destructive hover:text-destructive [&_svg]:text-destructive"
+              className={cn(
+                "text-destructive hover:text-destructive [&_svg]:text-destructive",
+                TABLET_ROW
+              )}
             >
               <LogOutIcon />
               <span>Logout</span>
