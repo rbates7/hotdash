@@ -1,12 +1,18 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CLINICS_MOCK_DAY, CLINIC_LIMITS } from "@/lib/clinics"
 import { SPAWN_LABEL, SPAWN_SOON } from "@/components/clinics/clinic-dialog"
 import { ClinicsScreen, LEDE } from "@/components/clinics/clinics-screen"
-import { COLUMNS } from "@/components/clinics/clinics-section"
+import {
+  COLUMNS,
+  TABLET_PAST_COLUMNS,
+  TABLET_UPCOMING_COLUMNS,
+  isTabletHiddenColumn,
+} from "@/components/clinics/clinics-section"
+import { PHONE_QUERY } from "@/hooks/use-mobile"
 import {
   ClinicsProvider,
   STORAGE_KEY,
@@ -31,6 +37,10 @@ function renderScreen(nowMs = NOW_MS) {
   )
 }
 
+function mockPhone() {
+  installMatchMedia(390)
+}
+
 const section = (name: "Upcoming clinics" | "Past clinics") => screen.getByRole("region", { name })
 const table = (name: "Upcoming clinics" | "Past clinics") => screen.getByRole("table", { name })
 const bodyRows = (name: "Upcoming clinics" | "Past clinics") =>
@@ -43,7 +53,29 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>, clinic: string
   return screen.findByRole("menu")
 }
 
+const nativeMatchMedia = window.matchMedia
+
+function installMatchMedia(width = 1440) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === PHONE_QUERY ? width <= 767 : false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
 describe("ClinicsScreen", () => {
+  beforeEach(() => {
+    installMatchMedia(1440)
+  })
+  afterEach(() => {
+    window.matchMedia = nativeMatchMedia
+  })
+
   it("renders the header, the lede, the shared note and chip, and Add clinic", () => {
     renderScreen()
     expect(screen.getByRole("heading", { level: 1, name: "Clinics" })).toBeInTheDocument()
@@ -353,6 +385,65 @@ describe("ClinicsScreen", () => {
     expect(bodyRows("Past clinics")).toHaveLength(4)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
+  })
+
+  describe("responsive layout", () => {
+    it("maps tablet columns the way Deke's 820 frame does", () => {
+      expect(TABLET_UPCOMING_COLUMNS).toEqual(["Name", "Date", "Type", "Owner", "Status"])
+      expect(TABLET_PAST_COLUMNS).toEqual(["Name", "Date", "Collected", "Status"])
+      expect(COLUMNS.filter((c) => !isTabletHiddenColumn(false, c))).toEqual([...TABLET_UPCOMING_COLUMNS])
+      expect(COLUMNS.filter((c) => !isTabletHiddenColumn(true, c))).toEqual([...TABLET_PAST_COLUMNS])
+    })
+
+    it("hides City and Attend on both tablet tables, and swaps Type/Owner for Collected on Past", () => {
+      renderScreen()
+      const upcomingHeads = within(table("Upcoming clinics")).getAllByRole("columnheader")
+      expect(upcomingHeads.find((h) => h.textContent === "City")?.className).toMatch(/hidden/)
+      expect(upcomingHeads.find((h) => h.textContent === "Attend")?.className).toMatch(/hidden/)
+      expect(upcomingHeads.find((h) => h.textContent === "Collected")?.className).toMatch(/hidden/)
+      expect(upcomingHeads.find((h) => h.textContent === "Type")?.className).not.toMatch(/hidden/)
+      const pastHeads = within(table("Past clinics")).getAllByRole("columnheader")
+      expect(pastHeads.find((h) => h.textContent === "Type")?.className).toMatch(/hidden/)
+      expect(pastHeads.find((h) => h.textContent === "Owner")?.className).toMatch(/hidden/)
+      expect(pastHeads.find((h) => h.textContent === "Collected")?.className).not.toMatch(/hidden/)
+    })
+
+    it("renders Upcoming and Past as row-collapse cards with Deke's meta lines", () => {
+      renderScreen()
+      const upcoming = within(section("Upcoming clinics")).getByRole("list")
+      const cards = within(upcoming).getAllByRole("button")
+      expect(cards).toHaveLength(4)
+      expect(cards[0]).toHaveAccessibleName(/Houston Offensive Staff Clinic/)
+      expect(cards[0]).toHaveTextContent("in 15 days")
+      expect(cards[0]).toHaveTextContent("Houston")
+      expect(cards[0]).toHaveTextContent("Clinic")
+      expect(cards[0]).toHaveTextContent("Cy-Fair ISD coaches association")
+      expect(cards[0]).toHaveTextContent("Trip")
+      expect(within(cards[0]).getByTestId("status-pill")).toHaveTextContent("Upcoming")
+      expect(within(cards[0]).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+
+      const past = within(section("Past clinics")).getByRole("list")
+      const pastCards = within(past).getAllByRole("button")
+      expect(pastCards[0]).toHaveAccessibleName(/Spring Houston walk-through/)
+      expect(pastCards[0]).toHaveTextContent("81 days ago")
+      expect(pastCards[0]).toHaveTextContent("14 leads · 11 emails · 3 demos")
+      expect(within(pastCards[0]).getByTestId("status-pill")).toHaveTextContent("Done")
+    })
+
+    it("a card tap opens the existing edit dialog; on phone that dialog is a bottom sheet", async () => {
+      const user = userEvent.setup()
+      mockPhone()
+      renderScreen()
+      await user.click(
+        within(within(section("Upcoming clinics")).getByRole("list")).getByRole("button", {
+          name: /Houston Offensive Staff Clinic/,
+        })
+      )
+      const dialog = await screen.findByRole("dialog", { name: "Edit clinic" })
+      expect(dialog).toBeInTheDocument()
+      expect(dialog).toHaveAttribute("data-side", "bottom")
+      expect(within(dialog).getByLabelText("Name")).toHaveValue("Houston Offensive Staff Clinic")
+    })
   })
 
   it("a failed save is announced and nothing claims Saved", async () => {

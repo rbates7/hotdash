@@ -7,6 +7,7 @@ import { formatDate, formatRelativeDay, type IsoDay } from "@/lib/clock"
 import {
   ATTENDANCES,
   ATTENDANCE_LABEL,
+  CLINIC_TYPE_LABEL,
   formatCollected,
   isSeedClinic,
   statusOf,
@@ -32,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
+import { ResponsiveTable, RowCollapse } from "@/components/responsive-table"
 import { SampleDataTag } from "@/components/sample-data"
 import { AttendanceText, StatusPill, TypePill } from "@/components/clinics/clinic-pills"
 import { SPAWN_LABEL, SPAWN_SOON, type DialogFocus } from "@/components/clinics/clinic-dialog"
@@ -54,6 +56,27 @@ export const COLUMNS = [
   "Status",
 ] as const
 
+export type ClinicColumn = (typeof COLUMNS)[number]
+
+/** Deke 10:1281 Upcoming tablet: Name, Date, Type, Owner, Status. */
+export const TABLET_UPCOMING_COLUMNS = ["Name", "Date", "Type", "Owner", "Status"] as const
+
+/** Deke 10:1235 Past tablet: Name, Date, Collected, Status. */
+export const TABLET_PAST_COLUMNS = ["Name", "Date", "Collected", "Status"] as const
+
+/**
+ * Columns the tablet table hides (768–1279). They stay in the DOM for
+ * ≥1280 and fold into Name / Date / Collected sublines below `xl`.
+ */
+export function isTabletHiddenColumn(past: boolean, column: ClinicColumn) {
+  if (column === "City" || column === "Attend") return true
+  if (column === "Collected") return !past
+  if (column === "Type" || column === "Owner") return past
+  return false
+}
+
+const TABLET_HIDE = "hidden xl:table-cell"
+
 function RowMenu({ clinic, actions }: { clinic: Clinic; actions: RowActions }) {
   const others = ATTENDANCES.filter((a) => a !== clinic.attendance)
   return (
@@ -65,7 +88,7 @@ function RowMenu({ clinic, actions }: { clinic: Clinic; actions: RowActions }) {
             size="icon-xs"
             aria-label={`Actions for ${clinic.name}`}
             title="Edit, record, mark or delete"
-            className="text-muted-foreground opacity-60 group-hover/row:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+            className="text-muted-foreground opacity-60 group-hover/row:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 md:max-xl:h-11! md:max-xl:w-11!"
           />
         }
       >
@@ -97,9 +120,57 @@ function RowMenu({ clinic, actions }: { clinic: Clinic; actions: RowActions }) {
   )
 }
 
+function clinicCardMeta(clinic: Clinic, today: IsoDay, past: boolean) {
+  const city = clinic.city || "—"
+  const type = CLINIC_TYPE_LABEL[clinic.type]
+  const when = [formatDate(clinic.date), formatRelativeDay(clinic.date, today), city, type].join(" · ")
+  const collected = formatCollected(clinic.collected)
+  const host = past ? (collected ?? "Nothing yet") : [clinic.host, clinic.owner].filter(Boolean).join(" · ")
+  return [
+    { label: "When", value: when },
+    { label: past ? "Collected" : "Host", value: host },
+  ]
+}
+
+function ClinicCards({
+  rows,
+  today,
+  past,
+  emptyText,
+  actions,
+}: {
+  rows: Clinic[]
+  today: IsoDay
+  past: boolean
+  emptyText: string
+  actions: RowActions
+}) {
+  if (rows.length === 0) {
+    return (
+      <div role="status" className="text-muted-foreground px-4 py-8 text-center text-sm">
+        {emptyText}
+      </div>
+    )
+  }
+  return rows.map((c) => (
+    <RowCollapse
+      key={c.id}
+      title={c.name}
+      status={<StatusPill status={statusOf(c, today)} />}
+      sample={isSeedClinic(c)}
+      meta={clinicCardMeta(c, today, past)}
+      onClick={() => actions.onEdit(c, "name")}
+    />
+  ))
+}
+
 /**
  * One block of the page — Upcoming or Past — as the mock lays it out: a
  * title with a count, then a table. `rows` arrive already ordered.
+ *
+ * Phone (<768): RowCollapse cards (Deke 10:695). Tablet (768–1279): ≤5
+ * data columns with extras folded into Name / Date / Collected (10:1281).
+ * ≥1280 keeps the locked 8-column table.
  */
 export function ClinicsSection({
   title,
@@ -129,86 +200,135 @@ export function ClinicsSection({
         </span>
       </div>
       <TableCard>
-        <Table aria-label={name}>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              {COLUMNS.map((c) => (
-                <TableHead key={c} className={cn(HEAD, c === "Name" && "w-[26%]")}>
-                  {c}
-                </TableHead>
-              ))}
-              <TableHead className={cn(HEAD, "w-10")}>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
+        <ResponsiveTable
+          layout="stack"
+          stacked={
+            <ClinicCards rows={rows} today={today} past={past} emptyText={emptyText} actions={actions} />
+          }
+        >
+          <Table aria-label={name}>
+            <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={COLUMNS.length + 1}
-                  role="status"
-                  className={cn(CELL, "text-muted-foreground py-8 text-center")}
-                >
-                  {emptyText}
-                </TableCell>
+                {COLUMNS.map((c) => (
+                  <TableHead
+                    key={c}
+                    className={cn(HEAD, c === "Name" && "w-[26%]", isTabletHiddenColumn(past, c) && TABLET_HIDE)}
+                  >
+                    {c}
+                  </TableHead>
+                ))}
+                <TableHead className={cn(HEAD, "w-10")}>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
-            ) : (
-              rows.map((c) => {
-                const status = statusOf(c, today)
-                const collected = formatCollected(c.collected)
-                return (
-                  <TableRow key={c.id} className="group/row hover:bg-transparent" data-clinic={c.id}>
-                    <TableCell className={CELL}>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-label font-semibold tracking-tight">{c.name}</span>
-                          {isSeedClinic(c) && <SampleDataTag />}
-                        </span>
-                        {c.host && (
-                          <span className="text-caption text-muted-foreground">{c.host}</span>
-                        )}
-                        {c.notes && (
-                          <span
-                            className="text-caption text-muted-foreground line-clamp-1"
-                            title={c.notes}
-                          >
-                            {c.notes}
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={COLUMNS.length + 1}
+                    role="status"
+                    className={cn(CELL, "text-muted-foreground py-8 text-center")}
+                  >
+                    {emptyText}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((c) => {
+                  const status = statusOf(c, today)
+                  const collected = formatCollected(c.collected)
+                  const hostLine = past
+                    ? [c.host, CLINIC_TYPE_LABEL[c.type]].filter(Boolean).join(" · ")
+                    : c.host
+                  return (
+                    <TableRow key={c.id} className="group/row hover:bg-transparent" data-clinic={c.id}>
+                      <TableCell className={CELL}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-label font-semibold tracking-tight">{c.name}</span>
+                            {isSeedClinic(c) && <SampleDataTag />}
                           </span>
+                          {past ? (
+                            <>
+                              {hostLine ? (
+                                <span className="text-caption text-muted-foreground xl:hidden">{hostLine}</span>
+                              ) : null}
+                              {c.host ? (
+                                <span className="text-caption text-muted-foreground hidden xl:inline">{c.host}</span>
+                              ) : null}
+                            </>
+                          ) : (
+                            c.host && (
+                              <span className="text-caption text-muted-foreground">{c.host}</span>
+                            )
+                          )}
+                          {c.notes && (
+                            <span
+                              className="text-caption text-muted-foreground line-clamp-1"
+                              title={c.notes}
+                            >
+                              {c.notes}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        className={cn(CELL, "whitespace-nowrap", past && "text-muted-foreground")}
+                      >
+                        <div className="flex flex-col gap-0.5 tabular-nums">
+                          <span>{formatDate(c.date)}</span>
+                          <span className="text-micro text-muted-foreground">
+                            {formatRelativeDay(c.date, today)}
+                            {c.city ? <span className="xl:hidden">{` · ${c.city}`}</span> : null}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          CELL,
+                          c.type === "zoom" && "text-muted-foreground",
+                          isTabletHiddenColumn(past, "City") && TABLET_HIDE
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(CELL, "whitespace-nowrap", past && "text-muted-foreground")}>
-                      <div className="flex flex-col gap-0.5 tabular-nums">
-                        <span>{formatDate(c.date)}</span>
-                        <span className="text-micro text-muted-foreground">{formatRelativeDay(c.date, today)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(CELL, c.type === "zoom" && "text-muted-foreground")}>
-                      {c.city || "—"}
-                    </TableCell>
-                    <TableCell className={CELL}>
-                      <TypePill type={c.type} />
-                    </TableCell>
-                    <TableCell className={CELL}>
-                      <AttendanceText attendance={c.attendance} />
-                    </TableCell>
-                    <TableCell className={cn(CELL, "whitespace-nowrap tabular-nums", !collected && "text-muted-foreground")}>
-                      {collected ?? (past ? "Nothing yet" : "—")}
-                    </TableCell>
-                    <TableCell className={CELL}>{c.owner}</TableCell>
-                    <TableCell className={CELL}>
-                      <StatusPill status={status} />
-                    </TableCell>
-                    <TableCell className={cn(CELL, "py-2 pr-3 pl-0 text-right")}>
-                      <RowMenu clinic={c} actions={actions} />
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
+                      >
+                        {c.city || "—"}
+                      </TableCell>
+                      <TableCell className={cn(CELL, isTabletHiddenColumn(past, "Type") && TABLET_HIDE)}>
+                        <TypePill type={c.type} />
+                      </TableCell>
+                      <TableCell className={cn(CELL, isTabletHiddenColumn(past, "Attend") && TABLET_HIDE)}>
+                        <AttendanceText attendance={c.attendance} />
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          CELL,
+                          "whitespace-nowrap tabular-nums",
+                          !collected && "text-muted-foreground",
+                          isTabletHiddenColumn(past, "Collected") && TABLET_HIDE
+                        )}
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span>{collected ?? (past ? "Nothing yet" : "—")}</span>
+                          <span className="text-micro text-muted-foreground xl:hidden">
+                            {ATTENDANCE_LABEL[c.attendance]}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn(CELL, isTabletHiddenColumn(past, "Owner") && TABLET_HIDE)}>
+                        {c.owner}
+                      </TableCell>
+                      <TableCell className={CELL}>
+                        <StatusPill status={status} />
+                      </TableCell>
+                      <TableCell className={cn(CELL, "py-2 pr-3 pl-0 text-right")}>
+                        <RowMenu clinic={c} actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </ResponsiveTable>
       </TableCard>
     </section>
   )

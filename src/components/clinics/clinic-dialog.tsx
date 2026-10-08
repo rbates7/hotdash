@@ -20,6 +20,7 @@ import {
   type ClinicType,
   type CollectedKey,
 } from "@/lib/clinics"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -32,7 +33,48 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useClinics } from "@/components/clinics/clinics-store"
+
+/** Nova `.cn-sheet-content` pins w-3/4 + sm:max-w-sm on side sheets. Beat it. */
+export const CLINIC_SHEET_CLASS =
+  "flex max-h-[90dvh]! w-full! max-w-none! flex-col overflow-y-auto rounded-t-xl! p-4! [&_[data-slot=sheet-close]]:size-11!"
+
+/**
+ * Phone (<768) opens the existing form as a bottom sheet (Deke 7:47).
+ * Tablet and desktop keep the centered dialog. ≥1280 chrome is unchanged.
+ */
+export function ClinicOverlay({
+  open,
+  onOpenChange,
+  dialogClassName,
+  initialFocus,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  dialogClassName?: string
+  initialFocus?: React.RefObject<HTMLElement | null>
+  children: React.ReactNode
+}) {
+  const phone = useIsMobile()
+  if (phone) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="bottom" className={CLINIC_SHEET_CLASS} initialFocus={initialFocus}>
+          {children}
+        </SheetContent>
+      </Sheet>
+    )
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={dialogClassName} initialFocus={initialFocus}>
+        {children}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export const SPAWN_LABEL = "Spawn Sales Opportunity"
 export const SPAWN_SOON = "Soon — creates a deal on Sales Opportunities"
@@ -129,16 +171,16 @@ export function ClinicDialog({
   const leadsRef = React.useRef<HTMLInputElement>(null)
   const nameRef = React.useRef<HTMLInputElement>(null)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="sm:max-w-lg!"
-        initialFocus={focus === "collected" ? leadsRef : nameRef}
-      >
-        {/* The popup unmounts when closed, so the form (and its draft) is
-            fresh on every open — no effect needed to reset it. */}
-        <ClinicForm clinic={clinic} onDone={() => onOpenChange(false)} nameRef={nameRef} leadsRef={leadsRef} />
-      </DialogContent>
-    </Dialog>
+    <ClinicOverlay
+      open={open}
+      onOpenChange={onOpenChange}
+      dialogClassName="sm:max-w-lg!"
+      initialFocus={focus === "collected" ? leadsRef : nameRef}
+    >
+      {/* The popup unmounts when closed, so the form (and its draft) is
+          fresh on every open — no effect needed to reset it. */}
+      <ClinicForm clinic={clinic} onDone={() => onOpenChange(false)} nameRef={nameRef} leadsRef={leadsRef} />
+    </ClinicOverlay>
   )
 }
 
@@ -270,7 +312,7 @@ function ClinicForm({
                 <ToggleGroupItem
                   key={t}
                   value={t}
-                  className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                  className="text-caption max-md:min-h-11! px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
                 >
                   {CLINIC_TYPE_LABEL[t]}
                 </ToggleGroupItem>
@@ -296,7 +338,7 @@ function ClinicForm({
                 <ToggleGroupItem
                   key={a}
                   value={a}
-                  className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                  className="text-caption max-md:min-h-11! px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
                 >
                   {ATTENDANCE_LABEL[a]}
                 </ToggleGroupItem>
@@ -374,6 +416,7 @@ function ClinicForm({
             disabled
             title={SPAWN_SOON}
             aria-describedby={id("spawn-hint")}
+            className="max-md:h-11! max-md:min-h-11!"
           >
             <TargetIcon aria-hidden />
             {SPAWN_LABEL}
@@ -383,10 +426,10 @@ function ClinicForm({
           </span>
         </span>
         <span className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onDone}>
+          <Button type="button" variant="outline" onClick={onDone} className="max-md:h-11! max-md:min-h-11!">
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid}>
+          <Button type="submit" disabled={!valid} className="max-md:h-11! max-md:min-h-11!">
             {editing ? "Save changes" : "Add clinic"}
           </Button>
         </span>
