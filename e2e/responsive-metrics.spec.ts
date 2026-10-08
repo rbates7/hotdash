@@ -576,6 +576,11 @@ test.describe("responsive Metrics (desktop 1440)", () => {
     const save = d.getByRole("button", { name: "Add expense", exact: true })
     const saveBox = await save.boundingBox()
     expect(saveBox!.height, "desktop submit stays Nova-sized").toBeLessThan(44)
+
+    const wrap = d.getByRole("switch", { name: "Recurring" }).locator("xpath=ancestor::label[1]")
+    const paddingTop = await wrap.evaluate((el) => parseFloat(getComputedStyle(el).paddingTop))
+    expect(paddingTop, "desktop Recurring label padding-top is develop's 4px").toBe(4)
+
     await page.keyboard.press("Escape")
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
@@ -651,6 +656,17 @@ test.describe("responsive Metrics B3–B4–B5–B7 (phone 390)", () => {
     await expect(brett.getByText("LTV")).toBeVisible()
     await expect(brett.getByText("$199")).toBeVisible()
     await expect(brett.getByText("Lifetime value")).toHaveClass(/sr-only/)
+    const ltvSpan = brett.locator("[aria-hidden]").filter({ hasText: "LTV" })
+    const valueSpan = brett.getByText("$199")
+    const ltvRect = await ltvSpan.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return { right: r.right }
+    })
+    const valueRect = await valueSpan.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return { left: r.left }
+    })
+    expect(valueRect.left - ltvRect.right, "drawn gap between LTV and value").toBeGreaterThan(0)
     const pill = brett.locator("span.inline-flex").filter({ hasText: "$199" })
     await expectReadable(pill, "390/light LTV pill", expect)
     await setTheme(page, "dark")

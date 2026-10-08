@@ -231,7 +231,7 @@ export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }
             title={s.name}
             status={
               <Pill tone="muted">
-                <span aria-hidden>LTV </span>
+                <span aria-hidden>LTV&nbsp;</span>
                 <span className="sr-only">Lifetime value </span>
                 {formatCurrency(s.lifetimeValue)}
               </Pill>

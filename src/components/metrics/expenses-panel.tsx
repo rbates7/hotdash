@@ -138,7 +138,7 @@ function ExpenseForm({
             />
           </label>
         </div>
-        <label className="text-body flex items-center gap-2.5 max-xl:h-11! max-xl:min-h-11!">
+        <label className="text-body flex items-center gap-2.5 pt-1 max-xl:pt-0 max-xl:h-11! max-xl:min-h-11!">
           {/* Base UI names the switch from the wrapping label. The label is
               the 44px target; Nova's 32×18 pill stays its own size. */}
           <Switch
