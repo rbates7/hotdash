@@ -1,9 +1,9 @@
 /**
  * Feature Request layout classes. Phone / tablet / desktop follow Deke
- * `mEEFvPkzpt9woPbW5wATec` frames 13:1651, 13:1766 and 13:2075. There is no
- * Feature Request 1180 or idea-sheet frame — 1180 uses the four-column board
- * (Read me 17:68: "1180 landscape where layout differs") and the existing
- * idea dialog docks as a bottom sheet below `md`.
+ * `mEEFvPkzpt9woPbW5wATec` frames 13:1651, 13:1766, 13:1839, 13:1855 and
+ * 13:2075. There is no Feature Request 1180 or idea-sheet frame — 1180 uses
+ * the four-column board and the existing idea dialog docks as a bottom sheet
+ * below `md`.
  *
  * Breakpoints (Tailwind + `use-mobile`):
  * - default / phone (<768): status chips + one column of cards
@@ -34,12 +34,18 @@ export const FR_ICON = "max-xl:size-11!"
 export const FR_PHONE_NEW_IDEA = "shrink-0 md:hidden"
 export const FR_DESKTOP_NEW_IDEA = "max-md:hidden"
 
-/** Phone status chips (Deke 13:1651): pill, 44 tall, scroll when Parked overflows. */
+/** Phone status chips (Deke 13:1839): Parked peeks; fade sits on the wrapper. */
+export const FR_CHIPS_WRAP = "relative min-w-0"
+
 export const FR_CHIPS =
-  "flex w-full min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+  "flex w-full min-w-0 gap-1.5 overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+
+/** Right-edge cue so Parked is not cut off with no hint (theme `background`). */
+export const FR_CHIPS_FADE =
+  "from-background pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l to-transparent"
 
 export const FR_CHIP =
-  "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap"
+  "inline-flex h-11 shrink-0 items-center gap-1 rounded-full border px-2.5 text-sm font-medium whitespace-nowrap"
 
 /** Pressed filter pills match Community Development (`aria-pressed:bg-primary!`). */
 export const FR_PRESSED =
@@ -49,8 +55,8 @@ export const FR_CHIP_ON = FR_PRESSED
 
 export const FR_CHIP_OFF = "bg-background text-foreground border-border"
 
-export const FR_CHIP_COUNT =
-  "text-caption inline-flex min-w-5 items-center justify-center font-semibold tabular-nums"
+/** Count is tabular only — `min-w-5` made the pills too wide for 13:1839. */
+export const FR_CHIP_COUNT = "text-caption font-semibold tabular-nums"
 
 /** Four-column intake: 2×2 on tablet portrait, 4-across from 1024 (1180 + desktop). */
 export const FR_BOARD_PHONE = "flex min-w-0 flex-col gap-2.5"
@@ -68,14 +74,27 @@ export const FR_SHEET =
 export const FR_SHEET_HANDLE =
   "bg-muted-foreground/30 mx-auto mt-2 hidden h-1 w-9 shrink-0 rounded-full max-md:block"
 
-/** 16px inputs on phone so iOS does not zoom; 44px+ tall below 1280. */
+/** 16px From/ask on phone so iOS does not zoom; 44px+ tall below 1280. */
 export const FR_INPUT = "max-xl:min-h-12! max-xl:text-base"
 
-/** Ask field: min-height only (no `h-*` / `rows`) so long copy is not clipped. */
-export const FR_TEXTAREA = "field-sizing-content min-h-16 max-xl:min-h-24! max-xl:text-base"
+/** Title stays `text-title-lg`; only the hit grows. `text-base` would shrink it. */
+export const FR_TITLE = "max-xl:min-h-12!"
+
+/**
+ * Ask field: original `rows` stay on desktop. Below 1280, min-height only
+ * (`field-sizing-content`, no `h-*`) so a 280-character ask is not clipped.
+ */
+export const FR_TEXTAREA = "max-xl:field-sizing-content max-xl:min-h-24! max-xl:text-base"
 
 export const FR_STATUS = "max-xl:min-h-12! max-xl:min-w-11!"
 
-/** On Roadmap hint: small pill at xl+; solid 44px hit on its own row below 1280 (Deke 13:1855). */
+/**
+ * Confirm delete: develop's destructive button at xl+. Below 1280, outline +
+ * `text-danger-text` so the wash is not the only contrast (Sales #29).
+ */
+export const FR_CONFIRM_DELETE =
+  "max-xl:border-border! max-xl:bg-transparent! max-xl:text-danger-text! max-xl:hover:bg-muted! max-xl:hover:text-danger-text! max-xl:shadow-none!"
+
+/** On Roadmap hint: small pill (Deke 13:1855), not a full-width grey bar. */
 export const FR_ROADMAP_HINT =
-  "bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap max-xl:mt-0.5 max-xl:min-h-11 max-xl:basis-full max-xl:justify-end max-xl:rounded-lg max-xl:px-3 max-xl:text-sm max-xl:text-foreground"
+  "bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap max-xl:text-foreground"

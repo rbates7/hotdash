@@ -122,6 +122,42 @@ describe("phone (<768): status chips + one column", () => {
     expect(dialog).toHaveTextContent("Move to On Roadmap")
     expect(within(dialog).getByRole("group", { name: "Status" })).toBeInTheDocument()
   })
+
+  it("the × closes the sheet and focus returns to the card", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    await user.click(card("Play of the Day"))
+    const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
+    await user.click(within(dialog).getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog", { name: "Idea: Play of the Day" })).toBeNull()
+    expect(card("Play of the Day")).toHaveFocus()
+  })
+
+  it("after Delete, focus moves to the next Inbox card", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    await user.click(card("Play of the Day"))
+    const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }))
+    await user.click(within(dialog).getByRole("button", { name: "Confirm delete" }))
+    expect(screen.queryByRole("button", { name: "Open idea: Play of the Day" })).toBeNull()
+    expect(card("Web import from a link")).toHaveFocus()
+  })
+
+  it("paints a right-edge fade over the chips", () => {
+    render(<Screen />)
+    expect(screen.getByTestId("fr-chips-fade")).toBeInTheDocument()
+  })
+
+  it("after Move to On Roadmap, focus moves to the next Inbox card", async () => {
+    const user = userEvent.setup()
+    render(<Screen />)
+    await user.click(card("Play of the Day"))
+    const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
+    await user.click(within(dialog).getByRole("button", { name: "Move to On Roadmap" }))
+    expect(screen.queryByRole("dialog", { name: "Idea: Play of the Day" })).toBeNull()
+    expect(card("Web import from a link")).toHaveFocus()
+  })
 })
 
 describe("tablet portrait (820): 2×2 of all four columns", () => {

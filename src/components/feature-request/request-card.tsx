@@ -42,6 +42,7 @@ export function RequestCard({
   return (
     <button
       type="button"
+      data-fr-card={request.id}
       onClick={() => onOpen(request.id)}
       aria-label={`Open idea: ${request.title}`}
       aria-describedby={describedBy}

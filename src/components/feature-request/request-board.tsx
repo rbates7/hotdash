@@ -12,7 +12,10 @@ import {
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
-import { EditIdeaDialog } from "@/components/feature-request/idea-dialog"
+import {
+  EditIdeaDialog,
+  type IdeaCloseReason,
+} from "@/components/feature-request/idea-dialog"
 import { RequestCard } from "@/components/feature-request/request-card"
 import {
   FR_BOARD_DESKTOP,
@@ -23,6 +26,8 @@ import {
   FR_CHIP_OFF,
   FR_CHIP_ON,
   FR_CHIPS,
+  FR_CHIPS_FADE,
+  FR_CHIPS_WRAP,
 } from "@/components/feature-request/responsive"
 import { SampleDataNotice } from "@/components/sample-data"
 import { useIsMobile, useIsTabletPortrait } from "@/hooks/use-mobile"
@@ -67,28 +72,31 @@ function StatusChips({
   counts: Record<FeatureStatus, number>
 }) {
   return (
-    <div role="group" aria-label="Filter by status" className={FR_CHIPS}>
-      {STATUS_ORDER.map((status) => {
-        const on = status === selected
-        const count = counts[status]
-        return (
-          <button
-            key={status}
-            type="button"
-            aria-pressed={on}
-            className={cn(FR_CHIP, FR_CHIP_OFF, FR_CHIP_ON)}
-            onClick={() => onSelect(status)}
-          >
-            {STATUS_CONFIG[status].label}
-            <span
-              aria-label={`${count} ${count === 1 ? "idea" : "ideas"}`}
-              className={FR_CHIP_COUNT}
+    <div className={FR_CHIPS_WRAP}>
+      <div role="group" aria-label="Filter by status" className={FR_CHIPS}>
+        {STATUS_ORDER.map((status) => {
+          const on = status === selected
+          const count = counts[status]
+          return (
+            <button
+              key={status}
+              type="button"
+              aria-pressed={on}
+              className={cn(FR_CHIP, FR_CHIP_OFF, FR_CHIP_ON)}
+              onClick={() => onSelect(status)}
             >
-              {count}
-            </span>
-          </button>
-        )
-      })}
+              {STATUS_CONFIG[status].label}
+              <span
+                aria-label={`${count} ${count === 1 ? "idea" : "ideas"}`}
+                className={FR_CHIP_COUNT}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <div aria-hidden data-testid="fr-chips-fade" className={FR_CHIPS_FADE} />
     </div>
   )
 }
@@ -124,7 +132,9 @@ function Column({
   return (
     <section
       aria-label={STATUS_CONFIG[status].label}
-      className="flex min-w-0 flex-col gap-2.5"
+      data-fr-column={status}
+      tabIndex={-1}
+      className="flex min-w-0 flex-col gap-2.5 outline-none"
     >
       {listed ? null : <ColumnHead status={status} count={cards.length} />}
       {body}
@@ -177,6 +187,44 @@ export function RequestBoard() {
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [phoneStatus, setPhoneStatus] = React.useState<FeatureStatus>("inbox")
   const layout = useBoardLayout()
+  const pendingFocus = React.useRef<
+    { kind: "card"; id: string } | { kind: "column"; status: FeatureStatus } | null
+  >(null)
+  const closingId = React.useRef<string | null>(null)
+
+  function rememberNeighbor(id: string) {
+    const current = requests.find((r) => r.id === id)
+    if (!current) return
+    const col = byStatus(requests, current.status)
+    const idx = col.findIndex((r) => r.id === id)
+    const next = col[idx + 1] ?? col[idx - 1]
+    pendingFocus.current = next
+      ? { kind: "card", id: next.id }
+      : { kind: "column", status: current.status }
+  }
+
+  function handleClose(reason: IdeaCloseReason = "dismiss") {
+    if (!openId || closingId.current === openId) return
+    closingId.current = openId
+    if (reason === "delete" || reason === "move") rememberNeighbor(openId)
+    else pendingFocus.current = { kind: "card", id: openId }
+    setOpenId(null)
+  }
+
+  React.useLayoutEffect(() => {
+    if (openId) closingId.current = null
+  }, [openId])
+
+  React.useLayoutEffect(() => {
+    if (openId || !pendingFocus.current || !persisted) return
+    const pending = pendingFocus.current
+    pendingFocus.current = null
+    const el =
+      pending.kind === "card"
+        ? document.querySelector<HTMLElement>(`[data-fr-card="${pending.id}"]`)
+        : document.querySelector<HTMLElement>(`[data-fr-column="${pending.status}"]`)
+    el?.focus()
+  }, [openId, persisted, requests])
 
   if (!persisted) return <BoardSkeleton layout={layout} />
 
@@ -235,7 +283,7 @@ export function RequestBoard() {
         ))}
       </div>
 
-      <EditIdeaDialog request={open} onClose={() => setOpenId(null)} />
+      <EditIdeaDialog request={open} onClose={handleClose} />
     </div>
   )
 }

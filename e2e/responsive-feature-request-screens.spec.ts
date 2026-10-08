@@ -73,7 +73,25 @@ for (const theme of ["light", "dark"] as const) {
       await card(page, "Play of the Day").click()
       await expect(page.getByRole("dialog", { name: "Idea: Play of the Day" })).toBeVisible()
       await shoot(page, `feature-request-${size}-detail-${theme}`)
+      await page.getByRole("button", { name: "Delete", exact: true }).click()
+      await expect(page.getByRole("button", { name: "Confirm delete", exact: true })).toBeVisible()
+      await shoot(page, `feature-request-${size}-delete-confirm-${theme}`)
       await page.keyboard.press("Escape")
+
+      const newIdea =
+        size === "phone"
+          ? page.getByRole("main").locator("header").getByRole("button", { name: "New idea", exact: true })
+          : page.getByRole("group", { name: "Page actions" }).getByRole("button", { name: "New idea", exact: true })
+      await newIdea.click()
+      await expect(page.getByRole("dialog", { name: "New idea" })).toBeVisible()
+      await shoot(page, `feature-request-${size}-new-idea-${theme}`)
+      await page.keyboard.press("Escape")
+
+      if (size === "phone") {
+        await page.getByRole("group", { name: "Filter by status" }).getByRole("button", { name: /On Roadmap/ }).click()
+      }
+      await expect(card(page, "Play share links")).toBeVisible()
+      await shoot(page, `feature-request-${size}-on-roadmap-${theme}`)
 
       await open(page, theme, true)
       await expect(page.getByRole("status", { name: "Empty board" })).toBeVisible()
