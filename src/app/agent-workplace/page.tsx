@@ -2,6 +2,12 @@ import { Suspense } from "react"
 
 import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
+import {
+  WORKPLACE_DUMMY,
+  WORKPLACE_HEADER,
+  WORKPLACE_HEADER_META,
+  WORKPLACE_RESET,
+} from "@/components/agent-workplace/responsive"
 import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
 
@@ -15,16 +21,14 @@ export const dynamic = "force-dynamic"
 export default function AgentWorkplacePage() {
   return (
     <IssuesProvider nowMs={now().getTime()}>
-      <div className="flex min-w-0 flex-col gap-2.5">
-        <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 w-full flex-col gap-2.5">
+        <header className={WORKPLACE_HEADER}>
           <h1 className="text-display-sm font-semibold tracking-tight">
             Agent Workplace
           </h1>
-          <div className="flex items-center gap-2.5">
-            <WorkplacePersistenceNote />
-            <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-              Dummy / design mock
-            </span>
+          <div className={WORKPLACE_HEADER_META}>
+            <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
+            <span className={WORKPLACE_DUMMY}>Dummy / design mock</span>
           </div>
         </header>
         {/* WorkplaceTabs reads the tab and open ticket from the URL, so it
