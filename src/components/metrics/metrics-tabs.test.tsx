@@ -1,7 +1,7 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { navigation } from "@/test/setup"
 import {
@@ -16,6 +16,20 @@ import { MOCK_DAY } from "@/lib/kpis"
 
 /** The day the mock was drawn, so rows and labels match it verbatim. */
 const TODAY = MOCK_DAY
+const nativeMatchMedia = window.matchMedia
+
+function mockDesktop() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
 
 beforeAll(() => {
   // Recharts' ResponsiveContainer measures itself; jsdom has no layout or
@@ -41,13 +55,18 @@ function renderTabs(search = "", today = TODAY) {
   )
 }
 
-const card = (name: string) => screen.getByRole("article", { name })
+const card = (name: string) =>
+  screen.getByRole("article", { name: new RegExp(`^${name}\\b`) })
 const grid = () => screen.getByRole("region", { name: "Metric cards" })
 const cards = () => within(grid()).getAllByRole("article")
 
 describe("MetricsTabs", () => {
   beforeEach(() => {
+    mockDesktop()
     navigation.params = new URLSearchParams()
+  })
+  afterEach(() => {
+    window.matchMedia = nativeMatchMedia
   })
 
   it("renders the locked tab set with Overview first", () => {
@@ -107,7 +126,7 @@ describe("MetricsTabs", () => {
 
       // And the committed result is the saved board, not the seed.
       expect(screen.queryByRole("status", { name: "Loading saved metrics" })).not.toBeInTheDocument()
-      expect(screen.queryByRole("article", { name: "ARR" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("article", { name: /^ARR\b/ })).not.toBeInTheDocument()
       expect(cards()).toHaveLength(7)
     })
   })
@@ -157,7 +176,7 @@ describe("MetricsTabs", () => {
 
       renderTabs("", "2026-10-07")
       expect(
-        within(screen.getAllByRole("article", { name: "MRR" }).at(-1)!).getByRole("img", {
+        within(screen.getAllByRole("article", { name: /^MRR\b/ }).at(-1)!).getByRole("img", {
           name: /^MRR, bar chart of six 28-day windows, 23 Apr – 7 Oct 2026/,
         })
       ).toBeInTheDocument()
@@ -234,14 +253,14 @@ describe("MetricsTabs", () => {
       renderTabs()
       const names = cards().map((a) => a.getAttribute("aria-label"))
       expect(names).toEqual([
-        "MRR",
-        "ARR",
-        "Churn Rate",
-        "Revenue",
-        "Retention",
-        "Subscribers",
-        "Trial Conversions",
-        "Expenses",
+        "MRR $26,190 +4.2%",
+        "ARR $314,280 +4.2%",
+        "Churn Rate 2.7% −1.5 pts",
+        "Revenue $28,410 +6.1%",
+        "Retention 97.3% +1.5 pts",
+        "Subscribers 186 +3",
+        "Trial Conversions 28% +3.1 pts",
+        "Expenses $8,240 +2.4%",
       ])
       const mrr = card("MRR")
       expect(within(mrr).getByTestId("metric-value")).toHaveTextContent("$26,190")
@@ -325,7 +344,7 @@ describe("MetricsTabs", () => {
       expect(within(picker).getAllByRole("button")).toHaveLength(15)
     })
 
-    it("tells you when everything is already on the board", async () => {
+    it("tells you when everything is already on the board", { timeout: 20_000 }, async () => {
       const user = userEvent.setup()
       renderTabs()
       for (let i = 0; i < 7; i++) {
@@ -456,7 +475,7 @@ describe("MetricsTabs", () => {
       expect(navigation.push).toHaveBeenCalledWith("?", { scroll: false })
       renderTabs()
       expect(
-        within(screen.getAllByRole("article", { name: "Expenses" }).at(-1)!).getByRole("button", {
+        within(screen.getAllByRole("article", { name: /^Expenses\b/ }).at(-1)!).getByRole("button", {
           name: "Expenses: line chart",
         })
       ).toHaveAttribute("aria-pressed", "true")

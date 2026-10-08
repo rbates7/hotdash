@@ -5,23 +5,136 @@ import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
+import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { MetricCard } from "@/components/metrics/metric-card"
 import { useMetrics } from "@/components/metrics/metrics-store"
+import {
+  METRICS_GRID,
+  METRICS_PICKER_ITEM,
+  METRICS_SHEET,
+  METRICS_SHEET_HANDLE,
+  METRICS_SHEET_HEADER,
+  METRICS_TOUCH,
+} from "@/components/metrics/responsive"
 import { SampleDataTag } from "@/components/sample-data"
+
+function PickerChoices({
+  onPick,
+  chrome = true,
+}: {
+  onPick: (id: MetricId) => void
+  chrome?: boolean
+}) {
+  const { today, visible, expenses } = useMetrics()
+  const choices = pickerIds(visible)
+
+  return (
+    <>
+      {chrome ? (
+        <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1.5">
+          <p className="text-micro text-muted-foreground font-semibold tracking-[0.06em] uppercase">
+            Add a metric
+          </p>
+          <SampleDataTag />
+        </div>
+      ) : (
+        <div className="flex justify-end px-2.5 pb-1.5">
+          <SampleDataTag />
+        </div>
+      )}
+      {choices.length === 0 ? (
+        <p className="text-caption text-muted-foreground px-2.5 py-2.5">
+          All metrics are on the board
+        </p>
+      ) : (
+        <ul className="flex flex-col">
+          {choices.map((id) => {
+            const snap = snapshotFor(id, { today, expenses })
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => onPick(id)}
+                  className={METRICS_PICKER_ITEM}
+                >
+                  <span>{snap.label}</span>
+                  <span className="text-caption text-muted-foreground tabular-nums">
+                    {formatMetricValue(snap.value, snap.unit)}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
+  )
+}
 
 /** "+ Add metric" and its picker: extras first, then any removed default. */
 function AddMetric() {
-  const { today, visible, expenses, addMetric } = useMetrics()
+  const { addMetric } = useMetrics()
+  const phone = useIsMobile()
+  const tablet = useIsTablet()
+  const compact = phone || tablet
   const [open, setOpen] = React.useState(false)
-  const choices = pickerIds(visible)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+
+  function pick(id: MetricId) {
+    addMetric(id)
+    setOpen(false)
+  }
+
+  const trigger = (
+    <Button
+      ref={triggerRef}
+      size="sm"
+      className={`h-9 px-3.5 ${METRICS_TOUCH}`}
+      onClick={compact ? () => setOpen(true) : undefined}
+    >
+      <PlusIcon aria-hidden />
+      Add metric
+    </Button>
+  )
+
+  if (compact) {
+    return (
+      <>
+        {trigger}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="bottom"
+            className={METRICS_SHEET}
+            finalFocus={triggerRef}
+          >
+            <div aria-hidden className={METRICS_SHEET_HANDLE} />
+            <SheetHeader className={METRICS_SHEET_HEADER}>
+              <SheetTitle>Add a metric</SheetTitle>
+              <SheetDescription>
+                Extra metrics and any card you have removed. Sample figures.
+              </SheetDescription>
+            </SheetHeader>
+            <PickerChoices onPick={pick} chrome={false} />
+          </SheetContent>
+        </Sheet>
+      </>
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button size="sm" className="h-9 px-3.5">
+          <Button size="sm" className={`h-9 px-3.5 ${METRICS_TOUCH}`}>
             <PlusIcon aria-hidden />
             Add metric
           </Button>
@@ -34,40 +147,7 @@ function AddMetric() {
         className="w-[260px] gap-0 p-1.5"
         aria-label="Add a metric"
       >
-        <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1.5">
-          <p className="text-micro text-muted-foreground font-semibold tracking-[0.06em] uppercase">
-            Add a metric
-          </p>
-          <SampleDataTag />
-        </div>
-        {choices.length === 0 ? (
-          <p className="text-caption text-muted-foreground px-2.5 py-2.5">
-            All metrics are on the board
-          </p>
-        ) : (
-          <ul className="flex flex-col">
-            {choices.map((id) => {
-              const snap = snapshotFor(id, { today, expenses })
-              return (
-                <li key={id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      addMetric(id)
-                      setOpen(false)
-                    }}
-                    className="text-label hover:bg-surface-hover flex h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left font-medium"
-                  >
-                    <span>{snap.label}</span>
-                    <span className="text-caption text-muted-foreground tabular-nums">
-                      {formatMetricValue(snap.value, snap.unit)}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <PickerChoices onPick={pick} />
       </PopoverContent>
     </Popover>
   )
@@ -92,7 +172,7 @@ export function OverviewPanel() {
       ) : (
         <section
           aria-label="Metric cards"
-          className="grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
+          className={METRICS_GRID}
         >
           {visible.map((id: MetricId) => {
             const snapshot = snapshotFor(id, { today, expenses })
