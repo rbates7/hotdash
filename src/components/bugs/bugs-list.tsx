@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BugOffIcon } from "lucide-react"
+import { BugOffIcon, ChevronRightIcon } from "lucide-react"
 
 import { STATUS_TEXT, groupBugs, hasSeedBugs, openBugs } from "@/lib/bugs"
 import { formatRelative } from "@/lib/clock"
@@ -31,11 +31,18 @@ function BugRow({ issue, actors, now }: { issue: Issue; actors: Actor[]; now: Da
         scroll={false}
         className={cn(
           "flex w-full items-start gap-3 px-[18px] py-3.5 text-left",
-          "hover:bg-surface-hover focus-visible:ring-ring/50 transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+          "hover:bg-surface-hover focus-visible:ring-ring/50 transition-colors focus-visible:ring-[3px] focus-visible:outline-none",
+          // Phone (Deke 12:1465): a stacked card. Tag and age on top, title,
+          // then key · priority · assignee, chevron on the right.
+          "max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-x-3 max-md:gap-y-1.5 max-md:px-4 max-md:py-3"
         )}
       >
-        <BugTag issue={issue} withSource className="mt-0.5" />
-        <span className="min-w-0 flex-1">
+        <BugTag
+          issue={issue}
+          withSource
+          className="mt-0.5 max-md:col-start-1 max-md:row-start-1 max-md:mt-0 max-md:justify-self-start"
+        />
+        <span className="min-w-0 flex-1 max-md:col-start-1 max-md:row-start-2">
           <span className="text-label block leading-[1.35] font-semibold tracking-tight">
             {issue.title}
           </span>
@@ -57,10 +64,15 @@ function BugRow({ issue, actors, now }: { issue: Issue; actors: Actor[]; now: Da
             `ago` style, same as the Workplace ticket view. */}
         <span
           data-testid="bug-age"
-          className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap"
+          className="text-micro text-muted-foreground shrink-0 pt-0.5 font-medium whitespace-nowrap max-md:col-start-2 max-md:row-start-1 max-md:justify-self-end max-md:pt-0"
         >
           {formatRelative(Date.parse(issue.createdAt), now.getTime())}
         </span>
+        <ChevronRightIcon
+          data-testid="bug-chevron"
+          aria-hidden
+          className="text-muted-foreground size-4 self-center justify-self-end md:hidden max-md:col-start-2 max-md:row-start-2"
+        />
       </Link>
     </li>
   )

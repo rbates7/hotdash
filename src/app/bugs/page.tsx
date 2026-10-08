@@ -23,16 +23,20 @@ export default function BugsPage() {
     // view of that board, not a second list.
     <IssuesProvider nowMs={nowMs}>
       <div className="flex min-w-0 flex-col gap-2.5">
-        <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
+        <header className="flex min-h-10 flex-wrap items-center justify-between gap-4 max-md:flex-col max-md:items-start max-md:gap-2">
           <div className="min-w-0">
             <h1 className="text-display-sm font-semibold tracking-tight">Bugs</h1>
             <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
               Yo-Yo&apos;s page. Coach-reported and crashes.
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
-            {/* Edits here are Workplace edits, so the note is the Workplace's. */}
-            <WorkplacePersistenceNote />
+          {/* Phone (Deke 12:1465): the note, then the badge on its own line. */}
+          <div className="flex items-center gap-2.5 max-md:flex-col max-md:items-start max-md:gap-2">
+            {/* Edits here are Workplace edits, so the note is the Workplace's.
+                Below 1280 its Reset is a 44px hit, like every control here. */}
+            <span className="contents max-xl:[&_button]:h-11! max-xl:[&_button]:min-w-11">
+              <WorkplacePersistenceNote />
+            </span>
             <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
               Dummy / design mock
             </span>
