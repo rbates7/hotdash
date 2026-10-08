@@ -251,7 +251,10 @@ function FilterGroup({
           key={f}
           value={f}
           size="sm"
-          className="text-label px-3 first:rounded-l-lg last:rounded-r-lg max-md:flex-1 max-xl:h-11! max-xl:min-w-11!"
+          className={cn(
+            "text-label px-3 first:rounded-l-lg last:rounded-r-lg max-md:flex-1 max-xl:h-11! max-xl:min-w-11!",
+            FILTER_PRESSED
+          )}
         >
           {DEAL_FILTER_LABELS[f]}
         </ToggleGroupItem>
@@ -259,6 +262,14 @@ function FilterGroup({
     </ToggleGroup>
   )
 }
+
+/**
+ * The picked view reads at a glance: pressed is solid primary (≥3:1 against
+ * the unpressed segments, light and dark), at every width — as Community
+ * Development, Clinics and Feature Request do. `!` beats Nova's unlayered
+ * `aria-pressed:bg-muted`.
+ */
+const FILTER_PRESSED = "aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
 
 /** Where deals will come from once Clinics is real. A slot, not a control. */
 function FromClinicsChip() {
