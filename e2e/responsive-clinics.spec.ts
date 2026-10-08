@@ -171,15 +171,24 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expectNotesUnclipped(edit, "phone sheet")
     await expectReadable(edit.getByRole("heading", { name: "Edit clinic" }), "phone/edit sheet title", expect)
     await expectReadable(edit.getByText(/Dates are calendar days/), "phone/edit sheet copy", expect)
-    const remove = edit.getByRole("button", { name: "Delete clinic", exact: true })
-    for (const theme of ["light", "dark"] as const) {
-      await setTheme(page, theme)
-      await expectReadable(remove, `${theme}/Delete clinic`, expect)
-    }
-    await setTheme(page, "light")
     await expectNoPageOverflowX(page)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
+
+    // Sheet covers the phone theme control — close, switch, reopen to measure.
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await cards(page, "Upcoming clinics").first().click()
+      await expect(edit).toBeVisible()
+      await expectReadable(
+        edit.getByRole("button", { name: "Delete clinic", exact: true }),
+        `${theme}/Delete clinic`,
+        expect
+      )
+      await page.keyboard.press("Escape")
+      await expect(edit).toBeHidden()
+    }
+    await setTheme(page, "light")
   })
 
   test("Type and attendance options are fully visible in the phone sheet", async ({ page }) => {
