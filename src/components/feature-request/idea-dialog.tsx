@@ -407,9 +407,9 @@ function EditIdeaBody({
         {confirmingDelete ? (
           <>
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              className={FR_TOUCH}
+              className={cn("text-danger-text hover:text-danger-text", FR_TOUCH)}
               onClick={() => {
                 onDelete()
                 onClose()
