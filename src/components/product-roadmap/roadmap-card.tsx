@@ -15,8 +15,14 @@ import {
 import { COLUMN_CONFIG, COLUMN_ORDER, type RoadmapItem } from "@/lib/roadmap/roadmap"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  ROADMAP_CARD_EDIT,
+  ROADMAP_CARD_TOOLBAR,
+  ROADMAP_ICON,
+} from "@/components/product-roadmap/responsive"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
 import { SampleDataTag } from "@/components/sample-data"
+import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 
 /** Sequencing control that just ran; the board asks the moved card to refocus it. */
 export type CardControl = "up" | "down" | "left" | "right"
@@ -86,6 +92,9 @@ export function RoadmapCard({
   onFocusConsumed: () => void
 }) {
   const { moveItem, reorderItem } = useRoadmap()
+  const phone = useIsMobile()
+  const tablet = useIsTablet()
+  const compact = phone || tablet
   const articleRef = React.useRef<HTMLElement>(null)
   const columnIndex = COLUMN_ORDER.indexOf(item.column)
   const left = columnIndex > 0 ? COLUMN_ORDER[columnIndex - 1] : null
@@ -106,11 +115,19 @@ export function RoadmapCard({
     <article
       ref={articleRef}
       tabIndex={-1}
+      data-roadmap-card={item.id}
       aria-label={item.title}
       className={cn(
         "bg-surface border-surface-border flex w-full min-w-0 flex-col gap-2 rounded-xl border px-3.5 pt-3.5 pb-2.5",
-        "hover:border-foreground/15 transition-colors"
+        "hover:border-foreground/15 transition-colors",
+        compact && "cursor-pointer"
       )}
+      onClick={(event) => {
+        if (!compact) return
+        const target = event.target as HTMLElement
+        if (target.closest("button, a, [data-control]")) return
+        onEdit(item.id)
+      }}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
         <h3 className="text-label min-w-0 leading-[1.35] font-semibold tracking-tight">
@@ -151,10 +168,11 @@ export function RoadmapCard({
         </span>
       </div>
 
-      <div className="border-surface-border mt-1 flex items-center gap-0.5 border-t pt-2">
+      <div data-roadmap-toolbar className={ROADMAP_CARD_TOOLBAR}>
         <Button
           variant="ghost"
           size="icon-xs"
+          className={ROADMAP_ICON}
           data-control="up"
           aria-label="Move up"
           title="Move up within this column"
@@ -169,6 +187,7 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="icon-xs"
+          className={ROADMAP_ICON}
           data-control="down"
           aria-label="Move down"
           title="Move down within this column"
@@ -184,6 +203,7 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="icon-xs"
+          className={ROADMAP_ICON}
           data-control="left"
           aria-label={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already first column"}
           title={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already in the first column"}
@@ -199,6 +219,7 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="icon-xs"
+          className={ROADMAP_ICON}
           data-control="right"
           aria-label={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already last column"}
           title={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already in the last column"}
@@ -214,7 +235,7 @@ export function RoadmapCard({
         <Button
           variant="ghost"
           size="xs"
-          className="text-micro ml-auto h-6 px-1.5"
+          className={ROADMAP_CARD_EDIT}
           aria-label="Edit"
           title="Edit title, why, owner or window"
           onClick={() => onEdit(item.id)}
