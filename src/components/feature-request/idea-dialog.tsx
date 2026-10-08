@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
-import { FR_INPUT, FR_SHEET, FR_SHEET_HANDLE, FR_TOUCH } from "@/components/feature-request/responsive"
+import { FR_INPUT, FR_SHEET, FR_SHEET_HANDLE, FR_STATUS, FR_TOUCH } from "@/components/feature-request/responsive"
 import { SampleDataTag } from "@/components/sample-data"
 
 export const MOVE_TO_ROADMAP = "Move to On Roadmap"
@@ -359,7 +359,10 @@ function EditIdeaBody({
                 key={s}
                 value={s}
                 title={STATUS_CONFIG[s].description}
-                className="aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40! max-xl:min-h-11 max-xl:min-w-11"
+                className={cn(
+                  "aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!",
+                  FR_STATUS
+                )}
               >
                 {STATUS_CONFIG[s].label}
               </ToggleGroupItem>

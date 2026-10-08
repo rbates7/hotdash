@@ -24,8 +24,8 @@ export const FR_HEADER_ACTIONS = "flex flex-wrap items-center gap-2.5 max-md:w-f
 /** Passed to PersistenceNote so Reset is 44px below 1280. */
 export const FR_RESET = "max-xl:h-11! max-xl:px-2.5!"
 
-/** 44px tap target on phone + tablet; desktop chrome stays as-is. */
-export const FR_TOUCH = "max-xl:h-11! max-xl:min-w-11!"
+/** 44px+ tap target on phone + tablet; `h-12` beats Nova sm sizing that painted 43px. */
+export const FR_TOUCH = "max-xl:h-12! max-xl:min-h-12! max-xl:min-w-11!"
 
 /** Phone New idea sits beside the title; the actions-group copy is hidden. */
 export const FR_PHONE_NEW_IDEA = "shrink-0 md:hidden"
@@ -56,14 +56,16 @@ export const FR_BOARD_DESKTOP = "grid grid-cols-4 items-start gap-3.5"
  * shared `top-1/2 left-1/2 -translate-*` centering.
  */
 export const FR_SHEET =
-  "max-md:top-auto! max-md:right-0! max-md:bottom-0! max-md:left-0! max-md:max-h-[90dvh] max-md:max-w-full! max-md:translate-x-0! max-md:translate-y-0! max-md:overflow-y-auto max-md:rounded-t-2xl! max-md:rounded-b-none!"
+  "max-md:inset-x-0! max-md:top-auto! max-md:bottom-0! max-md:left-0! max-md:right-0! max-md:max-h-[90dvh] max-md:w-full! max-md:max-w-none! max-md:translate-x-0! max-md:translate-y-0! max-md:overflow-y-auto max-md:rounded-t-2xl! max-md:rounded-b-none!"
 
 export const FR_SHEET_HANDLE =
   "bg-muted-foreground/30 mx-auto mt-2 hidden h-1 w-9 shrink-0 rounded-full max-md:block"
 
-/** 16px inputs on phone so iOS does not zoom; 44px tall below 1280. */
-export const FR_INPUT = "max-xl:min-h-11 max-xl:text-base"
+/** 16px inputs on phone so iOS does not zoom; 44px+ tall below 1280. */
+export const FR_INPUT = "max-xl:min-h-12! max-xl:text-base"
 
-/** On Roadmap hint: small pill at xl+; 44px hit on its own row below 1280 (Deke 13:1855). */
+export const FR_STATUS = "max-xl:min-h-12! max-xl:min-w-11!"
+
+/** On Roadmap hint: small pill at xl+; solid 44px hit on its own row below 1280 (Deke 13:1855). */
 export const FR_ROADMAP_HINT =
-  "bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap max-xl:mt-0.5 max-xl:min-h-11 max-xl:basis-full max-xl:justify-end max-xl:rounded-lg max-xl:px-3 max-xl:text-sm"
+  "bg-muted text-foreground/80 ml-auto inline-flex items-center gap-0.5 rounded-full px-1.5 py-[3px] text-[10px] leading-[1.2] font-semibold whitespace-nowrap max-xl:mt-0.5 max-xl:min-h-11 max-xl:basis-full max-xl:justify-end max-xl:rounded-lg max-xl:px-3 max-xl:text-sm max-xl:text-foreground"

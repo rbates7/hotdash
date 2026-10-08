@@ -282,13 +282,34 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(header(page).getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(board(page), `${label}/board`, expect)
         if (size === "390") {
-          await card(page, "Play of the Day").click()
-        } else {
-          await card(page, "Play of the Day").click()
+          await expectReadable(chips(page), `${label}/chips`, expect)
         }
+        await card(page, "Play of the Day").click()
         const sheet = dialog(page, "Idea: Play of the Day")
         await expect(sheet).toBeVisible()
-        await expectReadable(sheet, `${label}/sheet`, expect)
+        // Save stays disabled until the form is dirty; Nova fades disabled
+        // controls to 0.5 opacity, which expectReadable rejects. Probe the
+        // status path and the Roadmap hand-off instead of the whole dialog.
+        await expectReadable(
+          sheet.getByRole("group", { name: "Status" }).getByRole("button", { pressed: true }),
+          `${label}/status`,
+          expect
+        )
+        await expectReadable(
+          sheet.getByRole("button", { name: "Move to On Roadmap", exact: true }),
+          `${label}/handoff`,
+          expect
+        )
+        await expectReadable(
+          sheet.getByText("Moves the card to the On Roadmap column", { exact: false }),
+          `${label}/handoff note`,
+          expect
+        )
+        await expectReadable(
+          sheet.getByRole("button", { name: "Cancel", exact: true }),
+          `${label}/cancel`,
+          expect
+        )
       })
     })
   }
