@@ -49,7 +49,17 @@ export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "sav
  */
 export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
 
-export function PersistenceNote({ store }: { store: PersistenceStore }) {
+export function PersistenceNote({
+  store,
+  className,
+  resetClassName,
+}: {
+  store: PersistenceStore
+  /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
+  className?: string
+  /** Extra classes on Reset — screens use this to grow the tap target below `xl`. */
+  resetClassName?: string
+}) {
   const [confirming, setConfirming] = React.useState(false)
   const copy = persistenceCopy(store)
   const canReset = store.persisted && store.saved
@@ -59,7 +69,8 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
     <span
       className={cn(
         "text-micro inline-flex items-center gap-1.5",
-        store.saveFailed ? "text-danger-text" : "text-muted-foreground"
+        store.saveFailed ? "text-danger-text" : "text-muted-foreground",
+        className
       )}
     >
       {store.saveFailed ? (
@@ -86,7 +97,10 @@ export function PersistenceNote({ store }: { store: PersistenceStore }) {
               size="xs"
               // `!` beats Nova's unlayered `.cn-button-variant-ghost` hover and
               // `.cn-button-size-xs` (text-xs, px-2), as app-sidebar does.
-              className="text-micro! text-muted-foreground h-6 px-1.5! aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent! aria-disabled:hover:text-muted-foreground!"
+              className={cn(
+                "text-micro! text-muted-foreground h-6 px-1.5! aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent! aria-disabled:hover:text-muted-foreground!",
+                resetClassName
+              )}
               disabled={!canReset}
               focusableWhenDisabled
               aria-describedby={canReset ? undefined : hintId}

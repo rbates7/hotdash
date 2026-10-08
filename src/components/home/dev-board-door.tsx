@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import {
+  HOME_BOARD_COLUMNS,
+  HOME_BOARD_TILE,
+  HOME_BOARD_TILE_LABEL,
+} from "@/components/home/responsive"
 
 /**
  * Preview of the Agent Workplace issues board — the dev board. Column
@@ -41,7 +46,7 @@ export function DevBoardDoor({
       {loading ? (
         <div aria-busy="true" aria-label="Loading the board" className="flex flex-col gap-4">
           <Skeleton className="h-3 w-28" />
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className={HOME_BOARD_COLUMNS}>
             {[0, 1, 2, 3, 4].map((n) => (
               <Skeleton key={n} className="h-[66px] rounded-lg" />
             ))}
@@ -55,17 +60,14 @@ export function DevBoardDoor({
           </span>
           <ul
             aria-label="Columns"
-            className="grid grid-cols-5 gap-1.5"
+            className={HOME_BOARD_COLUMNS}
           >
             {preview.columns.map((col) => {
               const Icon = STATUS_CONFIG[col.status].icon
               return (
                 <li
                   key={col.status}
-                  className={cn(
-                    "flex min-w-0 flex-col items-start gap-1.5 rounded-lg px-2 py-2",
-                    STATUS_CONFIG[col.status].columnBg
-                  )}
+                  className={cn(HOME_BOARD_TILE, STATUS_CONFIG[col.status].columnBg)}
                 >
                   <Icon
                     className={cn("size-3.5", STATUS_CONFIG[col.status].iconColor)}
@@ -74,7 +76,10 @@ export function DevBoardDoor({
                   <span className="text-title leading-none font-semibold tracking-tight tabular-nums">
                     {col.count}
                   </span>
-                  <span className="text-micro text-muted-foreground truncate leading-tight font-medium">
+                  <span
+                    data-testid="dev-board-tile-label"
+                    className={HOME_BOARD_TILE_LABEL}
+                  >
                     {col.label}
                   </span>
                 </li>
