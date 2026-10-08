@@ -3,7 +3,12 @@
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
+import type { IssueStatus } from "@/lib/issues"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  WORKPLACE_TAB,
+  WORKPLACE_TABS_LIST,
+} from "@/components/agent-workplace/responsive"
 import { AgentsRoster } from "@/components/agent-workplace/agents-roster"
 import { AutopilotsPanel } from "@/components/agent-workplace/autopilots-panel"
 import { BacklogPanel } from "@/components/agent-workplace/backlog-panel"
@@ -40,6 +45,7 @@ export function WorkplaceTabs() {
   const requested = params.get("tab")
   const tab: WorkplaceTab = isTab(requested) ? requested : DEFAULT_TAB
   const issueKey = params.get("issue")
+  const [statusView, setStatusView] = React.useState<IssueStatus>("todo")
 
   // Tab and open ticket live in the URL so both are linkable and the back
   // button steps through them.
@@ -76,37 +82,34 @@ export function WorkplaceTabs() {
       onValueChange={(value) => setParam({ tab: String(value), issue: null })}
       className="min-w-0 gap-4"
     >
-      <TabsList
-        variant="line"
-        className="border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px]"
-      >
+      <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
         {WORKPLACE_TABS.map((t) => (
-          <TabsTrigger
-            key={t.value}
-            value={t.value}
-            className="text-label flex-none px-3.5 py-1.5 font-medium tracking-tight"
-          >
+          <TabsTrigger key={t.value} value={t.value} className={WORKPLACE_TAB}>
             {t.label}
           </TabsTrigger>
         ))}
       </TabsList>
 
-      <TabsContent value="issues">
-        <IssuesBoard onOpenIssue={openIssue} />
+      <TabsContent value="issues" className="min-w-0">
+        <IssuesBoard
+          onOpenIssue={openIssue}
+          statusView={statusView}
+          onStatusViewChange={setStatusView}
+        />
       </TabsContent>
-      <TabsContent value="backlog">
+      <TabsContent value="backlog" className="min-w-0">
         <BacklogPanel onOpenIssue={openIssue} />
       </TabsContent>
-      <TabsContent value="agents">
+      <TabsContent value="agents" className="min-w-0">
         <AgentsRoster onOpenIssue={openIssue} />
       </TabsContent>
-      <TabsContent value="chat">
+      <TabsContent value="chat" className="min-w-0">
         <ChatDoor onOpenAgents={() => setParam({ tab: "agents" })} />
       </TabsContent>
-      <TabsContent value="autopilots">
+      <TabsContent value="autopilots" className="min-w-0">
         <AutopilotsPanel />
       </TabsContent>
-      <TabsContent value="inbox">
+      <TabsContent value="inbox" className="min-w-0">
         <InboxPanel onOpenIssue={openIssue} />
       </TabsContent>
     </Tabs>
