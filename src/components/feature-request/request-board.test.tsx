@@ -19,14 +19,31 @@ import { RequestBoard } from "@/components/feature-request/request-board"
 import { ROADMAP_HINT_TITLE } from "@/components/feature-request/request-card"
 
 const TODAY = new Date("2026-08-24T15:00:00.000Z")
+const nativeMatchMedia = window.matchMedia
+
+function mockDesktop() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
 
 // Edit stamps come from the shared clock at the moment of the edit, so pin
-// it to the same instant the page was "requested" at.
+// it to the same instant the page was "requested" at. jsdom has no
+// matchMedia; treat the suite as desktop so the four-column board stays.
 beforeEach(() => {
+  mockDesktop()
   vi.useFakeTimers({ toFake: ["Date"] })
   vi.setSystemTime(TODAY)
 })
 afterEach(() => {
+  window.matchMedia = nativeMatchMedia
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
