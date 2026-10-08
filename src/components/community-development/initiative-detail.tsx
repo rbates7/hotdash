@@ -9,6 +9,8 @@ import {
   isSeedInitiative,
   type Initiative,
 } from "@/lib/community-development"
+import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -20,7 +22,18 @@ import {
 } from "@/components/ui/sheet"
 import { SampleDataTag } from "@/components/sample-data"
 import { StatusPill, TypePill } from "@/components/community-development/initiative-pills"
-import { SPAWN_LABEL, SPAWN_SOON } from "@/components/community-development/initiative-dialog"
+import {
+  SPAWN_LABEL,
+  SPAWN_SOON,
+  useSheetTabWrap,
+  type OverlayFocus,
+} from "@/components/community-development/initiative-dialog"
+import {
+  CD_DESTRUCTIVE,
+  CD_DETAIL_SHEET,
+  CD_HEADER,
+  CD_TOUCH,
+} from "@/components/community-development/responsive"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -43,21 +56,25 @@ export function InitiativeDetail({
   onOpenChange,
   onEdit,
   onDelete,
+  finalFocus,
 }: {
   target: { initiative: Initiative; open: boolean } | null
   today: IsoDay
   onOpenChange: (open: boolean) => void
   onEdit: (initiative: Initiative) => void
   onDelete: (initiative: Initiative) => void
+  finalFocus?: OverlayFocus
 }) {
+  const phone = useIsMobile()
+  useSheetTabWrap((target?.open ?? false) && phone)
   const row = target?.initiative ?? null
   const when = row ? formatWhen(row, today) : null
   return (
     <Sheet open={target?.open ?? false} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
+      <SheetContent side="right" className={CD_DETAIL_SHEET} finalFocus={finalFocus}>
         {row && (
           <>
-            <SheetHeader>
+            <SheetHeader className={CD_HEADER}>
               <SheetTitle className="flex flex-wrap items-center gap-1.5">
                 <span>{row.name}</span>
                 {isSeedInitiative(row) && <SampleDataTag />}
@@ -96,15 +113,21 @@ export function InitiativeDetail({
                 disabled
                 title={SPAWN_SOON}
                 aria-description={SPAWN_SOON}
+                className={CD_TOUCH}
               >
                 <PresentationIcon aria-hidden />
                 {SPAWN_LABEL}
               </Button>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => onEdit(row)}>
+                <Button type="button" variant="outline" className={CD_TOUCH} onClick={() => onEdit(row)}>
                   Edit
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => onDelete(row)}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className={cn(CD_TOUCH, CD_DESTRUCTIVE)}
+                  onClick={() => onDelete(row)}
+                >
                   Delete
                 </Button>
               </div>

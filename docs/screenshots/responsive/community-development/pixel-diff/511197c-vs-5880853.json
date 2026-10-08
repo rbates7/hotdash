@@ -1,0 +1,309 @@
+{
+  "feature": "511197c3b5eef18bd62a8373201fd50d720ed448",
+  "develop": "5880853c7ead6c4a4e899cf3a7b8eb6b841ea981",
+  "threshold": 0.2,
+  "rows": [
+    {
+      "key": "1280-light-with-data",
+      "vp": "1280",
+      "theme": "light",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-light-add",
+      "vp": "1280",
+      "theme": "light",
+      "state": "add",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-light-edit",
+      "vp": "1280",
+      "theme": "light",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-light-delete-confirm",
+      "vp": "1280",
+      "theme": "light",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-light-view",
+      "vp": "1280",
+      "theme": "light",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-dark-with-data",
+      "vp": "1280",
+      "theme": "dark",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-dark-add",
+      "vp": "1280",
+      "theme": "dark",
+      "state": "add",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-dark-edit",
+      "vp": "1280",
+      "theme": "dark",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-dark-delete-confirm",
+      "vp": "1280",
+      "theme": "dark",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1280-dark-view",
+      "vp": "1280",
+      "theme": "dark",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 1024000,
+      "error": null
+    },
+    {
+      "key": "1440-light-with-data",
+      "vp": "1440",
+      "theme": "light",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-light-add",
+      "vp": "1440",
+      "theme": "light",
+      "state": "add",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-light-edit",
+      "vp": "1440",
+      "theme": "light",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-light-delete-confirm",
+      "vp": "1440",
+      "theme": "light",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-light-view",
+      "vp": "1440",
+      "theme": "light",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-dark-with-data",
+      "vp": "1440",
+      "theme": "dark",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-dark-add",
+      "vp": "1440",
+      "theme": "dark",
+      "state": "add",
+      "pct": 0,
+      "diff": 6,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-dark-edit",
+      "vp": "1440",
+      "theme": "dark",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-dark-delete-confirm",
+      "vp": "1440",
+      "theme": "dark",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1440-dark-view",
+      "vp": "1440",
+      "theme": "dark",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 1296000,
+      "error": null
+    },
+    {
+      "key": "1920-light-with-data",
+      "vp": "1920",
+      "theme": "light",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-light-add",
+      "vp": "1920",
+      "theme": "light",
+      "state": "add",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-light-edit",
+      "vp": "1920",
+      "theme": "light",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-light-delete-confirm",
+      "vp": "1920",
+      "theme": "light",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-light-view",
+      "vp": "1920",
+      "theme": "light",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-dark-with-data",
+      "vp": "1920",
+      "theme": "dark",
+      "state": "with-data",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-dark-add",
+      "vp": "1920",
+      "theme": "dark",
+      "state": "add",
+      "pct": 0,
+      "diff": 6,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-dark-edit",
+      "vp": "1920",
+      "theme": "dark",
+      "state": "edit",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-dark-delete-confirm",
+      "vp": "1920",
+      "theme": "dark",
+      "state": "delete-confirm",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    },
+    {
+      "key": "1920-dark-view",
+      "vp": "1920",
+      "theme": "dark",
+      "state": "view",
+      "pct": 0,
+      "diff": 0,
+      "total": 2073600,
+      "error": null
+    }
+  ],
+  "passed": true,
+  "max": 0
+}
