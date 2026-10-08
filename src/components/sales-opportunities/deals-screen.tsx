@@ -1,7 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { AlertCircleIcon, ChevronDownIcon, PresentationIcon } from "lucide-react"
+import {
+  AlertCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronsUpDownIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PresentationIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { formatRelative } from "@/lib/clock"
 import { formatCurrency } from "@/lib/metrics"
@@ -27,13 +36,22 @@ import {
   type Stage,
 } from "@/lib/sales-opportunities"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -45,6 +63,7 @@ import {
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CELL, HEAD, Pill, SortableHead, TableCard } from "@/components/table-bits"
+import { ResponsiveTable, RowCollapse } from "@/components/responsive-table"
 import { SampleDataTag } from "@/components/sample-data"
 import {
   AddDealDialog,
@@ -79,24 +98,38 @@ export function StageBadge({ stage, className }: { stage: Stage; className?: str
   )
 }
 
-/** The stage pill is the control: open it to move the deal along. */
-function StageMenu({ deal }: { deal: Deal }) {
+/**
+ * The stage pill is the control: open it to move the deal along. `row` is
+ * the phone sheet's 48px "Move stage" row, with the same pill and menu.
+ */
+function StageMenu({ deal, variant = "pill" }: { deal: Deal; variant?: "pill" | "row" }) {
   const { setStage } = useDeals()
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            aria-label={`Stage: ${STAGE_CONFIG[deal.stage].label}`}
-            title="Change stage"
-            className="focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-full focus-visible:ring-[3px] focus-visible:outline-none"
-          />
-        }
-      >
-        <StageBadge stage={deal.stage} />
-        <ChevronDownIcon className="text-faint-foreground size-3" aria-hidden />
-      </DropdownMenuTrigger>
+      {variant === "row" ? (
+        <DropdownMenuTrigger render={<button type="button" className={SHEET_ACTION} />}>
+          <ChevronsUpDownIcon className="size-4" aria-hidden />
+          <span className="flex-1">Move stage</span>
+          <span className="inline-flex items-center gap-1">
+            <StageBadge stage={deal.stage} />
+            <ChevronDownIcon className="text-faint-foreground size-3" aria-hidden />
+          </span>
+        </DropdownMenuTrigger>
+      ) : (
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              aria-label={`Stage: ${STAGE_CONFIG[deal.stage].label}`}
+              title="Change stage"
+              className="focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-full focus-visible:ring-[3px] focus-visible:outline-none max-xl:min-h-11"
+            />
+          }
+        >
+          <StageBadge stage={deal.stage} />
+          <ChevronDownIcon className="text-faint-foreground size-3" aria-hidden />
+        </DropdownMenuTrigger>
+      )}
       <DropdownMenuContent className="w-44">
         <DropdownMenuRadioGroup
           value={deal.stage}
@@ -117,17 +150,40 @@ function StageMenu({ deal }: { deal: Deal }) {
 
 /* ------------------------------------------------------------------ cells */
 
-function WhoCell({ deal }: { deal: Deal }) {
+/**
+ * Who, with org and the sample tag. On tablet (768–1279) the Owner and Last
+ * touch columns fold in here as a third line (Deke 9:939) and the tag drops
+ * below it; desktop keeps them as columns.
+ */
+function WhoCell({ deal, lastTouch }: { deal: Deal; lastTouch: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <p className="text-label font-semibold tracking-tight">{deal.who}</p>
-      <p className="text-caption text-muted-foreground flex flex-wrap items-center gap-1.5">
+      <p className="text-caption text-muted-foreground flex flex-wrap items-center gap-1.5 md:max-xl:contents">
         <span>{deal.org}</span>
         {/* Seed rows carry the tag; a deal you add is yours and does not. */}
-        {deal.sample && <SampleDataTag className="h-4 px-1 text-[10px]" />}
+        {deal.sample && (
+          <SampleDataTag className="h-4 px-1 text-[10px] md:max-xl:order-last md:max-xl:mt-1 md:max-xl:self-start" />
+        )}
       </p>
+      <p className="text-caption text-muted-foreground hidden md:max-xl:block">{`${deal.owner} · ${lastTouch}`}</p>
     </div>
   )
+}
+
+/** "Next step · date · Overdue 2 days" — the one-line form for the phone card and sheet. */
+function nextStepLine(deal: Deal, today: string) {
+  const due = describeDue(deal, today)
+  if (!due) return `${deal.nextStep} · No date`
+  // A closed deal is not late or early; the date alone is the record.
+  if (STAGE_CONFIG[deal.stage].closed) return `${deal.nextStep} · ${due.date}`
+  return `${deal.nextStep} · ${due.date} · ${due.relative}`
+}
+
+/** "Org · What they're buying · Value", honest about a value nobody knows yet. */
+function dealLine(deal: Deal) {
+  const value = deal.value === null ? "Value not known yet" : formatCurrency(deal.value)
+  return `${deal.org} · ${deal.what} · ${value}`
 }
 
 function NextStepCell({ deal, today }: { deal: Deal; today: string }) {
@@ -181,14 +237,14 @@ function FilterGroup({
       }}
       variant="outline"
       spacing={0}
-      className="bg-surface rounded-lg"
+      className="bg-surface rounded-lg max-md:w-full!"
     >
       {DEAL_FILTERS.map((f) => (
         <ToggleGroupItem
           key={f}
           value={f}
           size="sm"
-          className="text-label px-3 first:rounded-l-lg last:rounded-r-lg"
+          className="text-label px-3 first:rounded-l-lg last:rounded-r-lg max-md:flex-1 max-xl:h-11! max-xl:min-w-11!"
         >
           {DEAL_FILTER_LABELS[f]}
         </ToggleGroupItem>
@@ -204,11 +260,195 @@ function FromClinicsChip() {
       aria-disabled="true"
       data-testid="source-chip"
       title="Clinics will be able to spawn a deal here. Not wired yet"
-      className="bg-surface border-surface-border text-muted-foreground text-caption inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed px-3 font-medium select-none"
+      className="bg-surface border-surface-border text-muted-foreground text-caption inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed px-3 font-medium select-none max-xl:h-11"
     >
       <PresentationIcon className="size-3.5" aria-hidden />
       From Clinics (soon)
     </span>
+  )
+}
+
+/* ------------------------------------------------------ row actions */
+
+type DealAction = "done" | "edit" | "delete"
+
+/**
+ * The row's existing dialogs, opened from the tablet row menu or the phone
+ * sheet instead of their own icon buttons. `action` says which one is open.
+ */
+function DealActionDialogs({
+  deal,
+  action,
+  onClose,
+}: {
+  deal: Deal
+  action: DealAction | null
+  onClose: () => void
+}) {
+  const close = (open: boolean) => {
+    if (!open) onClose()
+  }
+  return (
+    <>
+      <NextStepDoneDialog deal={deal} trigger={null} open={action === "done"} onOpenChange={close} />
+      <EditDealDialog deal={deal} trigger={null} open={action === "edit"} onOpenChange={close} />
+      <DeleteDealDialog deal={deal} trigger={null} open={action === "delete"} onOpenChange={close} />
+    </>
+  )
+}
+
+/**
+ * Open a dialog only once the menu or sheet that asked for it has finished
+ * closing, so their focus return cannot steal focus from the dialog.
+ */
+function useDeferredAction() {
+  const [action, setAction] = React.useState<DealAction | null>(null)
+  const queued = React.useRef<DealAction | null>(null)
+  return {
+    action,
+    queue: (next: DealAction) => {
+      queued.current = next
+    },
+    flush: () => {
+      if (queued.current) setAction(queued.current)
+      queued.current = null
+    },
+    clear: () => setAction(null),
+  }
+}
+
+/** Tablet (768–1279): one 44×44 ellipsis for the three inline row actions. */
+function RowMenu({ deal }: { deal: Deal }) {
+  const { action, queue, flush, clear } = useDeferredAction()
+  return (
+    <>
+      <DropdownMenu
+        onOpenChangeComplete={(open) => {
+          if (!open) flush()
+        }}
+      >
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`More actions for ${deal.who}`}
+              title="More actions"
+              className="text-muted-foreground size-11!"
+            />
+          }
+        >
+          <MoreHorizontalIcon aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem className="min-h-11" onClick={() => queue("done")}>
+            <CheckIcon aria-hidden />
+            Next step done
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11" onClick={() => queue("edit")}>
+            <PencilIcon aria-hidden />
+            Edit deal
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11" variant="destructive" onClick={() => queue("delete")}>
+            <Trash2Icon aria-hidden />
+            Delete deal
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DealActionDialogs deal={deal} action={action} onClose={clear} />
+    </>
+  )
+}
+
+const SHEET_ACTION =
+  "hover:bg-muted focus-visible:ring-ring/50 flex h-12 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium focus-visible:ring-[3px] focus-visible:outline-none"
+
+/**
+ * Phone (<768): the card's detail and actions as a bottom sheet (Deke 9:530).
+ * The ✓ row keeps the table's "Next step done" action; every row opens the
+ * same dialogs the desktop icons do.
+ */
+function DealSheet({
+  deal,
+  open,
+  onOpenChange,
+  returnFocus,
+}: {
+  deal: Deal | undefined
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  returnFocus: React.RefObject<HTMLElement | null>
+}) {
+  const { today, nowMs } = useDeals()
+  const { action, queue, flush, clear } = useDeferredAction()
+  if (!deal) return null
+  const late = isOverdue(deal, today)
+  const pick = (next: DealAction) => () => {
+    queue(next)
+    onOpenChange(false)
+  }
+  // Back to the card the sheet came from — unless it is gone (deleted).
+  const backToCard = () => {
+    const card = returnFocus.current
+    return card?.isConnected ? card : true
+  }
+  return (
+    <>
+      <Sheet
+        open={open}
+        onOpenChange={onOpenChange}
+        onOpenChangeComplete={(next) => {
+          if (!next) flush()
+        }}
+      >
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          // A dialog queued from here opens after this lands, so it returns to the card too.
+          finalFocus={backToCard}
+          className="max-h-[90dvh] gap-3 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
+          <div aria-hidden className="bg-muted-foreground/30 mx-auto mt-2 h-1 w-9 shrink-0 rounded-full" />
+          <SheetHeader className="gap-1 px-4 pt-0 pb-0">
+            <div className="flex items-center gap-2">
+              <SheetTitle className="text-body font-semibold tracking-tight">{deal.who}</SheetTitle>
+              <StageBadge stage={deal.stage} />
+            </div>
+            <SheetDescription className="text-caption text-muted-foreground">{dealLine(deal)}</SheetDescription>
+            <p className="text-caption text-muted-foreground">
+              Owner {deal.owner} · Last touch{" "}
+              {formatRelative(Date.parse(deal.lastTouch), nowMs, { style: LAST_TOUCH_STYLE })}
+            </p>
+            <p
+              className={cn(
+                "text-caption flex items-start gap-1",
+                late ? "text-danger-text font-semibold" : "text-muted-foreground"
+              )}
+              data-overdue={late ? "true" : undefined}
+            >
+              {late && <AlertCircleIcon className="mt-0.5 size-3 shrink-0" aria-hidden />}
+              <span>{nextStepLine(deal, today)}</span>
+            </p>
+          </SheetHeader>
+          <div role="group" aria-label="Deal actions" className="flex flex-col px-2 pb-2">
+            <StageMenu deal={deal} variant="row" />
+            <button type="button" className={SHEET_ACTION} onClick={pick("done")}>
+              <CheckIcon className="size-4" aria-hidden />
+              Next step done
+            </button>
+            <button type="button" className={SHEET_ACTION} onClick={pick("edit")}>
+              <PencilIcon className="size-4" aria-hidden />
+              Edit deal
+            </button>
+            <button type="button" className={cn(SHEET_ACTION, "text-danger-text")} onClick={pick("delete")}>
+              <Trash2Icon className="size-4" aria-hidden />
+              Delete deal
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+      <DealActionDialogs deal={deal} action={action} onClose={clear} />
+    </>
   )
 }
 
@@ -251,6 +491,16 @@ function EmptyState({ filter, total }: { filter: DealFilter; total: number }) {
 
 /* ------------------------------------------------------------- screen */
 
+/** Tablet (768–1279) folds What / Owner / Last touch into Who and Value. */
+const TABLET_HIDE = "md:max-xl:hidden"
+/**
+ * Tablet cells wrap so five columns fit 768px without scrolling the actions
+ * off; `!` beats Nova's unlayered `.cn-table-cell` nowrap.
+ */
+const TABLET_WRAP = "md:max-xl:[&>td]:whitespace-normal!"
+/** Tablet sort headers are 44×44 hits. */
+const TABLET_SORT = "md:max-xl:py-1 md:max-xl:[&>button]:min-h-11 md:max-xl:[&>button]:min-w-11"
+
 const FILTER_TITLE: Record<DealFilter, string> = {
   open: "Open deals",
   won: "Won",
@@ -270,6 +520,13 @@ export function DealsScreen() {
   )
   const overdue = visible.filter((d) => isOverdue(d, today)).length
 
+  // Phone sheet: which deal, and the card to hand focus back to.
+  const [sheetId, setSheetId] = React.useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
+  const lastCard = React.useRef<HTMLElement | null>(null)
+  const lastTouch = (deal: Deal) =>
+    formatRelative(Date.parse(deal.lastTouch), nowMs, { style: LAST_TOUCH_STYLE })
+
   const onSort = (key: DealSortKey) =>
     setSort((s) =>
       s.key === key
@@ -283,7 +540,10 @@ export function DealsScreen() {
         <FilterGroup value={filter} onChange={setFilter} />
         <div className="flex flex-wrap items-center gap-2.5">
           <FromClinicsChip />
-          <AddDealDialog />
+          {/* Phone puts Add deal in the page header (Deke 9:339). */}
+          <span className="contents max-md:hidden">
+            <AddDealDialog />
+          </span>
         </div>
       </div>
 
@@ -312,29 +572,57 @@ export function DealsScreen() {
           </div>
 
           <TableCard note="Seed deals are invented; deals you add or change are saved in this browser.">
+            <ResponsiveTable
+              layout="stack"
+              className="[&_[role=listitem]:last-child>*]:border-b-0"
+              onClickCapture={(event) => {
+                const card = (event.target as Element).closest<HTMLElement>("[data-slot='row-collapse']")
+                if (card) lastCard.current = card
+              }}
+              stacked={visible.map((deal) => (
+                <RowCollapse
+                  key={deal.id}
+                  title={deal.who}
+                  status={<StageBadge stage={deal.stage} />}
+                  meta={[
+                    { label: "Deal", value: dealLine(deal) },
+                    { label: "Next step", value: nextStepLine(deal, today) },
+                  ]}
+                  sample={deal.sample}
+                  attention={isOverdue(deal, today)}
+                  // Overdue reads in the same text-safe danger token as the table's due line;
+                  // the tag keeps its own width instead of stretching across the card.
+                  className="[&_.text-destructive]:text-danger-text [&_[data-testid=sample-data-tag]]:self-start"
+                  onClick={() => {
+                    setSheetId(deal.id)
+                    setSheetOpen(true)
+                  }}
+                />
+              ))}
+            >
             <Table aria-label="Deals">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <SortableHead column="who" sort={sort} onSort={onSort}>
+                  <SortableHead column="who" sort={sort} onSort={onSort} className={TABLET_SORT}>
                     Who
                   </SortableHead>
-                  <TableHead className={HEAD}>What they&apos;re buying</TableHead>
-                  <SortableHead column="value" sort={sort} onSort={onSort} align="right">
+                  <TableHead className={cn(HEAD, TABLET_HIDE)}>What they&apos;re buying</TableHead>
+                  <SortableHead column="value" sort={sort} onSort={onSort} align="right" className={TABLET_SORT}>
                     Value
                   </SortableHead>
-                  <SortableHead column="stage" sort={sort} onSort={onSort}>
+                  <SortableHead column="stage" sort={sort} onSort={onSort} className={TABLET_SORT}>
                     Stage
                   </SortableHead>
-                  <SortableHead column="nextStepDue" sort={sort} onSort={onSort}>
+                  <SortableHead column="nextStepDue" sort={sort} onSort={onSort} className={TABLET_SORT}>
                     Next step
                   </SortableHead>
-                  <SortableHead column="owner" sort={sort} onSort={onSort}>
+                  <SortableHead column="owner" sort={sort} onSort={onSort} className={TABLET_HIDE}>
                     Owner
                   </SortableHead>
-                  <SortableHead column="lastTouch" sort={sort} onSort={onSort}>
+                  <SortableHead column="lastTouch" sort={sort} onSort={onSort} className={TABLET_HIDE}>
                     Last touch
                   </SortableHead>
-                  <TableHead className={`${HEAD} w-28`}>
+                  <TableHead className={`${HEAD} w-28 md:max-xl:w-14`}>
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
@@ -347,12 +635,12 @@ export function DealsScreen() {
                       key={deal.id}
                       data-deal={deal.id}
                       data-overdue={late ? "true" : undefined}
-                      className={cn("group/row hover:bg-transparent", late && "bg-destructive/[0.03]")}
+                      className={cn("group/row hover:bg-transparent", late && "bg-destructive/[0.03]", TABLET_WRAP)}
                     >
                       <TableCell className={CELL}>
-                        <WhoCell deal={deal} />
+                        <WhoCell deal={deal} lastTouch={lastTouch(deal)} />
                       </TableCell>
-                      <TableCell className={CELL}>{deal.what}</TableCell>
+                      <TableCell className={cn(CELL, TABLET_HIDE)}>{deal.what}</TableCell>
                       <TableCell className={`${CELL} text-right font-semibold tracking-tight tabular-nums`}>
                         {deal.value === null ? (
                           <span className="text-muted-foreground font-normal" title="Value not known yet">
@@ -361,6 +649,9 @@ export function DealsScreen() {
                         ) : (
                           formatCurrency(deal.value)
                         )}
+                        <span className="text-caption text-muted-foreground mt-0.5 hidden font-normal tracking-normal md:max-xl:block">
+                          {deal.what}
+                        </span>
                       </TableCell>
                       <TableCell className={CELL}>
                         <StageMenu deal={deal} />
@@ -368,27 +659,35 @@ export function DealsScreen() {
                       <TableCell className={`${CELL} max-w-[280px]`}>
                         <NextStepCell deal={deal} today={today} />
                       </TableCell>
-                      <TableCell className={CELL}>{deal.owner}</TableCell>
-                      <TableCell className={`${CELL} text-muted-foreground`}>
-                        <span title={formatCentralDateTime(deal.lastTouch)}>
-                          {formatRelative(Date.parse(deal.lastTouch), nowMs, { style: LAST_TOUCH_STYLE })}
-                        </span>
+                      <TableCell className={cn(CELL, TABLET_HIDE)}>{deal.owner}</TableCell>
+                      <TableCell className={cn(CELL, "text-muted-foreground", TABLET_HIDE)}>
+                        <span title={formatCentralDateTime(deal.lastTouch)}>{lastTouch(deal)}</span>
                       </TableCell>
                       <TableCell className={`${CELL} py-2 pr-3 pl-0 text-right`}>
-                        <div className="inline-flex items-center gap-0.5 opacity-60 group-hover/row:opacity-100 focus-within:opacity-100 hover:opacity-100">
+                        <div className="inline-flex items-center gap-0.5 opacity-60 group-hover/row:opacity-100 focus-within:opacity-100 hover:opacity-100 md:max-xl:hidden">
                           <NextStepDoneDialog deal={deal} />
                           <EditDealDialog deal={deal} />
                           <DeleteDealDialog deal={deal} />
                         </div>
+                        <span className="hidden md:max-xl:inline-flex">
+                          <RowMenu deal={deal} />
+                        </span>
                       </TableCell>
                     </TableRow>
                   )
                 })}
               </TableBody>
             </Table>
+            </ResponsiveTable>
           </TableCard>
         </div>
       )}
+      <DealSheet
+        deal={deals.find((d) => d.id === sheetId)}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        returnFocus={lastCard}
+      />
     </section>
   )
 }

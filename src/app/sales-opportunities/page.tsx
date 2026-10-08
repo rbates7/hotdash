@@ -1,4 +1,5 @@
 import { now } from "@/lib/clock"
+import { AddDealDialog } from "@/components/sales-opportunities/deal-dialogs"
 import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsProvider } from "@/components/sales-opportunities/deals-store"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
@@ -23,14 +24,21 @@ export default function SalesOpportunitiesPage() {
     <DealsProvider nowMs={nowMs}>
       <section aria-label="Sales Opportunities" className="flex min-w-0 flex-col gap-[18px]">
         <header className="flex min-h-10 flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
+          <div className="min-w-0 max-md:flex-1">
             <h1 className="text-display-sm font-semibold tracking-tight">Sales Opportunities</h1>
             <p className="text-label text-muted-foreground mt-1">
               Live deals only — a hunt becomes a deal when someone is talking.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            <DealsPersistenceNote />
+          {/* Phone: Add deal sits beside the title (Deke 9:339); md+ keeps it in the toolbar. */}
+          <div className="shrink-0 md:hidden">
+            <AddDealDialog />
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5 pt-1 max-md:w-full">
+            {/* Below 1280 the note's Reset is a 44px hit, like every control here. */}
+            <span className="contents max-xl:[&_button]:h-11! max-xl:[&_button]:min-w-11">
+              <DealsPersistenceNote />
+            </span>
             <SampleDataTag className="h-6 px-2" />
           </div>
         </header>
