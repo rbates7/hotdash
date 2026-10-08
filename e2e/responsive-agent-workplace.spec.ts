@@ -145,13 +145,15 @@ test.describe("responsive Agent Workplace (phone)", () => {
     await page.goto("/agent-workplace?tab=autopilots")
     const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
     await expect(row).toBeVisible()
-    const schedule = row.getByRole("cell").nth(1)
-    const next = row.getByRole("cell").nth(2)
-    expect(await schedule.evaluate((el) => getComputedStyle(el).display), "Schedule display").toBe(
+    const cells = row.locator("td")
+    await expect(cells).toHaveCount(4)
+    expect(await cells.nth(1).evaluate((el) => getComputedStyle(el).display), "Schedule display").toBe(
       "none"
     )
-    expect(await next.evaluate((el) => getComputedStyle(el).display), "Next run display").toBe("none")
-    const name = row.getByRole("cell").nth(0).locator("p").first()
+    expect(await cells.nth(2).evaluate((el) => getComputedStyle(el).display), "Next run display").toBe(
+      "none"
+    )
+    const name = cells.nth(0).locator("p").first()
     const pill = row.getByText("ok", { exact: true })
     const nameBox = await name.boundingBox()
     const pillBox = await pill.boundingBox()
@@ -233,12 +235,14 @@ test.describe("responsive Agent Workplace (tablet-portrait)", () => {
     await expect(folded).toHaveCount(3)
     await expect(folded.first()).toBeVisible()
     const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
+    const cells = row.locator("td")
+    await expect(cells).toHaveCount(4)
     expect(
-      await row.getByRole("cell").nth(1).evaluate((el) => getComputedStyle(el).display),
+      await cells.nth(1).evaluate((el) => getComputedStyle(el).display),
       "Schedule display at 820"
     ).toBe("none")
     expect(
-      await row.getByRole("cell").nth(2).evaluate((el) => getComputedStyle(el).display),
+      await cells.nth(2).evaluate((el) => getComputedStyle(el).display),
       "Next run display at 820"
     ).toBe("none")
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
