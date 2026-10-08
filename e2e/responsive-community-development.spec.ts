@@ -556,7 +556,13 @@ for (const theme of ["light", "dark"] as const) {
         } else {
           await expectReadable(table(page), `${label}/table`, expect)
           await table(page).getByRole("button", { name: `Actions for ${YATES}` }).click()
-          await expectReadable(page.getByRole("menu"), `${label}/row menu`, expect)
+          const menu = page.getByRole("menu")
+          await expect(menu).toBeVisible()
+          // Enabled items only — Spawn is develop's disabled opacity-50
+          // (WCAG 1.4.3 exempts inactive controls), same as Sales Reset.
+          await expectReadable(menu.getByRole("menuitem", { name: "View", exact: true }), `${label}/menu View`, expect)
+          await expectReadable(menu.getByRole("menuitem", { name: "Edit", exact: true }), `${label}/menu Edit`, expect)
+          await expectReadable(menu.getByRole("menuitem", { name: "Delete", exact: true }), `${label}/menu Delete`, expect)
           await page.keyboard.press("Escape")
         }
 

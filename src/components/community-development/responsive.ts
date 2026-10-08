@@ -80,4 +80,4 @@ export const TABLET_HIDE = "hidden xl:table-cell"
  * Nova `.cn-table-cell` nowrap beats `CELL`. Below xl the Name column is the
  * one that yields: constrain it so Status and the ⋯ stay inside the card.
  */
-export const TABLET_NAME_CELL = "max-xl:max-w-0 max-xl:min-w-0 max-xl:whitespace-normal!"
+export const TABLET_NAME_CELL = "max-xl:max-w-0 max-xl:min-w-0! max-xl:whitespace-normal!"

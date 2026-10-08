@@ -64,6 +64,7 @@ describe("Community Development responsive layout", () => {
     expect(CD_DESTRUCTIVE).toBe("max-xl:text-danger-text!")
     expect(TABLET_HIDE).toBe("hidden xl:table-cell")
     expect(TABLET_NAME_CELL).toMatch(/max-xl:max-w-0/)
+    expect(TABLET_NAME_CELL).toMatch(/max-xl:min-w-0!/)
     expect(TABLET_NAME_CELL).toMatch(/max-xl:whitespace-normal!/)
   })
 })

@@ -335,7 +335,7 @@ function RowMenu({
           <DropdownMenuShortcut>Soon</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={CD_MENU_ITEM}
+          className={cn(CD_MENU_ITEM, CD_DESTRUCTIVE)}
           variant="destructive"
           onClick={() => onDelete(initiative)}
         >
@@ -537,6 +537,7 @@ export function CommunityDevelopmentScreen() {
                             className={cn(
                               HEAD,
                               c === "Name" && "min-w-[16rem] w-[26%]",
+                              c === "Name" && TABLET_NAME_CELL,
                               isTabletHiddenColumn(c) && TABLET_HIDE
                             )}
                           >

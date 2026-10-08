@@ -82,6 +82,7 @@ describe("Community Development responsive", () => {
     expect(heads.find((h) => h.textContent === "Type")?.className).not.toMatch(/hidden/)
     expect(heads.find((h) => h.textContent === "Owner")?.className).not.toMatch(/hidden/)
     expect(TABLET_NAME_CELL).toMatch(/max-xl:max-w-0/)
+    expect(TABLET_NAME_CELL).toMatch(/max-xl:min-w-0!/)
     expect(within(row(/Equipment drive for Yates/)).getAllByRole("cell")[0].className).toMatch(
       /max-xl:max-w-0/
     )
