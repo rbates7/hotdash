@@ -19,6 +19,13 @@ type ListPath = "/crm/cases" | "/crm/contacts"
 
 type ReturnEntry = { list: ListPath; url: string; detail: string }
 
+type ClickLike = { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number }
+
+/** A click that opens a new tab/window (or a non-primary button) leaves this page alone. */
+function isModified(event: ClickLike) {
+  return Boolean(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (event.button ?? 0) !== 0)
+}
+
 function storage(): Storage | null {
   try {
     return typeof window === "undefined" ? null : window.sessionStorage
@@ -56,9 +63,12 @@ export function clearListReturn() {
 
 /**
  * Call when a record is opened from its list (row link, phone sheet, tablet
- * "…"). Records the list URL as it is right now, query included.
+ * "…"). Records the list URL as it is right now, query included. Pass the
+ * click when there is one: a new-tab click records nothing, since this tab
+ * stays on the list.
  */
-export function rememberListReturn(detailHref: string) {
+export function rememberListReturn(detailHref: string, event?: ClickLike) {
+  if (event && isModified(event)) return
   const { pathname, search } = window.location
   if (pathname !== "/crm/cases" && pathname !== "/crm/contacts") return
   try {
@@ -90,13 +100,9 @@ export function hasListReturn(list: ListPath): boolean {
  * take one history step back (scroll and filters come back with it);
  * otherwise let the plain link navigate.
  */
-export function backToList(
-  event: { preventDefault: () => void; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; button?: number },
-  list: ListPath,
-  back: () => void
-) {
+export function backToList(event: ClickLike & { preventDefault: () => void }, list: ListPath, back: () => void) {
   // A modified click opens a new tab/window: leave it to the link.
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (event.button ?? 0) !== 0) return
+  if (isModified(event)) return
   if (!hasListReturn(list)) return
   event.preventDefault()
   clearListReturn()

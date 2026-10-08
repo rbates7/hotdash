@@ -142,8 +142,8 @@ function CaseSheet({
         <Link
           href={`/crm/cases/${caseRow.id}`}
           className={SHEET_ACTION}
-          onClick={() => {
-            rememberListReturn(`/crm/cases/${caseRow.id}`)
+          onClick={(event) => {
+            rememberListReturn(`/crm/cases/${caseRow.id}`, event)
             onOpenChange(false)
           }}
         >
@@ -276,14 +276,14 @@ export function CasesScreen() {
                 return (
                   <TableRow key={row.id} data-case={row.id} className={TABLET_WRAP}>
                     <TableCell className={cn(`${CELL} text-muted-foreground`, TABLET_HIDE)}>
-                      <Link href={`/crm/cases/${row.id}`} onClick={() => rememberListReturn(`/crm/cases/${row.id}`)}>
+                      <Link href={`/crm/cases/${row.id}`} onClick={(event) => rememberListReturn(`/crm/cases/${row.id}`, event)}>
                         #{row.caseNumber}
                       </Link>
                     </TableCell>
                     <TableCell className={`${CELL} max-w-96`}>
                       <Link
                         href={`/crm/cases/${row.id}`}
-                        onClick={() => rememberListReturn(`/crm/cases/${row.id}`)}
+                        onClick={(event) => rememberListReturn(`/crm/cases/${row.id}`, event)}
                         className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11 md:max-xl:flex-wrap md:max-xl:gap-x-1.5 md:max-xl:gap-y-0.5 md:max-xl:py-1"
                       >
                         <span className="truncate md:max-xl:basis-full md:max-xl:whitespace-normal">

@@ -858,3 +858,318 @@ for (const theme of ["light", "dark"] as const) {
     })
   }
 }
+
+/* ------------------------------------- round 2, B1: tablet tables fit */
+
+type SeedContact = {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  nameSource: string | null
+  organizationId: string | null
+  [key: string]: unknown
+}
+type SeedCase = { id: string; caseNumber: number; subject: string; [key: string]: unknown }
+
+/** Added rows need the store's counters past them, or the saved copy is rejected. */
+function withCounters(state: CrmState): CrmState {
+  const top = (ids: string[]) => Math.max(0, ...ids.map((id) => Number(/-(\d+)$/.exec(id)?.[1] ?? 0)))
+  const contacts = state.contacts as SeedContact[]
+  const cases = state.cases as unknown as SeedCase[]
+  return {
+    ...state,
+    nextContactId: Math.max(state.nextContactId as number, top(contacts.map((c) => c.id)) + 1),
+    nextCaseId: Math.max(state.nextCaseId as number, top(cases.map((c) => c.id)) + 1),
+    nextCaseNumber: Math.max(state.nextCaseNumber as number, ...cases.map((c) => c.caseNumber + 1)),
+  }
+}
+
+const LONG_EMAIL = "christopher.montgomery@westfieldchristian.org" // 45
+const LONG_NAME = { firstName: "Christopher Alexander", lastName: "Montgomery-Whitfield" } // 42
+const LONG_NAME_TEXT = `${LONG_NAME.firstName} ${LONG_NAME.lastName}`
+const LONG_EMAIL_NO_ORG = "maximilian.featherstonehaugh@saintbartholomewacademy.org" // 56
+const LONG_NAME_NO_ORG = { firstName: "Maximilian Bartholomew", lastName: "Featherstonehaugh" } // 40
+const NAMELESS_EMAIL = "administrator.office.manager@saintbartholomewacademy.org" // 56
+
+/**
+ * The seed with long names and emails: Marcus Hale (cases 1–2, org row) and
+ * Tom Alvarez (case 7, no org, so his email is the Contact cell's second line)
+ * are renamed; a new contact has no name, so the email is the Name.
+ */
+async function longNamesSeed(page: Page): Promise<CrmState> {
+  const state = await savedSeed(page)
+  const contacts = state.contacts as SeedContact[]
+  const rename = (id: string, patch: Partial<SeedContact>) => {
+    const i = contacts.findIndex((c) => c.id === id)
+    expect(i, id).toBeGreaterThanOrEqual(0)
+    contacts[i] = { ...contacts[i]!, ...patch }
+  }
+  rename("contact-1", { ...LONG_NAME, email: LONG_EMAIL })
+  rename("contact-6", { ...LONG_NAME_NO_ORG, email: LONG_EMAIL_NO_ORG })
+  const tom = contacts.find((c) => c.id === "contact-6")!
+  contacts.push({ ...tom, id: "contact-50", firstName: null, lastName: null, nameSource: null, email: NAMELESS_EMAIL })
+  expect(LONG_EMAIL.length).toBeGreaterThanOrEqual(45)
+  expect(LONG_NAME_TEXT.length).toBeGreaterThanOrEqual(30)
+  return withCounters(state)
+}
+
+/**
+ * The table fits its container (no sideways scroll), every row's "…" is the
+ * element actually under its centre, and no cell or anything in it is
+ * clipped or bleeding (scrollWidth > clientWidth + 1).
+ */
+async function expectTableFits(page: Page, name: string, label: string) {
+  const t = table(page, name)
+  await settle(t)
+  const result = await t.evaluate((tableEl) => {
+    const containers = [tableEl.parentElement, tableEl.closest("[data-slot='responsive-table']")]
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .map((el) => ({ slot: el.getAttribute("data-slot") ?? el.tagName, scroll: el.scrollWidth, client: el.clientWidth }))
+    const clipped: string[] = []
+    tableEl.querySelectorAll("tbody td").forEach((td, cellIndex) => {
+      for (const el of [td, ...Array.from(td.querySelectorAll("*"))]) {
+        if (!(el instanceof HTMLElement)) continue
+        const r = el.getBoundingClientRect()
+        const cs = getComputedStyle(el)
+        if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || el.clientWidth === 0) continue
+        if (el.scrollWidth > el.clientWidth + 1) {
+          const text = (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 60)
+          clipped.push(`cell ${cellIndex} <${el.tagName.toLowerCase()}> "${text}" ${el.scrollWidth}>${el.clientWidth}`)
+        }
+      }
+    })
+    return { containers, clipped }
+  })
+  for (const c of result.containers) {
+    expect(c.scroll, `${label}: ${c.slot} scrolls sideways (${c.scroll} > ${c.client})`).toBeLessThanOrEqual(c.client + 1)
+  }
+  expect(result.clipped, `${label}: clipped cell content`).toEqual([])
+
+  const menus = t.getByRole("button", { name: /^More actions for / })
+  const rows = await t.locator("tbody tr").count()
+  await expect(menus).toHaveCount(rows)
+  for (const menu of await menus.all()) {
+    await menu.scrollIntoViewIfNeeded()
+    const hit = await menu.evaluate((button) => {
+      const r = button.getBoundingClientRect()
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return { ok: at === button || (at !== null && button.contains(at)), at: at?.outerHTML.slice(0, 80) ?? "nothing" }
+    })
+    expect(hit.ok, `${label}: ${await menu.getAttribute("aria-label")} is under its own centre (hit ${hit.at})`).toBe(true)
+  }
+  expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+}
+
+for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
+  const size = VIEWPORTS[name].width
+  test.describe(`CRM tablet tables fit long names and emails (${size})`, () => {
+    test.use({ viewport: VIEWPORTS[name] })
+
+    test("Contacts: a 45-character email and a 42-character name wrap; every '…' is reachable", async ({ page }) => {
+      const state = await longNamesSeed(page)
+      await load(page, state, "/crm/contacts")
+      const t = table(page, "Contacts")
+      await expect(t).toBeVisible()
+      const row = t.getByRole("row", { name: new RegExp(escapeRe(LONG_NAME_TEXT)) })
+      await expect(row.getByText(LONG_NAME_TEXT, { exact: true })).toBeVisible()
+      // Folded under the Name at tablet (its own column is desktop-only).
+      await expect(row.locator("span", { hasText: LONG_EMAIL })).toBeVisible()
+      await expect(t.getByRole("row", { name: new RegExp(escapeRe(NAMELESS_EMAIL)) })).toBeVisible()
+      await expect(t.locator("span", { hasText: LONG_EMAIL_NO_ORG })).toBeVisible()
+      await expectTableFits(page, "Contacts", `${size} Contacts`)
+    })
+
+    test("Cases: the renamed contacts (name, and email with no org) wrap; every '…' is reachable", async ({ page }) => {
+      const state = await longNamesSeed(page)
+      await load(page, state, "/crm/cases")
+      const t = table(page, "Cases")
+      await expect(t).toBeVisible()
+      await expect(t.getByText(LONG_NAME_TEXT, { exact: true })).toHaveCount(2)
+      await expect(t.getByText(LONG_NAME_NO_ORG.firstName, { exact: false })).toBeVisible()
+      await expect(t.getByText(LONG_EMAIL_NO_ORG, { exact: true })).toBeVisible()
+      await expectTableFits(page, "Cases", `${size} Cases`)
+    })
+  })
+}
+
+/* ------------------------- round 2, B2: breadcrumb back keeps your place */
+
+const RETURN_KEY = "hotdash.crm.from-list"
+
+const scrollY = (page: Page) => page.evaluate(() => window.scrollY)
+const historyLength = (page: Page) => page.evaluate(() => window.history.length)
+const recorded = (page: Page) => page.evaluate((key) => sessionStorage.getItem(key), RETURN_KEY)
+const crumb = (page: Page, list: "Cases" | "Contacts") =>
+  main(page).locator("p", { hasText: new RegExp(`^${list} /`) }).getByRole("link", { name: list, exact: true })
+const contactCrumb = (page: Page) => crumb(page, "Contacts")
+
+/** Twelve more open/high cases (case 1 is "waiting" after savedSeed), so the filtered phone list scrolls. */
+async function manyOpenHighCases(page: Page): Promise<CrmState> {
+  const state = await savedSeed(page)
+  const cases = state.cases as unknown as SeedCase[]
+  const base = cases.find((c) => c.id === "case-1")!
+  for (let i = 1; i <= 12; i++) {
+    cases.push({
+      ...base,
+      id: `case-${100 + i}`,
+      caseNumber: 200 + i,
+      subject: `Scoreboard feed ${i} drops mid-game`,
+      status: "open",
+      priority: "high",
+    })
+  }
+  return withCounters(state)
+}
+
+/** Fourteen more Westfield contacts, so `?q=westfield` scrolls on a phone. */
+async function manyWestfieldContacts(page: Page): Promise<CrmState> {
+  const state = await savedSeed(page)
+  const contacts = state.contacts as SeedContact[]
+  const base = contacts.find((c) => c.id === "contact-2")!
+  const first = ["Avery", "Blake", "Casey", "Devon", "Emerson", "Finley", "Gray", "Harper", "Indigo", "Jordan", "Kai", "Logan", "Morgan", "Noel"]
+  first.forEach((firstName, i) => {
+    contacts.push({ ...base, id: `contact-${101 + i}`, firstName, lastName: "Westfield", email: `${firstName.toLowerCase()}@westfieldfb.org` })
+  })
+  return withCounters(state)
+}
+
+/** Scroll the list to the bottom and return where the last card sits. */
+async function scrollToBottom(page: Page) {
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(async () => {
+    const y = await scrollY(page)
+    await page.waitForTimeout(100)
+    return (await scrollY(page)) === y && y > 0
+  }).toBe(true)
+  const y = await scrollY(page)
+  const top = (await cards(page).last().boundingBox())!.y
+  return { y, top }
+}
+
+async function expectPlaceBack(page: Page, before: { y: number; top: number }, label: string) {
+  await expect.poll(async () => Math.abs((await scrollY(page)) - before.y), `${label}: scrollY back to ${before.y}`).toBeLessThanOrEqual(2)
+  const top = (await cards(page).last().boundingBox())!.y
+  expect(Math.abs(top - before.top), `${label}: last card top ${top} vs ${before.top}`).toBeLessThanOrEqual(2)
+}
+
+test.describe("CRM phone: the breadcrumb takes you back to your place in the list (390)", () => {
+  test.use({ viewport: VIEWPORTS.phone })
+
+  test("Cases: from ?status=open&priority=high at the bottom, 'Cases' restores scroll, filters and history", async ({ page }) => {
+    const LIST = "/crm/cases?status=open&priority=high"
+    await load(page, await manyOpenHighCases(page), LIST)
+    await expect(cards(page)).toHaveCount(12)
+    const before = await scrollToBottom(page)
+    expect(before.y, "the filtered list scrolls").toBeGreaterThan(300)
+    const h0 = await historyLength(page)
+
+    await cards(page).last().click()
+    const open = page.getByRole("dialog").getByRole("group", { name: "Case actions" }).getByRole("link", { name: "Open case" })
+    await open.click()
+    await expect(page).toHaveURL(/\/crm\/cases\/case-1\d\d$/)
+    await expect(crumb(page, "Cases")).toBeVisible()
+    expect(await historyLength(page)).toBe(h0 + 1)
+    expect(await recorded(page)).not.toBeNull()
+
+    await crumb(page, "Cases").click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === LIST)
+    await expect(cards(page)).toHaveCount(12)
+    await expectPlaceBack(page, before, "Cases")
+    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("Open")
+    await expect(main(page).getByRole("combobox", { name: "Priority filter" })).toHaveText(/High/)
+    expect(await historyLength(page), "Back, not a new entry").toBe(h0 + 1)
+    expect(await recorded(page)).toBeNull()
+  })
+
+  test("Contacts: from ?q=westfield at the bottom, 'Contacts' restores scroll, search and history", async ({ page }) => {
+    const LIST = "/crm/contacts?q=westfield"
+    await load(page, await manyWestfieldContacts(page), LIST)
+    const count = await cards(page).count()
+    expect(count).toBeGreaterThanOrEqual(16)
+    const before = await scrollToBottom(page)
+    expect(before.y, "the searched list scrolls").toBeGreaterThan(300)
+    const h0 = await historyLength(page)
+
+    await cards(page).last().click()
+    const open = page.getByRole("dialog").getByRole("group", { name: "Contact actions" }).getByRole("link", { name: "Open contact" })
+    await open.click()
+    await expect(page).toHaveURL(/\/crm\/contacts\/contact-/)
+    await expect(contactCrumb(page)).toBeVisible()
+    expect(await historyLength(page)).toBe(h0 + 1)
+
+    await contactCrumb(page).click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === LIST)
+    await expect(cards(page)).toHaveCount(count)
+    await expectPlaceBack(page, before, "Contacts")
+    await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveValue("westfield")
+    expect(await historyLength(page), "Back, not a new entry").toBe(h0 + 1)
+    expect(await recorded(page)).toBeNull()
+  })
+
+  test("deep links (and stale records) keep the plain link to the unfiltered list", async ({ page }) => {
+    // Cases: record a way back for one case, then land on another by URL.
+    await load(page, await manyOpenHighCases(page), "/crm/cases?status=open&priority=high")
+    await cards(page).first().click()
+    await page.getByRole("dialog").getByRole("group", { name: "Case actions" }).getByRole("link", { name: "Open case" }).click()
+    await expect(page).toHaveURL(/\/crm\/cases\/case-/)
+    await visit(page, "/crm/cases/case-2")
+    await expect.poll(() => recorded(page)).toBeNull()
+    let h = await historyLength(page)
+    await crumb(page, "Cases").click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases")
+    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("All")
+    expect(await historyLength(page), "a plain link adds an entry").toBe(h + 1)
+
+    // Contacts: straight to a contact by URL.
+    await visit(page, "/crm/contacts/contact-3")
+    h = await historyLength(page)
+    await contactCrumb(page).click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/contacts")
+    await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveValue("")
+    expect(await historyLength(page)).toBe(h + 1)
+
+    // Leaving a record for another page forgets its way back.
+    await visit(page, "/crm/contacts?q=priya")
+    await cards(page).first().click()
+    await page.getByRole("dialog").getByRole("group", { name: "Contact actions" }).getByRole("link", { name: "Open contact" }).click()
+    await expect(page).toHaveURL(/\/crm\/contacts\/contact-3$/)
+    await crmNav(page).getByRole("link", { name: "Triage" }).click()
+    await expect(page).toHaveURL(/\/crm\/triage$/)
+    await expect.poll(() => recorded(page)).toBeNull()
+    await page.goBack()
+    await expect(page).toHaveURL(/\/crm\/contacts\/contact-3$/)
+    h = await historyLength(page)
+    await contactCrumb(page).click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/contacts")
+    expect(await historyLength(page)).toBeLessThanOrEqual(h)
+  })
+})
+
+test.describe("CRM desktop: the breadcrumb keeps the list's filters (1440)", () => {
+  test.use({ viewport: VIEWPORTS.desktop })
+
+  test("Cases and Contacts round-trip by history from a filtered list; deep links stay plain", async ({ page }) => {
+    await fresh(page, "/crm/cases?status=open&priority=high")
+    const h0 = await historyLength(page)
+    await table(page, "Cases").getByRole("link", { name: new RegExp(escapeRe(STAFF_SEATS)) }).click()
+    await expect(page).toHaveURL(/\/crm\/cases\/case-1$/)
+    await crumb(page, "Cases").click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases?status=open&priority=high")
+    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("Open")
+    expect(await historyLength(page)).toBe(h0 + 1)
+
+    await visit(page, "/crm/contacts?q=hale")
+    const h1 = await historyLength(page)
+    await table(page, "Contacts").getByRole("link", { name: /Marcus Hale/ }).click()
+    await expect(page).toHaveURL(/\/crm\/contacts\/contact-1$/)
+    await contactCrumb(page).click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/contacts?q=hale")
+    await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveValue("hale")
+    expect(await historyLength(page)).toBe(h1 + 1)
+
+    await visit(page, "/crm/cases/case-1")
+    await crumb(page, "Cases").click()
+    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases")
+  })
+})

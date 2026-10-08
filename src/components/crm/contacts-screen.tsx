@@ -192,8 +192,8 @@ function ContactSheet({
         <Link
           href={`/crm/contacts/${contact.id}`}
           className={SHEET_ACTION}
-          onClick={() => {
-            rememberListReturn(`/crm/contacts/${contact.id}`)
+          onClick={(event) => {
+            rememberListReturn(`/crm/contacts/${contact.id}`, event)
             onOpenChange(false)
           }}
         >
@@ -343,7 +343,7 @@ export function ContactsScreen() {
                     <TableCell className={CELL}>
                       <Link
                         href={`/crm/contacts/${contact.id}`}
-                        onClick={() => rememberListReturn(`/crm/contacts/${contact.id}`)}
+                        onClick={(event) => rememberListReturn(`/crm/contacts/${contact.id}`, event)}
                         className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11 md:max-xl:flex-wrap"
                       >
                         <CrmAvatar

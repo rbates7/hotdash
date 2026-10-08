@@ -114,4 +114,13 @@ describe("CRM list return (breadcrumb Back)", () => {
     renderHook(() => useListReturn("/crm/cases", "/crm/cases/case-1"))
     expect(window.sessionStorage.getItem(CRM_RETURN_KEY)).toBeNull()
   })
+
+  it("a new-tab click on a list row records nothing (this tab stays on the list)", () => {
+    for (const extra of [{ metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { button: 1 }]) {
+      rememberListReturn("/crm/cases/case-3", { button: 0, ...extra })
+      expect(window.sessionStorage.getItem(CRM_RETURN_KEY)).toBeNull()
+    }
+    rememberListReturn("/crm/cases/case-3", { button: 0 })
+    expect(window.sessionStorage.getItem(CRM_RETURN_KEY)).not.toBeNull()
+  })
 })
