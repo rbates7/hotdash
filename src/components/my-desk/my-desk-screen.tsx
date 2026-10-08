@@ -232,8 +232,10 @@ function TodoSheet({
           )}
         >
           <div aria-hidden className="bg-muted-foreground/30 mx-auto mt-2 h-1 w-9 shrink-0 rounded-full" />
-          <SheetHeader className="gap-1 px-4 pt-0 pb-0 max-xl:pr-14">
-            <SheetTitle className="text-body font-semibold tracking-tight">{todo.title}</SheetTitle>
+          <SheetHeader className="min-w-0 gap-1 px-4 pt-0 pb-0 max-xl:pr-14">
+            <SheetTitle className="text-body w-fit max-w-full font-semibold tracking-tight [overflow-wrap:anywhere]">
+              {todo.title}
+            </SheetTitle>
             <SheetDescription
               className={
                 todo.note

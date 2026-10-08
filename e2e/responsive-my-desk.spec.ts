@@ -194,11 +194,11 @@ test.describe("responsive My Desk (phone 390)", () => {
     await expectAllTargets44(s, "390 sheet")
 
     await actions.nth(0).click()
-    await expect(todoBox(page, "Call Aledo")).toHaveAttribute("aria-checked", "true")
     await expect(actions.nth(0)).toHaveText("Mark open")
 
     await page.keyboard.press("Escape")
     await expect(s).toBeHidden()
+    await expect(todoBox(page, "Call Aledo")).toHaveAttribute("aria-checked", "true")
     await expect(openTodo(page, "Call Aledo")).toBeFocused()
 
     await openTodo(page, "Call Aledo").click()
@@ -449,7 +449,7 @@ for (const [size, viewport] of [
         size === "390" ? openTodo(page, "Call Aledo") : todoBox(page, "Clinic follow-up")
       await card.scrollIntoViewIfNeeded()
       await page.mouse.move(viewport.width - 1, viewport.height - 1)
-      const unfocused = await card.screenshot({ animations: "disabled" })
+      const unfocused = await control.screenshot({ animations: "disabled" })
 
       if (size === "390") {
         await todoBox(page, "Call Aledo").focus()
@@ -462,7 +462,7 @@ for (const [size, viewport] of [
       const shadow = await control.evaluate((el) => getComputedStyle(el).boxShadow)
       expect(shadow, "ring drawn inset").toContain("inset")
 
-      const focused = await card.screenshot({ animations: "disabled" })
+      const focused = await control.screenshot({ animations: "disabled" })
       const diff = await leftEdgeDiff(page, unfocused, focused)
       expect(diff.sameSize).toBe(true)
       expect(diff.checkedRows).toBeGreaterThan(20)
