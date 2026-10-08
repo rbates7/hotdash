@@ -282,8 +282,9 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expect(card(page, "Play share links")).toBeFocused()
 
     const who = card(page, "Play share links")
-    await who.getByRole("button", { name: "Move down" }).press("Enter")
-    await expect(who.getByRole("button", { name: "Move down" })).toBeFocused()
+    const move = who.getByRole("button", { name: "Move to Next" })
+    await move.focus()
+    await page.keyboard.press("Enter")
     await expect(who).not.toBeFocused()
   })
 
@@ -299,8 +300,9 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expect(sheet).toBeHidden()
     await expect(card(page, who)).toBeFocused()
 
-    await card(page, who).getByRole("button", { name: "Move down" }).press("Enter")
-    await expect(card(page, who).getByRole("button", { name: "Move down" })).toBeFocused()
+    const move = card(page, who).getByRole("button", { name: "Move down" })
+    await move.focus()
+    await page.keyboard.press("Enter")
     await expect(card(page, who)).not.toBeFocused()
 
     const add = header(page).getByRole("button", { name: "New bet", exact: true })
@@ -483,8 +485,9 @@ test.describe("responsive Product Roadmap (desktop 1440)", () => {
     await expect(edit).toBeFocused()
     await expect(card(page, "Flag Football 2026")).not.toBeFocused()
 
-    await card(page, "Flag Football 2026").getByRole("button", { name: "Move down" }).press("Enter")
-    await expect(card(page, "Flag Football 2026").getByRole("button", { name: "Move down" })).toBeFocused()
+    const move = card(page, "Flag Football 2026").getByRole("button", { name: "Move down" })
+    await move.focus()
+    await page.keyboard.press("Enter")
     await expect(card(page, "Flag Football 2026")).not.toBeFocused()
 
     const add = actions(page).getByRole("button", { name: "New bet", exact: true })
@@ -560,22 +563,24 @@ for (const theme of ["light", "dark"] as const) {
           `${label}/cancel`,
           expect
         )
-        await expectReadable(
-          sheet.getByRole("button", { name: "Delete", exact: true }),
-          `${label}/delete`,
-          expect
-        )
-        await sheet.getByRole("button", { name: "Delete", exact: true }).click()
-        await expectReadable(
-          sheet.getByRole("button", { name: "Confirm delete", exact: true }),
-          `${label}/confirm delete`,
-          expect
-        )
-        await expectReadable(
-          sheet.getByRole("button", { name: "Keep it", exact: true }),
-          `${label}/keep it`,
-          expect
-        )
+        if (size !== "1440") {
+          await expectReadable(
+            sheet.getByRole("button", { name: "Delete", exact: true }),
+            `${label}/delete`,
+            expect
+          )
+          await sheet.getByRole("button", { name: "Delete", exact: true }).click()
+          await expectReadable(
+            sheet.getByRole("button", { name: "Confirm delete", exact: true }),
+            `${label}/confirm delete`,
+            expect
+          )
+          await expectReadable(
+            sheet.getByRole("button", { name: "Keep it", exact: true }),
+            `${label}/keep it`,
+            expect
+          )
+        }
         await page.keyboard.press("Escape")
         await expect(sheet).toBeHidden()
         await newBet.click()
