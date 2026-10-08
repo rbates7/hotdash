@@ -91,7 +91,9 @@ export function RoadmapCard({
   onFocusConsumed: () => void
 }) {
   const { moveItem, reorderItem } = useRoadmap()
-  const compact = useIsMobile() || useIsTablet()
+  const phone = useIsMobile()
+  const tablet = useIsTablet()
+  const compact = phone || tablet
   const articleRef = React.useRef<HTMLElement>(null)
   const columnIndex = COLUMN_ORDER.indexOf(item.column)
   const left = columnIndex > 0 ? COLUMN_ORDER[columnIndex - 1] : null

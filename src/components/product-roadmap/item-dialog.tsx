@@ -273,7 +273,9 @@ function CloseButton({ onClick }: { onClick: () => void }) {
 }
 
 function useCompact() {
-  return useIsMobile() || useIsTablet()
+  const phone = useIsMobile()
+  const tablet = useIsTablet()
+  return phone || tablet
 }
 
 /* ---------------------------------------------------------------- new bet */
