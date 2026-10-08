@@ -97,7 +97,8 @@ describe("DealsScreen", () => {
     renderScreen()
     const r = row(/Treadwell/)
     expect(within(r).getByText("Red River A&M (FCS)")).toBeInTheDocument()
-    expect(within(r).getByText("Program license")).toBeInTheDocument()
+    // The What column; tablet also folds it under Value (CSS-hidden at xl, present in jsdom).
+    expect(within(within(r).getAllByRole("cell")[1]).getByText("Program license")).toBeInTheDocument()
     expect(within(r).getByText("$12,000")).toBeInTheDocument()
     expect(within(r).getByRole("button", { name: "Stage: Talking" })).toBeInTheDocument()
     expect(within(r).getByText("Rashad")).toBeInTheDocument()
