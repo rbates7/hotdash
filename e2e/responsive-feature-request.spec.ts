@@ -147,15 +147,15 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await expect(sheet).toBeHidden()
     await expect(card(page, "Play of the Day")).toBeFocused()
 
-    await card(page, "Custom play headers").click()
-    const moved = dialog(page, "Idea: Custom play headers")
+    await card(page, "Web import from a link").click()
+    const moved = dialog(page, "Idea: Web import from a link")
     await expect(moved).toBeVisible()
     await moved.getByRole("button", { name: "Move to On Roadmap", exact: true }).click()
     await expect(moved).toBeHidden()
     await chips(page).getByRole("tab", { name: /On Roadmap/ }).click()
-    await expect(card(page, "Custom play headers")).toBeVisible()
-    await card(page, "Custom play headers").click()
-    await expect(dialog(page, "Idea: Custom play headers")).toContainText("On Roadmap here only.")
+    await expect(card(page, "Web import from a link")).toBeVisible()
+    await card(page, "Web import from a link").click()
+    await expect(dialog(page, "Idea: Web import from a link")).toContainText("On Roadmap here only.")
   })
 
   test("the sheet traps focus", async ({ page }) => {
