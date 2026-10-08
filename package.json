@@ -29,7 +29,8 @@
     "screens:responsive-agent-workplace": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-agent-workplace-screens.spec.ts",
     "screens:responsive-system-status": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-system-status-screens.spec.ts",
     "screens:responsive-home": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-home-screens.spec.ts",
-    "screens:responsive-shell": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-shell-screens.spec.ts"
+    "screens:responsive-shell": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-shell-screens.spec.ts",
+    "screens:responsive-clinics": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-clinics-screens.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
