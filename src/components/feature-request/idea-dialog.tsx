@@ -44,24 +44,38 @@ export type IdeaCloseReason = "dismiss" | "delete" | "move"
 
 /**
  * Base UI wraps Tab at the dialog's ends through a focus guard and a
- * requestAnimationFrame, so for a frame focus sits outside the sheet. Wrap
- * synchronously instead (same as Sales #29).
+ * requestAnimationFrame, so for a frame focus sits outside the sheet. Own
+ * the whole Tab cycle synchronously (Sales #29 wrap, plus mid-list steps)
+ * so Playwright never samples the guard.
  */
-function wrapTab(event: React.KeyboardEvent<HTMLElement>) {
-  if (event.key !== "Tab") return
-  const tabbable = Array.from(
-    event.currentTarget.querySelectorAll<HTMLElement>(
-      "button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])"
+function tabbablesIn(root: HTMLElement) {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      "button, [href], input, select, textarea, [tabindex]"
     )
-  ).filter((el) => el.getClientRects().length > 0)
+  ).filter((el) => {
+    if (el === root) return false
+    if (el.closest("[data-base-ui-focus-guard]")) return false
+    if ("disabled" in el && (el as HTMLButtonElement).disabled) return false
+    if (el.tabIndex < 0) return false
+    if (el.getAttribute("aria-hidden") === "true") return false
+    const r = el.getClientRects()
+    return r.length > 0 && r[0]!.width > 0 && r[0]!.height > 0
+  })
+}
+
+function wrapTabAt(root: HTMLElement, event: KeyboardEvent) {
+  if (event.key !== "Tab") return
+  const tabbable = tabbablesIn(root)
   if (tabbable.length === 0) return
-  const first = tabbable[0]
-  const last = tabbable[tabbable.length - 1]
+  const current = document.activeElement
+  const idx = current instanceof HTMLElement ? tabbable.indexOf(current) : -1
   const target = event.shiftKey
-    ? document.activeElement === first && last
-    : document.activeElement === last && first
+    ? tabbable[idx <= 0 ? tabbable.length - 1 : idx - 1]
+    : tabbable[idx === -1 || idx === tabbable.length - 1 ? 0 : idx + 1]
   if (!target) return
   event.preventDefault()
+  event.stopImmediatePropagation()
   target.focus()
 }
 
@@ -74,19 +88,40 @@ function FrDialogContent({
   children: React.ReactNode
   onKeyDown?: React.KeyboardEventHandler<HTMLElement>
 }) {
+  const ref = React.useRef<HTMLDivElement | null>(null)
+
+  React.useLayoutEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const root = ref.current
+      if (root) wrapTabAt(root, event)
+    }
+    const onFocusIn = (event: FocusEvent) => {
+      const root = ref.current
+      const next = event.target
+      if (!root || !(next instanceof Node) || root.contains(next)) return
+      const list = tabbablesIn(root)
+      if (list.length === 0) return
+      list[0]!.focus()
+    }
+    document.addEventListener("keydown", onKey, true)
+    document.addEventListener("focusin", onFocusIn, true)
+    return () => {
+      document.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("focusin", onFocusIn, true)
+    }
+  }, [])
+
   return (
     <DialogPortal>
       <DialogOverlay data-slot="sheet-overlay" />
       <DialogPrimitive.Popup
+        ref={ref}
         data-slot="dialog-content"
         className={cn(
           "cn-dialog-content fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
           className
         )}
-        onKeyDown={(event) => {
-          wrapTab(event)
-          onKeyDown?.(event)
-        }}
+        onKeyDown={onKeyDown}
       >
         {children}
       </DialogPrimitive.Popup>
