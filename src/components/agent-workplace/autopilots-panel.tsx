@@ -72,10 +72,10 @@ export function AutopilotsPanel() {
                       Next run {next} · Last run {ap.lastRun}
                     </p>
                   </TableCell>
-                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden")}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden!")}>
                     {ap.scheduleLabel}
                   </TableCell>
-                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden")}>
+                  <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-lg:hidden!")}>
                     {next}
                   </TableCell>
                   <TableCell className={cn(CELL, WORKPLACE_AUTOPILOT_CELL, "max-md:pt-0.5!")}>

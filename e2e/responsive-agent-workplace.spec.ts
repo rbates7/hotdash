@@ -139,6 +139,28 @@ test.describe("responsive Agent Workplace (phone)", () => {
     ).toBeVisible()
   })
 
+  test("Schedule and Next-run cells stay hidden and the ok pill sits on the name row", async ({
+    page,
+  }) => {
+    await page.goto("/agent-workplace?tab=autopilots")
+    const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
+    await expect(row).toBeVisible()
+    const schedule = row.getByRole("cell").nth(1)
+    const next = row.getByRole("cell").nth(2)
+    expect(await schedule.evaluate((el) => getComputedStyle(el).display), "Schedule display").toBe(
+      "none"
+    )
+    expect(await next.evaluate((el) => getComputedStyle(el).display), "Next run display").toBe("none")
+    const name = row.getByRole("cell").nth(0).locator("p").first()
+    const pill = row.getByText("ok", { exact: true })
+    const nameBox = await name.boundingBox()
+    const pillBox = await pill.boundingBox()
+    expect(nameBox, "name painted").toBeTruthy()
+    expect(pillBox, "ok pill painted").toBeTruthy()
+    expect(pillBox!.y, "ok pill top sits in the name row").toBeGreaterThanOrEqual(nameBox!.y - 2)
+    expect(pillBox!.y, "ok pill top sits in the name row").toBeLessThan(nameBox!.y + nameBox!.height)
+  })
+
   test("B7: Bugs Reset stays compact; Workplace Reset is 44px", async ({ page }) => {
     await page.goto("/bugs")
     const bugsReset = page.getByRole("button", { name: "Reset" })
@@ -210,6 +232,15 @@ test.describe("responsive Agent Workplace (tablet-portrait)", () => {
     const folded = page.locator("p").filter({ hasText: /^Next run / })
     await expect(folded).toHaveCount(3)
     await expect(folded.first()).toBeVisible()
+    const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
+    expect(
+      await row.getByRole("cell").nth(1).evaluate((el) => getComputedStyle(el).display),
+      "Schedule display at 820"
+    ).toBe("none")
+    expect(
+      await row.getByRole("cell").nth(2).evaluate((el) => getComputedStyle(el).display),
+      "Next run display at 820"
+    ).toBe("none")
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
