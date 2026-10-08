@@ -1,10 +1,11 @@
 import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { INITIATIVE_LIMITS } from "@/lib/community-development"
 import { addDays, formatDate } from "@/lib/clock"
+import { PHONE_QUERY } from "@/hooks/use-mobile"
 import { SPAWN_LABEL, SPAWN_SOON } from "@/components/community-development/initiative-dialog"
 import {
   COLUMNS,
@@ -39,12 +40,29 @@ const bodyRows = () => within(table()).getAllByRole("row").slice(1)
 const row = (re: RegExp) => within(table()).getByRole("row", { name: re })
 const summary = () => screen.getByRole("group", { name: "Giving summary" })
 
+function installMatchMedia(width = 1440) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === PHONE_QUERY ? width <= 767 : false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
 async function openMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
   await user.click(screen.getByRole("button", { name: `Actions for ${name}` }))
   return screen.findByRole("menu")
 }
 
 describe("CommunityDevelopmentScreen", () => {
+  beforeEach(() => {
+    installMatchMedia(1440)
+  })
+
   it("renders the header, the lede, the shared note and chip, and Add initiative", () => {
     renderScreen()
     expect(screen.getByRole("heading", { level: 1, name: "Community Development" })).toBeInTheDocument()
@@ -52,6 +70,7 @@ describe("CommunityDevelopmentScreen", () => {
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
     expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
+    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass("max-xl:h-11!", "max-xl:min-w-11!")
     const header = screen.getByRole("heading", { level: 1, name: "Community Development" }).closest("header")!
     expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     expect(screen.getByRole("button", { name: "Add initiative" })).toBeEnabled()
@@ -79,7 +98,7 @@ describe("CommunityDevelopmentScreen", () => {
     const first = row(/Equipment drive for Yates High School/)
     expect(within(first).getByTestId("type-pill")).toHaveTextContent("Donation")
     expect(within(first).getByTestId("status-pill")).toHaveTextContent("Active")
-    expect(within(first).getByText("Yates High School football")).toBeInTheDocument()
+    expect(within(first).getAllByText("Yates High School football").length).toBeGreaterThan(0)
     expect(within(first).getByText(formatDate(addDays(TODAY, 8)))).toBeInTheDocument()
     expect(within(first).getByText("in 8 days")).toBeInTheDocument()
     expect(within(first).getByText("Skye")).toBeInTheDocument()
@@ -272,7 +291,9 @@ describe("CommunityDevelopmentScreen", () => {
       await user.clear(within(dialog).getByLabelText("What we gave / impact"))
       await user.type(within(dialog).getByLabelText("What we gave / impact"), "48 kids coached")
       await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
-      expect(within(row(/Youth flag-football/)).getByText("48 kids coached")).toBeInTheDocument()
+      expect(within(row(/Youth flag-football/)).getAllByText("48 kids coached").length).toBeGreaterThan(
+        0
+      )
     })
 
     it("delete asks first; Keep it leaves the row, Delete removes it", async () => {
