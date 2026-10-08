@@ -13,7 +13,7 @@ export function CrashCountCard({ now }: { now: Date }) {
   return (
     <article
       aria-label={CRASHES_LABEL}
-      className="bg-surface border-surface-border flex min-h-[124px] w-full flex-col rounded-xl border px-[18px] pt-[18px] pb-4 sm:max-w-xs"
+      className="bg-surface border-surface-border flex min-h-[124px] w-full flex-col rounded-xl border px-[18px] pt-[18px] pb-4 md:max-w-xs"
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-label font-semibold tracking-tight">{kpi.label}</h2>

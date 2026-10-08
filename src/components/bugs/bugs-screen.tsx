@@ -24,7 +24,22 @@ export function BugsScreen() {
   const { issues, actors, now } = useIssues()
 
   const issueKey = params.get("issue")
-  const closeIssue = React.useCallback(() => router.push("/bugs", { scroll: false }), [router])
+  // Opened from this list: Back is a real history step, so the browser puts
+  // the list back where it was. A deep link has nothing to go back to.
+  const openedFromList = React.useRef(false)
+  const closeIssue = React.useCallback(() => {
+    if (openedFromList.current) {
+      openedFromList.current = false
+      router.back()
+    } else router.push("/bugs", { scroll: false })
+  }, [router])
+  const openIssue = React.useCallback(() => {
+    openedFromList.current = true
+  }, [])
+  // A ticket starts at its own top, with Back in view.
+  React.useLayoutEffect(() => {
+    if (issueKey) window.scrollTo(0, 0)
+  }, [issueKey])
 
   if (issueKey) {
     return <TicketView issueKey={issueKey} onClose={closeIssue} backLabel={BACK_TO_BUGS} />
@@ -33,7 +48,7 @@ export function BugsScreen() {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <CrashCountCard now={now} />
-      <BugsList issues={issues} actors={actors} now={now} />
+      <BugsList issues={issues} actors={actors} now={now} onOpen={openIssue} />
     </div>
   )
 }
