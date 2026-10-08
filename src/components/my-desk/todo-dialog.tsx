@@ -15,6 +15,15 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useMyDesk } from "@/components/my-desk/my-desk-store"
+import {
+  DESK_DIALOG,
+  DESK_DONE,
+  DESK_DONE_INPUT,
+  DESK_FIELD,
+  DESK_FOOTER,
+  DESK_HEADER_PAD,
+  DESK_TEXTAREA,
+} from "@/components/my-desk/responsive"
 
 type Draft = { title: string; note: string; done: boolean }
 
@@ -31,16 +40,23 @@ export function TodoDialog({
   open,
   onOpenChange,
   todo,
+  finalFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** `null` adds; a to-do edits it. */
   todo: Todo | null
+  /** Where focus lands on close when the opener may be gone (a deleted card). */
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
   const titleRef = React.useRef<HTMLInputElement>(null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md!" initialFocus={titleRef}>
+      <DialogContent
+        className={`sm:max-w-md! ${DESK_DIALOG}`}
+        initialFocus={titleRef}
+        finalFocus={finalFocus}
+      >
         <TodoForm todo={todo} onDone={() => onOpenChange(false)} titleRef={titleRef} />
       </DialogContent>
     </Dialog>
@@ -79,7 +95,7 @@ function TodoForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4" aria-label={editing ? "Edit to-do" : "Add to-do"}>
-      <DialogHeader>
+      <DialogHeader className={DESK_HEADER_PAD}>
         <DialogTitle>{editing ? "Edit to-do" : "Add to-do"}</DialogTitle>
         <DialogDescription>
           {editing
@@ -101,6 +117,7 @@ function TodoForm({
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             maxLength={TODO_LIMITS.title}
             required
+            className={DESK_FIELD}
           />
         </div>
         <div className="grid gap-1.5">
@@ -114,17 +131,17 @@ function TodoForm({
             onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
             maxLength={TODO_LIMITS.note}
             rows={2}
-            className="min-h-9"
+            className={`min-h-9 ${DESK_TEXTAREA}`}
           />
         </div>
         {editing ? (
-          <label htmlFor={id("done")} className="text-caption flex items-center gap-2 font-medium">
+          <label htmlFor={id("done")} className={DESK_DONE}>
             <input
               id={id("done")}
               type="checkbox"
               checked={draft.done}
               onChange={(e) => setDraft((d) => ({ ...d, done: e.target.checked }))}
-              className="size-4 accent-foreground"
+              className={DESK_DONE_INPUT}
             />
             Done
           </label>
@@ -132,10 +149,10 @@ function TodoForm({
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onDone}>
+        <Button type="button" variant="outline" className={DESK_FOOTER} onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!valid}>
+        <Button type="submit" className={DESK_FOOTER} disabled={!valid}>
           {editing ? "Save changes" : "Add to-do"}
         </Button>
       </DialogFooter>
