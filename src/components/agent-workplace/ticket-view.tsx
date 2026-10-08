@@ -35,6 +35,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { useIssues } from "@/components/agent-workplace/issues-store"
+import {
+  WORKPLACE_TICKET,
+  WORKPLACE_TICKET_RAIL,
+  WORKPLACE_TOUCH,
+} from "@/components/agent-workplace/responsive"
 import { BugTag } from "@/components/bugs/bug-tag"
 
 const NOT_YET = "Not in this pass"
@@ -126,14 +131,15 @@ export function TicketView({
   }
 
   return (
-    <div className="flex min-h-[70vh] gap-0">
+    <div className={WORKPLACE_TICKET}>
       <div className="min-w-0 flex-1">
-        <header className="flex items-center gap-2 pb-4">
+        <header className="flex flex-wrap items-center gap-2 pb-4">
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={onClose}
             aria-label={backLabel}
+            className={WORKPLACE_TOUCH}
           >
             <ArrowLeftIcon />
           </Button>
@@ -172,7 +178,7 @@ export function TicketView({
           </div>
         </header>
 
-        <div className="max-w-3xl pr-6">
+        <div className="max-w-3xl pr-6 max-xl:pr-0">
           {bug && (
             <p className="mb-2 flex items-center gap-2">
               <BugTag issue={issue} withSource />
@@ -323,7 +329,7 @@ export function TicketView({
       {railOpen && (
         <aside
           aria-label="Ticket properties"
-          className="border-border w-72 shrink-0 border-l pt-14 pl-6"
+          className={WORKPLACE_TICKET_RAIL}
         >
           <div className="flex flex-col gap-6">
             <RailSection title="Properties">
