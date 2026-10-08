@@ -5,6 +5,7 @@ import {
   FR_BOARD_PHONE,
   FR_BOARD_TABLET,
   FR_CHIP,
+  FR_CHIP_ON,
   FR_CHIPS,
   FR_DESKTOP_NEW_IDEA,
   FR_HEADER,
@@ -12,9 +13,11 @@ import {
   FR_ICON,
   FR_INPUT,
   FR_PHONE_NEW_IDEA,
+  FR_PRESSED,
   FR_RESET,
   FR_ROADMAP_HINT,
   FR_SHEET,
+  FR_TEXTAREA,
   FR_TOUCH,
 } from "@/components/feature-request/responsive"
 
@@ -36,6 +39,9 @@ describe("Feature Request responsive layout", () => {
     expect(FR_CHIPS).toContain("overflow-x-auto")
     expect(FR_CHIP).toContain("h-11")
     expect(FR_CHIP).toContain("rounded-full")
+    expect(FR_PRESSED).toContain("aria-pressed:bg-primary!")
+    expect(FR_PRESSED).toContain("aria-pressed:text-primary-foreground!")
+    expect(FR_CHIP_ON).toBe(FR_PRESSED)
     expect(FR_BOARD_PHONE).toContain("flex-col")
     expect(FR_BOARD_TABLET).toContain("grid-cols-2")
     expect(FR_BOARD_DESKTOP).toContain("grid-cols-4")
@@ -47,6 +53,10 @@ describe("Feature Request responsive layout", () => {
     expect(FR_SHEET).toContain("max-md:rounded-t-2xl!")
     expect(FR_INPUT).toContain("max-xl:min-h-12!")
     expect(FR_INPUT).toContain("max-xl:text-base")
+    expect(FR_TEXTAREA).toContain("min-h-16")
+    expect(FR_TEXTAREA).toContain("max-xl:min-h-24!")
+    expect(FR_TEXTAREA).toContain("field-sizing-content")
+    expect(FR_TEXTAREA).not.toMatch(/(?:^|\s)h-/)
     expect(FR_ROADMAP_HINT).toContain("max-xl:min-h-11")
     expect(FR_ROADMAP_HINT).toContain("max-xl:basis-full")
     expect(FR_ROADMAP_HINT).toContain("max-xl:text-foreground")

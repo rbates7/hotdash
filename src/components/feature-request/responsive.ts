@@ -41,7 +41,11 @@ export const FR_CHIPS =
 export const FR_CHIP =
   "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap"
 
-export const FR_CHIP_ON = "bg-foreground text-background border-foreground"
+/** Pressed filter pills match Community Development (`aria-pressed:bg-primary!`). */
+export const FR_PRESSED =
+  "aria-pressed:bg-primary! aria-pressed:text-primary-foreground! aria-pressed:border-primary!"
+
+export const FR_CHIP_ON = FR_PRESSED
 
 export const FR_CHIP_OFF = "bg-background text-foreground border-border"
 
@@ -66,6 +70,9 @@ export const FR_SHEET_HANDLE =
 
 /** 16px inputs on phone so iOS does not zoom; 44px+ tall below 1280. */
 export const FR_INPUT = "max-xl:min-h-12! max-xl:text-base"
+
+/** Ask field: min-height only (no `h-*` / `rows`) so long copy is not clipped. */
+export const FR_TEXTAREA = "field-sizing-content min-h-16 max-xl:min-h-24! max-xl:text-base"
 
 export const FR_STATUS = "max-xl:min-h-12! max-xl:min-w-11!"
 

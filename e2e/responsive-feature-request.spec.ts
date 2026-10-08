@@ -88,6 +88,68 @@ async function expectSheetDocked(page: Page, sheet: Locator) {
   expect(box!.width, "sheet spans the viewport").toBeGreaterThan(viewport!.width - 2)
 }
 
+/**
+ * WCAG contrast between painted backgrounds (pressed vs unpressed). Copied
+ * locally from the Community Development spec so e2e/support stays untouched.
+ */
+async function backgroundContrast(a: Locator, b: Locator) {
+  return a.evaluate((elA, elB) => {
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, bb, alpha] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b: bb, a: alpha / 255 }
+    }
+    const over = (top: { r: number; g: number; b: number; a: number }, under: { r: number; g: number; b: number }) => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const painted = (el: Element) => {
+      const layers: ReturnType<typeof parse>[] = []
+      let node: Element | null = el
+      while (node) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+        node = node.parentElement
+      }
+      let backdrop = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      return backdrop
+    }
+    const [l1, l2] = [lum(painted(elA)), lum(painted(elB as Element))].sort((x, y) => y - x)
+    return (l1 + 0.05) / (l2 + 0.05)
+  }, await b.elementHandle())
+}
+
+async function expectPressedContrast(group: Locator, role: "tab" | "button", label: string) {
+  const pressed = group.getByRole(role, { pressed: true })
+  const unpressed = group.getByRole(role, { pressed: false }).first()
+  await expect(pressed).toBeVisible()
+  const ratio = await backgroundContrast(pressed, unpressed)
+  expect(ratio, `${label} pressed vs unpressed ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
+  await expectReadable(pressed, `${label} pressed`, expect)
+  await expectReadable(unpressed, `${label} unpressed`, expect)
+}
+
+async function expectUnclipped(locator: Locator, label: string) {
+  const box = await locator.evaluate((el) => ({
+    scroll: (el as HTMLElement).scrollHeight,
+    client: (el as HTMLElement).clientHeight,
+  }))
+  expect(box.scroll, `${label}: content not clipped`).toBeLessThanOrEqual(box.client + 1)
+}
+
 /* ------------------------------------------------------------------ phone */
 
 test.describe("responsive Feature Request (phone 390)", () => {
@@ -129,6 +191,14 @@ test.describe("responsive Feature Request (phone 390)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
     await expectNoOverflowX(page)
     await expectAllTargets44(main(page), "390 main")
+
+    await add.click()
+    const created = dialog(page, "New idea")
+    await expect(created).toBeVisible()
+    await expectAllTargets44(created, "390 new-idea")
+    await expectUnclipped(created.getByLabel("The ask"), "390 new-idea ask")
+    await created.getByRole("button", { name: "Cancel", exact: true }).click()
+    await expect(created).toBeHidden()
   })
 
   test("a card opens the idea dialog as a bottom sheet; actions stay 44+ and the handoff works", async ({
@@ -140,8 +210,16 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await expect(sheet).toBeVisible()
     await expectSheetDocked(page, sheet)
     await expect(sheet.getByRole("button", { name: "Move to On Roadmap", exact: true })).toBeVisible()
+    await expect(sheet.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
     await expectAllTargets44(sheet, "390 sheet")
+    await expectUnclipped(sheet.getByLabel("The ask"), "390 ask")
     await expectNoOverflowX(page)
+
+    await sheet.getByRole("button", { name: "Delete", exact: true }).click()
+    await expect(sheet.getByRole("button", { name: "Confirm delete", exact: true })).toBeVisible()
+    await expectAllTargets44(sheet, "390 delete-confirm")
+    await sheet.getByRole("button", { name: "Keep it", exact: true }).click()
+    await expect(sheet.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
 
     await page.keyboard.press("Escape")
     await expect(sheet).toBeHidden()
@@ -220,7 +298,13 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       const d = dialog(page, "Idea: Play of the Day")
       await expect(d).toBeVisible()
       await expect(d.getByRole("button", { name: "Move to On Roadmap", exact: true })).toBeVisible()
+      await expect(d.getByRole("button", { name: "Delete", exact: true })).toBeVisible()
       await expectAllTargets44(d, `${VIEWPORTS[name].width} dialog`)
+      await expectUnclipped(d.getByLabel("The ask"), `${VIEWPORTS[name].width} ask`)
+      await d.getByRole("button", { name: "Delete", exact: true }).click()
+      await expect(d.getByRole("button", { name: "Confirm delete", exact: true })).toBeVisible()
+      await expectAllTargets44(d, `${VIEWPORTS[name].width} delete-confirm`)
+      await d.getByRole("button", { name: "Keep it", exact: true }).click()
       await page.keyboard.press("Escape")
       await expect(d).toBeHidden()
 
@@ -286,19 +370,28 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(persistence(page), `${label}/note`, expect)
         await expectReadable(header(page).getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(board(page), `${label}/board`, expect)
+        const newIdea = (size === "390" ? header(page) : actions(page)).getByRole(
+          "button",
+          { name: "New idea", exact: true }
+        )
+        await expectReadable(newIdea, `${label}/new idea`, expect)
         if (size === "390") {
           await expectReadable(chips(page), `${label}/chips`, expect)
+          await expectPressedContrast(chips(page), "tab", `${label}/chips`)
         }
         await card(page, "Play of the Day").click()
         const sheet = dialog(page, "Idea: Play of the Day")
         await expect(sheet).toBeVisible()
         // Save stays disabled until the form is dirty; Nova fades disabled
-        // controls to 0.5 opacity, which expectReadable rejects. Probe the
-        // status path and the Roadmap hand-off instead of the whole dialog.
-        await expectReadable(
-          sheet.getByRole("group", { name: "Status" }).getByRole("button", { pressed: true }),
-          `${label}/status`,
-          expect
+        // controls to 0.5 opacity, which expectReadable rejects. Probe every
+        // enabled restyled control, including Delete and the delete-confirm.
+        await expectReadable(sheet.getByLabel("Idea title"), `${label}/title field`, expect)
+        await expectReadable(sheet.getByLabel("The ask"), `${label}/ask`, expect)
+        await expectReadable(sheet.getByLabel("From"), `${label}/from`, expect)
+        await expectPressedContrast(
+          sheet.getByRole("group", { name: "Status" }),
+          "button",
+          `${label}/status`
         )
         await expectReadable(
           sheet.getByRole("button", { name: "Move to On Roadmap", exact: true }),
@@ -315,6 +408,33 @@ for (const theme of ["light", "dark"] as const) {
           `${label}/cancel`,
           expect
         )
+        await expectReadable(
+          sheet.getByRole("button", { name: "Delete", exact: true }),
+          `${label}/delete`,
+          expect
+        )
+        await sheet.getByRole("button", { name: "Delete", exact: true }).click()
+        await expectReadable(
+          sheet.getByRole("button", { name: "Confirm delete", exact: true }),
+          `${label}/confirm delete`,
+          expect
+        )
+        await expectReadable(
+          sheet.getByRole("button", { name: "Keep it", exact: true }),
+          `${label}/keep it`,
+          expect
+        )
+        await page.keyboard.press("Escape")
+        await expect(sheet).toBeHidden()
+        await newIdea.click()
+        const created = dialog(page, "New idea")
+        await expect(created).toBeVisible()
+        await expectReadable(
+          created.getByRole("button", { name: "Cancel", exact: true }),
+          `${label}/new-idea cancel`,
+          expect
+        )
+        await expectReadable(created.getByLabel("Idea title"), `${label}/new-idea title`, expect)
       })
     })
   }

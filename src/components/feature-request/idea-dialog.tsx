@@ -24,7 +24,16 @@ import {
 } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
-import { FR_ICON, FR_INPUT, FR_SHEET, FR_SHEET_HANDLE, FR_STATUS, FR_TOUCH } from "@/components/feature-request/responsive"
+import {
+  FR_ICON,
+  FR_INPUT,
+  FR_PRESSED,
+  FR_SHEET,
+  FR_SHEET_HANDLE,
+  FR_STATUS,
+  FR_TEXTAREA,
+  FR_TOUCH,
+} from "@/components/feature-request/responsive"
 import { SampleDataTag } from "@/components/sample-data"
 
 export const MOVE_TO_ROADMAP = "Move to On Roadmap"
@@ -150,10 +159,9 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             placeholder="The ask, in one line. What would it let a coach do?"
             aria-label="The ask"
             maxLength={LIMITS.ask}
-            rows={4}
             className={cn(
               "text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none",
-              FR_INPUT
+              FR_TEXTAREA
             )}
           />
           <div className="flex items-end gap-3">
@@ -306,18 +314,17 @@ function EditIdeaBody({
             FR_INPUT
           )}
         />
-        <textarea
-          value={ask}
-          onChange={(e) => setAsk(e.target.value)}
-          placeholder="The ask, in one line."
-          aria-label="The ask"
-          maxLength={LIMITS.ask}
-          rows={3}
-          className={cn(
-            "text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none",
-            FR_INPUT
-          )}
-        />
+          <textarea
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            placeholder="The ask, in one line."
+            aria-label="The ask"
+            maxLength={LIMITS.ask}
+            className={cn(
+              "text-body placeholder:text-muted-foreground resize-none bg-transparent outline-none",
+              FR_TEXTAREA
+            )}
+          />
 
         <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
           <Field label="From">
@@ -359,10 +366,7 @@ function EditIdeaBody({
                 key={s}
                 value={s}
                 title={STATUS_CONFIG[s].description}
-                className={cn(
-                  "aria-pressed:bg-brand/12! aria-pressed:text-foreground! aria-pressed:border-brand/40!",
-                  FR_STATUS
-                )}
+                className={cn(FR_PRESSED, FR_STATUS)}
               >
                 {STATUS_CONFIG[s].label}
               </ToggleGroupItem>

@@ -77,7 +77,8 @@ function StatusChips({
             type="button"
             role="tab"
             aria-selected={on}
-            className={cn(FR_CHIP, on ? FR_CHIP_ON : FR_CHIP_OFF)}
+            aria-pressed={on}
+            className={cn(FR_CHIP, FR_CHIP_OFF, FR_CHIP_ON)}
             onClick={() => onSelect(status)}
           >
             {STATUS_CONFIG[status].label}

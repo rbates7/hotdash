@@ -86,6 +86,10 @@ describe("phone (<768): status chips + one column", () => {
       "aria-selected",
       "true"
     )
+    expect(within(tabs).getByRole("tab", { name: /Inbox/ })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
 
     expect(column("Inbox")).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "Triaged" })).toBeNull()
@@ -105,6 +109,10 @@ describe("phone (<768): status chips + one column", () => {
     await user.click(screen.getByRole("tab", { name: /On Roadmap/ }))
     expect(screen.getByRole("tab", { name: /On Roadmap/ })).toHaveAttribute(
       "aria-selected",
+      "true"
+    )
+    expect(screen.getByRole("tab", { name: /On Roadmap/ })).toHaveAttribute(
+      "aria-pressed",
       "true"
     )
     expect(screen.queryByRole("region", { name: "Inbox" })).toBeNull()
