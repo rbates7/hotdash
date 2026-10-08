@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFeatureRequests } from "@/components/feature-request/feature-requests-store"
-import { FR_INPUT, FR_SHEET, FR_SHEET_HANDLE, FR_STATUS, FR_TOUCH } from "@/components/feature-request/responsive"
+import { FR_ICON, FR_INPUT, FR_SHEET, FR_SHEET_HANDLE, FR_STATUS, FR_TOUCH } from "@/components/feature-request/responsive"
 import { SampleDataTag } from "@/components/sample-data"
 
 export const MOVE_TO_ROADMAP = "Move to On Roadmap"
@@ -121,7 +121,7 @@ export function NewIdeaDialog({ trigger }: { trigger: React.ReactElement }) {
             variant="ghost"
             size="icon-sm"
             aria-label="Close"
-            className={cn("ml-auto", FR_TOUCH)}
+            className={cn("ml-auto", FR_TOUCH, FR_ICON)}
             onClick={() => setOpen(false)}
           >
             <XIcon />
@@ -284,7 +284,7 @@ function EditIdeaBody({
           variant="ghost"
           size="icon-sm"
           aria-label="Close"
-          className={cn("ml-auto", FR_TOUCH)}
+          className={cn("ml-auto", FR_TOUCH, FR_ICON)}
           onClick={onClose}
         >
           <XIcon />

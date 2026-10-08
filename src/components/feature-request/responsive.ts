@@ -27,6 +27,9 @@ export const FR_RESET = "max-xl:h-11! max-xl:px-2.5!"
 /** 44px+ tap target on phone + tablet; `h-12` beats Nova sm sizing that painted 43px. */
 export const FR_TOUCH = "max-xl:h-12! max-xl:min-h-12! max-xl:min-w-11!"
 
+/** Icon-only Close: `size-11!` beats unlayered `.cn-button-size-icon-sm` (`size-7`). */
+export const FR_ICON = "max-xl:size-11!"
+
 /** Phone New idea sits beside the title; the actions-group copy is hidden. */
 export const FR_PHONE_NEW_IDEA = "shrink-0 md:hidden"
 export const FR_DESKTOP_NEW_IDEA = "max-md:hidden"
@@ -56,7 +59,7 @@ export const FR_BOARD_DESKTOP = "grid grid-cols-4 items-start gap-3.5"
  * shared `top-1/2 left-1/2 -translate-*` centering.
  */
 export const FR_SHEET =
-  "max-md:inset-x-0! max-md:top-auto! max-md:bottom-0! max-md:left-0! max-md:right-0! max-md:max-h-[90dvh] max-md:w-full! max-md:max-w-none! max-md:translate-x-0! max-md:translate-y-0! max-md:overflow-y-auto max-md:rounded-t-2xl! max-md:rounded-b-none!"
+  "max-md:inset-x-0! max-md:top-auto! max-md:bottom-0! max-md:left-0! max-md:right-0! max-md:m-0! max-md:max-h-[90dvh] max-md:w-full! max-md:max-w-[100vw]! max-md:max-w-none! max-md:translate-x-0! max-md:translate-y-0! max-md:overflow-y-auto max-md:rounded-t-2xl! max-md:rounded-b-none! max-md:data-open:zoom-in-100 max-md:data-closed:zoom-out-100"
 
 export const FR_SHEET_HANDLE =
   "bg-muted-foreground/30 mx-auto mt-2 hidden h-1 w-9 shrink-0 rounded-full max-md:block"

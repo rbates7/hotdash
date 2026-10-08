@@ -9,6 +9,7 @@ import {
   FR_DESKTOP_NEW_IDEA,
   FR_HEADER,
   FR_HEADER_ACTIONS,
+  FR_ICON,
   FR_INPUT,
   FR_PHONE_NEW_IDEA,
   FR_RESET,
@@ -28,6 +29,7 @@ describe("Feature Request responsive layout", () => {
     expect(FR_TOUCH).toContain("max-xl:h-12!")
     expect(FR_TOUCH).toContain("max-xl:min-h-12!")
     expect(FR_TOUCH).toContain("max-xl:min-w-11!")
+    expect(FR_ICON).toBe("max-xl:size-11!")
   })
 
   it("uses chips + one column on phone, 2×2 on tablet portrait, four columns on desktop", () => {
@@ -49,5 +51,7 @@ describe("Feature Request responsive layout", () => {
     expect(FR_ROADMAP_HINT).toContain("max-xl:basis-full")
     expect(FR_ROADMAP_HINT).toContain("max-xl:text-foreground")
     expect(FR_SHEET).toContain("max-md:max-w-none!")
+    expect(FR_SHEET).toContain("max-md:m-0!")
+    expect(FR_SHEET).toContain("max-md:data-open:zoom-in-100")
   })
 })

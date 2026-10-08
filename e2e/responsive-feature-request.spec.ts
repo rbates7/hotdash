@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { expectReadable } from "./support/contrast"
+import { expectReadable, settleAnimations } from "./support/contrast"
 import { NOTE, NOTE_NAME } from "./support/persistence"
 import { expectNoOverflowX, pageOverflowX, waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
@@ -54,6 +54,7 @@ const INTERACTIVE =
   "button, a[href], input, select, textarea, summary, [role='button'], [role='link'], [role='menuitem'], [role='menuitemradio'], [role='checkbox'], [role='switch'], [role='tab'], [tabindex]:not([tabindex='-1'])"
 
 async function expectAllTargets44(scope: Locator, label: string) {
+  await settleAnimations(scope.page())
   const measured = await scope.locator(INTERACTIVE).evaluateAll((els) =>
     els.map((el) => {
       const r = el.getBoundingClientRect()
@@ -77,6 +78,7 @@ async function expectAllTargets44(scope: Locator, label: string) {
 }
 
 async function expectSheetDocked(page: Page, sheet: Locator) {
+  await settleAnimations(page)
   const box = await sheet.boundingBox()
   const viewport = page.viewportSize()
   expect(box, "sheet painted").toBeTruthy()
@@ -161,11 +163,14 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await card(page, "Play of the Day").click()
     const sheet = dialog(page, "Idea: Play of the Day")
     await expect(sheet).toBeVisible()
-    for (let i = 0; i < 8; i++) {
+    await settleAnimations(page)
+    // Base UI parks a focus guard next to the popup; poll so the trap has
+    // time to bounce Tab back inside `[role=dialog]`.
+    const focusInside = () => sheet.evaluate((el) => el.contains(document.activeElement))
+    await expect.poll(focusInside, { message: "focus starts in the sheet" }).toBe(true)
+    for (let i = 0; i < 16; i++) {
       await page.keyboard.press("Tab")
-      expect(await sheet.evaluate((el) => el.contains(document.activeElement)), `Tab ${i + 1}`).toBe(
-        true
-      )
+      await expect.poll(focusInside, { message: `Tab ${i + 1}` }).toBe(true)
     }
   })
 })
