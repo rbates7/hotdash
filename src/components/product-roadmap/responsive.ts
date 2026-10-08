@@ -13,6 +13,7 @@
  *
  * Three columns start at 1180, not 1024: the card toolbar is ~255px
  * (4 × 44 icons + Edit, no wrap) and overflows a 3-col card at 1024–1175.
+ * At 1180–1279 the toolbar slims (`gap-0`, Edit `px-2`) to ~239px.
  */
 
 /** Switcher + 2-col board. Three columns only at `ROADMAP_THREE_COL_MIN`. */
@@ -100,5 +101,14 @@ export const ROADMAP_CONFIRM_DELETE = "max-xl:text-danger-text!"
 export const ROADMAP_DELETE =
   "text-destructive hover:text-destructive max-xl:text-danger-text! max-xl:hover:text-danger-text!"
 
-/** Card toolbar Edit: develop `h-6 px-1.5`; 44px below 1280. */
-export const ROADMAP_CARD_EDIT = "text-micro ml-auto h-6 px-1.5 max-xl:h-11! max-xl:min-h-11! max-xl:px-3!"
+/**
+ * Card toolbar row. develop `gap-0.5` at xl+. At 1180–1279 only, `gap-0`
+ * so four 44px icons + Edit (~239px) fit a 3-col card. Phone / 820 keep
+ * `gap-0.5` — they already have the width.
+ */
+export const ROADMAP_CARD_TOOLBAR =
+  "border-surface-border mt-1 flex items-center gap-0.5 border-t pt-2 min-[1180px]:max-xl:gap-0"
+
+/** Card toolbar Edit: develop `h-6 px-1.5`; 44px below 1280. Slimmer px only at 1180–1279. */
+export const ROADMAP_CARD_EDIT =
+  "text-micro ml-auto h-6 px-1.5 max-xl:h-11! max-xl:min-h-11! max-xl:px-3! min-[1180px]:max-xl:px-2!"

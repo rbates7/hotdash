@@ -151,6 +151,30 @@ async function expectPressedContrast(group: Locator, label: string) {
   await expectReadable(unpressed, `${label} unpressed`, expect)
 }
 
+async function expectToolbarFits(article: Locator, label: string) {
+  const fit = await article.evaluate((el) => {
+    const toolbar = el.querySelector<HTMLElement>("[data-roadmap-toolbar]")
+    if (!toolbar) return null
+    const padRight = parseFloat(getComputedStyle(el).paddingRight)
+    const card = el.getBoundingClientRect()
+    const tool = toolbar.getBoundingClientRect()
+    return {
+      scrollWidth: toolbar.scrollWidth,
+      clientWidth: toolbar.clientWidth,
+      toolbarRight: tool.right,
+      contentRight: card.right - padRight,
+    }
+  })
+  expect(fit, `${label}: toolbar painted`).toBeTruthy()
+  expect(fit!.scrollWidth, `${label}: scrollWidth <= clientWidth (${fit!.scrollWidth} / ${fit!.clientWidth})`).toBeLessThanOrEqual(
+    fit!.clientWidth
+  )
+  expect(
+    fit!.toolbarRight,
+    `${label}: toolbar right ${fit!.toolbarRight.toFixed(2)} inside content ${fit!.contentRight.toFixed(2)}`
+  ).toBeLessThanOrEqual(fit!.contentRight + 0.5)
+}
+
 async function expectUnclipped(locator: Locator, label: string) {
   const box = await locator.evaluate((el) => ({
     scroll: (el as HTMLElement).scrollHeight,
@@ -388,6 +412,33 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expectAllTargets44(main(page), `${VIEWPORTS[name].width} main`)
     })
   })
+}
+
+/* ---------------------------------------------- 1180 / 1194 toolbar fit */
+
+for (const theme of ["light", "dark"] as const) {
+  for (const [size, viewport] of [
+    ["1180", { width: 1180, height: 820 }],
+    ["1194", { width: 1194, height: 834 }],
+  ] as const) {
+    test.describe(`card toolbar fit (${size} ${theme})`, () => {
+      test.use({ viewport })
+
+      test(`every card toolbar stays inside the content box in ${theme}`, async ({ page }) => {
+        await fresh(page)
+        await setTheme(page, theme)
+        const cards = board(page).getByRole("article")
+        await expect(cards).toHaveCount(8)
+        const articles = await cards.all()
+        for (const [i, article] of articles.entries()) {
+          const name = await article.getAttribute("aria-label")
+          const label = `${theme}/${size} ${name ?? `card ${i}`}`
+          await expectToolbarFits(article, label)
+          await expectAllTargets44(article, label)
+        }
+      })
+    })
+  }
 }
 
 /* --------------------------------------------------- 1024 / 1100 (820 layout) */

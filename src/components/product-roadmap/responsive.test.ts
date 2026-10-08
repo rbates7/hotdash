@@ -5,6 +5,7 @@ import {
   ROADMAP_BOARD_PHONE,
   ROADMAP_BOARD_TABLET,
   ROADMAP_CARD_EDIT,
+  ROADMAP_CARD_TOOLBAR,
   ROADMAP_CONFIRM_DELETE,
   ROADMAP_DELETE,
   ROADMAP_DESKTOP_NEW_BET,
@@ -81,6 +82,12 @@ describe("Product Roadmap responsive layout", () => {
     expect(ROADMAP_DELETE).toContain("max-xl:text-danger-text!")
     expect(ROADMAP_OPTION).toContain("max-xl:min-h-12!")
     expect(ROADMAP_CARD_EDIT).toContain("h-6")
+    expect(ROADMAP_CARD_EDIT).toContain("px-1.5")
     expect(ROADMAP_CARD_EDIT).toContain("max-xl:h-11!")
+    expect(ROADMAP_CARD_EDIT).toContain("max-xl:px-3!")
+    expect(ROADMAP_CARD_EDIT).toContain("min-[1180px]:max-xl:px-2!")
+    expect(ROADMAP_CARD_TOOLBAR).toContain("gap-0.5")
+    expect(ROADMAP_CARD_TOOLBAR).toContain("min-[1180px]:max-xl:gap-0")
+    expect(ROADMAP_CARD_TOOLBAR).not.toMatch(/(?:^|\s)gap-0(?:\s|$)/)
   })
 })

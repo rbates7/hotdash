@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   ROADMAP_CARD_EDIT,
+  ROADMAP_CARD_TOOLBAR,
   ROADMAP_ICON,
 } from "@/components/product-roadmap/responsive"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
@@ -167,7 +168,7 @@ export function RoadmapCard({
         </span>
       </div>
 
-      <div className="border-surface-border mt-1 flex items-center gap-0.5 border-t pt-2">
+      <div data-roadmap-toolbar className={ROADMAP_CARD_TOOLBAR}>
         <Button
           variant="ghost"
           size="icon-xs"
