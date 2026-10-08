@@ -5,6 +5,7 @@ import { MetricsHeaderPeriod } from "@/components/metrics/metrics-header-period"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
+import { METRICS_HEADER, METRICS_HEADER_META } from "@/components/metrics/responsive"
 import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 
 export const metadata = {
@@ -24,9 +25,9 @@ export default function MetricsPage() {
   return (
     <MetricsProvider nowMs={nowMs}>
       <div className="flex min-w-0 flex-col gap-2.5">
-        <header className="flex min-h-10 flex-wrap items-center justify-between gap-4">
+        <header className={METRICS_HEADER}>
           <h1 className="text-display-sm font-semibold tracking-tight">Metrics</h1>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className={METRICS_HEADER_META}>
             <MetricsPersistenceNote />
             <SampleDataTag className="h-6 px-2" />
             <MetricsHeaderPeriod />

@@ -29,9 +29,11 @@ const panel = (page: Page, name: "Overview" | "New Subscribers" | "Churned Subsc
   page.getByRole("tabpanel", { name, exact: true })
 const grid = (page: Page) => panel(page, "Overview").getByRole("region", { name: "Metric cards" })
 /** A card on the Overview board. */
-const card = (page: Page, name: string) => grid(page).getByRole("article", { name, exact: true })
+const card = (page: Page, name: string) =>
+  grid(page).getByRole("article", { name: new RegExp(`^${name}\\b`) })
 /** The Expenses tab's own card. */
-const expensesCard = (page: Page) => panel(page, "Expenses").getByRole("article", { name: "Expenses", exact: true })
+const expensesCard = (page: Page) =>
+  panel(page, "Expenses").getByRole("article", { name: /^Expenses\b/ })
 const tab = (page: Page, name: string) =>
   page.getByRole("tablist", { name: "Metrics views" }).getByRole("tab", { name, exact: true })
 const table = (page: Page, name: "New subscribers" | "Churned subscribers" | "Expenses") => {

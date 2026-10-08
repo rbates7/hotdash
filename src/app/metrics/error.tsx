@@ -5,6 +5,7 @@ import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { clearState } from "@/components/metrics/metrics-store"
+import { METRICS_DANGER, METRICS_ERROR_ACTIONS, METRICS_TOUCH } from "@/components/metrics/responsive"
 
 /**
  * Last line of defence for this route. The store validates every saved
@@ -40,12 +41,16 @@ export default function MetricsError({
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>
       )}
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={reset}>
+      {/* Below 1280 both actions are 44px hits and stack on phone; the
+          destructive label uses the readable danger token there (Nova's
+          text-destructive on its own tint is ~3.4:1). Desktop is unchanged. */}
+      <div className={METRICS_ERROR_ACTIONS}>
+        <Button variant="outline" onClick={reset} className={METRICS_TOUCH}>
           Try again
         </Button>
         <Button
           variant="destructive"
+          className={`${METRICS_DANGER} ${METRICS_TOUCH}`}
           onClick={() => {
             clearState(window.localStorage)
             reset()
