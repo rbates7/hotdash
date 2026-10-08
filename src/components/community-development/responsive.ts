@@ -92,7 +92,7 @@ export const TABLET_NAME_CELL = "max-xl:max-w-0 max-xl:min-w-0! max-xl:whitespac
  * left justify so the name starts at the cell edge, not centered in h-8.
  */
 export const CD_NAME_LINK =
-  "text-label text-foreground h-auto min-w-0 max-w-full shrink whitespace-normal! p-0 text-left font-semibold tracking-tight [overflow-wrap:anywhere] max-xl:justify-start max-xl:overflow-hidden max-xl:whitespace-nowrap!"
+  "text-label text-foreground h-auto min-w-0 max-w-full shrink whitespace-normal! p-0 text-left font-semibold tracking-tight [overflow-wrap:anywhere] max-xl:w-full max-xl:justify-start max-xl:overflow-hidden max-xl:whitespace-nowrap!"
 
 /** Inner span: `truncate` only below xl so desktop names still wrap. */
 export const CD_NAME_TEXT = "min-w-0 max-xl:block max-xl:truncate"

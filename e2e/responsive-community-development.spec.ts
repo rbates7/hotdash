@@ -393,6 +393,7 @@ test.describe("responsive Community Development (phone 390)", () => {
     const view = page.getByRole("dialog", { name: new RegExp(`^${YATES}`) })
     await expect(view).toBeVisible()
     await expect(view).toHaveAttribute("data-side", "right")
+    await settleAnimations(page)
     const box = (await view.boundingBox())!
     const viewport = page.viewportSize()!
     expect(box.width, "View sheet is full width").toBeGreaterThanOrEqual(viewport.width - 2)

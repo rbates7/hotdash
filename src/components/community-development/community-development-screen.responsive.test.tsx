@@ -93,6 +93,7 @@ describe("Community Development responsive", () => {
     expect(name).toHaveAttribute("title", "Equipment drive for Yates High School")
     expect(name.className).toContain("max-xl:whitespace-nowrap!")
     expect(name.className).toContain("max-xl:justify-start")
+    expect(name.className).toContain("max-xl:w-full")
     expect(CD_NAME_LINK).toContain("max-xl:whitespace-nowrap!")
   })
 

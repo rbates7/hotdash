@@ -78,6 +78,7 @@ describe("Community Development responsive layout", () => {
   it("truncates tablet names on one left-aligned line and opens View full-width on phone", () => {
     expect(CD_NAME_LINK).toContain("max-xl:whitespace-nowrap!")
     expect(CD_NAME_LINK).toContain("max-xl:justify-start")
+    expect(CD_NAME_LINK).toContain("max-xl:w-full")
     expect(CD_NAME_LINK).not.toMatch(/(?:^|\s)max-xl:truncate(?:\s|$)/)
     expect(CD_NAME_TEXT).toContain("max-xl:truncate")
     expect(CD_DETAIL_SHEET).toContain("max-md:w-full!")

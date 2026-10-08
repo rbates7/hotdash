@@ -563,7 +563,7 @@ export function CommunityDevelopmentScreen() {
                           >
                             <TableCell className={cn(CELL, "min-w-[16rem] whitespace-normal!", TABLET_NAME_CELL)}>
                               <div className="flex min-w-0 flex-col gap-0.5">
-                                <span className="flex min-w-0 flex-wrap items-center gap-1.5 max-xl:flex-nowrap">
+                                <span className="flex min-w-0 flex-wrap items-center gap-1.5 max-xl:flex-col max-xl:items-stretch">
                                   <Button
                                     variant="link"
                                     data-testid="initiative-name"
@@ -672,7 +672,9 @@ export function CommunityDevelopmentScreen() {
           setEditingFromCard(false)
           setViewingFromCard(true)
           setEditing((t) => (t ? { ...t, open: false } : t))
-          setViewing({ initiative: row, open: true })
+          window.setTimeout(() => {
+            setViewing({ initiative: row, open: true })
+          }, 200)
         }}
         onDelete={(row) => {
           setEditingFromCard(false)
