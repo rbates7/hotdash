@@ -186,6 +186,69 @@ test.describe("responsive Bugs (phone 390)", () => {
     await expectStackedCard(page, "CHLK-419", TITLE_419)
   })
 
+  test("B1: a lower card opens its ticket at the top, and Back returns to the same scroll spot without a new history entry", async ({ page }) => {
+    await fresh(page)
+    const card = bug(page, "CHLK-421")
+    const back = page.getByRole("button", { name: "Back to Bugs", exact: true })
+    const scrollY = () => page.evaluate(() => window.scrollY)
+    const historyLength = () => page.evaluate(() => history.length)
+
+    // Scroll to the bottom of the list, where CHLK-421 sits.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    await expect.poll(scrollY).toBeGreaterThan(100)
+    const listY = await scrollY()
+    const cardTop = (await box(card)).y
+    const before = await historyLength()
+
+    for (const round of [1, 2]) {
+      await card.click()
+      await expect(page).toHaveURL(/\/bugs\?issue=CHLK-421$/)
+      await expect(page.getByRole("heading", { level: 1, name: "Crash exporting a book to PDF" })).toBeVisible()
+      // Back is in view, below the sticky top bar, not hidden under it.
+      await expect.poll(scrollY, `round ${round}: ticket starts at its top`).toBe(0)
+      const bar = await box(page.locator("[data-slot='app-header']"))
+      const backBox = await box(back)
+      expect(backBox.y, `round ${round}: Back below the top bar`).toBeGreaterThanOrEqual(bar.y + bar.height)
+      expect(backBox.y + backBox.height, `round ${round}: Back above the fold`).toBeLessThanOrEqual(VIEWPORTS.phone.height)
+
+      await back.click()
+      await expect(page).toHaveURL(/\/bugs$/)
+      await expect.poll(scrollY, `round ${round}: list scroll restored`).toBeGreaterThanOrEqual(listY - 2)
+      expect(Math.abs((await scrollY()) - listY), `round ${round}: scrollY ±2`).toBeLessThanOrEqual(2)
+      expect(Math.abs((await box(card)).y - cardTop), `round ${round}: CHLK-421 top ±2`).toBeLessThanOrEqual(2)
+      // Back is a history step: only the open added an entry, and each
+      // round trip reuses it.
+      expect(await historyLength(), `round ${round}: no entry from Back`).toBe(before + 1)
+    }
+  })
+
+  test("B1: a deep-linked ticket's Back goes to the Bugs list", async ({ page }) => {
+    await fresh(page)
+    await page.goto("/bugs?issue=CHLK-419")
+    await waitForHydration(page)
+    await expect(page.getByRole("heading", { level: 1, name: TITLE_419 })).toBeVisible()
+    await page.getByRole("button", { name: "Back to Bugs", exact: true }).click()
+    await expect(page).toHaveURL(/\/bugs$/)
+    await expectStackedCard(page, "CHLK-419", TITLE_419)
+  })
+
+  test("B2: card links announce title, status and key; the assignee is said once", async ({ page }) => {
+    await fresh(page)
+    for (const [key, title, status] of [
+      ["CHLK-419", TITLE_419, "To Do"],
+      ["CHLK-421", "Crash exporting a book to PDF", "Done"],
+    ] as const) {
+      const card = list(page).getByRole("link", { name: new RegExp(`${title}\\s*, status ${status}\\s*${key}(?!\\d)`) })
+      await expect(card, key).toHaveCount(1)
+      await expect(card).toHaveAttribute("href", `/bugs?issue=${key}`)
+    }
+    // F6: the avatar no longer repeats the name ("YY Yo-Yo Yo-Yo").
+    const snapshot = await list(page).ariaSnapshot()
+    expect(snapshot).not.toMatch(/Yo-Yo\s+Yo-Yo/)
+    expect(snapshot).not.toMatch(/YY\s+Yo-Yo/)
+    expect(snapshot).toMatch(/Grok-1 \(agent\)/)
+  })
+
   test("empty state: no overflow, every control 44×44", async ({ page }) => {
     await emptyBugs(page, VIEWPORTS.phone)
     await expect(list(page).getByText("0 open · 4 fixed")).toBeVisible()
@@ -374,4 +437,83 @@ for (const theme of ["light", "dark"] as const) {
       }
     })
   }
+}
+
+/* ------------------------------------------------------------- focus ring */
+
+/**
+ * Differing pixels in the `width`-px column just inside a card's left edge,
+ * focused vs unfocused. The ul clips anything drawn outside the card, so an
+ * outer ring shows nothing here; only a ring drawn inside the card does.
+ */
+async function leftEdgeDiff(page: Page, unfocused: Buffer, focused: Buffer, width = 3) {
+  return page.evaluate(
+    async ({ a, b, width }) => {
+      const load = async (src: string) => {
+        const img = new Image()
+        img.src = `data:image/png;base64,${src}`
+        await img.decode()
+        return img
+      }
+      const [ia, ib] = await Promise.all([load(a), load(b)])
+      const pixels = (img: HTMLImageElement) => {
+        const canvas = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height })
+        const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+        ctx.drawImage(img, 0, 0)
+        return ctx.getImageData(0, 0, width, img.height).data
+      }
+      const [pa, pb] = [pixels(ia), pixels(ib)]
+      // Rows away from the rounded corners of the first/last card.
+      const rows = Math.min(ia.height, ib.height)
+      let changedRows = 0
+      let checkedRows = 0
+      for (let y = 8; y < rows - 8; y++) {
+        checkedRows++
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4
+          const delta = Math.max(...[0, 1, 2].map((c) => Math.abs(pa[i + c] - pb[i + c])))
+          if (delta > 8) {
+            changedRows++
+            break
+          }
+        }
+      }
+      return { changedRows, checkedRows, sameSize: ia.width === ib.width && ia.height === ib.height }
+    },
+    { a: unfocused.toString("base64"), b: focused.toString("base64"), width }
+  )
+}
+
+for (const [size, viewport] of [
+  ["390", VIEWPORTS.phone],
+  ["820", VIEWPORTS["tablet-portrait"]],
+] as const) {
+  test.describe(`focus ring Bugs (${size})`, () => {
+    test.use({ viewport })
+
+    test(`B3: a Tab-focused card shows its ring inside the card at ${size}`, async ({ page }) => {
+      await fresh(page)
+      const prev = bug(page, "CHLK-419")
+      const card = bug(page, "CHLK-404")
+      await card.scrollIntoViewIfNeeded()
+      // Pointer off the list so no hover fill muddies the comparison.
+      await page.mouse.move(viewport.width - 1, viewport.height - 1)
+      const unfocused = await card.screenshot({ animations: "disabled" })
+
+      // Keyboard path: from the card above, Tab once.
+      await prev.focus()
+      await page.keyboard.press("Tab")
+      await expect(card).toBeFocused()
+      expect(await card.evaluate((el) => el.matches(":focus-visible"))).toBe(true)
+      const shadow = await card.evaluate((el) => getComputedStyle(el).boxShadow)
+      expect(shadow, "ring drawn inset").toContain("inset")
+
+      const focused = await card.screenshot({ animations: "disabled" })
+      const diff = await leftEdgeDiff(page, unfocused, focused)
+      expect(diff.sameSize).toBe(true)
+      expect(diff.checkedRows).toBeGreaterThan(20)
+      // Every row of the left 3px column changes when the ring shows.
+      expect(diff.changedRows, `${size}: ring visible just inside the left edge`).toBe(diff.checkedRows)
+    })
+  })
 }

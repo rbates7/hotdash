@@ -1,7 +1,9 @@
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
+import { bugs } from "@/lib/bugs"
 import { formatRelative } from "@/lib/clock"
+import { STATUS_CONFIG, actorById } from "@/lib/issues"
 import { actors, buildIssues } from "@/lib/issues-fixture"
 import { FIXED_NOW } from "@/test/clock"
 import { BugsList, bugHref } from "@/components/bugs/bugs-list"
@@ -45,3 +47,47 @@ describe("BugsList row (phone card)", () => {
     )
   })
 })
+
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+describe("BugsList row accessible name", () => {
+  it("B2: every seed card's link name carries its title, then its status, then its key", () => {
+    renderList()
+    const seed = bugs(buildIssues(FIXED_NOW))
+    expect(seed.length).toBeGreaterThanOrEqual(4)
+    for (const issue of seed) {
+      const status = STATUS_CONFIG[issue.status].label
+      const card = screen.getByRole("link", {
+        name: new RegExp(`${escape(issue.title)}\\s*, status ${escape(status)}\\s*${escape(issue.key)}(?!\\d)`),
+      })
+      expect(card).toHaveAttribute("href", bugHref(issue.key))
+    }
+  })
+
+  it("F6: says the assignee once, keeping the agent marker for agents", () => {
+    renderList()
+    for (const issue of bugs(buildIssues(FIXED_NOW))) {
+      const assignee = actorById(actors, issue.assigneeId)
+      const card = screen.getByRole("link", { name: new RegExp(`${escape(issue.key)}(?!\\d)`) })
+      if (!assignee) continue
+      const name = computeName(card)
+      const said = name.split(assignee.name).length - 1
+      expect(said, `${issue.key}: "${name}"`).toBe(1)
+      if (assignee.kind === "agent") expect(name).toContain(`${assignee.name} (agent)`)
+      else expect(name).not.toContain("(agent)")
+      // The initials disc is decoration once the name is visible.
+      if (assignee.kind === "human")
+        expect(name).not.toMatch(new RegExp(`${escape(assignee.initials)}\\s*${escape(assignee.name)}`))
+    }
+  })
+})
+
+/** The link's text as a screen reader gets it: aria-hidden subtrees dropped. */
+function computeName(el: Element): string {
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ""
+    if (node instanceof Element && node.getAttribute("aria-hidden") === "true") return ""
+    return Array.from(node.childNodes).map(walk).join("")
+  }
+  return walk(el).replace(/\s+/g, " ").trim()
+}
