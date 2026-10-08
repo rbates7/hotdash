@@ -248,6 +248,35 @@ test.describe("responsive My Desk (phone 390)", () => {
     await expectScrollLock(page, false)
   })
 
+  test("a long title in the sheet stays clear of the 44px ×", async ({ page }) => {
+    const day = todayIn(now())
+    const title = "Follow up with the Aledo athletic director about Friday walk-through times"
+    await page.goto("/my-desk")
+    await page.evaluate(
+      ([key, today, t]) =>
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            todos: [{ id: "todo-30", title: t, note: "", done: false, createdOn: today, doneOn: null }],
+            nextId: 31,
+            scratch: "",
+            scratchUpdatedAt: new Date().toISOString(),
+          })
+        ),
+      [STORAGE_KEY, day, title] as const
+    )
+    await page.reload()
+    await waitForHydration(page)
+    await openTodo(page, title).click()
+    const s = sheet(page, title)
+    await expect(s).toBeVisible()
+    await settle(s)
+    const close = (await s.getByRole("button", { name: "Close", exact: true }).boundingBox())!
+    const heading = (await s.getByRole("heading", { name: title }).boundingBox())!
+    expect(heading.width, "title is long enough to reach the ×").toBeGreaterThan(250)
+    expect(heading.x + heading.width, "long title clear of the ×").toBeLessThanOrEqual(close.x + 0.5)
+  })
+
   test("after Delete from the sheet, focus moves to the next card", async ({ page }) => {
     await fresh(page)
     const titles = await todayList(page)
@@ -338,6 +367,18 @@ test.describe("responsive My Desk (desktop 1440)", () => {
     expect(note!.height, "note stays develop rows").toBeLessThan(90)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
+  })
+})
+
+test.describe("responsive My Desk loading (desktop 1440)", () => {
+  test.use({ viewport: VIEWPORTS.desktop })
+
+  test("the loading skeleton keeps develop's height on desktop", async ({ page }) => {
+    await page.goto("/my-desk?shot=loading")
+    const skeleton = page.getByRole("status", { name: "Loading saved desk", exact: true })
+    await expect(skeleton).toBeVisible()
+    const box = (await skeleton.boundingBox())!
+    expect(Math.round(box.height), "min(560px, 100svh - 10rem), not stretched").toBe(560)
   })
 })
 

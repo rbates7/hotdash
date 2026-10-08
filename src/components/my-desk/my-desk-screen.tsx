@@ -61,6 +61,8 @@ import {
   DESK_SCRATCH,
   DESK_SHEET_ACTION,
   DESK_SHEET_CLOSE,
+  DESK_SHEET_HEADER,
+  DESK_SKELETON,
   DESK_UNDO,
 } from "@/components/my-desk/responsive"
 
@@ -80,7 +82,7 @@ export const FINISHED_EARLIER_COPY =
  */
 function ScreenSkeleton() {
   return (
-    <div role="status" aria-label="Loading saved desk" className={DESK_PANES}>
+    <div role="status" aria-label="Loading saved desk" className={DESK_SKELETON}>
       {[0, 1].map((i) => (
         <div key={i} className="flex flex-col gap-3 rounded-xl ring-1 ring-foreground/10 p-4">
           <div className="flex items-center justify-between">
@@ -232,7 +234,7 @@ function TodoSheet({
           )}
         >
           <div aria-hidden className="bg-muted-foreground/30 mx-auto mt-2 h-1 w-9 shrink-0 rounded-full" />
-          <SheetHeader className="min-w-0 gap-1 px-4 pt-0 pb-0 max-xl:pr-14">
+          <SheetHeader className={DESK_SHEET_HEADER}>
             <SheetTitle className="text-body w-fit max-w-full font-semibold tracking-tight [overflow-wrap:anywhere]">
               {todo.title}
             </SheetTitle>

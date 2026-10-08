@@ -35,6 +35,19 @@ export const DESK_PANES =
   "grid min-h-[min(560px,calc(100svh-10rem))] flex-1 grid-cols-1 items-stretch gap-4 xl:grid-cols-2"
 
 /**
+ * Loading skeleton: develop's grid exactly (no `flex-1` / `items-stretch`, so
+ * desktop does not stretch), but one column below 1280 like the panes.
+ */
+export const DESK_SKELETON =
+  "grid min-h-[min(560px,calc(100svh-10rem))] grid-cols-1 gap-4 xl:grid-cols-2"
+
+/**
+ * Sheet header: Nova's unlayered `.cn-sheet-header` sets `p-4`, so a plain
+ * `pr-14` loses. `!` keeps a long title clear of the 44px stock ×.
+ */
+export const DESK_SHEET_HEADER = "min-w-0 max-xl:pr-14!"
+
+/**
  * Develop's list row, plus a card below 1280. `first:border-t-0` is restored
  * on the card so the first item keeps a full outline.
  */
