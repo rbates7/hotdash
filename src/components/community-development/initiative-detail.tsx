@@ -9,6 +9,7 @@ import {
   isSeedInitiative,
   type Initiative,
 } from "@/lib/community-development"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -21,6 +22,15 @@ import {
 import { SampleDataTag } from "@/components/sample-data"
 import { StatusPill, TypePill } from "@/components/community-development/initiative-pills"
 import { SPAWN_LABEL, SPAWN_SOON } from "@/components/community-development/initiative-dialog"
+import {
+  CD_DESTRUCTIVE,
+  CD_HEADER,
+  CD_TOUCH,
+} from "@/components/community-development/responsive"
+
+/** Stock × is 44×44 below 1280; the right-side sheet keeps develop's width. */
+const DETAIL_SHEET =
+  "flex w-full flex-col sm:max-w-md max-xl:[&>[data-slot=sheet-close]]:size-11! max-xl:[&>[data-slot=sheet-close]]:min-h-[44px]! max-xl:[&>[data-slot=sheet-close]]:min-w-[44px]!"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -54,10 +64,10 @@ export function InitiativeDetail({
   const when = row ? formatWhen(row, today) : null
   return (
     <Sheet open={target?.open ?? false} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
+      <SheetContent side="right" className={DETAIL_SHEET}>
         {row && (
           <>
-            <SheetHeader>
+            <SheetHeader className={CD_HEADER}>
               <SheetTitle className="flex flex-wrap items-center gap-1.5">
                 <span>{row.name}</span>
                 {isSeedInitiative(row) && <SampleDataTag />}
@@ -96,15 +106,21 @@ export function InitiativeDetail({
                 disabled
                 title={SPAWN_SOON}
                 aria-description={SPAWN_SOON}
+                className={CD_TOUCH}
               >
                 <PresentationIcon aria-hidden />
                 {SPAWN_LABEL}
               </Button>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => onEdit(row)}>
+                <Button type="button" variant="outline" className={CD_TOUCH} onClick={() => onEdit(row)}>
                   Edit
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => onDelete(row)}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className={cn(CD_TOUCH, CD_DESTRUCTIVE)}
+                  onClick={() => onDelete(row)}
+                >
                   Delete
                 </Button>
               </div>

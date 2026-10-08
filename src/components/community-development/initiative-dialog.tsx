@@ -18,6 +18,8 @@ import {
   type InitiativeStatus,
   type InitiativeType,
 } from "@/lib/community-development"
+import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,7 +32,19 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useCommunityDevelopment } from "@/components/community-development/community-development-store"
+import {
+  CD_DIALOG,
+  CD_HEADER,
+  CD_INPUT,
+  CD_PAIR,
+  CD_PRESSED,
+  CD_SHEET,
+  CD_TEXTAREA,
+  CD_TOGGLE_GROUP,
+  CD_TOUCH,
+} from "@/components/community-development/responsive"
 
 export const SPAWN_LABEL = "Could spawn a Clinic"
 export const SPAWN_SOON = "Soon — an outreach or volunteer day could become a Clinic row"
@@ -85,6 +99,121 @@ function toInput(d: Draft): InitiativeInput {
 }
 
 /**
+ * Base UI wraps Tab at the sheet's ends through a focus guard and a
+ * requestAnimationFrame, so for a frame focus sits outside the sheet. Own
+ * the whole Tab cycle synchronously (Sales #29 wrap, plus mid-list steps
+ * from Feature Request #30) so Playwright never samples the guard.
+ */
+function tabbablesIn(root: HTMLElement) {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      "button, [href], input, select, textarea, [tabindex]"
+    )
+  ).filter((el) => {
+    if (el === root) return false
+    if (el.closest("[data-base-ui-focus-guard]")) return false
+    if ("disabled" in el && (el as HTMLButtonElement).disabled) return false
+    if (el.tabIndex < 0) return false
+    if (el.getAttribute("aria-hidden") === "true") return false
+    const r = el.getClientRects()
+    return r.length > 0 && r[0]!.width > 0 && r[0]!.height > 0
+  })
+}
+
+function wrapTabAt(root: HTMLElement, event: KeyboardEvent) {
+  if (event.key !== "Tab") return
+  const tabbable = tabbablesIn(root)
+  if (tabbable.length === 0) return
+  const current = document.activeElement
+  const idx = current instanceof HTMLElement ? tabbable.indexOf(current) : -1
+  const target = event.shiftKey
+    ? tabbable[idx <= 0 ? tabbable.length - 1 : idx - 1]
+    : tabbable[idx === -1 || idx === tabbable.length - 1 ? 0 : idx + 1]
+  if (!target) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  target.focus()
+}
+
+function useSheetTabWrap(active: boolean) {
+  React.useLayoutEffect(() => {
+    if (!active) return
+    const rootOf = () => document.querySelector<HTMLElement>('[data-slot="sheet-content"]')
+    const onKey = (event: KeyboardEvent) => {
+      const root =
+        (event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-slot="sheet-content"]')
+          : null) ?? rootOf()
+      if (root) wrapTabAt(root, event)
+    }
+    const onFocusIn = (event: FocusEvent) => {
+      const root = rootOf()
+      const next = event.target
+      if (!root || !(next instanceof Node) || root.contains(next)) return
+      const list = tabbablesIn(root)
+      if (list.length === 0) return
+      list[0]!.focus()
+    }
+    document.addEventListener("keydown", onKey, true)
+    document.addEventListener("focusin", onFocusIn, true)
+    return () => {
+      document.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("focusin", onFocusIn, true)
+    }
+  }, [active])
+}
+
+export type OverlayFocus = React.ComponentProps<typeof DialogContent>["finalFocus"]
+
+/**
+ * Phone (<768) opens the existing form as a bottom sheet (Deke 7:47).
+ * Tablet and desktop keep the centered dialog. ≥1280 chrome is unchanged.
+ */
+export function InitiativeOverlay({
+  open,
+  onOpenChange,
+  dialogClassName,
+  initialFocus,
+  finalFocus,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  dialogClassName?: string
+  initialFocus?: React.RefObject<HTMLElement | null>
+  finalFocus?: OverlayFocus
+  children: React.ReactNode
+}) {
+  const phone = useIsMobile()
+  useSheetTabWrap(open && phone)
+  if (phone) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="bottom"
+          className={CD_SHEET}
+          initialFocus={initialFocus}
+          finalFocus={finalFocus}
+        >
+          {children}
+        </SheetContent>
+      </Sheet>
+    )
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(CD_DIALOG, dialogClassName)}
+        initialFocus={initialFocus}
+        finalFocus={finalFocus}
+      >
+        {children}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
  * One form for Add and Edit. Dates are Central calendar days; the default
  * is the page's `today`, never the machine clock. A row needs a name and
  * either a date or a cadence.
@@ -93,36 +222,49 @@ export function InitiativeDialog({
   open,
   onOpenChange,
   initiative,
+  onDelete,
+  finalFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** `null` adds; an initiative edits it. */
   initiative: Initiative | null
+  /** Phone sheet only — opens the existing DeleteDialog. */
+  onDelete?: (initiative: Initiative) => void
+  finalFocus?: OverlayFocus
 }) {
   const nameRef = React.useRef<HTMLInputElement>(null)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg!" initialFocus={nameRef}>
-        <InitiativeForm
-          initiative={initiative}
-          onDone={() => onOpenChange(false)}
-          nameRef={nameRef}
-        />
-      </DialogContent>
-    </Dialog>
+    <InitiativeOverlay
+      open={open}
+      onOpenChange={onOpenChange}
+      dialogClassName="sm:max-w-lg!"
+      initialFocus={nameRef}
+      finalFocus={finalFocus}
+    >
+      <InitiativeForm
+        initiative={initiative}
+        onDone={() => onOpenChange(false)}
+        onDelete={initiative && onDelete ? () => onDelete(initiative) : undefined}
+        nameRef={nameRef}
+      />
+    </InitiativeOverlay>
   )
 }
 
 function InitiativeForm({
   initiative,
   onDone,
+  onDelete,
   nameRef,
 }: {
   initiative: Initiative | null
   onDone: () => void
+  onDelete?: () => void
   nameRef: React.RefObject<HTMLInputElement | null>
 }) {
   const { today, addInitiative, updateInitiative } = useCommunityDevelopment()
+  const phone = useIsMobile()
   const [draft, setDraft] = React.useState<Draft>(() => draftFrom(initiative, today))
   const uid = React.useId()
   const id = (field: string) => `${uid}-${field}`
@@ -150,7 +292,7 @@ function InitiativeForm({
       className="flex flex-col gap-4"
       aria-label={editing ? "Edit initiative" : "Add initiative"}
     >
-      <DialogHeader>
+      <DialogHeader className={CD_HEADER}>
         <DialogTitle>{editing ? "Edit initiative" : "Add initiative"}</DialogTitle>
         <DialogDescription>
           {editing
@@ -173,6 +315,7 @@ function InitiativeForm({
             maxLength={INITIATIVE_LIMITS.name}
             placeholder="e.g. Youth flag-football clinic volunteer day"
             required
+            className={CD_INPUT}
           />
         </div>
 
@@ -186,6 +329,7 @@ function InitiativeForm({
             onChange={(e) => set("partner", e.target.value)}
             maxLength={INITIATIVE_LIMITS.partner}
             placeholder="School, league, or nonprofit"
+            className={CD_INPUT}
           />
         </div>
 
@@ -203,12 +347,17 @@ function InitiativeForm({
               const next = value[0]
               if (isInitiativeType(next)) set("type", next)
             }}
+            className={CD_TOGGLE_GROUP}
           >
             {INITIATIVE_TYPES.map((t) => (
               <ToggleGroupItem
                 key={t}
                 value={t}
-                className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                className={cn(
+                  "text-caption px-2.5",
+                  CD_PRESSED,
+                  CD_TOUCH
+                )}
               >
                 {INITIATIVE_TYPE_LABEL[t]}
               </ToggleGroupItem>
@@ -230,12 +379,17 @@ function InitiativeForm({
               const next = value[0]
               if (isInitiativeStatus(next)) set("status", next)
             }}
+            className={CD_TOGGLE_GROUP}
           >
             {INITIATIVE_STATUSES.map((s) => (
               <ToggleGroupItem
                 key={s}
                 value={s}
-                className="text-caption px-2.5 aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
+                className={cn(
+                  "text-caption px-2.5",
+                  CD_PRESSED,
+                  CD_TOUCH
+                )}
               >
                 {INITIATIVE_STATUS_LABEL[s]}
               </ToggleGroupItem>
@@ -243,7 +397,7 @@ function InitiativeForm({
           </ToggleGroup>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={cn("grid grid-cols-2 gap-3", CD_PAIR)} data-testid="when-fields">
           <div className="grid gap-1.5">
             <label htmlFor={id("date")} className="text-caption font-medium">
               Date
@@ -253,6 +407,7 @@ function InitiativeForm({
               type="date"
               value={draft.date}
               onChange={(e) => set("date", e.target.value)}
+              className={CD_INPUT}
             />
           </div>
           <div className="grid gap-1.5">
@@ -265,6 +420,7 @@ function InitiativeForm({
               onChange={(e) => set("cadence", e.target.value)}
               maxLength={INITIATIVE_LIMITS.cadence}
               placeholder="e.g. Annual, each spring"
+              className={CD_INPUT}
             />
           </div>
         </div>
@@ -272,7 +428,7 @@ function InitiativeForm({
           A date, a cadence, or both. Dates are Central calendar days.
         </p>
 
-        <div className="grid grid-cols-[1fr_2fr] gap-3">
+        <div className={cn("grid grid-cols-[1fr_2fr] gap-3", CD_PAIR)} data-testid="owner-impact-fields">
           <div className="grid gap-1.5">
             <label htmlFor={id("owner")} className="text-caption font-medium">
               Owner
@@ -283,6 +439,7 @@ function InitiativeForm({
               onChange={(e) => set("owner", e.target.value)}
               maxLength={INITIATIVE_LIMITS.owner}
               placeholder={DEFAULT_OWNER}
+              className={CD_INPUT}
             />
           </div>
           <div className="grid gap-1.5">
@@ -295,12 +452,26 @@ function InitiativeForm({
               onChange={(e) => set("impact", e.target.value)}
               maxLength={INITIATIVE_LIMITS.impact}
               rows={2}
-              className="min-h-9"
+              className={cn("min-h-9", CD_TEXTAREA)}
               placeholder="e.g. 12 iPads, 40 kids coached"
             />
           </div>
         </div>
       </div>
+
+      {editing && onDelete && phone ? (
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(CD_TOUCH, "text-danger-text!")}
+          onClick={() => {
+            onDone()
+            onDelete()
+          }}
+        >
+          Delete initiative
+        </Button>
+      ) : null}
 
       <DialogFooter className="sm:justify-between">
         <span className="flex items-center">
@@ -311,6 +482,7 @@ function InitiativeForm({
             disabled
             title={SPAWN_SOON}
             aria-describedby={id("spawn-hint")}
+            className={CD_TOUCH}
           >
             <PresentationIcon aria-hidden />
             {SPAWN_LABEL}
@@ -320,10 +492,10 @@ function InitiativeForm({
           </span>
         </span>
         <span className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onDone}>
+          <Button type="button" variant="outline" onClick={onDone} className={CD_TOUCH}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid}>
+          <Button type="submit" disabled={!valid} className={CD_TOUCH}>
             {editing ? "Save changes" : "Add initiative"}
           </Button>
         </span>
