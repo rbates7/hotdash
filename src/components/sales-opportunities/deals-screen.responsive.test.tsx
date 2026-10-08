@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
 import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
+import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
 import { DealsProvider } from "@/components/sales-opportunities/deals-store"
 import { FIXED_NOW_MS } from "@/test/clock"
@@ -52,7 +53,9 @@ describe("phone (<768): RowCollapse cards", () => {
     const pruitt = card("Coach Lonnie Pruitt")
     expect(pruitt).toHaveTextContent("Verbal")
     expect(pruitt).toHaveTextContent("Cedar Creek HS (6A) · Staff seats × 5 · $1,500")
-    expect(pruitt).toHaveTextContent("Collect the PO from the booster club · 25 Aug 2026 · Overdue 2 days")
+    // The card drops the year ("25 Aug", Deke 9:339) so "Overdue 2 days" fits; the sheet keeps it.
+    expect(pruitt).toHaveTextContent("Collect the PO from the booster club · 25 Aug · Overdue 2 days")
+    expect(pruitt).not.toHaveTextContent("2026")
     expect(within(pruitt).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
     // Meta lines are labelled for screen readers.
     expect(within(pruitt).getByText("Deal:", { exact: false })).toHaveClass("sr-only")
@@ -145,6 +148,81 @@ describe("phone (<768): the row-actions bottom sheet", () => {
     const { user } = await openSheet("Coach Lonnie Pruitt")
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Coach Lonnie Pruitt" })).not.toBeInTheDocument())
+  })
+
+  it("has the stock × (44px below 1280), which closes it and returns focus to the card", async () => {
+    const { user, sheet } = await openSheet("Coach Lonnie Pruitt")
+    const close = within(sheet).getByRole("button", { name: "Close" })
+    expect(close).toHaveAttribute("data-slot", "sheet-close")
+    // The size rule lives on the sheet so the stock × keeps its Nova markup.
+    expect(sheet.className).toContain("max-xl:[&>[data-slot=sheet-close]]:size-11!")
+    await user.click(close)
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Coach Lonnie Pruitt" })).not.toBeInTheDocument())
+    await waitFor(() => expect(card("Coach Lonnie Pruitt")).toHaveFocus())
+  })
+
+  it("stage menu rows are 44px below 1280", async () => {
+    const { user, sheet } = await openSheet("Coach Lonnie Pruitt")
+    await user.click(within(sheet).getByRole("button", { name: /Move stage/ }))
+    const menu = await screen.findByRole("menu")
+    for (const item of within(menu).getAllByRole("menuitemradio")) expect(item).toHaveClass("max-xl:min-h-11")
+  })
+
+  it("after Delete from the sheet, focus moves to the card now in its place", async () => {
+    const user = userEvent.setup()
+    renderScreen()
+    const buttons = within(list()).getAllByRole("button")
+    const next = buttons[buttons.indexOf(card("Coach Lonnie Pruitt")) + 1]
+    expect(next).toBeDefined()
+    await user.click(card("Coach Lonnie Pruitt"))
+    const sheet = await screen.findByRole("dialog", { name: "Coach Lonnie Pruitt" })
+    await user.click(within(sheet).getByRole("button", { name: "Delete deal" }))
+    const dialog = await screen.findByRole("dialog", { name: "Delete this deal?" })
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }))
+    await waitFor(() => expect(within(list()).queryByRole("button", { name: /^Coach Lonnie Pruitt/ })).not.toBeInTheDocument())
+    await waitFor(() => expect(next).toHaveFocus())
+  })
+
+  it("the dialogs it opens are touch-sized below 1280: fields, footer buttons and ×", async () => {
+    const { user, sheet } = await openSheet("Coach Lonnie Pruitt")
+    await user.click(within(sheet).getByRole("button", { name: "Edit deal" }))
+    const dialog = await screen.findByRole("dialog", { name: "Edit deal" })
+    expect(dialog.className).toContain("max-xl:[&>[data-slot=dialog-close]]:size-11!")
+    expect(within(dialog).getByRole("button", { name: "Close" })).toHaveAttribute("data-slot", "dialog-close")
+    for (const name of ["Who", "School / org", "What they're buying", "Value", "Next step"]) {
+      expect(within(dialog).getByRole("textbox", { name })).toHaveClass("max-xl:h-11!")
+    }
+    expect(within(dialog).getByLabelText("Due date")).toHaveClass("max-xl:h-11!")
+    for (const name of ["Stage", "Owner"]) expect(within(dialog).getByRole("combobox", { name })).toHaveClass("max-xl:h-11!")
+    for (const name of ["Cancel", "Save changes"]) {
+      expect(within(dialog).getByRole("button", { name })).toHaveClass("max-xl:h-11!")
+    }
+  })
+})
+
+describe("persistence note", () => {
+  it("passes the 44px-below-1280 Reset through the shared resetClassName", () => {
+    render(
+      <DealsProvider nowMs={FIXED_NOW_MS}>
+        <DealsPersistenceNote />
+      </DealsProvider>
+    )
+    const reset = screen.getByRole("button", { name: /Reset/ })
+    expect(reset).toHaveClass("max-xl:h-11!", "max-xl:min-w-11!")
+    // The note's root keeps the shared classes (no wrapper, no className).
+    expect(reset.parentElement).toHaveClass("text-micro", "inline-flex", "items-center", "gap-1.5")
+  })
+})
+
+describe("filter: the picked view reads at every width", () => {
+  it("pressed is solid primary (no breakpoint), unpressed stays Nova's", () => {
+    renderScreen()
+    const group = within(region()).getByRole("group", { name: "Show deals" })
+    const pressed = within(group).getByRole("button", { pressed: true })
+    expect(pressed).toHaveTextContent("Open")
+    for (const b of within(group).getAllByRole("button")) {
+      expect(b).toHaveClass("aria-pressed:bg-primary!", "aria-pressed:text-primary-foreground!")
+    }
   })
 })
 
