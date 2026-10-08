@@ -3,6 +3,7 @@ import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
+import { HOME_KPI_HEAD } from "@/components/home/responsive"
 
 const TONE_CLASS: Record<KpiTone, string> = {
   good: "bg-success/10 text-success-text",
@@ -71,7 +72,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
 export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
   return (
     <section aria-label="KPI strip" className="flex shrink-0 flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-3 px-0.5">
+      <div className={HOME_KPI_HEAD}>
         <h2 className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
           {title}
         </h2>

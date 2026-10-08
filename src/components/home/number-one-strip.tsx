@@ -2,6 +2,8 @@ import Link from "next/link"
 import { NotebookPenIcon } from "lucide-react"
 
 import type { NumberOne } from "@/lib/home"
+import { cn } from "@/lib/utils"
+import { HOME_TOUCH } from "@/components/home/responsive"
 
 /**
  * The one thing for today, pinned from My Desk. Until My Desk ships this is
@@ -11,7 +13,7 @@ export function NumberOneStrip({ item }: { item: NumberOne | null }) {
   return (
     <section
       aria-label="Number one"
-      className="bg-surface border-surface-border flex shrink-0 flex-col gap-3 rounded-xl border px-[22px] pt-5 pb-[18px]"
+      className="bg-surface border-surface-border flex shrink-0 flex-col gap-3 rounded-xl border px-[18px] pt-5 pb-[18px] xl:px-[22px]"
     >
       <div className="flex items-center justify-between gap-3">
         <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
@@ -19,7 +21,11 @@ export function NumberOneStrip({ item }: { item: NumberOne | null }) {
         </span>
         <Link
           href="/my-desk"
-          className="border-surface-border bg-surface-hover text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex h-[22px] items-center gap-[5px] rounded-full border pr-2 pl-1.5 text-micro font-medium tracking-tight whitespace-nowrap transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+          className={cn(
+            "border-surface-border bg-surface-hover text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 inline-flex h-[22px] items-center gap-[5px] rounded-full border pr-2 pl-1.5 text-micro font-medium tracking-tight whitespace-nowrap transition-colors focus-visible:ring-[3px] focus-visible:outline-none",
+            HOME_TOUCH,
+            "max-xl:px-3"
+          )}
         >
           <NotebookPenIcon className="size-3" aria-hidden />
           My Desk
@@ -27,7 +33,7 @@ export function NumberOneStrip({ item }: { item: NumberOne | null }) {
       </div>
       {item ? (
         <div>
-          <h2 className="text-[22px] leading-[1.2] font-semibold tracking-[-0.03em]">
+          <h2 className="text-title-lg xl:text-[22px] leading-[1.2] font-semibold tracking-[-0.03em]">
             {item.title}
           </h2>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
@@ -36,7 +42,7 @@ export function NumberOneStrip({ item }: { item: NumberOne | null }) {
         </div>
       ) : (
         <div>
-          <h2 className="text-[22px] leading-[1.2] font-semibold tracking-[-0.03em]">
+          <h2 className="text-title-lg xl:text-[22px] leading-[1.2] font-semibold tracking-[-0.03em]">
             No #1 yet
           </h2>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
