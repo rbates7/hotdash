@@ -75,18 +75,14 @@ describe("phone (<768): status chips + one column", () => {
 
   it("shows Inbox cards behind a chip and hides the other columns", () => {
     render(<Screen />)
-    const tabs = screen.getByRole("tablist", { name: "Status" })
-    expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual([
+    const chips = screen.getByRole("group", { name: "Filter by status" })
+    expect(within(chips).getAllByRole("button").map((t) => t.textContent)).toEqual([
       "Inbox3",
       "Triaged3",
       "On Roadmap2",
       "Parked2",
     ])
-    expect(within(tabs).getByRole("tab", { name: /Inbox/ })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
-    expect(within(tabs).getByRole("tab", { name: /Inbox/ })).toHaveAttribute(
+    expect(within(chips).getByRole("button", { name: /Inbox/ })).toHaveAttribute(
       "aria-pressed",
       "true"
     )
@@ -106,12 +102,9 @@ describe("phone (<768): status chips + one column", () => {
   it("the On Roadmap chip swaps the list and keeps the board-only hint", async () => {
     const user = userEvent.setup()
     render(<Screen />)
-    await user.click(screen.getByRole("tab", { name: /On Roadmap/ }))
-    expect(screen.getByRole("tab", { name: /On Roadmap/ })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
-    expect(screen.getByRole("tab", { name: /On Roadmap/ })).toHaveAttribute(
+    const chips = screen.getByRole("group", { name: "Filter by status" })
+    await user.click(within(chips).getByRole("button", { name: /On Roadmap/ }))
+    expect(within(chips).getByRole("button", { name: /On Roadmap/ })).toHaveAttribute(
       "aria-pressed",
       "true"
     )
@@ -136,7 +129,7 @@ describe("tablet portrait (820): 2×2 of all four columns", () => {
 
   it("does not use chips and keeps every column on the board", () => {
     render(<Screen />)
-    expect(screen.queryByRole("tablist", { name: "Status" })).toBeNull()
+    expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_TABLET)
     expect(within(column("Inbox")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
     expect(within(column("Triaged")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
@@ -150,7 +143,7 @@ describe("desktop / 1180: four columns, no chips", () => {
   it("matches develop at the default (no phone) viewport", () => {
     mockViewport(1440)
     render(<Screen />)
-    expect(screen.queryByRole("tablist", { name: "Status" })).toBeNull()
+    expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_DESKTOP)
     expect(within(column("Inbox")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
     expect(within(column("Parked")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(2)
@@ -159,7 +152,7 @@ describe("desktop / 1180: four columns, no chips", () => {
   it("keeps four columns at 1180 (no Feature Request 1180 frame)", () => {
     mockViewport(1180)
     render(<Screen />)
-    expect(screen.queryByRole("tablist", { name: "Status" })).toBeNull()
+    expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_DESKTOP)
     expect(within(column("Triaged")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
   })

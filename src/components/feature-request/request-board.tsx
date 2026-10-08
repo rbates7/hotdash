@@ -67,7 +67,7 @@ function StatusChips({
   counts: Record<FeatureStatus, number>
 }) {
   return (
-    <div role="tablist" aria-label="Status" className={FR_CHIPS}>
+    <div role="group" aria-label="Filter by status" className={FR_CHIPS}>
       {STATUS_ORDER.map((status) => {
         const on = status === selected
         const count = counts[status]
@@ -75,8 +75,6 @@ function StatusChips({
           <button
             key={status}
             type="button"
-            role="tab"
-            aria-selected={on}
             aria-pressed={on}
             className={cn(FR_CHIP, FR_CHIP_OFF, FR_CHIP_ON)}
             onClick={() => onSelect(status)}

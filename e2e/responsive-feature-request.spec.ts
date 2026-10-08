@@ -29,7 +29,7 @@ const column = (page: Page, name: string) =>
 const card = (page: Page, title: string) =>
   board(page).getByRole("button", { name: `Open idea: ${title}`, exact: true })
 const actions = (page: Page) => page.getByRole("group", { name: "Page actions", exact: true })
-const chips = (page: Page) => page.getByRole("tablist", { name: "Status", exact: true })
+const chips = (page: Page) => page.getByRole("group", { name: "Filter by status", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const persistence = (page: Page) =>
   page.getByRole("status", { name: NOTE_NAME, exact: true })
@@ -132,17 +132,9 @@ async function backgroundContrast(a: Locator, b: Locator) {
   }, await b.elementHandle())
 }
 
-async function expectPressedContrast(group: Locator, kind: "tab" | "button", label: string) {
-  // Playwright's `pressed` option is button-only; phone chips stay tabs
-  // (`aria-selected`) and still paint via `aria-pressed:bg-primary!`.
-  const pressed =
-    kind === "tab"
-      ? group.getByRole("tab", { selected: true })
-      : group.getByRole("button", { pressed: true })
-  const unpressed =
-    kind === "tab"
-      ? group.getByRole("tab", { selected: false }).first()
-      : group.getByRole("button", { pressed: false }).first()
+async function expectPressedContrast(group: Locator, label: string) {
+  const pressed = group.getByRole("button", { pressed: true })
+  const unpressed = group.getByRole("button", { pressed: false }).first()
   await expect(pressed).toBeVisible()
   const ratio = await backgroundContrast(pressed, unpressed)
   expect(ratio, `${label} pressed vs unpressed ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
@@ -169,9 +161,9 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await fresh(page)
     await expect(main(page).getByRole("heading", { level: 1, name: "Feature Request" })).toBeVisible()
     await expect(chips(page)).toBeVisible()
-    await expect(chips(page).getByRole("tab")).toHaveCount(4)
-    await expect(chips(page).getByRole("tab", { name: /Inbox/ })).toHaveAttribute(
-      "aria-selected",
+    await expect(chips(page).getByRole("button")).toHaveCount(4)
+    await expect(chips(page).getByRole("button", { name: /Inbox/ })).toHaveAttribute(
+      "aria-pressed",
       "true"
     )
     await expect(column(page, "Inbox").getByRole("listitem")).toHaveCount(3)
@@ -188,10 +180,10 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await expect(actions(page).getByRole("button", { name: "New idea", exact: true })).toBeHidden()
 
     for (const name of ["Inbox", "Triaged", "On Roadmap", "Parked"]) {
-      await expectTapTarget(chips(page).getByRole("tab", { name: new RegExp(name) }), `chip ${name}`)
+      await expectTapTarget(chips(page).getByRole("button", { name: new RegExp(name) }), `chip ${name}`)
     }
 
-    await chips(page).getByRole("tab", { name: /On Roadmap/ }).click()
+    await chips(page).getByRole("button", { name: /On Roadmap/ }).click()
     await expect(column(page, "On Roadmap").getByRole("listitem")).toHaveCount(2)
     await expect(card(page, "Play share links")).toContainText("Roadmap")
     await expect(column(page, "Inbox")).toHaveCount(0)
@@ -238,7 +230,7 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await expect(moved).toBeVisible()
     await moved.getByRole("button", { name: "Move to On Roadmap", exact: true }).click()
     await expect(moved).toBeHidden()
-    await chips(page).getByRole("tab", { name: /On Roadmap/ }).click()
+    await chips(page).getByRole("button", { name: /On Roadmap/ }).click()
     await expect(card(page, "Web import from a link")).toBeVisible()
     await card(page, "Web import from a link").click()
     await expect(dialog(page, "Idea: Web import from a link")).toContainText("On Roadmap here only.")
@@ -385,7 +377,7 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(newIdea, `${label}/new idea`, expect)
         if (size === "390") {
           await expectReadable(chips(page), `${label}/chips`, expect)
-          await expectPressedContrast(chips(page), "tab", `${label}/chips`)
+          await expectPressedContrast(chips(page), `${label}/chips`)
         }
         await card(page, "Play of the Day").click()
         const sheet = dialog(page, "Idea: Play of the Day")
@@ -398,7 +390,6 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(sheet.getByLabel("The ask"), `${label}/ask`, expect)
         await expectPressedContrast(
           sheet.getByRole("group", { name: "Status" }),
-          "button",
           `${label}/status`
         )
         await expectReadable(
