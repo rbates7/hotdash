@@ -248,34 +248,37 @@ test.describe("responsive My Desk (phone 390)", () => {
     await expectScrollLock(page, false)
   })
 
-  test("a long title in the sheet stays clear of the 44px ×", async ({ page }) => {
-    const day = todayIn(now())
-    const title = "Follow up with the Aledo athletic director about Friday walk-through times"
-    await page.goto("/my-desk")
-    await page.evaluate(
-      ([key, today, t]) =>
-        localStorage.setItem(
-          key,
-          JSON.stringify({
-            todos: [{ id: "todo-30", title: t, note: "", done: false, createdOn: today, doneOn: null }],
-            nextId: 31,
-            scratch: "",
-            scratchUpdatedAt: new Date().toISOString(),
-          })
-        ),
-      [STORAGE_KEY, day, title] as const
-    )
-    await page.reload()
-    await waitForHydration(page)
-    await openTodo(page, title).click()
-    const s = sheet(page, title)
-    await expect(s).toBeVisible()
-    await settle(s)
-    const close = (await s.getByRole("button", { name: "Close", exact: true }).boundingBox())!
-    const heading = (await s.getByRole("heading", { name: title }).boundingBox())!
-    expect(heading.width, "title is long enough to reach the ×").toBeGreaterThan(250)
-    expect(heading.x + heading.width, "long title clear of the ×").toBeLessThanOrEqual(close.x + 0.5)
-  })
+  for (const width of [390, 360]) {
+    test(`a long title in the sheet stays clear of the 44px × at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      const day = todayIn(now())
+      const title = "Follow up with the Aledo athletic director about Friday walk-through times"
+      await page.goto("/my-desk")
+      await page.evaluate(
+        ([key, today, t]) =>
+          localStorage.setItem(
+            key,
+            JSON.stringify({
+              todos: [{ id: "todo-30", title: t, note: "", done: false, createdOn: today, doneOn: null }],
+              nextId: 31,
+              scratch: "",
+              scratchUpdatedAt: new Date().toISOString(),
+            })
+          ),
+        [STORAGE_KEY, day, title] as const
+      )
+      await page.reload()
+      await waitForHydration(page)
+      await openTodo(page, title).click()
+      const s = sheet(page, title)
+      await expect(s).toBeVisible()
+      await settle(s)
+      const close = (await s.getByRole("button", { name: "Close", exact: true }).boundingBox())!
+      const heading = (await s.getByRole("heading", { name: title }).boundingBox())!
+      expect(heading.width, "title is long enough to reach the ×").toBeGreaterThan(250)
+      expect(heading.x + heading.width, "long title clear of the ×").toBeLessThanOrEqual(close.x + 0.5)
+    })
+  }
 
   test("after Delete from the sheet, focus moves to the next card", async ({ page }) => {
     await fresh(page)
