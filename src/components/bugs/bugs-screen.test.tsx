@@ -1,7 +1,7 @@
 import * as React from "react"
 import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { crashCount } from "@/lib/bugs"
 import { formatRelative, todayIn } from "@/lib/clock"
@@ -18,9 +18,22 @@ import { TicketView } from "@/components/agent-workplace/ticket-view"
 import { BACK_TO_BUGS, BugsScreen } from "@/components/bugs/bugs-screen"
 import { EMPTY_BUGS, SEED_BUGS_NOTICE, bugHref } from "@/components/bugs/bugs-list"
 
+// The shared router mock (src/test/setup.ts) plus `back`, which Back to
+// Bugs uses when the ticket was opened from this list.
+const back = vi.hoisted(() => vi.fn())
+vi.mock("next/navigation", async () => {
+  const { navigation } = await import("@/test/setup")
+  return {
+    useRouter: () => ({ push: navigation.push, replace: navigation.push, back }),
+    useSearchParams: () => navigation.params,
+    usePathname: () => "/bugs",
+  }
+})
+
 function renderBugs(search = "", nowMs = FIXED_NOW_MS, extra?: React.ReactNode) {
   navigation.params = new URLSearchParams(search)
   navigation.push.mockReset()
+  back.mockReset()
   return render(
     <IssuesProvider nowMs={nowMs}>
       <BugsScreen />
@@ -99,8 +112,34 @@ describe("Bugs screen", () => {
     expect(screen.getByRole("complementary", { name: "Ticket properties" })).toBeInTheDocument()
     expect(screen.queryByRole("region", { name: "Bug list" })).not.toBeInTheDocument()
 
+    // A deep link has no list behind it in history: Back pushes /bugs.
     await user.click(screen.getByRole("button", { name: BACK_TO_BUGS }))
     expect(navigation.push).toHaveBeenCalledWith("/bugs", { scroll: false })
+    expect(back).not.toHaveBeenCalled()
+  })
+
+  it("B1: a ticket opened from the list goes back a history step, and starts at its own top", async () => {
+    const user = userEvent.setup()
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {})
+    const view = renderBugs()
+    const row = within(group("To Do")).getByRole("link", { name: /CHLK-419/ })
+    // Keep jsdom on the page; the open itself is the router's job.
+    row.addEventListener("click", (e) => e.preventDefault())
+    await user.click(row)
+
+    navigation.params = new URLSearchParams("issue=CHLK-419")
+    view.rerender(
+      <IssuesProvider nowMs={FIXED_NOW_MS}>
+        <BugsScreen />
+      </IssuesProvider>
+    )
+    expect(screen.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeInTheDocument()
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
+
+    await user.click(screen.getByRole("button", { name: BACK_TO_BUGS }))
+    expect(back).toHaveBeenCalledTimes(1)
+    expect(navigation.push).not.toHaveBeenCalled()
+    scrollTo.mockRestore()
   })
 
   it("shows the sample-data notice on seed bugs", () => {

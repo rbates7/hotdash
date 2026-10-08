@@ -163,13 +163,13 @@ test.describe("responsive Agent Workplace (phone)", () => {
     expect(pillBox!.y, "ok pill top sits in the name row").toBeLessThan(nameBox!.y + nameBox!.height)
   })
 
-  test("B7: Bugs Reset stays compact; Workplace Reset is 44px", async ({ page }) => {
+  test("B7: Bugs Reset and Workplace Reset are 44px", async ({ page }) => {
+    // Bugs Reset was held compact while Bugs was out of #27's scope; the Bugs
+    // responsive pass (#31) makes it a 44px target too.
     await page.goto("/bugs")
     const bugsReset = page.getByRole("button", { name: "Reset" })
     await expect(bugsReset).toBeVisible()
-    const bugsBox = await bugsReset.boundingBox()
-    expect(bugsBox, "Bugs Reset painted").toBeTruthy()
-    expect(bugsBox!.height, "Bugs Reset is not a 44px target").toBeLessThan(44)
+    await expectTapTarget(bugsReset, "Bugs Reset")
 
     await page.goto("/agent-workplace")
     await expectTapTarget(page.getByRole("button", { name: "Reset" }), "Workplace Reset")
