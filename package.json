@@ -26,6 +26,7 @@
     "screens:crm": "CI=true SCREENSHOTS=1 playwright test e2e/crm-screens.spec.ts",
     "screens:my-desk": "CI=true SCREENSHOTS=1 playwright test e2e/my-desk-screens.spec.ts",
     "screens:community-development": "CI=true SCREENSHOTS=1 playwright test e2e/community-development-screens.spec.ts",
+    "screens:responsive-agent-workplace": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-agent-workplace-screens.spec.ts",
     "screens:responsive-system-status": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-system-status-screens.spec.ts",
     "screens:responsive-home": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-home-screens.spec.ts",
     "screens:responsive-shell": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-shell-screens.spec.ts",
