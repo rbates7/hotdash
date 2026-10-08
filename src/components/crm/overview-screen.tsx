@@ -20,6 +20,16 @@ import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
 
+/**
+ * A list row that opens a case: 44 tall below 1280. On a phone the subject
+ * keeps the first line and the tag, status and time wrap under it.
+ */
+const ROW =
+  "hover:bg-muted -mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 max-xl:min-h-11 max-md:flex-wrap max-md:gap-y-1"
+
+/** Recent activity: on a phone the line takes the row beside its 24px icon; tag and time wrap under it. */
+const ACTIVITY_TEXT = "min-w-0 flex-1 truncate text-sm max-md:basis-[calc(100%-2.125rem)]"
+
 function StatCard({
   label,
   value,
@@ -32,7 +42,7 @@ function StatCard({
   tone?: "urgent"
 }) {
   return (
-    <Link href={href} aria-label={`${value} ${label}`}>
+    <Link href={href} aria-label={`${value} ${label}`} className="max-xl:block">
       <Card className="hover:bg-muted/40 transition-colors">
         <CardContent className="pt-6">
           <p
@@ -91,7 +101,7 @@ export function OverviewScreen() {
           aria-label={`${triageCount} ${
             triageCount === 1 ? "conversation" : "conversations"
           } from unknown senders waiting in triage`}
-          className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100/80 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm"
+          className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100/80 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm max-xl:min-h-11"
         >
           <FlameIcon className="size-4" aria-hidden />
           <span>
@@ -132,10 +142,10 @@ export function OverviewScreen() {
                 <Link
                   key={caseRow.id}
                   href={`/crm/cases/${caseRow.id}`}
-                  className="hover:bg-muted -mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
+                  className={ROW}
                 >
                   <span className="text-muted-foreground text-xs">#{caseRow.caseNumber}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:basis-[calc(100%-3rem)]">
                     {caseRow.subject}
                   </span>
                   {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
@@ -165,12 +175,12 @@ export function OverviewScreen() {
                     <Link
                       key={`note-${note.id}`}
                       href={`/crm/cases/${note.caseId}`}
-                      className="hover:bg-muted -mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
+                      className={ROW}
                     >
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200">
                         <PenLineIcon className="size-3" aria-hidden />
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className={ACTIVITY_TEXT}>
                         <span className="text-muted-foreground">Note on</span> #{caseRow?.caseNumber}{" "}
                         — {note.body}
                       </span>
@@ -194,10 +204,10 @@ export function OverviewScreen() {
                   <Link
                     key={`msg-${message.id}`}
                     href={`/crm/cases/${message.caseId}`}
-                    className="hover:bg-muted -mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5"
+                    className={ROW}
                   >
                     <CrmAvatar name={who} />
-                      <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className={ACTIVITY_TEXT}>
                       <span className="font-medium">{who}</span>{" "}
                       <span className="text-muted-foreground">
                         {inbound ? "wrote on" : "replied on"} #{caseRow?.caseNumber}

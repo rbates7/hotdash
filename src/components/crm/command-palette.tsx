@@ -9,6 +9,10 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useCrm } from "@/components/crm/crm-store"
 
+/** A result row: 44 tall below 1280. */
+const RESULT =
+  "hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm max-xl:min-h-11"
+
 export function CommandPalette({
   open,
   onOpenChange,
@@ -46,7 +50,11 @@ export function CommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={false} className="top-[20%] translate-y-0 gap-0 p-0">
+      {/* On a phone the palette stays inside the screen below its 20% offset. */}
+      <DialogContent
+        showCloseButton={false}
+        className="top-[20%] translate-y-0 gap-0 p-0 max-md:max-h-[calc(80dvh-1rem)] max-md:overflow-y-auto"
+      >
         <DialogTitle className="sr-only">Search CRM</DialogTitle>
         <div className="relative border-b">
           <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2" />
@@ -78,7 +86,7 @@ export function CommandPalette({
                     key={item.id}
                     type="button"
                     onClick={() => go(`/crm/cases/${item.id}`)}
-                    className="hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm"
+                    className={RESULT}
                   >
                     <InboxIcon className="text-muted-foreground size-4 shrink-0" />
                     <span className="truncate">
@@ -99,7 +107,7 @@ export function CommandPalette({
                   key={item.id}
                   type="button"
                   onClick={() => go(`/crm/contacts/${item.id}`)}
-                  className="hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm"
+                  className={RESULT}
                 >
                   <UserIcon className="text-muted-foreground size-4 shrink-0" />
                   <span className="truncate font-medium">{contactDisplayName(item)}</span>

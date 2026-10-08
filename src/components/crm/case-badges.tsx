@@ -51,15 +51,18 @@ export function PriorityBadge({
 export function PlanBadge({
   plan,
   planStatus,
+  testId = "plan-pill",
 }: {
   plan: string | null
   planStatus: string | null
+  /** The phone card and sheet pass their own, so `plan-pill` still counts the table's. */
+  testId?: string
 }) {
   if (!plan) return null
   const inactive = planStatus && planStatus !== "active" && planStatus !== "trialing"
   return (
     <span
-      data-testid="plan-pill"
+      data-testid={testId}
       title={planStatus ?? undefined}
       className={cn(
         PILL,

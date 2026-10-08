@@ -2,7 +2,9 @@
 
 import { AlertTriangleIcon, RotateCcwIcon } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { CRM_44, CRM_DANGER_TEXT } from "@/components/crm/crm-touch"
 
 /**
  * Shared CRM crash UI. Used by the route `error.tsx` and by the client
@@ -34,11 +36,11 @@ export function CrmErrorAlert({
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>
       )}
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={onRetry}>
+      <div className="flex gap-2 max-md:flex-wrap">
+        <Button variant="outline" className={CRM_44} onClick={onRetry}>
           Try again
         </Button>
-        <Button variant="destructive" onClick={onReset}>
+        <Button variant="destructive" className={cn(CRM_44, CRM_DANGER_TEXT)} onClick={onReset}>
           <RotateCcwIcon aria-hidden />
           Reset and clear saved copy
         </Button>

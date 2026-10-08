@@ -3,10 +3,18 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { SearchIcon, UsersIcon } from "lucide-react"
+import { ArrowRightIcon, PencilIcon, SearchIcon, Trash2Icon, UsersIcon } from "lucide-react"
 
-import { contactDisplayName, filterContacts, openCaseCount, orgOf } from "@/lib/crm/crm"
+import {
+  contactDisplayName,
+  filterContacts,
+  openCaseCount,
+  orgOf,
+  type Contact,
+  type Organization,
+} from "@/lib/crm/crm"
 import { isSeedContact } from "@/lib/crm/fixture"
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -17,12 +25,186 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
+import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
 import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge } from "@/components/crm/case-badges"
-import { ContactNewDialog } from "@/components/crm/contact-dialogs"
+import { ContactEditDialog, ContactNewDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
+import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
+import {
+  CARD,
+  CARD_LIST,
+  RecordSheet,
+  RowMenu,
+  SHEET_ACTION,
+  useDeferredAction,
+  useListFocus,
+  useRowDialogs,
+} from "@/components/crm/crm-row-actions"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
+import { CRM_44 } from "@/components/crm/crm-touch"
+
+/**
+ * The phone card's two lines (Deke 7:47): the email, then
+ * "Organization · N open cases".
+ */
+export function contactCardMeta(
+  contact: Contact,
+  org: Organization | null,
+  openCases: number
+): RowCollapseMeta[] {
+  return [
+    { label: "Email", value: contact.email },
+    {
+      label: "Organization",
+      value: `${org?.name ?? "No organization"} · ${openCases} open ${openCases === 1 ? "case" : "cases"}`,
+    },
+  ]
+}
+
+/** The card and sheet plan pill; `plan-pill` stays the table column's. */
+export const CARD_PLAN_PILL = "card-plan-pill"
+
+/** Tablet (768–1279) folds Email under Name. */
+const TABLET_HIDE = "md:max-xl:hidden"
+/** The "…" column exists only on tablet. */
+const TABLET_ONLY = "hidden md:max-xl:table-cell"
+
+type ContactAction = "edit" | "delete"
+
+/** Edit and Delete, opened from the phone sheet or the tablet row menu. */
+function ContactActionDialogs({
+  contact,
+  action,
+  onClose,
+  finalFocus,
+}: {
+  contact: Contact
+  action: ContactAction | null
+  onClose: () => void
+  finalFocus: () => HTMLElement | true
+}) {
+  const { organizations } = useCrm()
+  const close = (open: boolean) => {
+    if (!open) onClose()
+  }
+  return (
+    <>
+      <ContactEditDialog
+        contact={contact}
+        organizationName={orgOf(organizations, contact.organizationId)?.name ?? null}
+        open={action === "edit"}
+        onOpenChange={close}
+        finalFocus={finalFocus}
+      />
+      <ContactDeleteDialog
+        contactId={contact.id}
+        name={contactDisplayName(contact)}
+        open={action === "delete"}
+        onOpenChange={close}
+        finalFocus={finalFocus}
+      />
+    </>
+  )
+}
+
+/** Tablet: one 44×44 "…" with the phone sheet's actions. */
+function ContactRowMenu({
+  contact,
+  onAction,
+}: {
+  contact: Contact
+  onAction: (contact: Contact, action: ContactAction) => void
+}) {
+  const router = useRouter()
+  return (
+    <RowMenu
+      label={`More actions for ${contactDisplayName(contact)}`}
+      items={[
+        {
+          label: "Open contact",
+          icon: <ArrowRightIcon aria-hidden />,
+          onSelect: () => router.push(`/crm/contacts/${contact.id}`),
+        },
+        {
+          label: "Edit contact",
+          icon: <PencilIcon aria-hidden />,
+          onSelect: () => onAction(contact, "edit"),
+        },
+        {
+          label: "Delete contact",
+          icon: <Trash2Icon aria-hidden />,
+          destructive: true,
+          onSelect: () => onAction(contact, "delete"),
+        },
+      ]}
+    />
+  )
+}
+
+/** Phone (<768): the card's row menu as a bottom sheet (Deke 7:83). */
+function ContactSheet({
+  contact: current,
+  open,
+  onOpenChange,
+  backToCard,
+}: {
+  contact: Contact | undefined
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  backToCard: () => HTMLElement | true
+}) {
+  const store = useCrm()
+  const { action, queue, flush, clear } = useDeferredAction<ContactAction>()
+  // Keep the last contact shown so the Delete confirm can finish closing.
+  const [shown, setShown] = React.useState(current)
+  if (current && current !== shown) setShown(current)
+  const contact = current ?? shown
+  if (!contact) return null
+  const org = orgOf(store.organizations, contact.organizationId)
+  const pick = (next: ContactAction) => () => {
+    queue(next)
+    onOpenChange(false)
+  }
+  return (
+    <>
+      <RecordSheet
+        open={open}
+        onOpenChange={onOpenChange}
+        onClosed={flush}
+        finalFocus={backToCard}
+        title={contactDisplayName(contact)}
+        pill={
+          contact.plan ? (
+            <PlanBadge plan={contact.plan} planStatus={contact.planStatus} testId={CARD_PLAN_PILL} />
+          ) : undefined
+        }
+        lines={contactCardMeta(contact, org, openCaseCount(store.cases, contact.id)).map((line) => line.value)}
+        actionsLabel="Contact actions"
+      >
+        <Link
+          href={`/crm/contacts/${contact.id}`}
+          className={SHEET_ACTION}
+          onClick={() => onOpenChange(false)}
+        >
+          <ArrowRightIcon aria-hidden />
+          Open contact
+        </Link>
+        <button type="button" className={SHEET_ACTION} onClick={pick("edit")}>
+          <PencilIcon aria-hidden />
+          Edit contact
+        </button>
+        <button type="button" className={cn(SHEET_ACTION, "text-danger-text")} onClick={pick("delete")}>
+          <Trash2Icon aria-hidden />
+          Delete contact
+        </button>
+      </RecordSheet>
+      {/* Opens after the sheet closes; it returns to the card (or the next one) too. */}
+      <ContactActionDialogs contact={contact} action={action} onClose={clear} finalFocus={backToCard} />
+    </>
+  )
+}
 
 export function ContactsScreen() {
   const store = useCrm()
@@ -30,6 +212,11 @@ export function ContactsScreen() {
   const searchParams = useSearchParams()
   const [q, setQ] = React.useState(searchParams.get("q") ?? "")
   const rows = filterContacts(store.contacts, store.organizations, q)
+  const { rootRef, onCardClickCapture, onMenuClickCapture, backToCard, afterMenuDelete } =
+    useListFocus()
+  const [sheetId, setSheetId] = React.useState<string | null>(null)
+  const [sheetOpen, setSheetOpen] = React.useState(false)
+  const rowDialog = useRowDialogs<Contact, ContactAction>()
 
   React.useEffect(() => {
     const current = searchParams.get("q") ?? ""
@@ -47,10 +234,12 @@ export function ContactsScreen() {
   if (!store.persisted) return <CrmTableSkeleton label="Loading saved contacts" />
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div ref={rootRef} className="flex min-w-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-title-sm font-semibold tracking-tight">Contacts</h2>
+          <h2 data-crm-list-heading tabIndex={-1} className="text-title-sm font-semibold tracking-tight">
+            Contacts
+          </h2>
           <p className="text-muted-foreground mt-1 text-sm">
             {rows.length} {rows.length === 1 ? "person" : "people"}
             {q.trim() ? " matching search" : " — sample rows, plus anyone you add"}
@@ -58,14 +247,14 @@ export function ContactsScreen() {
         </div>
         <ContactNewDialog />
       </div>
-      <div className="relative w-56">
+      <div className="relative w-56 max-md:w-full">
         <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
         <Input
           value={q}
           onChange={(event) => setQ(event.target.value)}
           placeholder="Search contacts…"
           aria-label="Search contacts"
-          className="h-8 pl-8!"
+          className={cn("h-8 pl-8!", CRM_44)}
         />
       </div>
 
@@ -91,14 +280,47 @@ export function ContactsScreen() {
         </p>
       ) : (
         <TableCard note="Seed people dated from today. Contacts you add or promote are yours.">
+          <ResponsiveTable
+            layout="stack"
+            className={CARD_LIST}
+            onClickCapture={(event) => {
+              onCardClickCapture(event)
+              onMenuClickCapture(event)
+            }}
+            stacked={rows.map((contact) => (
+              <RowCollapse
+                key={contact.id}
+                title={contactDisplayName(contact)}
+                status={
+                  contact.plan ? (
+                    <PlanBadge plan={contact.plan} planStatus={contact.planStatus} testId={CARD_PLAN_PILL} />
+                  ) : undefined
+                }
+                meta={contactCardMeta(
+                  contact,
+                  orgOf(store.organizations, contact.organizationId),
+                  openCaseCount(store.cases, contact.id)
+                )}
+                sample={isSeedContact(contact.id)}
+                className={CARD}
+                onClick={() => {
+                  setSheetId(contact.id)
+                  setSheetOpen(true)
+                }}
+              />
+            ))}
+          >
           <Table aria-label="Contacts">
             <TableHeader>
               <TableRow>
                 <TableHead className={HEAD}>Name</TableHead>
-                <TableHead className={HEAD}>Email</TableHead>
+                <TableHead className={cn(HEAD, TABLET_HIDE)}>Email</TableHead>
                 <TableHead className={HEAD}>Organization</TableHead>
                 <TableHead className={HEAD}>Plan</TableHead>
                 <TableHead className={`${HEAD} text-right`}>Open cases</TableHead>
+                <TableHead className={cn(HEAD, TABLET_ONLY, "w-14")}>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -110,7 +332,7 @@ export function ContactsScreen() {
                     <TableCell className={CELL}>
                       <Link
                         href={`/crm/contacts/${contact.id}`}
-                        className="flex items-center gap-2 font-medium hover:underline"
+                        className="flex items-center gap-2 font-medium hover:underline md:max-xl:min-h-11"
                       >
                         <CrmAvatar
                           firstName={contact.firstName}
@@ -120,8 +342,14 @@ export function ContactsScreen() {
                         <span className="truncate">{name}</span>
                         {isSeedContact(contact.id) ? <SampleDataTag /> : null}
                       </Link>
+                      {/* Tablet: Email folds under Name. */}
+                      <span className="text-caption text-muted-foreground hidden pl-8 md:max-xl:block">
+                        {contact.email}
+                      </span>
                     </TableCell>
-                    <TableCell className={`${CELL} text-muted-foreground`}>{contact.email}</TableCell>
+                    <TableCell className={cn(`${CELL} text-muted-foreground`, TABLET_HIDE)}>
+                      {contact.email}
+                    </TableCell>
                     <TableCell className={`${CELL} text-muted-foreground`}>
                       {org?.name ?? "—"}
                     </TableCell>
@@ -133,13 +361,32 @@ export function ContactsScreen() {
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
+                    <TableCell className={cn(CELL, TABLET_ONLY, "py-2 pr-3 pl-0 text-right")}>
+                      <ContactRowMenu contact={contact} onAction={rowDialog.open} />
+                    </TableCell>
                   </TableRow>
                 )
               })}
             </TableBody>
           </Table>
+          </ResponsiveTable>
         </TableCard>
       )}
+      <ContactSheet
+        contact={store.contacts.find((c) => c.id === sheetId)}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        backToCard={backToCard}
+      />
+      {rowDialog.target ? (
+        <ContactActionDialogs
+          contact={rowDialog.target}
+          action={rowDialog.action}
+          onClose={rowDialog.close}
+          // Edit keeps the row, so focus goes back to its "…"; Delete moves to the next row's.
+          finalFocus={afterMenuDelete}
+        />
+      ) : null}
     </div>
   )
 }

@@ -15,7 +15,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import { useCrm } from "@/components/crm/crm-store"
+import {
+  CRM_44,
+  CRM_DANGER_TEXT,
+  CRM_DIALOG,
+  CRM_DIALOG_HEADER,
+} from "@/components/crm/crm-touch"
+
+/** First / last name side by side on tablet and desktop, stacked on a phone. */
+const PAIR = "grid grid-cols-2 gap-3 max-md:grid-cols-1"
 
 function Field({
   id,
@@ -58,6 +68,7 @@ function Field({
         autoFocus={autoFocus}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
+        className={CRM_44}
       />
     </div>
   )
@@ -99,13 +110,13 @@ export function ContactNewDialog({
       }}
     >
       {openProp === undefined && (
-        <DialogTrigger render={<Button size="sm" />}>
+        <DialogTrigger render={<Button size="sm" className={CRM_44} />}>
           <PlusIcon aria-hidden />
           New contact
         </DialogTrigger>
       )}
-      <DialogContent initialFocus={emailRef}>
-        <DialogHeader>
+      <DialogContent initialFocus={emailRef} className={CRM_DIALOG}>
+        <DialogHeader className={CRM_DIALOG_HEADER}>
           <DialogTitle>New contact</DialogTitle>
           <DialogDescription>
             Add someone by hand. Most sample contacts arrived from Stripe or triage.
@@ -147,12 +158,16 @@ export function ContactNewDialog({
               describedBy={emailError ? emailErrorId : undefined}
             />
             {emailError ? (
-              <p id={emailErrorId} role="alert" className="text-destructive text-caption">
+              <p
+                id={emailErrorId}
+                role="alert"
+                className={cn("text-destructive text-caption", CRM_DANGER_TEXT)}
+              >
                 {emailError}
               </p>
             ) : null}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={PAIR}>
             <Field
               id="new-first"
               label="First name"
@@ -176,7 +191,7 @@ export function ContactNewDialog({
             maxLength={CRM_LIMITS.org}
           />
           <DialogFooter>
-            <Button type="submit" disabled={!email.trim()}>
+            <Button type="submit" className={CRM_44} disabled={!email.trim()}>
               Create contact
             </Button>
           </DialogFooter>
@@ -186,36 +201,58 @@ export function ContactNewDialog({
   )
 }
 
+/**
+ * Opens from its own Edit button by default. The Contacts list's phone sheet
+ * and tablet row menu open the same form from elsewhere: pass `open` and
+ * `onOpenChange` to control it (no trigger is rendered then), and
+ * `finalFocus` for where focus lands on close.
+ */
 export function ContactEditDialog({
   contact,
   organizationName,
+  open: openProp,
+  onOpenChange,
+  finalFocus,
 }: {
   contact: Contact
   organizationName: string | null
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
   const { updateContact } = useCrm()
-  const [open, setOpen] = React.useState(false)
+  const [uncontrolled, setUncontrolled] = React.useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : uncontrolled
+  const setOpen = (next: boolean) => {
+    if (!controlled) setUncontrolled(next)
+    onOpenChange?.(next)
+  }
   const [first, setFirst] = React.useState(contact.firstName ?? "")
   const [last, setLast] = React.useState(contact.lastName ?? "")
   const [org, setOrg] = React.useState(organizationName ?? "")
+  // Start every edit from the contact as it is now, however it was opened.
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setFirst(contact.firstName ?? "")
+      setLast(contact.lastName ?? "")
+      setOrg(organizationName ?? "")
+    }
+  }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) {
-          setFirst(contact.firstName ?? "")
-          setLast(contact.lastName ?? "")
-          setOrg(organizationName ?? "")
-        }
-      }}
-    >
-      <DialogTrigger render={<Button size="sm" variant="outline" />}>
-        Edit
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {!controlled && (
+        <DialogTrigger
+          render={<Button size="sm" variant="outline" className={cn(CRM_44, "max-xl:min-w-11")} />}
+        >
+          Edit
+        </DialogTrigger>
+      )}
+      <DialogContent className={CRM_DIALOG} finalFocus={finalFocus}>
+        <DialogHeader className={CRM_DIALOG_HEADER}>
           <DialogTitle>Edit contact</DialogTitle>
           <DialogDescription>
             Manual edits win over Stripe and Gmail values once live sync lands.
@@ -234,7 +271,7 @@ export function ContactEditDialog({
           }}
           className="flex flex-col gap-4"
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className={PAIR}>
             <Field
               id="edit-first"
               label="First name"
@@ -258,7 +295,9 @@ export function ContactEditDialog({
             maxLength={CRM_LIMITS.org}
           />
           <DialogFooter>
-            <Button type="submit">Save</Button>
+            <Button type="submit" className={CRM_44}>
+              Save
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

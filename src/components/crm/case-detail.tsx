@@ -13,21 +13,15 @@ import { isSeedCase, isSeedNote } from "@/lib/crm/fixture"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge } from "@/components/crm/case-badges"
 import { CasePrioritySelect } from "@/components/crm/case-priority-select"
 import { CaseStatusPath } from "@/components/crm/case-status-path"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
+import { CaseDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
+import { CRM_44, CRM_ICON_44, CRM_LINK_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
 import { EmailBody } from "@/components/crm/email-body"
 import { NoteComposer } from "@/components/crm/note-composer"
 import * as React from "react"
@@ -63,12 +57,12 @@ export function CaseDetail({ caseId }: { caseId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">
-            <Link href="/crm/cases" className="hover:underline">
+            <Link href="/crm/cases" className={cn("hover:underline", CRM_LINK_44)}>
               Cases
             </Link>{" "}
             / #{caseRow.caseNumber}
           </p>
-          <h2 className="mt-1 flex flex-wrap items-center gap-2 truncate text-lg font-semibold tracking-tight">
+          <h2 className="mt-1 flex flex-wrap items-center gap-2 truncate text-lg font-semibold tracking-tight max-md:whitespace-normal">
             {caseRow.subject}
             {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
           </h2>
@@ -80,6 +74,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
             variant="outline"
             onClick={() => setConfirming(true)}
             aria-label={`Delete case #${caseRow.caseNumber}`}
+            className={CRM_44}
           >
             <TrashIcon aria-hidden />
             Delete
@@ -125,7 +120,10 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                       variant="ghost"
                       aria-label="Delete note"
                       onClick={() => store.deleteNote(note.id)}
-                      className="text-amber-900 hover:text-red-800 dark:text-amber-200 dark:hover:text-red-200"
+                      className={cn(
+                        "text-amber-900 hover:text-red-800 dark:text-amber-200 dark:hover:text-red-200",
+                        CRM_ICON_44
+                      )}
                     >
                       <TrashIcon />
                     </Button>
@@ -194,7 +192,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
               {contact ? (
                 <Link
                   href={`/crm/contacts/${contact.id}`}
-                  className="flex items-center gap-2.5 hover:underline"
+                  className={cn("flex items-center gap-2.5 hover:underline", CRM_ROW_44)}
                 >
                   <CrmAvatar
                     firstName={contact.firstName}
@@ -230,31 +228,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
         </div>
       </div>
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent className="sm:max-w-sm!">
-          <DialogHeader>
-            <DialogTitle>Delete this case?</DialogTitle>
-            <DialogDescription>
-              #{caseRow.caseNumber} {caseRow.subject} comes off the list. There is no server copy to
-              recover it from.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
-              Keep it
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                store.deleteCase(caseRow.id)
-                setConfirming(false)
-              }}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CaseDeleteDialog caseRow={caseRow} open={confirming} onOpenChange={setConfirming} />
     </div>
   )
 }

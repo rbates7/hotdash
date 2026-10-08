@@ -41,7 +41,8 @@ export function CaseStatusPath({ caseId, status }: { caseId: string; status: Cas
               }, calc(100% - 12px) 100%, 0 100%${first ? "" : ", 12px 50%"})`,
             }}
             className={cn(
-              "-ml-2 flex h-8 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-semibold transition-colors outline-none select-none first:ml-0",
+              // 44 tall below 1280, where the path is tapped.
+              "-ml-2 flex h-8 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-semibold transition-colors outline-none select-none first:ml-0 max-xl:h-11",
               "focus-visible:ring-ring/50 focus-visible:z-10 focus-visible:ring-[3px]",
               first && "rounded-l-lg",
               last && "rounded-r-lg",
