@@ -21,7 +21,7 @@ const region = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
 const table = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   region(page, name).getByRole("table", { name, exact: true })
 const cards = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
-  region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']`)
+  region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']:visible`)
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add clinic", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
@@ -53,10 +53,12 @@ async function visibleHeaders(tbl: Locator) {
 }
 
 async function expectClinicsReadable(page: Page, theme: "light" | "dark") {
-  await expectReadable(header(page), `${theme}/header`, expect)
+  await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/h1`, expect)
+  await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
   const upcoming = region(page, "Upcoming clinics")
-  await expectReadable(upcoming.getByTestId("status-pill").first(), `${theme}/upcoming status`, expect)
-  await expectReadable(upcoming.getByTestId("sample-data-tag").first(), `${theme}/upcoming sample`, expect)
+  const surface = cards(page, "Upcoming clinics").or(table(page, "Upcoming clinics"))
+  await expectReadable(surface.getByTestId("status-pill").first(), `${theme}/upcoming status`, expect)
+  await expectReadable(surface.getByTestId("sample-data-tag").first(), `${theme}/upcoming sample`, expect)
 }
 
 test.describe("responsive Clinics (phone 390)", () => {
@@ -187,7 +189,7 @@ test.describe("responsive Clinics (tablet landscape 1180)", () => {
 test.describe("responsive Clinics (desktop 1440)", () => {
   test.use({ viewport: SIZES.desktop })
 
-  test("keeps the eight-column table and the 36px Add; no cards", async ({ page }) => {
+  test("keeps the eight-column table and the Nova sm Add; no cards", async ({ page }) => {
     await freshClinics(page)
     await expect(table(page, "Upcoming clinics")).toBeVisible()
     await expect(cards(page, "Upcoming clinics")).toHaveCount(0)
@@ -204,14 +206,12 @@ test.describe("responsive Clinics (desktop 1440)", () => {
     const add = addButton(page)
     const box = await add.boundingBox()
     expect(box, "desktop Add").toBeTruthy()
-    expect(box!.height, "desktop Add stays h-9").toBeLessThan(44)
-    await expect(add).toHaveCSS("height", "36px")
-    await expect(
-      table(page, "Upcoming clinics").getByRole("row", { name: /Houston Offensive/ })
-    ).toContainText("in 15 days")
-    await expect(
-      table(page, "Upcoming clinics").getByRole("row", { name: /Houston Offensive/ })
-    ).not.toContainText("in 15 days · Houston")
+    expect(box!.height, "desktop Add stays Nova sm, not 44").toBeLessThan(44)
+    await expect(add).toHaveCSS("height", "28px")
+    const houston = table(page, "Upcoming clinics").getByRole("row", { name: /Houston Offensive/ })
+    await expect(houston).toContainText("in 15 days")
+    await expect(houston.getByRole("cell").nth(2)).toHaveText("Houston")
+    await expect(houston.locator(".xl\\:hidden").first()).toBeHidden()
     await expectNoPageOverflowX(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)

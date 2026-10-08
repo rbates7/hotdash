@@ -35,7 +35,7 @@ const region = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
 const table = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   region(page, name).getByRole("table", { name, exact: true })
 const cards = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
-  region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']`)
+  region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']:visible`)
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
 async function shoot(page: Page, name: string) {
