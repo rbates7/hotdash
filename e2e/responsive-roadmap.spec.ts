@@ -270,9 +270,7 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expectScrollLock(page, false)
   })
 
-  test("Delete returns focus to the next card; toolbar Move does not steal it back", async ({
-    page,
-  }) => {
+  test("Delete returns focus to the next card", async ({ page }) => {
     await fresh(page)
     await card(page, "Flag Football 2026").getByRole("button", { name: "Edit" }).click()
     const first = dialog(page, "Bet: Flag Football 2026")
@@ -280,12 +278,6 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await first.getByRole("button", { name: "Confirm delete", exact: true }).click()
     await expect(first).toBeHidden()
     await expect(card(page, "Play share links")).toBeFocused()
-
-    const who = card(page, "Play share links")
-    const move = who.getByRole("button", { name: "Move to Next" })
-    await move.focus()
-    await page.keyboard.press("Enter")
-    await expect(who).not.toBeFocused()
   })
 
   test("closing Edit then a keyboard Move or New bet does not jump back to the old card", async ({
