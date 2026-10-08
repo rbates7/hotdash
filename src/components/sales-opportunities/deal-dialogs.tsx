@@ -262,11 +262,35 @@ function DealFields({
   )
 }
 
+/* ---------------------------------------------------------------- control */
+
+/**
+ * Every dialog opens from its own trigger by default. The phone sheet and the
+ * tablet row menu open the same dialogs from elsewhere: pass `open` and
+ * `onOpenChange` to control it, and `trigger={null}` to render no trigger
+ * (or an element to render as the trigger instead).
+ */
+export type DialogControl = {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  trigger?: React.ReactElement | null
+}
+
+function useDialogOpen({ open, onOpenChange }: DialogControl) {
+  const [own, setOwn] = React.useState(false)
+  const controlled = open !== undefined
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOwn(next)
+    onOpenChange?.(next)
+  }
+  return [controlled ? open : own, setOpen] as const
+}
+
 /* ------------------------------------------------------------ add / edit */
 
-export function AddDealDialog() {
+export function AddDealDialog({ trigger, ...control }: DialogControl = {}) {
   const { addDeal } = useDeals()
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useDialogOpen(control)
   const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT)
   const input = inputFrom(draft)
 
@@ -290,14 +314,18 @@ export function AddDealDialog() {
         else close()
       }}
     >
-      <DialogTrigger
-        render={
-          <Button size="sm" className="h-9 px-3.5">
-            <PlusIcon aria-hidden />
-            Add deal
-          </Button>
-        }
-      />
+      {trigger !== null && (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button size="sm" className="h-9 px-3.5 max-xl:h-11! max-xl:px-4!">
+                <PlusIcon aria-hidden />
+                Add deal
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-lg!">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
@@ -322,10 +350,17 @@ export function AddDealDialog() {
   )
 }
 
-export function EditDealDialog({ deal }: { deal: Deal }) {
+export function EditDealDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
   const { editDeal } = useDeals()
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useDialogOpen(control)
   const [draft, setDraft] = React.useState<Draft>(() => draftFrom(deal))
+  // Start every edit from the row as it is now, not a stale draft — however
+  // it was opened (its own trigger, the phone sheet or the tablet row menu).
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setDraft(draftFrom(deal))
+  }
   const input = inputFrom(draft)
   const canSave = input !== null && !unchanged(deal, input)
 
@@ -341,27 +376,24 @@ export function EditDealDialog({ deal }: { deal: Deal }) {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        // Start every edit from the row as it is now, not a stale draft.
-        if (next) setDraft(draftFrom(deal))
-        setOpen(next)
-      }}
-    >
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Edit ${deal.who}`}
-            title="Edit this deal"
-            className="text-muted-foreground"
-          >
-            <PencilIcon aria-hidden />
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={setOpen}>
+      {trigger !== null && (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Edit ${deal.who}`}
+                title="Edit this deal"
+                className="text-muted-foreground"
+              >
+                <PencilIcon aria-hidden />
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-lg!">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
@@ -387,9 +419,9 @@ export function EditDealDialog({ deal }: { deal: Deal }) {
 
 /* -------------------------------------------------------- next step done */
 
-export function NextStepDoneDialog({ deal }: { deal: Deal }) {
+export function NextStepDoneDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
   const { completeNextStep } = useDeals()
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useDialogOpen(control)
   const [nextStep, setNextStep] = React.useState("")
   const [due, setDue] = React.useState("")
   const trimmed = clampText(nextStep, CAPS.nextStep)
@@ -416,19 +448,23 @@ export function NextStepDoneDialog({ deal }: { deal: Deal }) {
         else close()
       }}
     >
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Mark next step done for ${deal.who}`}
-            title="Next step done — set the next one"
-            className="text-muted-foreground"
-          >
-            <CheckIcon aria-hidden />
-          </Button>
-        }
-      />
+      {trigger !== null && (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Mark next step done for ${deal.who}`}
+                title="Next step done — set the next one"
+                className="text-muted-foreground"
+              >
+                <CheckIcon aria-hidden />
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-md!">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
@@ -476,24 +512,28 @@ export function NextStepDoneDialog({ deal }: { deal: Deal }) {
 
 /* ----------------------------------------------------------------- delete */
 
-export function DeleteDealDialog({ deal }: { deal: Deal }) {
+export function DeleteDealDialog({ deal, trigger, ...control }: { deal: Deal } & DialogControl) {
   const { deleteDeal } = useDeals()
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = useDialogOpen(control)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Delete ${deal.who}`}
-            title="Delete this deal"
-            className="text-muted-foreground"
-          >
-            <Trash2Icon aria-hidden />
-          </Button>
-        }
-      />
+      {trigger !== null && (
+        <DialogTrigger
+          render={
+            trigger ?? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Delete ${deal.who}`}
+                title="Delete this deal"
+                className="text-muted-foreground"
+              >
+                <Trash2Icon aria-hidden />
+              </Button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-sm!">
         <DialogHeader>
           <DialogTitle>Delete this deal?</DialogTitle>
