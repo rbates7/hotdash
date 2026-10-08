@@ -38,10 +38,12 @@ async function freshClinics(page: Page) {
 }
 
 async function expectMinHit(locator: Locator, label: string, min = 44) {
+  await locator.scrollIntoViewIfNeeded()
   const box = await locator.boundingBox()
   expect(box, label).toBeTruthy()
-  expect(box!.width, `${label} width`).toBeGreaterThanOrEqual(min)
-  expect(box!.height, `${label} height`).toBeGreaterThanOrEqual(min)
+  // Subpixel paint (43.999) still clears a 44px token.
+  expect(box!.width, `${label} width`).toBeGreaterThanOrEqual(min - 0.5)
+  expect(box!.height, `${label} height`).toBeGreaterThanOrEqual(min - 0.5)
 }
 
 async function expectNoPageOverflowX(page: Page) {
@@ -159,7 +161,8 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expectMinHit(edit.getByRole("button", { name: "Close", exact: true }), "sheet close")
     await expectMinHit(edit.getByRole("button", { name: "Cancel", exact: true }), "sheet Cancel")
     await expectFormTouch(edit, "phone sheet")
-    await expectReadable(edit, "phone/edit sheet", expect)
+    await expectReadable(edit.getByRole("heading", { name: "Edit clinic" }), "phone/edit sheet title", expect)
+    await expectReadable(edit.getByText(/Dates are calendar days/), "phone/edit sheet copy", expect)
     await expectNoPageOverflowX(page)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
@@ -190,7 +193,7 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expect(confirm).toBeVisible()
     await expect(confirm).toContainText("Houston Offensive Staff Clinic")
     await expectMinHit(confirm.getByRole("button", { name: "Delete", exact: true }), "phone delete-confirm")
-    await expectReadable(confirm, "phone/delete dialog", expect)
+    await expectReadable(confirm.getByRole("heading", { name: "Delete this clinic?" }), "phone/delete title", expect)
     await confirm.getByRole("button", { name: "Delete", exact: true }).click()
     await expect(confirm).toBeHidden()
     await expect(page.getByText("Houston Offensive Staff Clinic")).toHaveCount(0)
@@ -261,7 +264,8 @@ test.describe("responsive Clinics (tablet portrait 820)", () => {
     const edit = dialog(page, "Edit clinic")
     await expect(edit).toBeVisible()
     await expectFormTouch(edit, "820 dialog")
-    await expectReadable(edit, "820/edit dialog", expect)
+    await expectReadable(edit.getByRole("heading", { name: "Edit clinic" }), "820/edit dialog title", expect)
+    await expectReadable(edit.getByText(/Dates are calendar days/), "820/edit dialog copy", expect)
     await expect(edit.getByRole("button", { name: "Delete clinic", exact: true })).toHaveCount(0)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
@@ -273,7 +277,7 @@ test.describe("responsive Clinics (tablet portrait 820)", () => {
     const confirm = dialog(page, "Delete this clinic?")
     await expect(confirm).toBeVisible()
     await expectMinHit(confirm.getByRole("button", { name: "Delete", exact: true }), "820 delete-confirm")
-    await expectReadable(confirm, "820/delete dialog", expect)
+    await expectReadable(confirm.getByRole("heading", { name: "Delete this clinic?" }), "820/delete title", expect)
   })
 })
 

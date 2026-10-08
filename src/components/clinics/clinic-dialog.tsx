@@ -42,10 +42,11 @@ export const CLINIC_SHEET_CLASS =
   "flex max-h-[90dvh]! w-full! max-w-none! flex-col overflow-y-auto rounded-t-xl! p-4! [&_[data-slot=sheet-close]]:size-11!"
 
 /** 44px below xl (phone + tablet). Desktop ≥1280 keeps Nova h-8 / h-7. */
-export const CLINIC_TOUCH = "max-xl:h-11! max-xl:min-h-11!"
+export const CLINIC_TOUCH = "max-xl:h-11! max-xl:min-h-[44px]!"
 
 /** Dialog × is icon-sm (28px). Beat it below xl; 1440 stays Nova. */
-export const CLINIC_DIALOG_CLOSE = "max-xl:[&_[data-slot=dialog-close]]:size-11!"
+export const CLINIC_DIALOG_CLOSE =
+  "max-xl:max-h-[90dvh]! max-xl:overflow-y-auto! max-xl:[&_[data-slot=dialog-close]]:size-11! max-xl:[&_[data-slot=dialog-close]]:min-h-[44px]! max-xl:[&_[data-slot=dialog-close]]:min-w-[44px]!"
 
 /** Type + attendance: one column on phone so "Staff meeting" / "Skipped" fit. */
 export const TYPE_ATTEND_GRID = "grid grid-cols-1 gap-3 md:grid-cols-2"
