@@ -33,10 +33,14 @@ export const CD_HEADER = "max-xl:pr-10"
 export const CD_PAIR = "max-md:grid-cols-1"
 
 /**
- * Type / Status options wrap on phone so "Foundation program" / "Outreach
- * event" are not clipped (Clinics 10:821 stacked the two-column pair).
+ * Type / Status options sit in two columns on phone so "Outreach event"
+ * shares a row with "Foundation program" instead of wrapping alone.
+ * `grid!` / `w-full!` beat Nova's flex + w-fit.
  */
-export const CD_TOGGLE_GROUP = "max-md:flex-wrap"
+export const CD_TOGGLE_GROUP = "max-md:grid! max-md:w-full! max-md:grid-cols-2"
+
+/** Owner stays top-aligned with the taller Impact textarea below 1280. */
+export const CD_OWNER_IMPACT = "max-xl:items-start"
 
 /** Pressed filters / form toggles: solid primary at every width. */
 export const CD_PRESSED = "aria-pressed:bg-primary! aria-pressed:text-primary-foreground!"
@@ -81,3 +85,21 @@ export const TABLET_HIDE = "hidden xl:table-cell"
  * one that yields: constrain it so Status and the ⋯ stay inside the card.
  */
 export const TABLET_NAME_CELL = "max-xl:max-w-0 max-xl:min-w-0! max-xl:whitespace-normal!"
+
+/**
+ * Name link: desktop keeps wrap + overflow-wrap. Below xl, real single-line
+ * truncation (`whitespace-nowrap!` so Nova's truncate nowrap can apply) and
+ * left justify so the name starts at the cell edge, not centered in h-8.
+ */
+export const CD_NAME_LINK =
+  "text-label text-foreground h-auto min-w-0 max-w-full shrink whitespace-normal! p-0 text-left font-semibold tracking-tight [overflow-wrap:anywhere] max-xl:justify-start max-xl:overflow-hidden max-xl:whitespace-nowrap!"
+
+/** Inner span: `truncate` only below xl so desktop names still wrap. */
+export const CD_NAME_TEXT = "min-w-0 max-xl:block max-xl:truncate"
+
+/**
+ * Right-side View sheet. Desktop keeps develop's `sm:max-w-md`. On phone
+ * Nova's `w-3/4` (292px at 390) loses to `max-md:w-full! max-md:max-w-none!`.
+ */
+export const CD_DETAIL_SHEET =
+  "flex w-full flex-col sm:max-w-md max-md:w-full! max-md:max-w-none! max-xl:[&>[data-slot=sheet-close]]:size-11! max-xl:[&>[data-slot=sheet-close]]:min-h-[44px]! max-xl:[&>[data-slot=sheet-close]]:min-w-[44px]!"

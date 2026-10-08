@@ -10,6 +10,7 @@ import {
   type Initiative,
 } from "@/lib/community-development"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -21,16 +22,18 @@ import {
 } from "@/components/ui/sheet"
 import { SampleDataTag } from "@/components/sample-data"
 import { StatusPill, TypePill } from "@/components/community-development/initiative-pills"
-import { SPAWN_LABEL, SPAWN_SOON } from "@/components/community-development/initiative-dialog"
+import {
+  SPAWN_LABEL,
+  SPAWN_SOON,
+  useSheetTabWrap,
+  type OverlayFocus,
+} from "@/components/community-development/initiative-dialog"
 import {
   CD_DESTRUCTIVE,
+  CD_DETAIL_SHEET,
   CD_HEADER,
   CD_TOUCH,
 } from "@/components/community-development/responsive"
-
-/** Stock × is 44×44 below 1280; the right-side sheet keeps develop's width. */
-const DETAIL_SHEET =
-  "flex w-full flex-col sm:max-w-md max-xl:[&>[data-slot=sheet-close]]:size-11! max-xl:[&>[data-slot=sheet-close]]:min-h-[44px]! max-xl:[&>[data-slot=sheet-close]]:min-w-[44px]!"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -53,18 +56,22 @@ export function InitiativeDetail({
   onOpenChange,
   onEdit,
   onDelete,
+  finalFocus,
 }: {
   target: { initiative: Initiative; open: boolean } | null
   today: IsoDay
   onOpenChange: (open: boolean) => void
   onEdit: (initiative: Initiative) => void
   onDelete: (initiative: Initiative) => void
+  finalFocus?: OverlayFocus
 }) {
+  const phone = useIsMobile()
+  useSheetTabWrap((target?.open ?? false) && phone)
   const row = target?.initiative ?? null
   const when = row ? formatWhen(row, today) : null
   return (
     <Sheet open={target?.open ?? false} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={DETAIL_SHEET}>
+      <SheetContent side="right" className={CD_DETAIL_SHEET} finalFocus={finalFocus}>
         {row && (
           <>
             <SheetHeader className={CD_HEADER}>

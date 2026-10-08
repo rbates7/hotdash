@@ -74,6 +74,8 @@ import {
   CD_FILTERS_WRAP,
   CD_HEADER,
   CD_MENU_ITEM,
+  CD_NAME_LINK,
+  CD_NAME_TEXT,
   CD_PRESSED,
   CD_RESET,
   CD_TOUCH,
@@ -388,6 +390,7 @@ export function CommunityDevelopmentScreen() {
   const lastCard = React.useRef<HTMLElement | null>(null)
   const lastCardIndex = React.useRef(0)
   const [editingFromCard, setEditingFromCard] = React.useState(false)
+  const [viewingFromCard, setViewingFromCard] = React.useState(false)
   const [deleteFromSheet, setDeleteFromSheet] = React.useState(false)
 
   const [adding, setAdding] = React.useState(false)
@@ -563,10 +566,12 @@ export function CommunityDevelopmentScreen() {
                                 <span className="flex min-w-0 flex-wrap items-center gap-1.5 max-xl:flex-nowrap">
                                   <Button
                                     variant="link"
-                                    className="text-label text-foreground h-auto min-w-0 shrink whitespace-normal! p-0 text-left font-semibold tracking-tight [overflow-wrap:anywhere] max-xl:truncate"
+                                    data-testid="initiative-name"
+                                    title={row.name}
+                                    className={CD_NAME_LINK}
                                     onClick={() => setViewing({ initiative: row, open: true })}
                                   >
-                                    {row.name}
+                                    <span className={CD_NAME_TEXT}>{row.name}</span>
                                   </Button>
                                   {isSeedInitiative(row) && (
                                     <SampleDataTag className="max-xl:shrink-0" />
@@ -663,6 +668,12 @@ export function CommunityDevelopmentScreen() {
         }}
         initiative={editing?.initiative ?? null}
         finalFocus={editingFromCard ? backToCard : undefined}
+        onView={(row) => {
+          setEditingFromCard(false)
+          setViewingFromCard(true)
+          setEditing((t) => (t ? { ...t, open: false } : t))
+          setViewing({ initiative: row, open: true })
+        }}
         onDelete={(row) => {
           setEditingFromCard(false)
           setDeleteFromSheet(true)
@@ -673,8 +684,12 @@ export function CommunityDevelopmentScreen() {
       <InitiativeDetail
         target={viewing}
         today={today}
+        finalFocus={viewingFromCard ? backToCard : undefined}
         onOpenChange={(open) => {
-          if (!open) setViewing((t) => (t ? { ...t, open: false } : t))
+          if (!open) {
+            setViewing((t) => (t ? { ...t, open: false } : t))
+            setViewingFromCard(false)
+          }
         }}
         onEdit={(row) => {
           setEditingFromCard(false)

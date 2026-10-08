@@ -22,6 +22,9 @@ import {
 } from "@/components/community-development/community-development-store"
 import {
   CD_DESTRUCTIVE,
+  CD_DETAIL_SHEET,
+  CD_NAME_LINK,
+  CD_OWNER_IMPACT,
   CD_PAIR,
   CD_PRESSED,
   CD_SHEET,
@@ -86,6 +89,11 @@ describe("Community Development responsive", () => {
     expect(within(row(/Equipment drive for Yates/)).getAllByRole("cell")[0].className).toMatch(
       /max-xl:max-w-0/
     )
+    const name = within(row(/Equipment drive for Yates/)).getByTestId("initiative-name")
+    expect(name).toHaveAttribute("title", "Equipment drive for Yates High School")
+    expect(name.className).toContain("max-xl:whitespace-nowrap!")
+    expect(name.className).toContain("max-xl:justify-start")
+    expect(CD_NAME_LINK).toContain("max-xl:whitespace-nowrap!")
   })
 
   it("renders seed rows as RowCollapse cards with Deke 7:47 meta", () => {
@@ -138,6 +146,30 @@ describe("Community Development responsive", () => {
       "sheet-close"
     )
     expect(within(dialog).getByRole("button", { name: "Delete initiative" })).toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "View" })).toHaveClass("max-xl:h-11!")
+  })
+
+  it("View from the phone edit sheet opens the full-width detail and returns focus to the card", async () => {
+    const user = userEvent.setup()
+    mockPhone()
+    renderScreen()
+    await user.click(card("Equipment drive for Yates High School"))
+    const edit = await screen.findByRole("dialog", { name: "Edit initiative" })
+    await user.click(within(edit).getByRole("button", { name: "View" }))
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Edit initiative" })).not.toBeInTheDocument()
+    )
+    const view = await screen.findByRole("dialog", { name: /Equipment drive for Yates High School/ })
+    expect(view.className).toContain("max-md:w-full!")
+    expect(view.className).toContain("max-md:max-w-none!")
+    expect(CD_DETAIL_SHEET).toContain("max-md:w-full!")
+    await user.click(within(view).getByRole("button", { name: "Close" }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: /Equipment drive for Yates High School/ })
+      ).not.toBeInTheDocument()
+    )
+    await waitFor(() => expect(card("Equipment drive for Yates High School")).toHaveFocus())
   })
 
   it("stacks Date/Cadence and Owner/Impact on phone and keeps Delete off the desktop form", async () => {
@@ -148,6 +180,8 @@ describe("Community Development responsive", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add initiative" })
     expect(within(dialog).getByTestId("when-fields").className).toMatch(/max-md:grid-cols-1/)
     expect(within(dialog).getByTestId("owner-impact-fields").className).toMatch(/max-md:grid-cols-1/)
+    expect(within(dialog).getByTestId("owner-impact-fields").className).toContain(CD_OWNER_IMPACT)
+    expect(within(dialog).getByRole("group", { name: "Type" }).className).toMatch(/max-md:grid-cols-2/)
     expect(within(dialog).getByLabelText("Name")).toHaveClass("max-xl:h-11!")
     expect(within(dialog).getByRole("button", { name: "Outreach event" })).toHaveClass("max-xl:h-11!")
     expect(within(dialog).getByRole("button", { name: "Add initiative" })).toHaveClass("max-xl:h-11!")

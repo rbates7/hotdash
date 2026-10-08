@@ -215,6 +215,11 @@ async function expectDialogs44(page: Page, size: Size) {
     const cadence = (await add.getByLabel("Cadence").boundingBox())!
     expect(cadence.y, "Cadence sits under Date").toBeGreaterThan(date.y + date.height)
     expect(Math.abs(cadence.width - date.width)).toBeLessThanOrEqual(2)
+    const foundation = (await add.getByRole("button", { name: "Foundation program", exact: true }).boundingBox())!
+    const outreach = (await add.getByRole("button", { name: "Outreach event", exact: true }).boundingBox())!
+    expect(Math.abs(outreach.y - foundation.y), "Outreach event shares a row with Foundation program").toBeLessThanOrEqual(
+      4
+    )
   }
   await page.keyboard.press("Escape")
   await expect(add).toBeHidden()
@@ -228,8 +233,13 @@ async function expectDialogs44(page: Page, size: Size) {
   if (size === "390") {
     await expect(edit).toHaveAttribute("data-side", "bottom")
     await expectMinDelete(edit)
+    await expectTapTarget(edit.getByRole("button", { name: "View", exact: true }), `${size} Edit View`)
   } else {
     await expect(edit.getByRole("button", { name: "Delete initiative", exact: true })).toHaveCount(0)
+    await expect(edit.getByRole("button", { name: "View", exact: true })).toHaveCount(0)
+    const owner = (await edit.getByLabel("Owner").boundingBox())!
+    const impact = (await edit.getByLabel("What we gave / impact").boundingBox())!
+    expect(Math.abs(owner.y - impact.y), `${size} Owner aligns with Impact`).toBeLessThanOrEqual(2)
   }
   await page.keyboard.press("Escape")
   await expect(edit).toBeHidden()
@@ -313,6 +323,7 @@ test.describe("responsive Community Development (phone 390)", () => {
     await expectAllTargets44(edit, "390 sheet")
     await expectTapTarget(edit.getByRole("button", { name: "Close", exact: true }), "sheet close")
     await expectMinDelete(edit)
+    await expectTapTarget(edit.getByRole("button", { name: "View", exact: true }), "phone View")
     await expectImpactUnclipped(edit, "phone sheet")
     await expectNoPageOverflowX(page)
     await page.keyboard.press("Escape")
@@ -368,6 +379,29 @@ test.describe("responsive Community Development (phone 390)", () => {
   test("dialogs are 44px: fields, options, buttons, ×; two-column grids stack", async ({ page }) => {
     await fresh(page)
     await expectDialogs44(page, "390")
+  })
+
+  test("View from the edit sheet is full width; × closes it and focus returns to the card", async ({
+    page,
+  }) => {
+    await fresh(page)
+    await card(page, YATES).click()
+    const edit = dialog(page, "Edit initiative")
+    await expect(edit).toBeVisible()
+    await edit.getByRole("button", { name: "View", exact: true }).click()
+    await expect(edit).toBeHidden()
+    const view = page.getByRole("dialog", { name: new RegExp(`^${YATES}`) })
+    await expect(view).toBeVisible()
+    await expect(view).toHaveAttribute("data-side", "right")
+    const box = (await view.boundingBox())!
+    const viewport = page.viewportSize()!
+    expect(box.width, "View sheet is full width").toBeGreaterThanOrEqual(viewport.width - 2)
+    expect(box.x, "View sheet starts at the left edge").toBeLessThanOrEqual(1)
+    const close = view.getByRole("button", { name: "Close", exact: true })
+    await expectTapTarget(close, "View ×")
+    await close.click()
+    await expect(view).toBeHidden()
+    await expect(card(page, YATES)).toBeFocused()
   })
 
   test("empty state Add is 44px and does not overflow", async ({ page }) => {
@@ -435,6 +469,58 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expect(edit.getByRole("button", { name: "Delete initiative", exact: true })).toHaveCount(0)
       await page.keyboard.press("Escape")
       await expect(edit).toBeHidden()
+    })
+
+    test("the Yates name is left-aligned, single-line, and not clipped vertically", async ({ page }) => {
+      await fresh(page)
+      const yates = table(page).getByRole("row", { name: /Equipment drive for Yates/ })
+      const name = yates.getByTestId("initiative-name")
+      await expect(name).toBeVisible()
+      await expect(name).toHaveAttribute("title", YATES)
+      const paint = await name.evaluate((el) => {
+        const cell = el.closest("td")
+        if (!cell) return null
+        const node = (el.querySelector("span") ?? el).firstChild
+        if (!(node instanceof Text)) return null
+        const word = node.data.trim().split(/\s+/)[0] ?? ""
+        const range = document.createRange()
+        range.setStart(node, 0)
+        range.setEnd(node, word.length)
+        const wr = range.getBoundingClientRect()
+        const nr = el.getBoundingClientRect()
+        const cr = cell.getBoundingClientRect()
+        const pad = parseFloat(getComputedStyle(cell).paddingLeft)
+        return {
+          nameLeft: nr.x,
+          contentLeft: cr.x + pad,
+          scrollHeight: (el as HTMLElement).scrollHeight,
+          clientHeight: (el as HTMLElement).clientHeight,
+          word,
+          wordLeft: wr.x,
+          wordRight: wr.x + wr.width,
+          wordTop: wr.y,
+          wordBottom: wr.y + wr.height,
+          elLeft: nr.x,
+          elRight: nr.x + nr.width,
+          elTop: nr.y,
+          elBottom: nr.y + nr.height,
+        }
+      })
+      expect(paint, `${VIEWPORTS[name].width} Yates name painted`).toBeTruthy()
+      expect(paint!.word, `${VIEWPORTS[name].width} first word`).toBe("Equipment")
+      expect(paint!.nameLeft, `${VIEWPORTS[name].width} name starts at the cell's left edge`).toBeLessThanOrEqual(
+        paint!.contentLeft + 1
+      )
+      expect(paint!.nameLeft, `${VIEWPORTS[name].width} name is not inset past the cell padding`).toBeGreaterThanOrEqual(
+        paint!.contentLeft - 1
+      )
+      expect(paint!.scrollHeight, `${VIEWPORTS[name].width} name not clipped vertically`).toBeLessThanOrEqual(
+        paint!.clientHeight + 1
+      )
+      expect(paint!.wordLeft, `${VIEWPORTS[name].width} Equipment left`).toBeGreaterThanOrEqual(paint!.elLeft - 1)
+      expect(paint!.wordRight, `${VIEWPORTS[name].width} Equipment right`).toBeLessThanOrEqual(paint!.elRight + 1)
+      expect(paint!.wordTop, `${VIEWPORTS[name].width} Equipment top`).toBeGreaterThanOrEqual(paint!.elTop - 1)
+      expect(paint!.wordBottom, `${VIEWPORTS[name].width} Equipment bottom`).toBeLessThanOrEqual(paint!.elBottom + 1)
     })
 
     test("dialogs and the row menu are 44px: fields, options, buttons, ×, menu rows", async ({
@@ -546,6 +632,7 @@ for (const theme of ["light", "dark"] as const) {
           await expect(s).toBeVisible()
           await expectReadable(s.getByRole("heading", { name: "Edit initiative" }), `${label}/sheet title`, expect)
           await expectReadable(s.getByRole("button", { name: "Close", exact: true }), `${label}/sheet ×`, expect)
+          await expectReadable(s.getByRole("button", { name: "View", exact: true }), `${label}/sheet View`, expect)
           await expectReadable(
             s.getByRole("button", { name: "Delete initiative", exact: true }),
             `${label}/sheet Delete`,

@@ -38,6 +38,7 @@ import {
   CD_DIALOG,
   CD_HEADER,
   CD_INPUT,
+  CD_OWNER_IMPACT,
   CD_PAIR,
   CD_PRESSED,
   CD_SHEET,
@@ -135,7 +136,7 @@ function wrapTabAt(root: HTMLElement, event: KeyboardEvent) {
   target.focus()
 }
 
-function useSheetTabWrap(active: boolean) {
+export function useSheetTabWrap(active: boolean) {
   React.useLayoutEffect(() => {
     if (!active) return
     const rootOf = () => document.querySelector<HTMLElement>('[data-slot="sheet-content"]')
@@ -223,6 +224,7 @@ export function InitiativeDialog({
   onOpenChange,
   initiative,
   onDelete,
+  onView,
   finalFocus,
 }: {
   open: boolean
@@ -231,6 +233,8 @@ export function InitiativeDialog({
   initiative: Initiative | null
   /** Phone sheet only — opens the existing DeleteDialog. */
   onDelete?: (initiative: Initiative) => void
+  /** Phone sheet only — opens the existing View sheet. */
+  onView?: (initiative: Initiative) => void
   finalFocus?: OverlayFocus
 }) {
   const nameRef = React.useRef<HTMLInputElement>(null)
@@ -246,6 +250,7 @@ export function InitiativeDialog({
         initiative={initiative}
         onDone={() => onOpenChange(false)}
         onDelete={initiative && onDelete ? () => onDelete(initiative) : undefined}
+        onView={initiative && onView ? () => onView(initiative) : undefined}
         nameRef={nameRef}
       />
     </InitiativeOverlay>
@@ -256,11 +261,13 @@ function InitiativeForm({
   initiative,
   onDone,
   onDelete,
+  onView,
   nameRef,
 }: {
   initiative: Initiative | null
   onDone: () => void
   onDelete?: () => void
+  onView?: () => void
   nameRef: React.RefObject<HTMLInputElement | null>
 }) {
   const { today, addInitiative, updateInitiative } = useCommunityDevelopment()
@@ -428,7 +435,10 @@ function InitiativeForm({
           A date, a cadence, or both. Dates are Central calendar days.
         </p>
 
-        <div className={cn("grid grid-cols-[1fr_2fr] gap-3", CD_PAIR)} data-testid="owner-impact-fields">
+        <div
+          className={cn("grid grid-cols-[1fr_2fr] gap-3", CD_PAIR, CD_OWNER_IMPACT)}
+          data-testid="owner-impact-fields"
+        >
           <div className="grid gap-1.5">
             <label htmlFor={id("owner")} className="text-caption font-medium">
               Owner
@@ -459,18 +469,35 @@ function InitiativeForm({
         </div>
       </div>
 
-      {editing && onDelete && phone ? (
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(CD_TOUCH, "text-danger-text!")}
-          onClick={() => {
-            onDone()
-            onDelete()
-          }}
-        >
-          Delete initiative
-        </Button>
+      {editing && phone && (onView || onDelete) ? (
+        <div className="flex flex-col gap-2">
+          {onView ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={CD_TOUCH}
+              onClick={() => {
+                onDone()
+                onView()
+              }}
+            >
+              View
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(CD_TOUCH, "text-danger-text!")}
+              onClick={() => {
+                onDone()
+                onDelete()
+              }}
+            >
+              Delete initiative
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       <DialogFooter className="sm:justify-between">

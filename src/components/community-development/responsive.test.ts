@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   CD_ADD,
   CD_DESTRUCTIVE,
+  CD_DETAIL_SHEET,
   CD_DIALOG,
   CD_FILTER_ITEM,
   CD_FILTERS,
@@ -10,6 +11,9 @@ import {
   CD_FILTERS_WRAP,
   CD_INPUT,
   CD_MENU_ITEM,
+  CD_NAME_LINK,
+  CD_NAME_TEXT,
+  CD_OWNER_IMPACT,
   CD_PAIR,
   CD_PRESSED,
   CD_RESET,
@@ -56,7 +60,10 @@ describe("Community Development responsive layout", () => {
 
   it("stacks two-column form grids on phone and keeps the textarea min-height-only below 1280", () => {
     expect(CD_PAIR).toBe("max-md:grid-cols-1")
-    expect(CD_TOGGLE_GROUP).toContain("max-md:flex-wrap")
+    expect(CD_TOGGLE_GROUP).toContain("max-md:grid!")
+    expect(CD_TOGGLE_GROUP).toContain("max-md:grid-cols-2")
+    expect(CD_TOGGLE_GROUP).not.toContain("flex-wrap")
+    expect(CD_OWNER_IMPACT).toBe("max-xl:items-start")
     expect(CD_TEXTAREA).toBe("max-xl:field-sizing-content max-xl:min-h-24!")
     expect(CD_TEXTAREA).not.toMatch(/(?:^|\s)field-sizing-content/)
     expect(CD_TEXTAREA).not.toMatch(/(?:^|\s)min-h-/)
@@ -66,5 +73,15 @@ describe("Community Development responsive layout", () => {
     expect(TABLET_NAME_CELL).toMatch(/max-xl:max-w-0/)
     expect(TABLET_NAME_CELL).toMatch(/max-xl:min-w-0!/)
     expect(TABLET_NAME_CELL).toMatch(/max-xl:whitespace-normal!/)
+  })
+
+  it("truncates tablet names on one left-aligned line and opens View full-width on phone", () => {
+    expect(CD_NAME_LINK).toContain("max-xl:whitespace-nowrap!")
+    expect(CD_NAME_LINK).toContain("max-xl:justify-start")
+    expect(CD_NAME_LINK).not.toMatch(/(?:^|\s)max-xl:truncate(?:\s|$)/)
+    expect(CD_NAME_TEXT).toContain("max-xl:truncate")
+    expect(CD_DETAIL_SHEET).toContain("max-md:w-full!")
+    expect(CD_DETAIL_SHEET).toContain("max-md:max-w-none!")
+    expect(CD_DETAIL_SHEET).toContain("sm:max-w-md")
   })
 })

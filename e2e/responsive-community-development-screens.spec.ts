@@ -90,13 +90,23 @@ for (const theme of ["light", "dark"] as const) {
         const sheet = dialog(page, "Edit initiative")
         await expect(sheet).toBeVisible()
         await expect(sheet.getByRole("button", { name: "Close", exact: true })).toBeVisible()
+        await expect(sheet.getByRole("button", { name: "View", exact: true })).toBeVisible()
         await expect(sheet.getByRole("button", { name: "Delete initiative", exact: true })).toBeVisible()
+        await shoot(page, `community-development-${size}-sheet-${theme}`, { fullPage: false })
+        await sheet.getByRole("button", { name: "View", exact: true }).click()
+        const view = page.getByRole("dialog", { name: new RegExp(`^${YATES}`) })
+        await expect(view).toBeVisible()
+        await shoot(page, `community-development-${size}-view-${theme}`, { fullPage: false })
       } else {
         await table(page).getByRole("button", { name: `Actions for ${YATES}`, exact: true }).click()
         await page.getByRole("menuitem", { name: "Edit", exact: true }).click()
         await expect(dialog(page, "Edit initiative")).toBeVisible()
+        await shoot(
+          page,
+          desktop ? `community-development-${size}-dialog-edit-${theme}` : `community-development-${size}-sheet-${theme}`,
+          { fullPage: desktop }
+        )
       }
-      await shoot(page, `community-development-${size}-sheet-${theme}`, { fullPage: desktop })
       await closeAll(page)
 
       if (!desktop) {
