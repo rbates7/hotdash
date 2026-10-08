@@ -132,9 +132,17 @@ async function backgroundContrast(a: Locator, b: Locator) {
   }, await b.elementHandle())
 }
 
-async function expectPressedContrast(group: Locator, role: "tab" | "button", label: string) {
-  const pressed = group.getByRole(role, { pressed: true })
-  const unpressed = group.getByRole(role, { pressed: false }).first()
+async function expectPressedContrast(group: Locator, kind: "tab" | "button", label: string) {
+  // Playwright's `pressed` option is button-only; phone chips stay tabs
+  // (`aria-selected`) and still paint via `aria-pressed:bg-primary!`.
+  const pressed =
+    kind === "tab"
+      ? group.getByRole("tab", { selected: true })
+      : group.getByRole("button", { pressed: true })
+  const unpressed =
+    kind === "tab"
+      ? group.getByRole("tab", { selected: false }).first()
+      : group.getByRole("button", { pressed: false }).first()
   await expect(pressed).toBeVisible()
   const ratio = await backgroundContrast(pressed, unpressed)
   expect(ratio, `${label} pressed vs unpressed ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
@@ -385,9 +393,9 @@ for (const theme of ["light", "dark"] as const) {
         // Save stays disabled until the form is dirty; Nova fades disabled
         // controls to 0.5 opacity, which expectReadable rejects. Probe every
         // enabled restyled control, including Delete and the delete-confirm.
-        await expectReadable(sheet.getByLabel("Idea title"), `${label}/title field`, expect)
+        // Title / From are `<input>`s — values are not text nodes. The ask
+        // is a textarea, so its copy is measurable.
         await expectReadable(sheet.getByLabel("The ask"), `${label}/ask`, expect)
-        await expectReadable(sheet.getByLabel("From"), `${label}/from`, expect)
         await expectPressedContrast(
           sheet.getByRole("group", { name: "Status" }),
           "button",
@@ -434,7 +442,6 @@ for (const theme of ["light", "dark"] as const) {
           `${label}/new-idea cancel`,
           expect
         )
-        await expectReadable(created.getByLabel("Idea title"), `${label}/new-idea title`, expect)
       })
     })
   }
