@@ -126,6 +126,8 @@ describe("HomeScreen", () => {
   it("has three doors, each opening its page", () => {
     renderHome()
     const doors = screen.getByRole("group", { name: "Doors" })
+    expect(doors.className).toContain("md:grid-cols-2")
+    expect(doors.className).toContain("xl:grid-cols-3")
     const sections = within(doors).getAllByRole("region")
     expect(sections.map((s) => s.getAttribute("aria-label"))).toEqual([
       "Metrics",
@@ -141,6 +143,8 @@ describe("HomeScreen", () => {
       "href",
       "/agent-workplace?tab=inbox"
     )
+    expect(sections[2].className).toContain("md:col-span-2")
+    expect(sections[2].className).toContain("xl:col-span-1")
   })
 
   it("previews the dev board from the running sprint", () => {
@@ -148,7 +152,10 @@ describe("HomeScreen", () => {
     const door = screen.getByRole("region", { name: "Agent Workplace" })
     expect(within(door).getByText("3 agents working")).toBeInTheDocument()
     expect(within(door).getByText("Dev board · Sprint 4")).toBeInTheDocument()
-    const columns = within(within(door).getByRole("list", { name: "Columns" })).getAllByRole("listitem")
+    const columnList = within(door).getByRole("list", { name: "Columns" })
+    expect(columnList.className).toContain("grid-cols-3")
+    expect(columnList.className).toContain("xl:grid-cols-5")
+    const columns = within(columnList).getAllByRole("listitem")
     expect(columns.map((c) => c.textContent)).toEqual([
       "4To Do",
       "3In Progress",
