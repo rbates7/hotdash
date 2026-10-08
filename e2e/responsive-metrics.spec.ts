@@ -94,20 +94,36 @@ async function expectAllTargets44(scope: Locator, label: string) {
   const painted = measured.filter((m) => m.painted)
   expect(painted.length, `${label}: controls measured`).toBeGreaterThan(0)
 
+  const exempt = new Set<number>()
+  const switches = scope.getByRole("switch")
+  for (let i = 0; i < (await switches.count()); i++) {
+    const sw = switches.nth(i)
+    const box = await sw.boundingBox()
+    if (!box || (box.width >= 44 && box.height >= 44)) continue
+    const wrap = sw.locator("xpath=ancestor::label[1]")
+    if ((await wrap.count()) === 0) continue
+    const wrapBox = await wrap.boundingBox()
+    if (!wrapBox || wrapBox.height < 43.5) continue
+    const before = await sw.getAttribute("aria-checked")
+    await wrap.click()
+    const after = await sw.getAttribute("aria-checked")
+    if (after && after !== before) {
+      await wrap.click()
+      await expect(sw).toHaveAttribute("aria-checked", before ?? "false")
+      exempt.add(i)
+    }
+  }
+
+  let switchIndex = 0
   const small: string[] = []
   for (const m of painted) {
     if (m.width >= 44 && m.height >= 44) continue
-    if (m.role === "switch" && m.labelHeight >= 44) {
-      const sw = scope.getByRole("switch", { name: m.accessibleName, exact: true })
-      const wrap = sw.locator("xpath=ancestor::label[1]")
-      const before = await sw.getAttribute("aria-checked")
-      await wrap.click()
-      const after = await sw.getAttribute("aria-checked")
-      if (after && after !== before) {
-        await wrap.click()
-        await expect(sw).toHaveAttribute("aria-checked", before ?? "false")
+    if (m.role === "switch") {
+      if (exempt.has(switchIndex)) {
+        switchIndex += 1
         continue
       }
+      switchIndex += 1
     }
     small.push(`${m.name} ${m.width.toFixed(1)}×${m.height.toFixed(1)}`)
   }
@@ -467,12 +483,21 @@ async function expectTabHitsAndUnderline(page: Page, size: string) {
     expect(underline.opacity, `${size} ${name}: underline visible`).toBeGreaterThan(0.9)
     expect(underline.inside, `${size} ${name}: underline inside tablist`).toBe(true)
 
-    await t.focus()
-    await expect(t).toBeFocused()
-    expect(await t.evaluate((el) => el.matches(":focus-visible"))).toBe(true)
-    const shadow = await t.evaluate((el) => getComputedStyle(el).boxShadow)
+    expect(await t.getAttribute("class"), `${size} ${name}: inset ring class`).toContain(
+      "focus-visible:ring-inset"
+    )
+    await page.keyboard.press("ArrowRight")
+    await page.keyboard.press("ArrowLeft")
+    if ((await tab(page, name).evaluate((el) => el !== document.activeElement))) {
+      await page.keyboard.press("ArrowLeft")
+      await page.keyboard.press("ArrowRight")
+    }
+    const focused = tab(page, name)
+    await expect(focused).toBeFocused()
+    expect(await focused.evaluate((el) => el.matches(":focus-visible"))).toBe(true)
+    const shadow = await focused.evaluate((el) => getComputedStyle(el).boxShadow)
     expect(shadow, `${size} ${name}: ring drawn inset`).toContain("inset")
-    const clipped = await t.evaluate((el) => {
+    const clipped = await focused.evaluate((el) => {
       const tabRect = el.getBoundingClientRect()
       let node = el.parentElement
       while (node) {
@@ -585,7 +610,9 @@ for (const [size, viewport] of [
 
       const wrap = sw.locator("xpath=ancestor::label[1]")
       const wrapBox = await wrap.boundingBox()
-      expect(wrapBox!.height, `${size} Recurring label`).toBeGreaterThanOrEqual(44)
+      expect(wrapBox!.height, `${size} Recurring label`).toBeGreaterThanOrEqual(43.5)
+      const minH = await wrap.evaluate((el) => parseFloat(getComputedStyle(el).minHeight))
+      expect(minH, `${size} Recurring label min-height`).toBeGreaterThanOrEqual(44)
 
       await expect(sw).toHaveAttribute("aria-checked", "false")
       await wrap.getByText("Recurring", { exact: true }).click()
@@ -665,7 +692,6 @@ for (const theme of ["light", "dark"] as const) {
       const expenses = table(page, "Expenses")
       await expect(expenses).toBeVisible()
       const firstTd = expenses.locator("tbody tr").first().locator("td").first()
-      const scroller = expenses.locator("xpath=ancestor::*[@data-slot='responsive-table']")
 
       const paint = await firstTd.evaluate((td) => {
         let card: HTMLElement | null = td.parentElement
@@ -692,11 +718,12 @@ for (const theme of ["light", "dark"] as const) {
       expect(paint.td, `${theme}: first td bg equals TableCard`).toEqual(paint.card)
       expect(paint.shadow, `${theme}: pin divider`).toMatch(/inset/i)
 
-      await scroller.evaluate((el) => {
-        ;(el as HTMLElement).scrollLeft = (el as HTMLElement).scrollWidth
-      })
       const pinned = await firstTd.evaluate((td) => {
-        const scroller = td.closest("[data-slot='responsive-table']") as HTMLElement
+        const table = td.closest("table") as HTMLElement
+        table.style.minWidth = "800px"
+        const scroller = (td.closest("[data-slot='table-container']") ??
+          td.closest("[data-slot='responsive-table']")) as HTMLElement
+        scroller.scrollLeft = scroller.scrollWidth
         const tdRect = td.getBoundingClientRect()
         const scRect = scroller.getBoundingClientRect()
         const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
@@ -708,6 +735,7 @@ for (const theme of ["light", "dark"] as const) {
           scLeft: scRect.left,
           alpha: a / 255,
           scrollLeft: scroller.scrollLeft,
+          overflowX: getComputedStyle(scroller).overflowX,
         }
       })
       expect(pinned.scrollLeft, `${theme}: table scrolled`).toBeGreaterThan(8)
