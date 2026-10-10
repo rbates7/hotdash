@@ -1,0 +1,161 @@
+"use client"
+
+import * as React from "react"
+
+import { TODO_LIMITS, type Todo } from "@/lib/my-desk"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { useMyDesk } from "@/components/my-desk/my-desk-store"
+import {
+  DESK_DIALOG,
+  DESK_DONE,
+  DESK_DONE_INPUT,
+  DESK_FIELD,
+  DESK_FOOTER,
+  DESK_HEADER_PAD,
+  DESK_TEXTAREA,
+} from "@/components/my-desk/responsive"
+
+type Draft = { title: string; note: string; done: boolean }
+
+function draftFrom(todo: Todo | null): Draft {
+  if (!todo) return { title: "", note: "", done: false }
+  return { title: todo.title, note: todo.note, done: todo.done }
+}
+
+/**
+ * One form for Add and Edit. The popup unmounts when closed, so the draft
+ * is fresh on every open. Title is required; the note is optional.
+ */
+export function TodoDialog({
+  open,
+  onOpenChange,
+  todo,
+  finalFocus,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** `null` adds; a to-do edits it. */
+  todo: Todo | null
+  /** Where focus lands on close when the opener may be gone (a deleted card). */
+  finalFocus?: React.ComponentProps<typeof DialogContent>["finalFocus"]
+}) {
+  const titleRef = React.useRef<HTMLInputElement>(null)
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={`sm:max-w-md! ${DESK_DIALOG}`}
+        initialFocus={titleRef}
+        finalFocus={finalFocus}
+      >
+        <TodoForm todo={todo} onDone={() => onOpenChange(false)} titleRef={titleRef} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TodoForm({
+  todo,
+  onDone,
+  titleRef,
+}: {
+  todo: Todo | null
+  onDone: () => void
+  titleRef: React.RefObject<HTMLInputElement | null>
+}) {
+  const { addTodo, updateTodo } = useMyDesk()
+  const [draft, setDraft] = React.useState<Draft>(() => draftFrom(todo))
+  const uid = React.useId()
+  const id = (field: string) => `${uid}-${field}`
+
+  const editing = todo !== null
+  const valid = draft.title.trim().length > 0
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!valid) return
+    const input = {
+      title: draft.title,
+      note: draft.note,
+      done: draft.done,
+    }
+    if (todo) updateTodo(todo.id, input)
+    else addTodo(input)
+    onDone()
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4" aria-label={editing ? "Edit to-do" : "Add to-do"}>
+      <DialogHeader className={DESK_HEADER_PAD}>
+        <DialogTitle>{editing ? "Edit to-do" : "Add to-do"}</DialogTitle>
+        <DialogDescription>
+          {editing
+            ? "Change the title or the one-line note. "
+            : "A personal item for today: a title and an optional note. "}
+          Saved in this browser only. Not Issues. Not agent work.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-3">
+        <div className="grid gap-1.5">
+          <label htmlFor={id("title")} className="text-caption font-medium">
+            Title
+          </label>
+          <Input
+            id={id("title")}
+            ref={titleRef}
+            value={draft.title}
+            onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+            maxLength={TODO_LIMITS.title}
+            required
+            className={DESK_FIELD}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label htmlFor={id("note")} className="text-caption font-medium">
+            Note
+            <span className="text-muted-foreground font-normal"> (optional)</span>
+          </label>
+          <Textarea
+            id={id("note")}
+            value={draft.note}
+            onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
+            maxLength={TODO_LIMITS.note}
+            rows={2}
+            className={`min-h-9 ${DESK_TEXTAREA}`}
+          />
+        </div>
+        {editing ? (
+          <label htmlFor={id("done")} className={DESK_DONE}>
+            <input
+              id={id("done")}
+              type="checkbox"
+              checked={draft.done}
+              onChange={(e) => setDraft((d) => ({ ...d, done: e.target.checked }))}
+              className={DESK_DONE_INPUT}
+            />
+            Done
+          </label>
+        ) : null}
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" className={DESK_FOOTER} onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" className={DESK_FOOTER} disabled={!valid}>
+          {editing ? "Save changes" : "Add to-do"}
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}

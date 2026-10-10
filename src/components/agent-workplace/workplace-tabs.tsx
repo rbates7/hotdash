@@ -1,0 +1,117 @@
+"use client"
+
+import * as React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+
+import type { IssueStatus } from "@/lib/issues"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  WORKPLACE_TAB,
+  WORKPLACE_TABS_LIST,
+} from "@/components/agent-workplace/responsive"
+import { AgentsRoster } from "@/components/agent-workplace/agents-roster"
+import { AutopilotsPanel } from "@/components/agent-workplace/autopilots-panel"
+import { BacklogPanel } from "@/components/agent-workplace/backlog-panel"
+import { ChatDoor } from "@/components/agent-workplace/chat-door"
+import { InboxPanel } from "@/components/agent-workplace/inbox-panel"
+import { IssuesBoard } from "@/components/agent-workplace/issues-board"
+import { TicketView } from "@/components/agent-workplace/ticket-view"
+
+/**
+ * The locked tab set (Issues, Agents, Chat, Autopilots, Inbox) plus Backlog,
+ * which already shipped as the place sprints start and finish.
+ */
+export const WORKPLACE_TABS = [
+  { value: "issues", label: "Issues" },
+  { value: "backlog", label: "Backlog" },
+  { value: "agents", label: "Agents" },
+  { value: "chat", label: "Chat" },
+  { value: "autopilots", label: "Autopilots" },
+  { value: "inbox", label: "Inbox" },
+] as const
+
+export type WorkplaceTab = (typeof WORKPLACE_TABS)[number]["value"]
+
+const DEFAULT_TAB: WorkplaceTab = "issues"
+
+function isTab(value: string | null): value is WorkplaceTab {
+  return WORKPLACE_TABS.some((t) => t.value === value)
+}
+
+export function WorkplaceTabs() {
+  const router = useRouter()
+  const params = useSearchParams()
+
+  const requested = params.get("tab")
+  const tab: WorkplaceTab = isTab(requested) ? requested : DEFAULT_TAB
+  const issueKey = params.get("issue")
+  const [statusView, setStatusView] = React.useState<IssueStatus>("todo")
+
+  // Tab and open ticket live in the URL so both are linkable and the back
+  // button steps through them.
+  const setParam = React.useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(params.toString())
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) next.delete(k)
+        else next.set(k, v)
+      }
+      const qs = next.toString()
+      router.push(qs ? `?${qs}` : "?", { scroll: false })
+    },
+    [params, router]
+  )
+
+  const openIssue = React.useCallback(
+    (key: string) => setParam({ issue: key }),
+    [setParam]
+  )
+  const closeIssue = React.useCallback(
+    () => setParam({ issue: null }),
+    [setParam]
+  )
+
+  // A ticket takes over the whole surface, as it does in the reference design.
+  if (issueKey) {
+    return <TicketView issueKey={issueKey} onClose={closeIssue} />
+  }
+
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setParam({ tab: String(value), issue: null })}
+      className="min-w-0 gap-4"
+    >
+      <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
+        {WORKPLACE_TABS.map((t) => (
+          <TabsTrigger key={t.value} value={t.value} className={WORKPLACE_TAB}>
+            {t.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      <TabsContent value="issues" className="min-w-0">
+        <IssuesBoard
+          onOpenIssue={openIssue}
+          statusView={statusView}
+          onStatusViewChange={setStatusView}
+        />
+      </TabsContent>
+      <TabsContent value="backlog" className="min-w-0">
+        <BacklogPanel onOpenIssue={openIssue} />
+      </TabsContent>
+      <TabsContent value="agents" className="min-w-0">
+        <AgentsRoster onOpenIssue={openIssue} />
+      </TabsContent>
+      <TabsContent value="chat" className="min-w-0">
+        <ChatDoor onOpenAgents={() => setParam({ tab: "agents" })} />
+      </TabsContent>
+      <TabsContent value="autopilots" className="min-w-0">
+        <AutopilotsPanel />
+      </TabsContent>
+      <TabsContent value="inbox" className="min-w-0">
+        <InboxPanel onOpenIssue={openIssue} />
+      </TabsContent>
+    </Tabs>
+  )
+}
