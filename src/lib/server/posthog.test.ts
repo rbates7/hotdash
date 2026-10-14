@@ -18,6 +18,7 @@ import {
   readPosthogConfig,
   type Loader,
   type PosthogService,
+  CHLK_POSTHOG_PROJECT_ID,
 } from "@/lib/server/posthog"
 import { SYNC_TIMEOUT_MS } from "@/lib/server/time-limit"
 import type { PosthogData } from "@/lib/posthog-metrics"
@@ -25,8 +26,8 @@ import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
 
 /** Fake key and project: shaped like PostHog's, valid nowhere. */
 const KEY = "phx_hotdashUnitTestOnly000"
-const PROJECT = "424242"
-const ENV = { POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: PROJECT, NODE_ENV: "test" }
+const PROJECT = CHLK_POSTHOG_PROJECT_ID
+const ENV = { POSTHOG_READONLY_KEY: KEY, NODE_ENV: "test" }
 const NOW = new Date("2026-10-14T17:00:00.000Z")
 const NOW_SEC = NOW.getTime() / 1000
 const DAY = 86_400
@@ -68,16 +69,12 @@ async function synced(svc: PosthogService) {
 /* ---------------------------------------------------------------- config */
 
 describe("readPosthogConfig", () => {
-  it("is missing with neither var; invalid with only one, or a key that is not a personal API key", () => {
+  it("reads only POSTHOG_READONLY_KEY (project pinned); missing when unset, invalid when not a personal API key", () => {
     expect(readPosthogConfig({})).toEqual({ kind: "missing" })
-    expect(readPosthogConfig({ POSTHOG_PERSONAL_API_KEY: " ", POSTHOG_PROJECT_ID: "" })).toEqual({ kind: "missing" })
-    expect(readPosthogConfig({ POSTHOG_PERSONAL_API_KEY: KEY })).toEqual({ kind: "invalid" })
-    expect(readPosthogConfig({ POSTHOG_PROJECT_ID: PROJECT })).toEqual({ kind: "invalid" })
+    expect(readPosthogConfig({ POSTHOG_READONLY_KEY: " " })).toEqual({ kind: "missing" })
+        expect(readPosthogConfig({ POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: PROJECT })).toEqual({ kind: "missing" }) // only POSTHOG_READONLY_KEY is read
     for (const bad of ["phc_projectKeyCannotQuery", "phx_", "phx_abc def", "Bearer phx_abc", "sk_live_abc"]) {
-      expect(readPosthogConfig({ POSTHOG_PERSONAL_API_KEY: bad, POSTHOG_PROJECT_ID: PROJECT })).toEqual({ kind: "invalid" })
-    }
-    for (const bad of ["0", "abc", "12/../13", "-1", "1.5"]) {
-      expect(readPosthogConfig({ POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: bad })).toEqual({ kind: "invalid" })
+      expect(readPosthogConfig({ POSTHOG_READONLY_KEY: bad })).toEqual({ kind: "invalid" })
     }
     expect(readPosthogConfig(ENV)).toEqual({ kind: "ok", key: KEY, projectId: PROJECT, host: DEFAULT_POSTHOG_HOST })
   })
@@ -293,10 +290,10 @@ describe("fallback", () => {
     expect(load).not.toHaveBeenCalled()
   })
 
-  it("invalid key, or a key with no project → refuses to call PostHog at all", async () => {
+  it("an invalid key (project key, dotted CI dummy) or a foreign host → refuses to call PostHog at all", async () => {
     for (const env of [
-      { POSTHOG_PERSONAL_API_KEY: "phc_projectKey", POSTHOG_PROJECT_ID: PROJECT },
-      { POSTHOG_PERSONAL_API_KEY: KEY },
+      { POSTHOG_READONLY_KEY: "phc_projectKey" },
+      { POSTHOG_READONLY_KEY: "phx_CI.DUMMY.not-a-real-key" },
       { ...ENV, POSTHOG_HOST: "https://evil.example.com" },
     ]) {
       const load = vi.fn<Loader>(async () => DATA)
@@ -311,7 +308,7 @@ describe("fallback", () => {
     const env: Record<string, string | undefined> = { ...ENV }
     const { svc } = service(async () => DATA, env)
     const good = await synced(svc)
-    delete env.POSTHOG_PERSONAL_API_KEY
+    delete env.POSTHOG_READONLY_KEY
     expect(await svc.summary()).toMatchObject({ status: "stale", lastSyncedAt: good.lastSyncedAt })
     expect(await svc.health()).toBe("not_configured")
   })

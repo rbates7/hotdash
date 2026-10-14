@@ -62,19 +62,25 @@ function hostOrigin(raw: string, allowLoopback: boolean): string | null {
 }
 
 /**
- * Read the key, project id and host from the environment. Both
- * `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are needed; with
- * neither it is `missing`, with one, or a malformed one, `invalid`.
+ * Chlk's PostHog project ("CHLK iOS"). Not a secret — it is in every
+ * PostHog URL — so it is pinned here and only the key is an env var.
+ */
+export const CHLK_POSTHOG_PROJECT_ID = "472613"
+
+/**
+ * Read the key and host from the environment. Only `POSTHOG_READONLY_KEY`
+ * is needed (the project is `CHLK_POSTHOG_PROJECT_ID`); unset it is
+ * `missing`, malformed (not `phx_…`) `invalid`.
  * `POSTHOG_HOST` is optional (US Cloud by default); a loopback host is for
  * local runs and tests only — refused in a production build unless
  * `POSTHOG_ALLOW_MOCK_HOST=1` — and any host that breaks the rules makes
  * the whole config invalid, so the key is never sent to the wrong place.
  */
 export function readPosthogConfig(env: Env = process.env): PosthogConfig {
-  const key = env.POSTHOG_PERSONAL_API_KEY?.trim()
-  const projectId = env.POSTHOG_PROJECT_ID?.trim()
-  if (!key && !projectId) return { kind: "missing" }
-  if (!key || !projectId || !KEY_PATTERN.test(key) || !PROJECT_PATTERN.test(projectId)) return { kind: "invalid" }
+  const key = env.POSTHOG_READONLY_KEY?.trim()
+  const projectId = CHLK_POSTHOG_PROJECT_ID
+  if (!key) return { kind: "missing" }
+  if (!KEY_PATTERN.test(key) || !PROJECT_PATTERN.test(projectId)) return { kind: "invalid" }
   const rawHost = env.POSTHOG_HOST?.trim()
   if (!rawHost) return { kind: "ok", key, projectId, host: DEFAULT_POSTHOG_HOST }
   const allowLoopback = env.NODE_ENV !== "production" || env.POSTHOG_ALLOW_MOCK_HOST === "1"

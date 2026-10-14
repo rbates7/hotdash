@@ -38,7 +38,7 @@ says which cards are live from Stripe and/or PostHog.
 
 | | |
 | --- | --- |
-| Env vars | `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` — **server only**, never `NEXT_PUBLIC_`. Both are needed; neither set → "not connected". One without the other, a key that is not `phx_…`, or a project id that is not a number → refused (not configured), nothing is sent. No PostHog env names existed in the repo before this; these are new. |
+| Env vars | `POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS") — **server only**, never `NEXT_PUBLIC_`. The only PostHog variable. Unset → "not connected"; a key that is not `phx_…` → refused (not configured), nothing is sent. The project id is not a secret (it is in every PostHog URL), so it is pinned in `src/lib/server/posthog.ts` as `CHLK_POSTHOG_PROJECT_ID` rather than a second variable. |
 | `POSTHOG_HOST` | Optional; default `https://us.posthog.com`. Set `https://eu.posthog.com` for an EU project. Only `https://` hosts under `posthog.com`, with no path, port or credentials, are accepted — anything else disables PostHog, so the key is never sent elsewhere. A loopback host (`http://127.0.0.1:<port>`) is for tests/mocks only and is refused in a production build unless `POSTHOG_ALLOW_MOCK_HOST=1`. |
 | Key | A PostHog **personal API key** scoped to **this one project** with **Query: Read** only (PostHog › Settings › Personal API keys › scopes). No other scopes; no organization-wide access. |
 | Calls | Only `POST /api/projects/:id/query/` with three fixed `HogQLQuery` SELECTs (`src/lib/server/posthog.ts`): `SPAN_HOGQL` (PostHog's clock and its first event in the last 196 days), `WINDOWS_HOGQL` (per 28-day window: people active, and how many were active again in the next window) and `RECENT_HOGQL` (people active in 24 h / 7 days). HogQL is SELECT-only; nothing from a request goes into a query; they return counts only — no person ids, emails or properties. Redirects are refused, each call is cut off at 60 s. |
@@ -65,10 +65,10 @@ Times use the shared clock in the Settings time zone.
 
 ## Checks
 
-- `pnpm check:bundle` also scans client output for `POSTHOG_PERSONAL_API_KEY`
+- `pnpm check:bundle` also scans client output for `POSTHOG_READONLY_KEY`
   (name, and value when set); CI builds with a dummy `phx_…` key and no
   project id.
-- CI and Playwright run with `POSTHOG_PERSONAL_API_KEY` and
-  `POSTHOG_PROJECT_ID` blank; `e2e/posthog-live.spec.ts` mocks
+- CI and Playwright run with `POSTHOG_READONLY_KEY`
+  blank; `e2e/posthog-live.spec.ts` mocks
   `/api/posthog/summary` in the browser for connected and stale. Unit tests
   run the real `fetch` loader against a loopback mock. Nothing calls PostHog.
