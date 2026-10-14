@@ -52,15 +52,16 @@ export function maxTilesForWidth(width: number) {
 }
 
 /**
- * Tile geometry per variant, in px. Radius is ~13% of the tile width (the
- * spec allows 12–14%).
+ * Tile geometry per variant, in px. `header` is Figma 31:220 (22 × 30, 3px
+ * radius, 1.5px hinges); `bar` scales it to the phone bar, keeping the
+ * radius at ~13% of the tile width (the spec allows 12–14%).
  */
 export const TILE_SIZES: Record<
   TickerVariant,
-  { width: number; height: number; font: number; gap: number; separator: number; radius: number }
+  { width: number; height: number; font: number; gap: number; separator: number; radius: number; hinge: number }
 > = {
-  header: { width: 22, height: 30, font: 19, gap: 3, separator: 7, radius: 3 },
-  bar: { width: 15, height: 21, font: 13, gap: 2, separator: 5, radius: 2 },
+  header: { width: 22, height: 30, font: 19, gap: 3, separator: 7, radius: 3, hinge: 1.5 },
+  bar: { width: 15, height: 21, font: 13, gap: 2, separator: 5, radius: 2, hinge: 1 },
 }
 
 /** Digits the ticker always has room for, so small counts never reflow the header. */
@@ -317,6 +318,22 @@ export function deltaChip(today: number) {
 /** The status label: "Subscribers: 1,284, up 3 today". Always the full figure. */
 export function tickerLabel(total: number, today: number) {
   return `Subscribers: ${formatCount(total)}, ${todayPhrase(today)}`
+}
+
+/* ---------------------------------------------------- announcements */
+
+/** The live region speaks at most this often; the tiles still move every change. */
+export const ANNOUNCE_MIN_MS = 60_000
+
+/**
+ * How long a new label must wait before the live region may speak it:
+ * 0 if nothing has been announced yet (`lastAt` null — the label on first
+ * paint is never spoken) or the last announcement was `minMs` ago or more,
+ * otherwise the rest of that minute.
+ */
+export function announceDelay(lastAt: number | null, now: number, minMs = ANNOUNCE_MIN_MS) {
+  if (lastAt === null) return 0
+  return Math.max(0, lastAt + minMs - now)
 }
 
 export const LOADING_LABEL = "Loading subscriber count"

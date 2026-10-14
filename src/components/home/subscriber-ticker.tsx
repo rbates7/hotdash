@@ -11,6 +11,7 @@ import {
   LOADING_LABEL,
   MAX_TILES,
   TILE_SIZES,
+  announceDelay,
   deltaChip,
   flapSteps,
   formatTicker,
@@ -37,9 +38,9 @@ export const TICKER_HREF = "/metrics?tab=new"
 
 type Size = (typeof TILE_SIZES)[TickerVariant]
 
-/** Same tile in both themes; in dark a 12% white hairline lifts it off the canvas. */
+/** Figma 31:220: the same near-black tile in both themes, no border. */
 const TILE =
-  "relative inline-block flex-none overflow-hidden border border-[#131313] bg-[#131313] font-mono font-semibold text-[#F4F4F1] tabular-nums dark:border-white/12"
+  "relative inline-block flex-none overflow-hidden bg-[#131313] font-mono font-semibold text-[#F4F4F1] tabular-nums"
 
 /** One half of a tile: the glyph is tile-height, clipped to its top or bottom. */
 function Half({
@@ -177,10 +178,19 @@ function DigitTile({
           <Half pos="bottom" char={flap.to} flap />
         </>
       )}
-      {/* The 1px split and its hinge pins. */}
-      <span className="absolute inset-x-0 top-[calc(50%-0.5px)] h-px bg-black/80" />
-      <span className="absolute top-[calc(50%-1.5px)] left-0 h-[3px] w-px bg-[#4a4a4a]" />
-      <span className="absolute top-[calc(50%-1.5px)] right-0 h-[3px] w-px bg-[#4a4a4a]" />
+      {/* The 5% top sheen, the 1px split and its hinge pins. */}
+      <span data-tile-part="sheen" className="absolute inset-x-0 top-0 h-1/2 bg-white/5" />
+      <span data-tile-part="split" className="absolute inset-x-0 top-[calc(50%-0.5px)] h-px bg-black/75" />
+      <span
+        data-tile-part="hinge"
+        className="absolute top-[calc(50%-1.5px)] left-0 h-[3px] bg-[#4d4d4d]"
+        style={{ width: size.hinge }}
+      />
+      <span
+        data-tile-part="hinge"
+        className="absolute top-[calc(50%-1.5px)] right-0 h-[3px] bg-[#4d4d4d]"
+        style={{ width: size.hinge }}
+      />
     </span>
   )
 }
@@ -322,6 +332,24 @@ function Crossfade(props: RowProps) {
 
 /* ---------------------------------------------------------------- ticker */
 
+/**
+ * The text the live region holds: `label`, but changed at most once a
+ * minute (`announceDelay`), so a busy count is not read out on every
+ * sign-up. A change inside the minute waits, and the latest label wins.
+ */
+function useAnnouncement(label: string) {
+  const [announced, setAnnounced] = React.useState({ text: label, at: null as number | null })
+  React.useEffect(() => {
+    if (label === announced.text) return
+    const id = setTimeout(
+      () => setAnnounced({ text: label, at: Date.now() }),
+      announceDelay(announced.at, Date.now())
+    )
+    return () => clearTimeout(id)
+  }, [label, announced])
+  return announced.text
+}
+
 function rowFor(state: TickerState, maxTiles: number) {
   if (state.status === "loading" || state.status === "error") {
     return { glyphs: placeholderGlyphs(), unit: "", value: null, placeholder: state.status }
@@ -336,8 +364,10 @@ function rowFor(state: TickerState, maxTiles: number) {
  * top bar (tiles only, up to 5, with the compact Sample chip). Both read
  * one shared store, so they always show the same number.
  *
- * role=status + aria-live=polite carries the figure as text; the tiles are
- * aria-hidden. Click goes to Metrics › New Subscribers.
+ * role=status + aria-live=polite carries the figure as sr-only text (no
+ * aria-label of its own, spoken at most once a minute); the tiles are
+ * aria-hidden.
+ * Click goes to Metrics › New Subscribers.
  */
 export function SubscriberTicker({
   variant,
@@ -362,6 +392,7 @@ export function SubscriberTicker({
     : failed
       ? ERROR_LABEL
       : LOADING_LABEL
+  const announced = useAnnouncement(label)
   const chip = state.status === "ready" ? deltaChip(state.reading.today) : null
   // Loading / error tiles and a first good value render settled: a new
   // `mode` remounts the row, so nothing cascades out of a placeholder.
@@ -373,27 +404,30 @@ export function SubscriberTicker({
       data-testid="subscriber-ticker"
       data-variant={variant}
       data-state={state.status}
-      className={cn("flex min-w-0 flex-none items-center", header ? "gap-2.5" : "gap-1", className)}
+      className={cn("flex min-w-0 flex-none items-center", header ? "gap-2.5" : "gap-0.5", className)}
     >
       {/* Room for four digits, kept on the far left: the ticker is
           right-anchored, so growth to 1,000 moves nothing. */}
       <span aria-hidden className="flex-none" style={{ width: reserveGap(row.glyphs, variant) }} />
       {sample && <SampleDataTag compact={!header} className={cn(header && "h-6 px-2")} />}
+      {/* The link is named outright: Chromium does not name a link from
+          text inside a live region, and the region's copy may lag. */}
       <Link
         href={TICKER_HREF}
+        aria-label={label}
         className={cn(
           "focus-visible:ring-ring/50 flex flex-none items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none",
-          header ? "gap-2 px-1 max-xl:min-h-11" : "min-h-11 min-w-11 justify-center px-1"
+          // Bar: no side padding, so 99,999 fits a 360 phone (the tiles are 44+ wide).
+          header ? "gap-2 px-1 max-xl:min-h-11" : "min-h-11 min-w-11 justify-center"
         )}
       >
         <span
           role="status"
           aria-live="polite"
           aria-busy={loading}
-          aria-label={label}
           className="flex items-center gap-2"
         >
-          <span className="sr-only">{label}</span>
+          <span className="sr-only">{announced}</span>
           {header && (
             <span aria-hidden className="text-caption text-muted-foreground font-medium tracking-tight">
               Subscribers

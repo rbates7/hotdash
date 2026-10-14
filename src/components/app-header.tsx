@@ -30,7 +30,7 @@ export function AppHeader() {
       data-slot="app-header"
       role="region"
       aria-label={APP_HEADER_NAME}
-      className="bg-background sticky top-0 z-20 -mx-4 -mt-4 mb-4 flex h-14 items-center gap-1 border-b pl-1 pr-1.5 md:hidden"
+      className="bg-background sticky top-0 z-20 -mx-4 -mt-4 mb-4 flex h-14 items-center gap-0.5 border-b pl-1 pr-1 md:hidden"
     >
       <Button
         type="button"

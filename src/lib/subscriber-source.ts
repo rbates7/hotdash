@@ -233,6 +233,28 @@ export function sampleBase(at: Date) {
 }
 
 /**
+ * Test hook, for e2e and screenshots only — the app never sets it:
+ * `localStorage["hotdash.test.subscriberCount"] = "99999"` pins the sample
+ * count (today 0, no simulated sign-ups), e.g. to check the widest phone bar.
+ * Only the client's reads honour it; the server render and hydration keep the
+ * base figure, so the ticker flips to the pinned count on its first read.
+ */
+export const SAMPLE_COUNT_KEY = "hotdash.test.subscriberCount"
+
+/** The pinned test count, or null (unset, not a whole number, or no storage). */
+export function sampleCountOverride(storage: Pick<Storage, "getItem"> | null | undefined): number | null {
+  try {
+    const raw = storage?.getItem(SAMPLE_COUNT_KEY)
+    if (!raw || !/^\d+$/.test(raw)) return null
+    return Number(raw)
+  } catch {
+    return null
+  }
+}
+
+const browserStorage = () => (typeof localStorage === "undefined" ? null : localStorage)
+
+/**
  * The sample source. Its clock starts when the module loads (the page
  * opened), and it pushes a change on every simulated sign-up while anyone
  * listens. `initial` is always the base figure — on the server too — and
@@ -242,7 +264,13 @@ export function createSampleSource({
   startMs = now().getTime(),
   clock = now,
   timers = globalTimers,
-}: { startMs?: number; clock?: () => Date; timers?: Timers } = {}): SubscriberSource {
+  storage = browserStorage,
+}: {
+  startMs?: number
+  clock?: () => Date
+  timers?: Timers
+  storage?: () => Pick<Storage, "getItem"> | null
+} = {}): SubscriberSource {
   const listeners = new Set<() => void>()
   let timer: unknown = null
   const arm = () => {
@@ -261,7 +289,11 @@ export function createSampleSource({
       const at = clock()
       return { total: sampleBase(at), today: 0, at }
     },
-    read: async ({ timeZone }) => sampleReadingAt(startMs, clock(), timeZone),
+    read: async ({ timeZone }) => {
+      const pinned = sampleCountOverride(storage())
+      if (pinned !== null) return { total: pinned, today: 0, at: clock() }
+      return sampleReadingAt(startMs, clock(), timeZone)
+    },
     subscribe(onChange) {
       listeners.add(onChange)
       if (listeners.size === 1) arm()

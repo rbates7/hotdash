@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ANNOUNCE_MIN_MS,
   ENTER_MS,
   FLAP_MS,
   MAX_STEPS,
@@ -8,6 +9,7 @@ import {
   RESERVED_DIGITS,
   STAGGER_MS,
   TILE_SIZES,
+  announceDelay,
   deltaChip,
   diffGlyphs,
   flapSteps,
@@ -294,5 +296,27 @@ describe("labels", () => {
     expect(deltaChip(3)).toBe("+3")
     expect(deltaChip(-2)).toBe("−2")
     expect(deltaChip(0)).toBeNull()
+  })
+})
+
+describe("announceDelay", () => {
+  it("speaks the first change at once: the first-paint label is never announced", () => {
+    expect(announceDelay(null, 5_000)).toBe(0)
+  })
+
+  it("holds a change for the rest of the minute after an announcement", () => {
+    expect(ANNOUNCE_MIN_MS).toBe(60_000)
+    expect(announceDelay(10_000, 10_000)).toBe(60_000)
+    expect(announceDelay(10_000, 30_000)).toBe(40_000)
+    expect(announceDelay(10_000, 69_999)).toBe(1)
+  })
+
+  it("is free again once the minute is up", () => {
+    expect(announceDelay(10_000, 70_000)).toBe(0)
+    expect(announceDelay(10_000, 500_000)).toBe(0)
+  })
+
+  it("takes a custom gap", () => {
+    expect(announceDelay(0, 1_000, 5_000)).toBe(4_000)
   })
 })

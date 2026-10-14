@@ -2,7 +2,7 @@ import * as React from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CROSSFADE_MS, ERROR_TOOLTIP, FLAP_MS, LOADING_LABEL } from "@/lib/subscriber-ticker"
+import { ANNOUNCE_MIN_MS, CROSSFADE_MS, ERROR_TOOLTIP, FLAP_MS, LOADING_LABEL } from "@/lib/subscriber-ticker"
 import type { SubscriberReading, SubscriberSource } from "@/lib/subscriber-source"
 import { updateSettings } from "@/hooks/use-settings"
 import { SubscriberTicker, TICKER_HREF } from "@/components/home/subscriber-ticker"
@@ -58,6 +58,8 @@ function setReducedMotion(reduce: boolean) {
 
 const tiles = () => screen.getByTestId("ticker-tiles")
 const status = () => screen.getByRole("status")
+/** What the live region says: its one sr-only text (it has no aria-label). */
+const spoken = () => status().querySelector(".sr-only")?.textContent
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -75,7 +77,9 @@ describe("SubscriberTicker", () => {
     render(<SubscriberTicker variant="header" source={source} />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(status()).toHaveAttribute("aria-live", "polite")
-    expect(status()).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,284, up 3 today")
+    // One name, said once: no aria-label repeating the sr-only text.
+    expect(status()).not.toHaveAttribute("aria-label")
     expect(status()).toHaveAttribute("aria-busy", "false")
     expect(tiles()).toHaveAttribute("aria-hidden", "true")
     expect(tiles().textContent).toBe("11,228844") // each digit in both halves
@@ -92,7 +96,7 @@ describe("SubscriberTicker", () => {
     act(() => updateSettings((s) => ({ ...s, sampleData: false })))
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     // Only the label goes; the number stays.
-    expect(status()).toHaveAccessibleName("Subscribers: 186, no change today")
+    expect(spoken()).toBe("Subscribers: 186, no change today")
     act(() => updateSettings((s) => ({ ...s, sampleData: true })))
   })
 
@@ -115,14 +119,14 @@ describe("SubscriberTicker", () => {
     const { source } = controlled(reading(128_400))
     render(<SubscriberTicker variant="bar" source={source} />)
     expect(tiles().textContent).toBe("112288K")
-    expect(status()).toHaveAccessibleName("Subscribers: 128,400, no change today")
+    expect(spoken()).toBe("Subscribers: 128,400, no change today")
   })
 
   it("loading: en-dash tiles, aria-busy, never a number", () => {
     const source: SubscriberSource = { sample: true, initial: () => null, read: () => new Promise(() => {}) }
     render(<SubscriberTicker variant="header" source={source} />)
     expect(status()).toHaveAttribute("aria-busy", "true")
-    expect(status()).toHaveAccessibleName(LOADING_LABEL)
+    expect(spoken()).toBe(LOADING_LABEL)
     expect(tiles().textContent).toBe("––,––––––")
   })
 
@@ -134,7 +138,9 @@ describe("SubscriberTicker", () => {
     const retry = screen.getByRole("button", { name: ERROR_TOOLTIP })
     expect(retry).toHaveAttribute("title", ERROR_TOOLTIP)
     await set(reading(42))
-    expect(status()).toHaveAccessibleName("Subscribers: 42, no change today")
+    // The error was just announced: the value waits out the minute.
+    await act(() => vi.advanceTimersByTimeAsync(ANNOUNCE_MIN_MS))
+    expect(spoken()).toBe("Subscribers: 42, no change today")
     expect(screen.queryByRole("button")).not.toBeInTheDocument()
     // The first good value after a placeholder paints settled.
     expect(document.querySelector("[data-flap]")).toBeNull()
@@ -146,7 +152,8 @@ describe("SubscriberTicker", () => {
     render(<SubscriberTicker variant="header" source={source} />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     await fail()
-    expect(status()).toHaveAccessibleName("Subscribers: 1,284, up 3 today, as of 9:41 AM CDT")
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(spoken()).toBe("Subscribers: 1,284, up 3 today, as of 9:41 AM CDT")
     expect(screen.getByText("as of 9:41 AM CDT")).toHaveAttribute("title", "Tue, Oct 13 · 9:41 AM CDT")
     expect(screen.queryByText("+3")).not.toBeInTheDocument()
   })
@@ -214,6 +221,55 @@ describe("SubscriberTicker", () => {
     expect(document.querySelector(".ticker-fade-out")).toBeNull()
     expect(document.querySelector("[data-flap]")).toBeNull()
     expect(tiles().textContent).toBe("118866")
-    expect(status()).toHaveAccessibleName("Subscribers: 186, up 2 today")
+    expect(spoken()).toBe("Subscribers: 186, up 2 today")
+  })
+
+  it("dark: the Figma 31:220 tile, identical to light — no border, sheen, split, hinges", () => {
+    document.documentElement.classList.add("dark")
+    try {
+      for (const variant of ["header", "bar"] as const) {
+        const { source } = controlled(reading(1_284))
+        const { unmount } = render(<SubscriberTicker variant={variant} source={source} />)
+        const all = [...document.querySelectorAll<HTMLElement>("[data-tile]")]
+        expect(all.length).toBeGreaterThan(0)
+        for (const tile of all) {
+          expect(tile.className, `${variant} tile`).not.toMatch(/(^|\s)([\w-]+:)*border(-|\s|$)/)
+          expect(tile.className).toContain("bg-[#131313]")
+          expect(tile.querySelector("[data-tile-part='sheen']")?.className).toContain("bg-white/5")
+          expect(tile.querySelector("[data-tile-part='split']")?.className).toContain("bg-black/75")
+          expect(tile.querySelectorAll("[data-tile-part='hinge']")).toHaveLength(2)
+          for (const hinge of tile.querySelectorAll("[data-tile-part='hinge']")) {
+            expect(hinge.className).toContain("bg-[#4d4d4d]")
+          }
+        }
+        expect(all[0].style.borderRadius).toBe(variant === "header" ? "3px" : "2px")
+        unmount()
+      }
+    } finally {
+      document.documentElement.classList.remove("dark")
+    }
+  })
+
+  it("announces at most once a minute; the tiles still move and the latest figure wins", async () => {
+    const { source, set } = controlled(reading(184))
+    render(<SubscriberTicker variant="header" source={source} />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    // The first change is spoken straight away.
+    await set(reading(185, 1))
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    // Two more inside the minute: the tiles land, the region holds.
+    await set(reading(186, 2))
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    await set(reading(188, 4))
+    await act(() => vi.advanceTimersByTimeAsync(1_000))
+    expect(tiles().textContent).toBe("118888")
+    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    // A minute after the last announcement, only the latest is spoken.
+    await act(() => vi.advanceTimersByTimeAsync(ANNOUNCE_MIN_MS - 3_000 - 1))
+    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(spoken()).toBe("Subscribers: 188, up 4 today")
+    expect(screen.getByRole("link")).toHaveAccessibleName("Subscribers: 188, up 4 today")
   })
 })

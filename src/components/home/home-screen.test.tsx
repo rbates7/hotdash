@@ -247,7 +247,7 @@ describe("HomeScreen before the saved board is read", () => {
     // subscriber ticker.
     expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(5)
     // The ticker paints settled on the server: the figure, not a loading row.
-    expect(html).toContain('aria-label="Subscribers: 186, no change today"')
+    expect(html).toContain('<span class="sr-only">Subscribers: 186, no change today</span>')
     expect(html).not.toContain("data-flap")
   })
 
