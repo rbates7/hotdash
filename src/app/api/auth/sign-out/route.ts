@@ -14,6 +14,11 @@ export function POST(request: NextRequest) {
   if (origin && (!URL.canParse(origin) || new URL(origin).host !== host)) {
     return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 })
   }
+  // No Origin header: fall back to Sec-Fetch-Site, which browsers always send.
+  const fetchSite = request.headers.get("sec-fetch-site")
+  if (!origin && fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 })
+  }
 
   const response = NextResponse.redirect(new URL(SIGN_IN_PATH, request.url), 303)
   response.cookies.set(SESSION_COOKIE, "", sessionCookieOptions(0))
