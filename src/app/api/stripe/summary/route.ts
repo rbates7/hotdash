@@ -23,3 +23,6 @@ export async function GET(request: NextRequest) {
   }
   return Response.json(body, { headers: { "Cache-Control": "no-store" } })
 }
+
+/** A full sync lists every subscription and paid invoice (~3.5 min at 3k subs). */
+export const maxDuration = 300

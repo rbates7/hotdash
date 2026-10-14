@@ -72,6 +72,12 @@ export type StripeSubscription = {
   cancellation_details?: { reason?: string | null } | null
   items: { data: StripeSubscriptionItem[] }
   discounts?: Array<string | StripeDiscount> | null
+  /**
+   * When the subscription first paid an invoice with `amount_paid > 0`
+   * (unix seconds), joined in from one `invoices.list({ status: "paid" })`.
+   * `null`/absent: it has never paid (e.g. a 100%-off launch annual).
+   */
+  first_paid_at?: number | null
 }
 
 export type StripeCharge = {
@@ -95,7 +101,7 @@ export type StripeData = {
 export type Rate = number | null
 
 export type StripeMetrics = {
-  /** Active subscriptions (see `isCounted`). */
+  /** Paying subscriptions (see `isPaying`, Bobbi's definition). */
   subscribers: {
     value: number
     /** At the start of the 28-day window. */
@@ -136,6 +142,34 @@ export const COUNTED_STATUSES: ReadonlySet<string> = new Set(["active", "past_du
 
 export function isCounted(sub: Pick<StripeSubscription, "status">) {
   return COUNTED_STATUSES.has(sub.status)
+}
+
+/** Statuses that mean the subscription has ended. */
+const ENDED_STATUSES: ReadonlySet<string> = new Set(["canceled", "incomplete_expired"])
+
+/**
+ * A paying subscriber now (Bobbi's definition, Data, Oct 14 2026): a Stripe
+ * subscription that has not ended — any status except `canceled` and
+ * `incomplete_expired`, so `past_due` counts, and so would `trialing`,
+ * `unpaid` or `paused` (Bobbi found none with paid history) — that has paid
+ * at least one invoice with `amount_paid > 0`. App Store payers are not in
+ * Stripe and are not counted. No "has a coupon now" filter: a launch annual
+ * that paid once and now sits on a coupon still counts, and one that never
+ * paid does not.
+ */
+export function isPaying(sub: Pick<StripeSubscription, "status" | "ended_at" | "first_paid_at">) {
+  return !ENDED_STATUSES.has(sub.status) && sub.ended_at == null && sub.first_paid_at != null
+}
+
+/** Whether `sub` was a paying subscriber at `atSec`: first paid by then, not yet ended. */
+export function payingAt(sub: StripeSubscription, atSec: number) {
+  if (sub.first_paid_at == null || sub.status === "incomplete_expired") return false
+  if (!ENDED_STATUSES.has(sub.status) && sub.ended_at != null) return false
+  return sub.first_paid_at <= atSec && (sub.ended_at == null || atSec < sub.ended_at)
+}
+
+export function payingCountAt(subs: readonly StripeSubscription[], atSec: number) {
+  return subs.filter((s) => payingAt(s, atSec)).length
 }
 
 /** When the subscription started paying: after its trial, if it had one. */
@@ -251,12 +285,13 @@ export function subscriptionMrrCents(sub: StripeSubscription, atSec: number) {
 }
 
 /**
- * MRR at `atSec`: every subscription active then (`activeAt`), at its
+ * MRR at `atSec`: every subscription paying then (`payingAt`, the same set
+ * as Subscribers), USD only, at its
  * current prices — Stripe has no price history, so past points assume
  * today's plan. In whole dollars.
  */
 export function mrrAt(subs: readonly StripeSubscription[], atSec: number) {
-  const cents = subs.reduce((sum, s) => (activeAt(s, atSec) ? sum + subscriptionMrrCents(s, atSec) : sum), 0)
+  const cents = subs.reduce((sum, s) => (payingAt(s, atSec) ? sum + subscriptionMrrCents(s, atSec) : sum), 0)
   return Math.round(cents) / 100
 }
 
@@ -368,7 +403,7 @@ export function computeStripeMetrics(
   const current = windows[windows.length - 1]
   const prior = windows[windows.length - 2]
 
-  const active = subs.filter(isCounted).length
+  const active = subs.filter(isPaying).length
   const todayStart = toSec(startOfDay(todayIn(now, timeZone), timeZone))
 
   const weekStart = startOfWeek(now, timeZone)
@@ -388,9 +423,9 @@ export function computeStripeMetrics(
   return {
     subscribers: {
       value: active,
-      previous: activeCountAt(subs, current.startSec),
-      today: active - activeCountAt(subs, todayStart),
-      series: windows.map((w, i) => (i === windows.length - 1 ? active : activeCountAt(subs, w.endSec))),
+      previous: payingCountAt(subs, current.startSec),
+      today: active - payingCountAt(subs, todayStart),
+      series: windows.map((w, i) => (i === windows.length - 1 ? active : payingCountAt(subs, w.endSec))),
     },
     cashThisWeek: {
       value: cash / 100,

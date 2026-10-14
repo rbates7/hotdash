@@ -93,19 +93,25 @@ export const loadFromStripe: Loader = async (config, now) => {
   })
   const since = Math.floor(now.getTime() / 1000) - CHARGES_LOOKBACK_DAYS * 86_400
 
-  const [subscriptions, charges] = await Promise.all([
+  const [subscriptions, charges, paidInvoices] = await Promise.all([
     stripe.subscriptions
       .list({ status: "all", limit: 100, expand: ["data.discounts.source.coupon"] })
       .autoPagingToArray({ limit: MAX_ROWS }),
     stripe.charges.list({ limit: 100, created: { gte: since } }).autoPagingToArray({ limit: MAX_ROWS }),
+    // Every paid invoice, listed once and joined on subscription id below
+    // (not one lookup per subscription), for "has paid at least once".
+    stripe.invoices.list({ status: "paid", limit: 100 }).autoPagingToArray({ limit: MAX_ROWS }),
   ])
-  if (subscriptions.length >= MAX_ROWS || charges.length >= MAX_ROWS) {
+  if (subscriptions.length >= MAX_ROWS || charges.length >= MAX_ROWS || paidInvoices.length >= MAX_ROWS) {
     throw new IncompleteDataError()
   }
+
+  const firstPaid = firstPaidBySubscription(paidInvoices)
 
   return {
     subscriptions: subscriptions.map((s) => ({
       id: s.id,
+      first_paid_at: firstPaid.get(s.id) ?? null,
       status: s.status,
       currency: s.currency,
       created: s.created,
@@ -142,6 +148,28 @@ export const loadFromStripe: Loader = async (config, now) => {
       created: c.created,
     })),
   }
+}
+
+/** Earliest paid moment per subscription, over invoices with `amount_paid > 0`. */
+export function firstPaidBySubscription(
+  invoices: ReadonlyArray<{
+    amount_paid: number
+    created: number
+    status_transitions?: { paid_at?: number | null } | null
+    parent?: { subscription_details?: { subscription?: string | { id: string } | null } | null } | null
+  }>
+) {
+  const out = new Map<string, number>()
+  for (const inv of invoices) {
+    if (!(inv.amount_paid > 0)) continue
+    const sub = inv.parent?.subscription_details?.subscription
+    const id = typeof sub === "string" ? sub : sub?.id
+    if (!id) continue
+    const at = inv.status_transitions?.paid_at ?? inv.created
+    const prev = out.get(id)
+    if (prev === undefined || at < prev) out.set(id, at)
+  }
+  return out
 }
 
 function slimDiscount(d: string | Stripe.Discount) {
