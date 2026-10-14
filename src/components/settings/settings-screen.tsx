@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useMounted } from "@/hooks/use-mounted"
+import { useNotionRoadmapFeed } from "@/hooks/use-notion-roadmap"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
@@ -389,6 +390,7 @@ const SOURCES = [
   { name: "PostHog", feeds: "Usage, active coaches, funnels" },
   { name: "Sentry", feeds: "Errors, crash-free rate, bugs" },
   { name: "Gmail", feeds: "Coach conversations for CRM" },
+  { name: "Notion", feeds: "Product Roadmap" },
 ] as const
 
 const STATUS_BADGE = "h-6 px-2.5"
@@ -438,6 +440,50 @@ function StripeDetail({ timeZone }: { timeZone: string }) {
   )
 }
 
+/** Notion's row: the same three states as Stripe's, from the Roadmap's feed. */
+function NotionStatus({ timeZone }: { timeZone: string }) {
+  const feed = useNotionRoadmapFeed()
+  if (feed.kind === "loading") {
+    return (
+      <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Checking…
+      </Badge>
+    )
+  }
+  if (feed.kind === "sample") return <NotConnected />
+  if (feed.stale) {
+    return (
+      <Badge variant="outline" data-testid="notion-status" className={STATUS_BADGE}>
+        <AlertTriangleIcon aria-hidden className="text-danger-text" />
+        {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
+      </Badge>
+    )
+  }
+  return (
+    <Badge
+      variant="outline"
+      data-testid="notion-status"
+      title={`Last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+      className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
+    >
+      <CheckIcon aria-hidden />
+      Connected
+    </Badge>
+  )
+}
+
+function NotionDetail({ timeZone }: { timeZone: string }) {
+  const feed = useNotionRoadmapFeed()
+  if (feed.kind !== "live") return null
+  return (
+    <p className="text-caption text-muted-foreground" data-testid="notion-detail">
+      {feed.stale
+        ? "Notion could not be read just now, so the Roadmap shows the last good copy."
+        : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+    </p>
+  )
+}
+
 function NotConnected() {
   return (
     <Badge variant="outline" className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -462,8 +508,15 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
                 {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
+                {source.name === "Notion" && <NotionDetail timeZone={timeZone} />}
               </div>
-              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
+              {source.name === "Stripe" ? (
+                <StripeStatus timeZone={timeZone} />
+              ) : source.name === "Notion" ? (
+                <NotionStatus timeZone={timeZone} />
+              ) : (
+                <NotConnected />
+              )}
             </div>
           </li>
         ))}
