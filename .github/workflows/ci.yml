@@ -45,29 +45,39 @@ jobs:
       # server refuses as a key, and the database URL points at a closed
       # loopback port, so even an accidental build-time call cannot go to
       # Stripe or a database. The steps that run the app have neither.
-      - name: Build (with a dummy Stripe key and database URL)
+      - name: Build (with a dummy Stripe key, database URL and Gmail credentials)
         run: pnpm build
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
+          GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
+          GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
 
-      - name: Client bundle holds neither secret nor its env var name
+      - name: Client bundle holds no secret and no secret's env var name
         run: pnpm check:bundle
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
+          GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
+          GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      # No Stripe key or database URL here: the app is "not connected", and
-      # the specs mock /api/stripe/* in the browser for the connected and
-      # stale states. CI never calls Stripe or Chlk's database.
+      # No Stripe key, database URL or Gmail credentials here: the app is
+      # "not connected", and the specs mock /api/stripe/* and /api/crm/gmail
+      # in the browser for the connected and stale states. CI never calls
+      # Stripe, Chlk's database or Gmail.
       - name: Playwright smoke (a retry may not hide a flake)
         run: pnpm test:e2e:ci
         env:
           STRIPE_READONLY_KEY: ""
           SUPABASE_READONLY_DB_URL: ""
+          GMAIL_CLIENT_ID: ""
+          GMAIL_CLIENT_SECRET: ""
+          GMAIL_REFRESH_TOKEN: ""
 
       - name: Upload Playwright report
         if: failure()
