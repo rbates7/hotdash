@@ -77,6 +77,21 @@ export type RoadmapItem = {
   updatedAt: string
 }
 
+/**
+ * What a card on the board shows: a saved bet (`RoadmapItem`) or a row read
+ * from Notion (`LiveRoadmapItem`, `@/lib/notion-roadmap`). Notion rows can
+ * have any owner (or none) and carry no ticket count, so those two are
+ * looser here than on a saved bet.
+ */
+export type BoardItem = Pick<
+  RoadmapItem,
+  "id" | "title" | "why" | "window" | "column" | "order" | "fromFeatureRequest" | "sample"
+> & {
+  owner: string | null
+  /** Absent on a Notion row: Notion does not know the ticket count. */
+  linkedTickets?: number
+}
+
 export type RoadmapState = {
   items: RoadmapItem[]
   /** Next number for a generated `rm-n` id. Always above every id in use. */
@@ -86,7 +101,10 @@ export type RoadmapState = {
 /* --------------------------------------------------------------- ordering */
 
 /** Items in `column`, top to bottom. Ties on `order` fall back to id so the order is total. */
-export function inColumn(items: readonly RoadmapItem[], column: RoadmapColumn): RoadmapItem[] {
+export function inColumn<T extends Pick<RoadmapItem, "id" | "column" | "order">>(
+  items: readonly T[],
+  column: RoadmapColumn
+): T[] {
   return items
     .filter((i) => i.column === column)
     .sort((a, b) => a.order - b.order || idNumber(a.id) - idNumber(b.id))
