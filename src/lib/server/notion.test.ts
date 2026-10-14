@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 
@@ -113,6 +114,15 @@ describe("readNotionConfig", () => {
     }
     expect(readNotionConfig({ ...ENV, NOTION_READONLY_TOKEN: "secret_abcdefghijklmnopqrstuvwxyz0123456789ABCDEF" }).kind).toBe("ok")
     expect(readNotionConfig({ ...ENV, NOTION_ROADMAP_PAGE_ID: "not-an-id" })).toEqual({ kind: "invalid" })
+  })
+
+  it("CI's dummy token (the one check:bundle scans for) is one the server refuses", () => {
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8")
+    const dummies = [...ci.matchAll(/NOTION_READONLY_TOKEN: (\S+)/g)].map((m) => m[1])
+    expect(dummies.length).toBeGreaterThanOrEqual(2)
+    for (const token of dummies) {
+      expect(readNotionConfig({ NOTION_READONLY_TOKEN: token, NOTION_ROADMAP_PAGE_ID: PAGE_HEX })).toEqual({ kind: "invalid" })
+    }
   })
 
   it("only takes a loopback mock base, and only outside production unless allowed", () => {
