@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { now } from "@/lib/clock"
+import { notionFeedOf, type LiveRoadmap } from "@/lib/notion-roadmap"
 import {
   createStorage,
   initialShell,
@@ -27,6 +28,7 @@ import {
   type RoadmapOwner,
   type RoadmapState,
 } from "@/lib/roadmap/roadmap"
+import { useNotionRoadmapView } from "@/hooks/use-notion-roadmap"
 
 export type NewItemInput = {
   title: string
@@ -228,8 +230,21 @@ export function initialRoadmapShell(nowMs: number): Shell {
 
 /* ------------------------------------------------------------------ store */
 
+/** Notion's rows while it is connected (or stale), shown read-only. */
+export type LiveBoard = LiveRoadmap & { stale: boolean; lastSyncedAt: Date }
+
 export type Store = RoadmapState &
   PersistenceStore & {
+    /**
+     * Where the board comes from: `loading` until Notion's first answer
+     * (skeleton), `local` (this browser's board: sample bets plus edits —
+     * Notion not connected, exactly as before), or `notion` (read-only).
+     */
+    source: "loading" | "local" | "notion"
+    /** Notion's rows when `source` is `notion`, else null. */
+    live: LiveBoard | null
+    /** True while Notion is the source: every edit below is a no-op. */
+    readOnly: boolean
     /**
      * The instant the screen measures from: the request's on first render,
      * then the moment of a Reset (or of a re-seed after another tab's Reset).
@@ -254,6 +269,7 @@ export function RoadmapProvider({
 }) {
   const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, initialRoadmapShell)
   const { data, nowMs, persisted, edited, saved, saveFailed } = shell
+  const view = useNotionRoadmapView()
 
   // The server has no localStorage, so it renders with `persisted: false` and
   // the page shows skeletons rather than the seed. On the client the saved
@@ -275,9 +291,22 @@ export function RoadmapProvider({
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: roadmapStorage, shell, onHydrate, onSaved })
 
+  // Notion, when connected, is the roadmap: shown read-only, never mixed
+  // with this browser's edits (they stay saved here, untouched, and come
+  // back if Notion is disconnected). See docs/notion-roadmap.md.
+  const live = React.useMemo<LiveBoard | null>(() => {
+    const feed = notionFeedOf(view)
+    return feed.kind === "live" ? { ...feed.roadmap, stale: feed.stale, lastSyncedAt: feed.lastSyncedAt } : null
+  }, [view])
+  const source = view.phase === "loading" ? "loading" : live ? "notion" : "local"
+  const readOnly = source !== "local"
+
   const value = React.useMemo<Store>(() => {
     // Edits are stamped at the moment they happen, through the shared clock.
     const at = () => now().toISOString()
+    const edit = (action: () => void) => {
+      if (!readOnly) action()
+    }
     return {
       ...data,
       nowMs,
@@ -285,12 +314,16 @@ export function RoadmapProvider({
       edited,
       saved,
       saveFailed,
-      addItem: (input) => dispatch({ type: "add", input, at: at() }),
-      patchItem: (id, patch) => dispatch({ type: "patch", id, patch, at: at() }),
-      moveItem: (id, column) => dispatch({ type: "move", id, column, at: at() }),
-      reorderItem: (id, direction) => dispatch({ type: "reorder", id, direction, at: at() }),
-      removeItem: (id) => dispatch({ type: "remove", id }),
+      source,
+      live,
+      readOnly,
+      addItem: (input) => edit(() => dispatch({ type: "add", input, at: at() })),
+      patchItem: (id, patch) => edit(() => dispatch({ type: "patch", id, patch, at: at() })),
+      moveItem: (id, column) => edit(() => dispatch({ type: "move", id, column, at: at() })),
+      reorderItem: (id, direction) => edit(() => dispatch({ type: "reorder", id, direction, at: at() })),
+      removeItem: (id) => edit(() => dispatch({ type: "remove", id })),
       resetDemoData: () => {
+        if (readOnly) return
         // Clear first, then regenerate from the moment of the click (the
         // shared clock read every store uses for a reset): the browser
         // returns to the never-edited state with a seed dated today.
@@ -298,7 +331,7 @@ export function RoadmapProvider({
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
-  }, [data, nowMs, persisted, edited, saved, saveFailed])
+  }, [data, nowMs, persisted, edited, saved, saveFailed, source, live, readOnly])
 
   return <RoadmapContext.Provider value={value}>{children}</RoadmapContext.Provider>
 }
