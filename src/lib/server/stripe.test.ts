@@ -9,6 +9,7 @@ import {
   RETRY_AFTER_MS,
   createStripeService,
   failureKind,
+  firstPaidBySubscription,
   loadFromStripe,
   readStripeConfig,
   type Loader,
@@ -33,6 +34,7 @@ const DATA: StripeData = {
       trial_start: null,
       trial_end: null,
       ended_at: null,
+      first_paid_at: NOW_SEC - 90 * 86_400,
       items: { data: [{ price: { currency: "usd", unit_amount: 4_900, recurring: { interval: "month", interval_count: 1 } } }] },
     },
   ],
@@ -212,6 +214,37 @@ describe("fallback", () => {
   })
 })
 
+/* ------------------------------------------------- first paid invoice */
+
+describe("firstPaidBySubscription", () => {
+  const inv = (sub: string | { id: string } | null, amount_paid: number, paid_at: number | null, created = 1_000) => ({
+    amount_paid,
+    created,
+    status_transitions: { paid_at },
+    parent: { subscription_details: { subscription: sub } },
+  })
+
+  it("ignores invoices with amount_paid 0 — a 100%-off invoice is not a payment", () => {
+    const out = firstPaidBySubscription([inv("sub_free", 0, 5_000), inv("sub_free", 0, 6_000), inv("sub_paid", 1, 7_000)])
+    expect(out.has("sub_free")).toBe(false)
+    expect(out.get("sub_paid")).toBe(7_000)
+  })
+
+  it("keeps the earliest paid_at per subscription, in any order", () => {
+    const out = firstPaidBySubscription([inv("sub_1", 4_900, 9_000), inv("sub_1", 4_900, 3_000), inv("sub_1", 4_900, 6_000)])
+    expect(out.get("sub_1")).toBe(3_000)
+  })
+
+  it("reads an expanded subscription, falls back to created, and skips invoices with no subscription", () => {
+    const out = firstPaidBySubscription([
+      inv({ id: "sub_x" }, 4_900, null, 2_000),
+      inv(null, 4_900, 1_000),
+      { amount_paid: 4_900, created: 1_000, parent: null },
+    ])
+    expect([...out]).toEqual([["sub_x", 2_000]])
+  })
+})
+
 /* ------------------------------------------- the SDK against a local mock */
 
 describe("loadFromStripe (official SDK → loopback mock, never real Stripe)", () => {
@@ -231,6 +264,24 @@ describe("loadFromStripe (official SDK → loopback mock, never real Stripe)", (
           ? [{ ...stripeSub("sub_2"), status: "canceled", ended_at: NOW_SEC - 86_400 }]
           : [stripeSub("sub_1")]
         res.end(JSON.stringify({ object: "list", url: "/v1/subscriptions", has_more: !after, data: page }))
+        return
+      }
+      if (url.pathname === "/v1/invoices") {
+        // Two pages too. sub_1 paid twice (the earlier one wins), once for
+        // $0 (ignored); sub_2 only ever had a $0 invoice; sub_9 is not in
+        // the subscription list at all.
+        const after = url.searchParams.get("starting_after")
+        const page = after
+          ? [
+              stripeInvoice("in_3", "sub_1", { amount_paid: 4_900, paid_at: NOW_SEC - 60 * 86_400 }),
+              stripeInvoice("in_4", "sub_9", { amount_paid: 4_900, paid_at: NOW_SEC - 5 * 86_400 }),
+            ]
+          : [
+              stripeInvoice("in_1", "sub_1", { amount_paid: 4_900, paid_at: NOW_SEC - 30 * 86_400 }),
+              stripeInvoice("in_2", "sub_2", { amount_paid: 0, paid_at: NOW_SEC - 30 * 86_400 }),
+              stripeInvoice("in_5", "sub_1", { amount_paid: 0, paid_at: NOW_SEC - 90 * 86_400 }),
+            ]
+        res.end(JSON.stringify({ object: "list", url: "/v1/invoices", has_more: !after, data: page }))
         return
       }
       if (url.pathname === "/v1/charges") {
@@ -266,8 +317,17 @@ describe("loadFromStripe (official SDK → loopback mock, never real Stripe)", (
     expect(decodeURIComponent(subCalls[0].url)).toContain("expand[0]=data.discounts.source.coupon")
     const chargeCall = seen.find((r) => r.url.startsWith("/v1/charges"))!
     expect(decodeURIComponent(chargeCall.url)).toContain(`created[gte]=${NOW_SEC - 15 * 86_400}`)
+    // Paid invoices are listed once (two pages), not looked up per subscription.
+    const invoiceCalls = seen.filter((r) => r.url.startsWith("/v1/invoices"))
+    expect(invoiceCalls).toHaveLength(2)
+    expect(invoiceCalls[0].url).toContain("status=paid")
+    expect(invoiceCalls[1].url).toContain("starting_after=in_5")
+    expect(seen.filter((r) => /\/v1\/(subscriptions|invoices)\/./.test(r.url))).toEqual([])
 
     expect(data.subscriptions.map((s) => s.id)).toEqual(["sub_1", "sub_2"])
+    // Joined on parent.subscription_details.subscription: the earliest paid
+    // invoice with money on it; $0 invoices do not make a payer.
+    expect(data.subscriptions.map((s) => s.first_paid_at)).toEqual([NOW_SEC - 60 * 86_400, null])
     expect(data.subscriptions[0].discounts).toEqual([
       { start: NOW_SEC - 10, end: null, source: { coupon: { amount_off: null, percent_off: 25, currency: null, duration: "forever" } } },
     ])
@@ -276,6 +336,21 @@ describe("loadFromStripe (official SDK → loopback mock, never real Stripe)", (
     expect(JSON.stringify(data)).not.toContain("coach@example.com")
   })
 })
+
+function stripeInvoice(id: string, subscription: string, { amount_paid, paid_at }: { amount_paid: number; paid_at: number }) {
+  return {
+    id,
+    object: "invoice",
+    status: "paid",
+    amount_paid,
+    currency: "usd",
+    created: paid_at - 3_600,
+    customer: "cus_123",
+    customer_email: "coach@example.com",
+    status_transitions: { finalized_at: paid_at - 3_600, paid_at, marked_uncollectible_at: null, voided_at: null },
+    parent: { type: "subscription_details", quote_details: null, subscription_details: { metadata: {}, subscription } },
+  }
+}
 
 function stripeSub(id: string) {
   return {

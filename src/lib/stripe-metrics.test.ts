@@ -7,9 +7,12 @@ import {
   churnFor,
   computeStripeMetrics,
   convertedFromTrial,
+  isPaying,
   grossChargesCents,
   itemMonthlyCents,
   mrrAt,
+  payingAt,
+  payingCountAt,
   subscriptionMrrCents,
   trialToPaidFor,
   windowsAt,
@@ -36,9 +39,14 @@ function price(overrides: Partial<StripePrice> = {}): StripePrice {
 }
 
 let nextId = 1
+/**
+ * A subscription that paid its first invoice when it started (or when its
+ * trial ended). Pass `first_paid_at: null` for one that has never paid.
+ */
 function sub(overrides: Partial<StripeSubscription> = {}): StripeSubscription {
   const start = overrides.start_date ?? NOW_SEC - 200 * DAY
   return {
+    first_paid_at: Math.max(start, overrides.trial_end ?? 0),
     id: `sub_${nextId++}`,
     status: "active",
     currency: "usd",
@@ -72,18 +80,19 @@ const metrics = (subscriptions: StripeSubscription[], charges: StripeCharge[] = 
 
 /* --------------------------------------------------------- active count */
 
-describe("active subscription count", () => {
-  it("counts active and past_due; not trialing, canceled, unpaid, paused or incomplete", () => {
+describe("paying subscriber count", () => {
+  it("counts not-ended subscriptions that have paid; never-paid and ended ones do not", () => {
     const m = metrics([
       sub({ status: "active" }),
       sub({ status: "active" }),
       sub({ status: "past_due" }),
-      sub({ status: "trialing", trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + 13 * DAY }),
+      sub({ status: "trialing", trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + 13 * DAY, first_paid_at: null }),
       sub({ status: "canceled", ended_at: NOW_SEC - 2 * DAY }),
-      sub({ status: "unpaid" }),
-      sub({ status: "paused" }),
-      sub({ status: "incomplete" }),
-      sub({ status: "incomplete_expired" }),
+      sub({ status: "unpaid", first_paid_at: null }),
+      sub({ status: "paused", first_paid_at: null }),
+      sub({ status: "incomplete", first_paid_at: null }),
+      sub({ status: "incomplete_expired", first_paid_at: null, ended_at: NOW_SEC - DAY }),
+      sub({ status: "active", first_paid_at: null }), // never paid
     ])
     expect(m.subscribers.value).toBe(3)
   })
@@ -204,12 +213,12 @@ describe("MRR", () => {
     expect(subscriptionMrrCents(s, NOW_SEC)).toBe(9_900) // (10,000 + 1,000) × 0.9
   })
 
-  it("is the sum over active subscriptions, in dollars", () => {
+  it("is the sum over paying subscriptions, in dollars", () => {
     const subs = [
       sub(), // $49
       sub({ status: "past_due" }), // $49
       sub({ items: { data: [{ price: price({ unit_amount: 46_800, recurring: { interval: "year", interval_count: 1 } }) }] } }), // $39
-      sub({ status: "trialing", trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + DAY }),
+      sub({ status: "trialing", trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + DAY, first_paid_at: null }),
       sub({ status: "canceled", ended_at: NOW_SEC - DAY }),
     ]
     expect(mrrAt(subs, NOW_SEC)).toBe(137)
