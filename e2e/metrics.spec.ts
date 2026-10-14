@@ -235,6 +235,7 @@ test.describe("Metrics", () => {
     await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
     const picker = page.getByRole("dialog", { name: "Add a metric" })
     await expect(picker.getByRole("button")).toHaveText([
+      /^Active Users/,
       /^CAC/,
       /^LTV/,
       /^ARPU/,
