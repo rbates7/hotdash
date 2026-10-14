@@ -122,3 +122,32 @@ test(`stale 1440 ${theme} (Home + Settings)`, async ({ page }) => {
   save(`stale-1440-${theme}.png`, await sideBySide(page, home, settings))
 })
 }
+
+/**
+ * The paying-subscribers PR set: Home and Metrics, connected, at 1440 and
+ * 390, both themes (8 files). Run on its own so the set above is not
+ * rewritten into the same folder:
+ *
+ *   STRIPE_READONLY_KEY= SCREENSHOT_DIR=… pnpm screens:stripe-live -g paying-subs
+ */
+for (const vp of [WIDTHS[3], WIDTHS[0]]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`paying-subs home ${vp.width} ${theme}`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected"))
+      await openLive(page, "/home")
+      await setTheme(page, theme)
+      save(`home-${vp.width}-${theme}.png`, await capture(page))
+    })
+
+    test(`paying-subs metrics ${vp.width} ${theme}`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected"))
+      await openLive(page, "/metrics")
+      await setTheme(page, theme)
+      await expect(page.getByRole("note", { name: "Partly live" })).toBeVisible()
+      await expect(page.locator("main header").first().getByTestId("sample-data-tag")).toHaveCount(0)
+      save(`metrics-${vp.width}-${theme}.png`, await capture(page))
+    })
+  }
+}
