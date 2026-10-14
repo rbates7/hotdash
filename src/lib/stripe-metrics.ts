@@ -327,8 +327,9 @@ export function subscriptionMrrCents(sub: StripeSubscription, atSec: number) {
 }
 
 /**
- * MRR at `atSec`: every subscription paying then (`payingAt`, the same set
- * as Subscribers), USD only, at its
+ * MRR at `atSec`: every Stripe subscription paying then (`payingAt` —
+ * group (1) of Subscribers only: not free accounts, not App Store), USD
+ * only, at its
  * current prices — Stripe has no price history, so past points assume
  * today's plan. In whole dollars.
  */
