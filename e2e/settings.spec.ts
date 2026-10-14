@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { SETTINGS_KEY } from "../src/lib/settings"
 import { expectReadable } from "./support/contrast"
 import { founderNav, founderNavDrawer, openFounderNav } from "./support/nav"
-import { setTheme } from "./support/theme"
+import { setTheme, themeToggle } from "./support/theme"
 import { expectNoOverflowX, pageOverflowX, waitForHydration } from "./support/shell"
 
 const main = (page: Page) => page.getByRole("main")
@@ -70,6 +70,47 @@ test.describe("Settings (desktop 1440)", () => {
     await expect(appearance(page).getByRole("button", { name: "Match device" })).toHaveAttribute("aria-pressed", "true")
   })
 
+  test("the sidebar footer has no Logout row", async ({ page }) => {
+    await page.goto("/home")
+    await waitForHydration(page)
+    const footer = page.locator("[data-slot='sidebar-footer']")
+    await expect(footer.getByRole("button", { name: "Help", exact: true })).toBeVisible()
+    await expect(footer.getByRole("button", { name: /log\s?out/i })).toHaveCount(0)
+    await expect(footer.getByText(/log\s?out/i)).toHaveCount(0)
+  })
+
+  test("the sidebar's Light/Dark toggle is reflected in Appearance", async ({ page }) => {
+    await gotoSettings(page)
+    const mode = (name: string) => appearance(page).getByRole("button", { name })
+    await mode("Match device").click()
+    await expect(mode("Match device")).toHaveAttribute("aria-pressed", "true")
+
+    // The sidebar toggle sets an explicit theme, overriding "Match device".
+    await themeToggle(page).getByRole("button", { name: "Light", exact: true }).click()
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/)
+    await expect(mode("Light")).toHaveAttribute("aria-pressed", "true")
+    await expect(mode("Match device")).toHaveAttribute("aria-pressed", "false")
+
+    await themeToggle(page).getByRole("button", { name: "Dark", exact: true }).click()
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/)
+    await expect(mode("Dark")).toHaveAttribute("aria-pressed", "true")
+    await expect(mode("Light")).toHaveAttribute("aria-pressed", "false")
+  })
+
+  test("time zone reaches Home's clock", async ({ page }) => {
+    await gotoSettings(page)
+    await section(page, "Time zone").getByRole("combobox").click()
+    await page.getByRole("option", { name: "Pacific" }).click()
+    await expect(page.getByTestId("settings-clock")).toContainText(/P[DS]T/)
+
+    await page.goto("/home")
+    await waitForHydration(page)
+    const clock = page.getByTestId("home-clock")
+    await expect(clock).toBeVisible()
+    await expect(clock).toContainText(/P[DS]T/)
+    await expect(clock).not.toContainText(/C[DS]T/)
+  })
+
   test("goals: invalid input shows an inline error and is not saved; valid saves", async ({ page }) => {
     await gotoSettings(page)
     const goals = section(page, "Goals and targets")
@@ -128,6 +169,11 @@ test.describe("Settings (desktop 1440)", () => {
     await expect.poll(() => navLabels(page)).toEqual(
       ["Home", "Metrics", "My Desk", ...before.slice(3)].filter((l) => l !== "Bugs")
     )
+
+    // Hiding only drops the sidebar row; the screen itself still opens.
+    await page.goto("/bugs")
+    await waitForHydration(page)
+    await expect(page.getByRole("heading", { level: 1, name: "Bugs" })).toBeVisible()
 
     // Sample data off reaches the screens that use the shared helper.
     await page.goto("/home")

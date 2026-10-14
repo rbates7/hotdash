@@ -79,9 +79,11 @@ export function ThemeToggle({
       className={cn("bg-muted w-full", className)}
       value={[theme === "light" ? "light" : "dark"]}
       onValueChange={(value) => {
-        // Single-select group: ignore the empty array when the pressed item
-        // is clicked again, so a theme is always selected.
-        if (value[0]) setTheme(value[0])
+        // Single-select group: clicking the pressed item again sends an empty
+        // array. Keep that theme, but set it explicitly, so a click while on
+        // "Match device" pins it and Settings › Appearance shows the change.
+        const next = value[0] ?? theme
+        if (next) setTheme(next)
       }}
     >
       <ToggleGroupItem value="light" className={cn("max-xl:h-11! flex-1", PRESSED)}>

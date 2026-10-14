@@ -1,5 +1,4 @@
 import { now } from "@/lib/clock"
-import { pulseLabel } from "@/lib/home"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 
@@ -19,7 +18,7 @@ export default function HomePage() {
 
   return (
     <IssuesProvider nowMs={at.getTime()}>
-      <HomeScreen pulse={pulseLabel(at)} />
+      <HomeScreen />
     </IssuesProvider>
   )
 }

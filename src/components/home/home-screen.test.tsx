@@ -20,10 +20,10 @@ import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 
-function renderHome(pulse = "Wednesday pulse") {
+function renderHome() {
   return render(
     <IssuesProvider nowMs={FIXED_NOW_MS}>
-      <HomeScreen pulse={pulse} />
+      <HomeScreen />
     </IssuesProvider>
   )
 }
@@ -35,9 +35,10 @@ function seedStore(mutate: (state: State) => State) {
 
 describe("HomeScreen", () => {
   it("shows the heading, the day's pulse and the dummy stamp", () => {
-    renderHome("Wednesday pulse")
+    renderHome()
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument()
-    expect(screen.getByText("Wednesday pulse")).toBeInTheDocument()
+    // FIXED_NOW is Thursday in Central, the default zone.
+    expect(screen.getByText("Thursday pulse")).toBeInTheDocument()
     expect(screen.getByText("Dummy / design mock")).toBeInTheDocument()
   })
 
@@ -227,7 +228,7 @@ describe("HomeScreen before the saved board is read", () => {
   it("server HTML shows placeholders, not the seed, and says edits are loading", () => {
     const html = renderToStaticMarkup(
       <IssuesProvider nowMs={FIXED_NOW_MS}>
-        <HomeScreen pulse="Thursday pulse" />
+        <HomeScreen />
       </IssuesProvider>
     )
     expect(html).toContain('aria-busy="true"')

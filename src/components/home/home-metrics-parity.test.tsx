@@ -52,7 +52,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
   function renderHome() {
     return render(
       <IssuesProvider nowMs={FIXED_NOW_MS}>
-        <HomeScreen pulse="Thursday pulse" />
+        <HomeScreen />
       </IssuesProvider>
     )
   }

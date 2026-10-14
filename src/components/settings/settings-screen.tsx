@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { TIME_ZONES, formatWallClock, isTimeZoneId, now, timeZoneOption } from "@/lib/clock"
+import { TIME_ZONES, isTimeZoneId, timeZoneOption } from "@/lib/clock"
 import {
   APPEARANCE_OPTIONS,
   GOAL_FIELDS,
@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useMounted } from "@/hooks/use-mounted"
+import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
 import { Badge } from "@/components/ui/badge"
@@ -148,18 +149,6 @@ function AppearanceSection() {
 
 /* ------------------------------------------------------------- time zone */
 
-/** The wall clock in `timeZone`, browser-only (it would differ from the server's render). */
-function useWallClock(timeZone: string) {
-  const [instant, setInstant] = React.useState<Date | null>(null)
-  React.useEffect(() => {
-    const tick = () => setInstant(now())
-    tick()
-    const id = window.setInterval(tick, 30_000)
-    return () => window.clearInterval(id)
-  }, [])
-  return instant ? formatWallClock(instant, timeZone) : null
-}
-
 function TimeZoneSection({ timeZone }: { timeZone: string }) {
   const option = timeZoneOption(timeZone)
   const clock = useWallClock(option.id)
@@ -169,7 +158,7 @@ function TimeZoneSection({ timeZone }: { timeZone: string }) {
     <Section
       id="time-zone"
       title="Time zone"
-      description="Central by default. Every screen still dates its figures in Central for now; this choice is saved for when live data lands."
+      description="Central by default. Home's clock and weekday follow this choice; figures are still dated in Central until live data lands."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         <span id={labelId} className="sr-only">

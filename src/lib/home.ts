@@ -9,7 +9,7 @@ import {
   sprintProgress,
   workingAgentIds,
 } from "@/lib/issues"
-import { CENTRAL } from "@/lib/clock"
+import { CENTRAL, todayIn } from "@/lib/clock"
 import { pendingInboxItems } from "@/lib/inbox"
 import type { InboxItem } from "@/lib/workplace-fixture"
 
@@ -73,11 +73,16 @@ export function kpiTone(kpi: Pick<Kpi, "direction" | "lowerIsBetter">): KpiTone 
 }
 
 /**
- * The page lede, e.g. "Wednesday pulse". The founder is in Central time, so
- * the weekday is read there rather than wherever the server happens to run.
+ * The page lede, e.g. "Wednesday pulse": the weekday of the calendar day
+ * `date` falls on in `timeZone` (the founder's Settings choice; Central by
+ * default), never wherever the server happens to run.
  */
 export function pulseLabel(date: Date, timeZone: string = CENTRAL) {
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long", timeZone })
+  // `todayIn` resolves the zone; the day itself is read back in UTC.
+  const weekday = new Date(`${todayIn(date, timeZone)}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  })
   return `${weekday} pulse`
 }
 

@@ -7,7 +7,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleQuestionMarkIcon,
-  LogOutIcon,
   XIcon,
 } from "lucide-react"
 
@@ -203,18 +202,6 @@ export function AppSidebar() {
             >
               <CircleQuestionMarkIcon />
               <span>Help</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Logout"
-              className={cn(
-                "text-destructive hover:text-destructive [&_svg]:text-destructive",
-                TABLET_ROW
-              )}
-            >
-              <LogOutIcon />
-              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
