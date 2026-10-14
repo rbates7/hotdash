@@ -31,7 +31,7 @@ and checks: [docs/stripe-live.md](docs/stripe-live.md).
 
 **Live PostHog (read-only)** feeds Metrics' Retention and Active Users
 (iOS app events only, from June 2026) when the server has
-`POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID`; otherwise those cards
+`POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS"); otherwise those cards
 are sample, labelled. See [docs/posthog-live.md](docs/posthog-live.md).
 
 ## Getting started
