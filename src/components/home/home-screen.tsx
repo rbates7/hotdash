@@ -14,14 +14,18 @@ import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
 import { NeedsYouDoor } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
+import { SubscriberTicker } from "@/components/home/subscriber-ticker"
 import {
   HOME_DOORS,
   HOME_DUMMY,
   HOME_HEADER,
   HOME_HEADER_META,
+  HOME_HEADER_TOP,
   HOME_INBOX_DOOR,
   HOME_NOTE,
   HOME_RESET,
+  HOME_TICKER,
+  HOME_TITLE,
 } from "@/components/home/responsive"
 
 /**
@@ -49,17 +53,22 @@ export function HomeScreen() {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
       <header className={HOME_HEADER}>
-        <div className="min-w-0 max-md:w-full">
-          <h1 className="text-display-sm font-semibold tracking-tight">Home</h1>
-          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
-            <span>{pulse}</span>
-            {clock ? (
-              <span className="tabular-nums" data-testid="home-clock">
-                {" · "}
-                {clock}
-              </span>
-            ) : null}
-          </p>
+        <div className={HOME_HEADER_TOP}>
+          <div className={HOME_TITLE}>
+            <h1 className="text-display-sm font-semibold tracking-tight">Home</h1>
+            <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
+              <span>{pulse}</span>
+              {clock ? (
+                <span className="tabular-nums" data-testid="home-clock">
+                  {" · "}
+                  {clock}
+                </span>
+              ) : null}
+            </p>
+          </div>
+          {/* Option A: top-right of the header. The phone copy lives in the
+              top bar (AppHeader), so this one starts at md. */}
+          <SubscriberTicker variant="header" className={HOME_TICKER} />
         </div>
         <div className={HOME_HEADER_META}>
           {/* Home reads the Workplace's browser-saved board, so it says so

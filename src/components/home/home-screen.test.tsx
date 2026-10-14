@@ -243,8 +243,12 @@ describe("HomeScreen before the saved board is read", () => {
     // The sample caveat is in the first paint, not added after hydration.
     expect(html).toContain("Sample data")
     expect(html).toContain("figures are invented, not live")
-    // Two card chips, the strip label, and the Metrics door.
-    expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(4)
+    // Two card chips, the strip label, the Metrics door, and the header
+    // subscriber ticker.
+    expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(5)
+    // The ticker paints settled on the server: the figure, not a loading row.
+    expect(html).toContain('aria-label="Subscribers: 186, no change today"')
+    expect(html).not.toContain("data-flap")
   })
 
   it("swaps to the data and the persistence note once mounted", async () => {

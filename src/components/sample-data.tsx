@@ -24,25 +24,32 @@ export const SAMPLE_SURFACE =
  *
  * Every surface here hides when Settings › Sample data is off. Only the
  * labels go; the figures they sit on stay, since nothing is connected yet.
+ *
+ * `compact` is the flask alone in the same amber circle, for places with no
+ * room for the words (the phone top bar's ticker); the label stays as
+ * screen-reader text and a tooltip.
  */
 export function SampleDataTag({
   className,
   children,
+  compact = false,
   ...props
-}: React.ComponentProps<"span">) {
+}: React.ComponentProps<"span"> & { compact?: boolean }) {
   return (
     <SampleDataGate>
       <span
         data-testid="sample-data-tag"
+        title={compact ? SAMPLE_DATA_LABEL : undefined}
         className={cn(
           "text-micro inline-flex h-5 flex-none items-center gap-1 rounded-full border px-1.5 font-semibold tracking-tight",
+          compact && "w-5 justify-center px-0",
           SAMPLE_SURFACE,
           className
         )}
         {...props}
       >
         <FlaskConicalIcon className="size-3" aria-hidden />
-        {SAMPLE_DATA_LABEL}
+        {compact ? <span className="sr-only">{SAMPLE_DATA_LABEL}</span> : SAMPLE_DATA_LABEL}
         {children && <span className="font-medium">{children}</span>}
       </span>
     </SampleDataGate>

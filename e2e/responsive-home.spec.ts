@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
+import { expectTapTarget } from "./support/tap-target"
 
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 844 },
@@ -9,14 +10,6 @@ const VIEWPORTS = [
 
 async function pageOverflowX(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-}
-
-async function expectTapTarget(locator: ReturnType<Page["getByRole"]>, label: string) {
-  await expect(locator, label).toBeVisible()
-  const box = await locator.boundingBox()
-  expect(box, `${label}: painted`).toBeTruthy()
-  expect(box!.height, `${label}: height`).toBeGreaterThanOrEqual(44)
-  expect(box!.width, `${label}: width`).toBeGreaterThanOrEqual(44)
 }
 
 function boxesOverlap(
@@ -41,7 +34,7 @@ for (const vp of VIEWPORTS) {
       ).toBeVisible()
       await expect(page.getByRole("article", { name: "Subscribers" })).toBeVisible()
       await expect(page.getByRole("article", { name: "Cash this week" })).toBeVisible()
-      await expect(page.getByText("186")).toBeVisible()
+      await expect(page.getByRole("article", { name: "Subscribers" }).getByText("186")).toBeVisible()
       await expect(page.getByText("3 agents working")).toBeVisible()
       await expect(page.getByText("2 waiting")).toBeVisible()
 
