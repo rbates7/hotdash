@@ -29,6 +29,13 @@ the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
 no key those tiles show their sample figures, labelled. Definitions, states
 and checks: [docs/stripe-live.md](docs/stripe-live.md).
 
+**Live Gmail (read-only)** feeds the CRM — cases, contacts and triage from
+the support inbox (info@chlkapp.com) — when the server has `GMAIL_CLIENT_ID`,
+`GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` (server only; `GMAIL_MAILBOX`
+optional). Without them the CRM shows "Gmail not connected" and its sample,
+labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
+[docs/gmail-setup.md](docs/gmail-setup.md).
+
 ## Getting started
 
 ```bash
@@ -44,7 +51,8 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe key (or its env var name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe key, database URL or Gmail credentials (or their env var names) are in client output |
+| `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
