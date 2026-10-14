@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import { STORAGE_KEY } from "@/components/agent-workplace/issues-store"
-import BugsError from "@/app/(dashboard)/bugs/error"
+import BugsError from "@/app/bugs/error"
 
 describe("Bugs error boundary", () => {
   it("says the page couldn’t render, Try again calls reset, and Reset clears the Workplace key", async () => {

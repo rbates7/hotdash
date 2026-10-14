@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
-import MyDeskError from "@/app/(dashboard)/my-desk/error"
+import MyDeskError from "@/app/my-desk/error"
 import {
   LEGACY_KEY,
   STORAGE_KEY,

@@ -74,3 +74,16 @@ Each step is one screen per change, built by Simmons into the shared work branch
 
 ### One heads-up on the live link
 Earlier we noted that the live site's production setup may not point at the develop branch yet. Before the real-data work ships, someone needs to confirm which branch the live link shows. That's a Vercel settings change, so it needs your OK.
+
+---
+
+## Step 0 status: rolled back (Oct 13, 2026)
+
+The sign-in lock shipped in #38 and was then reverted at Rashad's request (via Coulson, Oct 13, 2026 ~9 PM CT). The dashboard opens with no sign-in again.
+
+**Decision on record:** Rashad chose **email and password** (one allowed account) over Google sign-in for step 0.
+
+**Follow-ups to keep if sign-in returns** (from Mack's review of #38):
+- Rate limiting in a shared store (not per-instance memory), plus a per-email cap on failed attempts.
+- A session version, so a copied cookie can be revoked without rotating AUTH_SECRET.
+- A Secure cookie flag that doesn't depend only on NODE_ENV (e.g. also on the request protocol or the deployment URL).

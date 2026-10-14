@@ -9,7 +9,6 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "auth:hash": "node scripts/hash-password.mjs",
     "test": "TZ=UTC vitest run",
     "test:tz": "TZ=America/Chicago vitest run",
     "test:watch": "vitest",
