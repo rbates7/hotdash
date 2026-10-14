@@ -6,7 +6,8 @@ import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
 import { METRICS_HEADER, METRICS_HEADER_META } from "@/components/metrics/responsive"
-import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
+import { MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
+import { SampleDataTag } from "@/components/sample-data"
 
 export const metadata = {
   title: "Metrics · Chlk",
@@ -33,7 +34,7 @@ export default function MetricsPage() {
             <MetricsHeaderPeriod />
           </div>
         </header>
-        <SampleDataNotice />
+        <MetricsSampleNotice />
         {/* MetricsTabs reads the tab from the URL, so it needs a Suspense
             boundary around useSearchParams. */}
         <Suspense fallback={null}>

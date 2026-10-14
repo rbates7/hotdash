@@ -239,15 +239,15 @@ describe("HomeScreen before the saved board is read", () => {
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
     expect(html).toContain("Subscribers")
-    expect(html).toContain("$7,848")
-    // The sample caveat is in the first paint, not added after hydration.
-    expect(html).toContain("Sample data")
-    expect(html).toContain("figures are invented, not live")
-    // Two card chips, the strip label, the Metrics door, and the header
-    // subscriber ticker.
-    expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(5)
-    // The ticker paints settled on the server: the figure, not a loading row.
-    expect(html).toContain('<span class="sr-only">Subscribers: 186, no change today</span>')
+    // Stripe-fed figures wait for /api/stripe/summary: a placeholder, never
+    // a sample number that could swap for a live one (or the reverse).
+    expect(html).not.toContain("$7,848")
+    expect(html).toContain('aria-label="Subscribers" aria-busy="true" data-source="loading"')
+    expect(html).toContain('aria-label="Cash this week" aria-busy="true" data-source="loading"')
+    expect(html).not.toContain("figures are invented, not live")
+    expect(html).not.toContain('data-testid="sample-data-tag"')
+    // The ticker shows its loading row, not a figure.
+    expect(html).toContain('<span class="sr-only">Loading subscriber count</span>')
     expect(html).not.toContain("data-flap")
   })
 

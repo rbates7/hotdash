@@ -1,11 +1,26 @@
 import "@testing-library/jest-dom/vitest"
 
 import { cleanup } from "@testing-library/react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
+
+import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { NOT_CONNECTED } from "@/lib/stripe-summary"
+
+// Stripe starts not connected in every test (no fetch to a server that is
+// not there): screens show their sample figures, labelled. A test that
+// wants live figures calls `configureStripeSummary` itself
+// (see src/test/stripe.ts).
+beforeEach(() => {
+  configureStripeSummary({
+    initial: { phase: "ready", summary: NOT_CONNECTED },
+    fetcher: async () => NOT_CONNECTED,
+  })
+})
 
 afterEach(() => {
   cleanup()
-  window.localStorage.clear()
+  // Server-side suites (`@vitest-environment node`) have no window.
+  if (typeof window !== "undefined") window.localStorage.clear()
 })
 
 // next/navigation needs an App Router context that jsdom does not provide.

@@ -48,23 +48,41 @@ export function SampleDataLabel() {
   )
 }
 
+const isSample = (kpi: Kpi) => !kpi.source || kpi.source === "sample"
+
 export function KpiCard({ kpi }: { kpi: Kpi }) {
+  const sample = isSample(kpi)
+  const loading = kpi.source === "loading"
   return (
     <article
       aria-label={kpi.label}
-      aria-describedby={SAMPLE_LABEL_ID}
+      aria-describedby={sample ? SAMPLE_LABEL_ID : undefined}
+      aria-busy={loading || undefined}
+      data-source={kpi.source ?? "sample"}
       className="bg-surface border-surface-border flex min-h-[124px] flex-col rounded-xl border px-[18px] pt-[18px] pb-4"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
-        <SampleDataTag />
+        {sample && <SampleDataTag />}
       </div>
-      <p className="mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums">
-        {kpi.value}
+      <p
+        className={cn(
+          "mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
+          loading && "text-muted-foreground"
+        )}
+      >
+        {loading ? <span aria-label="Loading">–</span> : kpi.value}
       </p>
-      <p className="mt-auto pt-3">
-        <DeltaPill kpi={kpi} />
-      </p>
+      {kpi.updated && (
+        <p data-testid="kpi-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+          {kpi.updated}
+        </p>
+      )}
+      {kpi.delta && (
+        <p className="mt-auto pt-3">
+          <DeltaPill kpi={kpi} />
+        </p>
+      )}
     </article>
   )
 }
@@ -76,7 +94,7 @@ export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
         <h2 className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
           {title}
         </h2>
-        <SampleDataLabel />
+        {kpis.some(isSample) && <SampleDataLabel />}
       </div>
       <div
         className={cn(

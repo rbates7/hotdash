@@ -28,6 +28,13 @@ export type Kpi = {
   direction: KpiDirection
   /** Churn-style metrics: a drop is the healthy move, so it reads as good. */
   lowerIsBetter?: boolean
+  /**
+   * Where the figure comes from: absent or `sample` is the dummy fixture
+   * (labelled), `stripe` is live, `loading` is waiting for Stripe.
+   */
+  source?: "sample" | "stripe" | "loading"
+  /** "Last updated …" on a stale Stripe figure. */
+  updated?: string | null
 }
 
 /** The single thing the founder has pinned for today, lifted from My Desk. */

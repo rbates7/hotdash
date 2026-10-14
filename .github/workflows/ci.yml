@@ -40,13 +40,30 @@ jobs:
       - name: Unit and component tests again (TZ=America/Chicago)
         run: pnpm test:tz
 
-      - run: pnpm build
+      # A dummy key, only for the build and the scan below: it proves the
+      # value never lands in client code. It has a hyphen, which the server
+      # refuses as a key, so even an accidental build-time call cannot go to
+      # Stripe. The steps that run the app have no key at all.
+      - name: Build (with a dummy Stripe key)
+        run: pnpm build
+        env:
+          STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
+
+      - name: Client bundle holds neither the Stripe key nor its env var name
+        run: pnpm check:bundle
+        env:
+          STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
+      # No Stripe key here: the app is "not connected", and the specs mock
+      # /api/stripe/* in the browser for the connected and stale states.
+      # CI never calls Stripe.
       - name: Playwright smoke (a retry may not hide a flake)
         run: pnpm test:e2e:ci
+        env:
+          STRIPE_READONLY_KEY: ""
 
       - name: Upload Playwright report
         if: failure()

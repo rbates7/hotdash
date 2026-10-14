@@ -105,6 +105,43 @@ export function todayIn(instant: Date, timeZone: string = CENTRAL): IsoDay {
   return fmt.format(instant)
 }
 
+/** How far `timeZone`'s wall clock is ahead of UTC at `instant`, in ms. */
+function zoneOffsetMs(instant: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant)
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value)
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"))
+  return wall - Math.floor(instant.getTime() / 1000) * 1000
+}
+
+/**
+ * The instant 00:00 falls on `day` in `timeZone`. Every US zone changes its
+ * clocks at 02:00, so midnight always exists exactly once; the offset is
+ * read twice so a day that starts on one side of a change and is guessed
+ * from the other still lands on the zone's own midnight.
+ */
+export function startOfDay(day: IsoDay, timeZone: string = CENTRAL): Date {
+  const utcMidnight = Date.parse(`${day}T00:00:00Z`)
+  const first = utcMidnight - zoneOffsetMs(new Date(utcMidnight), timeZone)
+  return new Date(utcMidnight - zoneOffsetMs(new Date(first), timeZone))
+}
+
+/** Monday 00:00 of the week `instant` falls in, on `timeZone`'s calendar. */
+export function startOfWeek(instant: Date, timeZone: string = CENTRAL): Date {
+  const day = todayIn(instant, timeZone)
+  // 0 = Sunday … 6 = Saturday, read from the calendar day itself.
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay()
+  return startOfDay(addDays(day, -((weekday + 6) % 7)), timeZone)
+}
+
 /** An instant becomes its Central calendar day; a day passes through. */
 export function toDay(value: IsoDay | Date): IsoDay {
   return value instanceof Date ? todayIn(value) : value

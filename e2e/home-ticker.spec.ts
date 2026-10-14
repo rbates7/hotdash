@@ -3,17 +3,20 @@ import { expect, test, type Page } from "@playwright/test"
 import { FOUNDER_NAME } from "../src/components/founder-identity"
 import { TICKER_HREF } from "../src/components/home/subscriber-ticker"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
-import { SAMPLE_CADENCE_MS, SAMPLE_COUNT_KEY, sampleBase } from "../src/lib/subscriber-source"
+import { SAMPLE_CADENCE_MS, sampleBase } from "../src/lib/subscriber-source"
 import { formatCount, tickerLabel } from "../src/lib/subscriber-ticker"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
 import { expectTapTarget } from "./support/tap-target"
+import { mockStripe, withSubscribers } from "./support/stripe"
 import { setTheme } from "./support/theme"
 
 /**
- * The Home subscriber ticker (option A). The sample source adds a simulated
- * sign-up every 20s; tests that watch a change drive it with Playwright's
- * clock so nothing waits on wall time.
+ * The Home subscriber ticker (option A). With no Stripe key (e2e never has
+ * one) it shows the sample source, which adds a simulated sign-up every
+ * 20s; tests that watch a change drive it with Playwright's clock so
+ * nothing waits on wall time. Live counts come from a mocked
+ * /api/stripe/summary.
  */
 
 const BASE = sampleBase(new Date())
@@ -255,8 +258,8 @@ test.describe("Home ticker (360 dark, 5 digits)", () => {
   test("99,999 fits the phone bar: no sideways scroll, no clipped name, 44px targets, no overlap", async ({
     page,
   }) => {
-    // Test hook (see SAMPLE_COUNT_KEY): pins the sample count at 5 digits.
-    await page.addInitScript((key) => localStorage.setItem(key, "99999"), SAMPLE_COUNT_KEY)
+    // Stripe (mocked in the browser) reports a 5-digit count.
+    await mockStripe(page, withSubscribers(99_999))
     await page.goto("/home")
     await waitForHydration(page)
     await setTheme(page, "dark")

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
+import { liveSummary, setStripeSummaryForTest } from "@/test/stripe"
 import { todayIn } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
@@ -104,5 +105,23 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     for (const [name, value] of Object.entries(rendered)) {
       expect(within(screen.getByRole("article", { name })).getByText(value!)).toBeInTheDocument()
     }
+  })
+
+  it("with Stripe connected, Home's Subscribers, ticker and MRR door match the live Metrics cards", () => {
+    setStripeSummaryForTest(liveSummary("connected"))
+    const metrics = renderMetrics()
+    const grid = screen.getByRole("region", { name: "Metric cards" })
+    const subs = within(within(grid).getByRole("article", { name: /^Subscribers\b/ })).getByTestId("metric-value").textContent
+    const mrrName = within(within(grid).getByRole("article", { name: /^MRR\b/ })).getByRole("img").getAttribute("aria-label")!
+    metrics.unmount()
+
+    renderHome()
+    const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
+    expect(within(homeCard).getByText(subs!)).toBeInTheDocument()
+    expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Subscribers: ${subs}`)
+    // Same six MRR points: $52,000 … $61,235 on the card, $52k → $61.2k on the door.
+    expect(mrrName).toContain("$52,000")
+    expect(mrrName).toContain("$61,235")
+    expect(within(screen.getByRole("region", { name: "Metrics" })).getByText(/\$52k → \$61\.2k/)).toBeInTheDocument()
   })
 })

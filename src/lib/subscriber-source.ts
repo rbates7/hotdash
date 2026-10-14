@@ -2,10 +2,10 @@ import { formatWallClock, now, todayIn } from "@/lib/clock"
 import { snapshotFor } from "@/lib/kpis"
 
 /**
- * Where the Home ticker's number comes from. One interface, so the sample
- * source below can be swapped for Stripe without touching the ticker:
- * a Stripe source implements `read` (and `subscribe` if it gets a webhook
- * push); the store polls every 60s either way and backs off on failure.
+ * Where the Home ticker's number comes from when Stripe is not connected:
+ * the sample source below, behind one interface (the store polls every 60s
+ * and backs off on failure). With Stripe connected the ticker reads the
+ * shared Stripe summary instead (`useSubscriberTicker`).
  */
 
 export type SubscriberReading = {
@@ -89,12 +89,13 @@ export function failuresOf(state: TickerState) {
 }
 
 /**
- * "as of 9:41 AM CDT" for a stale value — the time part of the shared
- * `formatWallClock`, in the founder's Settings zone.
+ * "Last updated 9:41 AM CDT" for a stale value — the time part of the
+ * shared `formatWallClock`, in the founder's Settings zone (the same words
+ * every stale Stripe figure uses).
  */
 export function staleLabel(at: Date, timeZone: string) {
   const full = formatWallClock(at, timeZone)
-  return `as of ${full.split(" · ")[1] ?? full}`
+  return `Last updated ${full.split(" · ")[1] ?? full}`
 }
 
 /* ----------------------------------------------------------------- store */
@@ -233,28 +234,6 @@ export function sampleBase(at: Date) {
 }
 
 /**
- * Test hook, for e2e and screenshots only — the app never sets it:
- * `localStorage["hotdash.test.subscriberCount"] = "99999"` pins the sample
- * count (today 0, no simulated sign-ups), e.g. to check the widest phone bar.
- * Only the client's reads honour it; the server render and hydration keep the
- * base figure, so the ticker flips to the pinned count on its first read.
- */
-export const SAMPLE_COUNT_KEY = "hotdash.test.subscriberCount"
-
-/** The pinned test count, or null (unset, not a whole number, or no storage). */
-export function sampleCountOverride(storage: Pick<Storage, "getItem"> | null | undefined): number | null {
-  try {
-    const raw = storage?.getItem(SAMPLE_COUNT_KEY)
-    if (!raw || !/^\d+$/.test(raw)) return null
-    return Number(raw)
-  } catch {
-    return null
-  }
-}
-
-const browserStorage = () => (typeof localStorage === "undefined" ? null : localStorage)
-
-/**
  * The sample source. Its clock starts when the module loads (the page
  * opened), and it pushes a change on every simulated sign-up while anyone
  * listens. `initial` is always the base figure — on the server too — and
@@ -264,12 +243,10 @@ export function createSampleSource({
   startMs = now().getTime(),
   clock = now,
   timers = globalTimers,
-  storage = browserStorage,
 }: {
   startMs?: number
   clock?: () => Date
   timers?: Timers
-  storage?: () => Pick<Storage, "getItem"> | null
 } = {}): SubscriberSource {
   const listeners = new Set<() => void>()
   let timer: unknown = null
@@ -289,11 +266,7 @@ export function createSampleSource({
       const at = clock()
       return { total: sampleBase(at), today: 0, at }
     },
-    read: async ({ timeZone }) => {
-      const pinned = sampleCountOverride(storage())
-      if (pinned !== null) return { total: pinned, today: 0, at: clock() }
-      return sampleReadingAt(startMs, clock(), timeZone)
-    },
+    read: async ({ timeZone }) => sampleReadingAt(startMs, clock(), timeZone),
     subscribe(onChange) {
       listeners.add(onChange)
       if (listeners.size === 1) arm()

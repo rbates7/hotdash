@@ -23,6 +23,12 @@ open; figures are dummy.
 
 The other 11 routes are intentional stubs; each gets its own build phase.
 
+**Live Stripe (read-only)** feeds Home's ticker, Subscribers and Cash this
+week, and Metrics' MRR, Churn Rate, Trial Conversions and Subscribers when
+the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
+no key those tiles show their sample figures, labelled. Definitions, states
+and checks: [docs/stripe-live.md](docs/stripe-live.md).
+
 ## Getting started
 
 ```bash
@@ -38,6 +44,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
+| `pnpm check:bundle` | After a build: fail if the Stripe key (or its env var name) is in client output |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |

@@ -6,7 +6,6 @@ import {
   POLL_MS,
   RETRY_MS,
   SAMPLE_CADENCE_MS,
-  SAMPLE_COUNT_KEY,
   SAMPLE_PATTERN,
   createSampleSource,
   createTickerStore,
@@ -14,7 +13,6 @@ import {
   initialState,
   retryDelay,
   sampleBase,
-  sampleCountOverride,
   sampleReadingAt,
   staleLabel,
   tickerReducer,
@@ -66,9 +64,9 @@ describe("retryDelay", () => {
 
 describe("staleLabel", () => {
   it("is the time part of the shared wall clock, in the founder's zone", () => {
-    expect(staleLabel(AT, "America/Chicago")).toBe("as of 9:41 AM CDT")
-    expect(staleLabel(AT, "America/Los_Angeles")).toBe("as of 7:41 AM PDT")
-    expect(staleLabel(AT, "UTC")).toBe("as of 2:41 PM UTC")
+    expect(staleLabel(AT, "America/Chicago")).toBe("Last updated 9:41 AM CDT")
+    expect(staleLabel(AT, "America/Los_Angeles")).toBe("Last updated 7:41 AM PDT")
+    expect(staleLabel(AT, "UTC")).toBe("Last updated 2:41 PM UTC")
   })
 })
 
@@ -137,42 +135,6 @@ describe("sample source", () => {
       vi.advanceTimersByTime(SAMPLE_CADENCE_MS * 3)
       expect(onChange).toHaveBeenCalledTimes(2)
     })
-
-    it("test hook: a pinned count replaces the sample reads, not the first paint", async () => {
-      const store = new Map([[SAMPLE_COUNT_KEY, "99999"]])
-      const source = createSampleSource({ startMs: start, storage: () => ({ getItem: (k) => store.get(k) ?? null }) })
-      expect(source.initial({ timeZone: zone })).toMatchObject({ total: sampleBase(AT) })
-      await expect(source.read({ timeZone: zone })).resolves.toMatchObject({ total: 99_999, today: 0 })
-      vi.advanceTimersByTime(SAMPLE_CADENCE_MS * 3)
-      await expect(source.read({ timeZone: zone })).resolves.toMatchObject({ total: 99_999, today: 0 })
-    })
-  })
-})
-
-describe("sampleCountOverride", () => {
-  const storage = (value: string | null) => ({ getItem: (k: string) => (k === SAMPLE_COUNT_KEY ? value : null) })
-
-  it("reads a whole number from the test key", () => {
-    expect(SAMPLE_COUNT_KEY).toBe("hotdash.test.subscriberCount")
-    expect(sampleCountOverride(storage("99999"))).toBe(99_999)
-    expect(sampleCountOverride(storage("0"))).toBe(0)
-  })
-
-  it("is null when unset, malformed, or storage is missing or throws", () => {
-    expect(sampleCountOverride(storage(null))).toBeNull()
-    expect(sampleCountOverride(storage(""))).toBeNull()
-    expect(sampleCountOverride(storage("-5"))).toBeNull()
-    expect(sampleCountOverride(storage("12.5"))).toBeNull()
-    expect(sampleCountOverride(storage("lots"))).toBeNull()
-    expect(sampleCountOverride(null)).toBeNull()
-    expect(sampleCountOverride(undefined)).toBeNull()
-    expect(
-      sampleCountOverride({
-        getItem: () => {
-          throw new Error("denied")
-        },
-      })
-    ).toBeNull()
   })
 })
 

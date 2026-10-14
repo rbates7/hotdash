@@ -7,6 +7,7 @@ import {
   FlaskConicalIcon,
   HardDriveIcon,
   AlertTriangleIcon,
+  CheckIcon,
   MonitorIcon,
   MoonIcon,
   RotateCcwIcon,
@@ -14,7 +15,8 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { TIME_ZONES, isTimeZoneId, timeZoneOption } from "@/lib/clock"
+import { TIME_ZONES, formatWallClock, isTimeZoneId, timeZoneOption } from "@/lib/clock"
+import { lastUpdatedLabel } from "@/lib/live-metrics"
 import {
   APPEARANCE_OPTIONS,
   GOAL_FIELDS,
@@ -35,6 +37,7 @@ import {
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useMounted } from "@/hooks/use-mounted"
+import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
@@ -158,7 +161,7 @@ function TimeZoneSection({ timeZone }: { timeZone: string }) {
     <Section
       id="time-zone"
       title="Time zone"
-      description="Central by default. Home's clock and weekday follow this choice; figures are still dated in Central until live data lands."
+      description="Central by default. Home's clock and weekday follow this choice, and so do Stripe's “today” and “this week” (from Monday 00:00). Sample figures are still dated in Central."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         <span id={labelId} className="sr-only">
@@ -334,15 +337,19 @@ function SwitchRow({
 }
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
+  const live = useStripeFeed().kind === "live"
   return (
     <Section
       id="sample-data"
       title="Sample data"
       description={
         <>
-          Nothing is connected yet, so every number on every screen is sample data. Turning this
-          off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the placeholder figures
-          stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have no label to hide.
+          {live
+            ? "Stripe's figures are live and carry no label; every other number is still sample data."
+            : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
+          Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
+          placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
+          no label to hide.
         </>
       }
     >
@@ -384,25 +391,79 @@ const SOURCES = [
   { name: "Gmail", feeds: "Coach conversations for CRM" },
 ] as const
 
-function ConnectedDataSection() {
+const STATUS_BADGE = "h-6 px-2.5"
+
+/** Stripe's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
+function StripeStatus({ timeZone }: { timeZone: string }) {
+  const feed = useStripeFeed()
+  if (feed.kind === "loading") {
+    return (
+      <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Checking…
+      </Badge>
+    )
+  }
+  if (feed.kind === "sample") return <NotConnected />
+  const when = formatWallClock(feed.lastSyncedAt, timeZone)
+  if (feed.stale) {
+    return (
+      <Badge variant="outline" data-testid="stripe-status" className={STATUS_BADGE}>
+        <AlertTriangleIcon aria-hidden className="text-danger-text" />
+        {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
+      </Badge>
+    )
+  }
+  return (
+    <Badge
+      variant="outline"
+      data-testid="stripe-status"
+      title={`Last synced ${when}`}
+      className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
+    >
+      <CheckIcon aria-hidden />
+      Connected
+    </Badge>
+  )
+}
+
+function StripeDetail({ timeZone }: { timeZone: string }) {
+  const feed = useStripeFeed()
+  if (feed.kind !== "live") return null
+  return (
+    <p className="text-caption text-muted-foreground" data-testid="stripe-detail">
+      {feed.stale
+        ? "Stripe could not be read just now, so its figures are the last good ones."
+        : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+    </p>
+  )
+}
+
+function NotConnected() {
+  return (
+    <Badge variant="outline" className={cn("text-muted-foreground!", STATUS_BADGE)}>
+      Not connected
+    </Badge>
+  )
+}
+
+function ConnectedDataSection({ timeZone }: { timeZone: string }) {
   return (
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers will come from. Connections need a read-only key on the server; none are set up yet."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe is the first."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
-          <li key={source.name}>
+          <li key={source.name} aria-label={source.name}>
             {index > 0 && <Separator />}
             <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5">
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
+                {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
               </div>
-              <Badge variant="outline" className="text-muted-foreground! h-6 px-2.5">
-                Not connected
-              </Badge>
+              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
             </div>
           </li>
         ))}
@@ -539,7 +600,7 @@ export function SettingsScreen() {
         <TimeZoneSection timeZone={settings.timeZone} />
         <GoalsSection goals={settings.goals} />
         <SampleDataSection sampleData={settings.sampleData} />
-        <ConnectedDataSection />
+        <ConnectedDataSection timeZone={settings.timeZone} />
         <SidebarSection prefs={settings.sidebar} />
       </div>
     </div>
