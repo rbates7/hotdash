@@ -235,7 +235,8 @@ test.describe("Subscribers total, App Store connected (1440)", () => {
     await expect(card).toContainText("1,337")
     expect(await rowsOf(card)).toEqual(ROWS_CONNECTED)
     await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText("")
-    await expect(ticker(page).getByTestId("ticker-tiles")).toHaveText("1,337")
+    // Each tile paints its digit twice (top and bottom halves): 1,337.
+    await expect(ticker(page).getByTestId("ticker-tiles")).toHaveText("11,333377")
 
     await open(page, "/metrics")
     const metrics = metricCard(page, "Subscribers")
