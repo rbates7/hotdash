@@ -11,10 +11,15 @@ import { Button } from "@/components/ui/button"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
 import { CommandPalette } from "@/components/crm/command-palette"
+import { CrmSourceBadge, GMAIL_READ_ONLY_NOTE } from "@/components/crm/crm-source-badge"
 import { useCrm } from "@/components/crm/crm-store"
 import { CRM_RESET } from "@/components/crm/crm-touch"
 
 export const LEDE = "Conversations, contacts, and triage — sample data until Gmail and Stripe sync"
+
+export function liveLede(mailbox: string) {
+  return `Conversations, contacts, and triage from ${mailbox}`
+}
 
 const TABS = [
   { href: "/crm", label: "Overview", match: (path: string) => path === "/crm" },
@@ -32,6 +37,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
   const store = useCrm()
   const [searchOpen, setSearchOpen] = React.useState(false)
   const triageCount = countTriagePending(store.messages)
+  const { gmail } = store
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
@@ -40,11 +46,20 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
       <header className="flex flex-wrap items-start justify-between gap-4 max-md:justify-start max-md:gap-x-2.5">
         <div className="min-w-0 max-md:w-[calc(100%-3.375rem)] md:max-xl:min-w-52 md:max-xl:flex-1 md:max-xl:basis-0">
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
-          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
+          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
+            {gmail.kind === "live" ? liveLede(gmail.mailbox) : LEDE}
+          </p>
         </div>
         <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5 max-md:contents">
-          <PersistenceNote store={store} className="max-md:order-3" resetClassName={CRM_RESET} />
-          <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" />
+          {gmail.kind === "live" ? (
+            <span data-testid="crm-read-only" className="text-micro text-muted-foreground max-md:order-3">
+              {GMAIL_READ_ONLY_NOTE}
+            </span>
+          ) : (
+            <PersistenceNote store={store} className="max-md:order-3" resetClassName={CRM_RESET} />
+          )}
+          <CrmSourceBadge feed={gmail} className="max-md:order-4 max-md:self-center" />
+          {store.sample ? <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" /> : null}
           <Button
             size="sm"
             variant="outline"

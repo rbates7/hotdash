@@ -56,6 +56,8 @@ import {
   type PersistenceStore,
   type Storage,
 } from "@/lib/persistence"
+import type { CrmLiveData, GmailFeed } from "@/lib/crm/gmail-summary"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 
 export type State = {
   organizations: Organization[]
@@ -555,9 +557,52 @@ export function clearState(storage: Storage | undefined) {
   crmStorage.clear(storage)
 }
 
+/**
+ * The support inbox's rows as a full CRM state: no notes (Gmail has none),
+ * nobody ignored yet, counters past the highest id so a local edit (a
+ * promoted triage thread, a note) never reuses one.
+ */
+export function stateFromLive(data: CrmLiveData): State {
+  return {
+    organizations: data.organizations,
+    contacts: data.contacts,
+    cases: data.cases,
+    messages: data.messages,
+    notes: [],
+    ignoredSenders: [],
+    nextOrgId: highest(data.organizations, ORG_ID) + 1,
+    nextContactId: highest(data.contacts, CONTACT_ID) + 1,
+    nextCaseId: highest(data.cases, CASE_ID) + 1,
+    nextMessageId: highest(data.messages, /^message-(\d+)$/) + 1,
+    nextNoteId: 1,
+    nextCaseNumber: data.cases.reduce((max, c) => Math.max(max, c.caseNumber), 0) + 1,
+  }
+}
+
+/**
+ * Edits made while the CRM shows the support inbox. Gmail is read-only and
+ * nothing here is written to this browser's storage (that holds the sample
+ * CRM's edits, untouched): they apply to the copy they were made on, and
+ * the next synced copy (`syncedAt`) starts clean.
+ */
+type LiveEdits = { syncedAt: string; data: State } | null
+
+type LiveEvent = { type: "edit"; base: State; syncedAt: string; action: EditAction } | { type: "clear" }
+
+export function liveEditsReducer(prev: LiveEdits, event: LiveEvent): LiveEdits {
+  if (event.type === "clear") return null
+  const current = prev && prev.syncedAt === event.syncedAt ? prev.data : event.base
+  const next = reducer(current, event.action)
+  return next === current ? prev : { syncedAt: event.syncedAt, data: next }
+}
+
 export type CrmStore = State &
   PersistenceStore & {
     nowMs: number
+    /** Where the rows come from: loading, the labelled sample, or the support inbox. */
+    gmail: GmailFeed
+    /** True while the rows are the sample (row-level sample tags show only then). */
+    sample: boolean
     setStatus: (id: string, status: CaseStatus) => void
     setPriority: (id: string, priority: CasePriority) => void
     addNote: (caseId: string, body: string) => void
@@ -577,6 +622,12 @@ export type CrmStore = State &
 
 const CrmContext = React.createContext<CrmStore | null>(null)
 
+/**
+ * The CRM's rows: the support inbox when Gmail is connected (or stale),
+ * the sample — saved in this browser, labelled — when it is not. Until
+ * `/api/crm/gmail` first answers, `persisted` stays false so every screen
+ * shows its skeleton rather than sample rows that then swap.
+ */
 export function CrmProvider({
   nowMs: requestNowMs,
   children,
@@ -587,7 +638,7 @@ export function CrmProvider({
   const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, (ms) =>
     initialShell(seedAt(ms), ms)
   )
-  const { data: state, persisted, edited, saved, saveFailed, nowMs } = shell
+  const { persisted, edited, saved, saveFailed, nowMs } = shell
 
   React.useLayoutEffect(() => {
     dispatch({ type: "hydrate", result: crmStorage.load(window.localStorage), nowMs: requestNowMs })
@@ -601,40 +652,60 @@ export function CrmProvider({
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: crmStorage, shell, onHydrate, onSaved })
 
+  const gmail = useGmailFeed()
+  const liveKey = gmail.kind === "live" ? gmail.lastSyncedAt.toISOString() : null
+  const liveBase = React.useMemo(() => (gmail.kind === "live" ? stateFromLive(gmail.data) : null), [gmail])
+  const [liveEdits, liveDispatch] = React.useReducer(liveEditsReducer, null)
+  const live = liveBase !== null && liveKey !== null
+  const state =
+    live && liveEdits?.syncedAt === liveKey ? liveEdits.data : (liveBase ?? shell.data)
+
+  const edit = React.useCallback(
+    (action: EditAction) => {
+      if (liveBase && liveKey) liveDispatch({ type: "edit", base: liveBase, syncedAt: liveKey, action })
+      else dispatch(action)
+    },
+    [liveBase, liveKey]
+  )
+
   const value = React.useMemo<CrmStore>(
     () => ({
       ...state,
-      nowMs,
-      persisted,
-      edited,
-      saved,
-      saveFailed,
-      setStatus: (id, status) =>
-        dispatch({ type: "set-status", id, status, at: new Date().toISOString() }),
-      setPriority: (id, priority) => dispatch({ type: "set-priority", id, priority }),
-      addNote: (caseId, body) =>
-        dispatch({ type: "add-note", caseId, body, at: new Date().toISOString() }),
-      deleteNote: (id) => dispatch({ type: "delete-note", id }),
-      addContact: (input) =>
-        dispatch({ type: "add-contact", input, at: new Date().toISOString() }),
-      updateContact: (id, input) => dispatch({ type: "update-contact", id, input }),
-      deleteContact: (id) => dispatch({ type: "delete-contact", id }),
-      deleteCase: (id) => dispatch({ type: "delete-case", id }),
-      promoteTriage: (threadId) =>
-        dispatch({ type: "promote-triage", threadId, at: new Date().toISOString() }),
+      // "2h ago" from the request, or from the sync when it is newer.
+      nowMs: gmail.kind === "live" ? Math.max(nowMs, gmail.lastSyncedAt.getTime()) : nowMs,
+      gmail,
+      sample: !live,
+      // Live: ready at once, and nothing is saved in this browser.
+      persisted: live ? true : persisted && gmail.kind !== "loading",
+      edited: live ? liveEdits?.syncedAt === liveKey : edited,
+      saved: live ? false : saved,
+      saveFailed: live ? false : saveFailed,
+      setStatus: (id, status) => edit({ type: "set-status", id, status, at: new Date().toISOString() }),
+      setPriority: (id, priority) => edit({ type: "set-priority", id, priority }),
+      addNote: (caseId, body) => edit({ type: "add-note", caseId, body, at: new Date().toISOString() }),
+      deleteNote: (id) => edit({ type: "delete-note", id }),
+      addContact: (input) => edit({ type: "add-contact", input, at: new Date().toISOString() }),
+      updateContact: (id, input) => edit({ type: "update-contact", id, input }),
+      deleteContact: (id) => edit({ type: "delete-contact", id }),
+      deleteCase: (id) => edit({ type: "delete-case", id }),
+      promoteTriage: (threadId) => edit({ type: "promote-triage", threadId, at: new Date().toISOString() }),
       linkTriage: (threadId, contactId) =>
-        dispatch({ type: "link-triage", threadId, contactId, at: new Date().toISOString() }),
-      ignoreTriage: (threadId) => dispatch({ type: "ignore-triage", threadId }),
-      ignoreSender: (email) => dispatch({ type: "ignore-sender", email }),
+        edit({ type: "link-triage", threadId, contactId, at: new Date().toISOString() }),
+      ignoreTriage: (threadId) => edit({ type: "ignore-triage", threadId }),
+      ignoreSender: (email) => edit({ type: "ignore-sender", email }),
       contactById: (id) => contactOf(state.contacts, id),
       orgById: (id) => orgOf(state.organizations, id),
       caseById: (id) => state.cases.find((c) => c.id === id),
       resetDemoData: () => {
+        if (live) {
+          liveDispatch({ type: "clear" })
+          return
+        }
         clearState(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }),
-    [state, nowMs, persisted, edited, saved, saveFailed]
+    [state, nowMs, gmail, live, liveEdits, liveKey, persisted, edited, saved, saveFailed, edit]
   )
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>

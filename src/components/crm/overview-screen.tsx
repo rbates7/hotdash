@@ -82,7 +82,9 @@ export function OverviewScreen() {
       >
         <p className="text-body text-foreground font-medium">CRM is empty</p>
         <p className="text-caption">
-          Every sample row has been removed. Add a contact, or Reset to bring the sample data back.
+          {store.sample
+            ? "Every sample row has been removed. Add a contact, or Reset to bring the sample data back."
+            : `No conversations in ${store.gmail.kind === "live" ? store.gmail.mailbox : "the support inbox"} in the last 90 days.`}
         </p>
       </div>
     )
@@ -148,7 +150,7 @@ export function OverviewScreen() {
                   <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:basis-[calc(100%-3rem)]">
                     {caseRow.subject}
                   </span>
-                  {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
+                  {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
                   <StatusBadge status={caseRow.status} />
                   <span className="text-muted-foreground shrink-0 text-xs">
                     {formatCrmRelative(caseRow.lastActivityAt, nowMs)}
@@ -184,7 +186,7 @@ export function OverviewScreen() {
                         <span className="text-muted-foreground">Note on</span> #{caseRow?.caseNumber}{" "}
                         — {note.body}
                       </span>
-                      {isSeedNote(note.id) ? <SampleDataTag /> : null}
+                      {store.sample && isSeedNote(note.id) ? <SampleDataTag /> : null}
                       <span className="text-muted-foreground shrink-0 text-xs">
                         {formatCrmRelative(note.createdAt, nowMs)}
                       </span>
@@ -214,7 +216,7 @@ export function OverviewScreen() {
                       </span>{" "}
                       {message.snippet}
                     </span>
-                    {isSeedMessage(message.id) ? <SampleDataTag /> : null}
+                    {store.sample && isSeedMessage(message.id) ? <SampleDataTag /> : null}
                     <span className="text-muted-foreground shrink-0 text-xs">
                       {formatCrmRelative(message.sentAt, nowMs)}
                     </span>

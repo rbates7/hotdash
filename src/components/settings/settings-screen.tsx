@@ -36,6 +36,7 @@ import {
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import { useMounted } from "@/hooks/use-mounted"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
@@ -337,7 +338,16 @@ function SwitchRow({
 }
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
-  const live = useStripeFeed().kind === "live"
+  const stripe = useStripeFeed().kind === "live"
+  const gmail = useGmailFeed().kind === "live"
+  const live =
+    stripe && gmail
+      ? "Stripe's figures and the CRM's Gmail conversations are live"
+      : stripe
+        ? "Stripe's figures are live"
+        : gmail
+          ? "The CRM's Gmail conversations are live"
+          : null
   return (
     <Section
       id="sample-data"
@@ -345,7 +355,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
       description={
         <>
           {live
-            ? "Stripe's figures are live and carry no label; every other number is still sample data."
+            ? `${live} and carry no label; every other number is still sample data.`
             : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
           placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
@@ -438,6 +448,50 @@ function StripeDetail({ timeZone }: { timeZone: string }) {
   )
 }
 
+/** Gmail's row: the same three states as Stripe's, for the CRM's support inbox. */
+function GmailStatus({ timeZone }: { timeZone: string }) {
+  const feed = useGmailFeed()
+  if (feed.kind === "loading") {
+    return (
+      <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Checking…
+      </Badge>
+    )
+  }
+  if (feed.kind === "sample") return <NotConnected />
+  if (feed.stale) {
+    return (
+      <Badge variant="outline" data-testid="gmail-status" className={STATUS_BADGE}>
+        <AlertTriangleIcon aria-hidden className="text-danger-text" />
+        {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
+      </Badge>
+    )
+  }
+  return (
+    <Badge
+      variant="outline"
+      data-testid="gmail-status"
+      title={`Last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+      className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
+    >
+      <CheckIcon aria-hidden />
+      Connected
+    </Badge>
+  )
+}
+
+function GmailDetail({ timeZone }: { timeZone: string }) {
+  const feed = useGmailFeed()
+  if (feed.kind !== "live") return null
+  return (
+    <p className="text-caption text-muted-foreground" data-testid="gmail-detail">
+      {feed.stale
+        ? "Gmail could not be read just now, so the CRM shows the last good threads."
+        : `${feed.mailbox}, read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+    </p>
+  )
+}
+
 function NotConnected() {
   return (
     <Badge variant="outline" className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -462,8 +516,15 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
                 {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
+                {source.name === "Gmail" && <GmailDetail timeZone={timeZone} />}
               </div>
-              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
+              {source.name === "Stripe" ? (
+                <StripeStatus timeZone={timeZone} />
+              ) : source.name === "Gmail" ? (
+                <GmailStatus timeZone={timeZone} />
+              ) : (
+                <NotConnected />
+              )}
             </div>
           </li>
         ))}
