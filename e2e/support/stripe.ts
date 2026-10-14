@@ -4,13 +4,14 @@ import {
   APP_STORE_CONNECTED,
   APP_STORE_OFF,
   APP_STORE_STALE,
+  APP_STORE_ZERO,
   LIVE_METRICS,
   liveSummary,
 } from "../../src/test/stripe-fixture"
 import type { StripeMetrics } from "../../src/lib/stripe-metrics"
 import type { StripeSummary } from "../../src/lib/stripe-summary"
 
-export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, LIVE_METRICS, liveSummary }
+export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, LIVE_METRICS, liveSummary }
 
 /**
  * Answer the browser's `/api/stripe/summary` with `summary` — the server's
