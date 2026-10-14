@@ -299,7 +299,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     render(<SubscriberTicker variant="header" />)
     expect(link()).toHaveAccessibleName("Subscribers: 1,337, up 3 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,110, App Store 53, Free (coupon, never paid) 174."
+      "Stripe paying 1,110, App Store 53, Free (never paid) 174."
     )
     const id = link().getAttribute("aria-describedby")!
     expect(document.getElementById(id)).not.toBeVisible()
@@ -312,7 +312,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     render(<SubscriberTicker variant="header" />)
     expect(link()).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,110, App Store Not connected, Free (coupon, never paid) 174. Total excludes App Store (not connected)."
+      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
     )
   })
 
@@ -327,7 +327,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     expect(tip).toHaveTextContent("Subscribers1,337")
     expect(tip).toHaveTextContent("Stripe paying1,110")
     expect(tip).toHaveTextContent("App Store53")
-    expect(tip).toHaveTextContent("Free (coupon, never paid)174")
+    expect(tip).toHaveTextContent("Free (never paid)174")
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByTestId("ticker-breakdown")).toBeNull())
     expect(link()).toHaveAttribute("href", TICKER_HREF)

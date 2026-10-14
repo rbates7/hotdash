@@ -92,7 +92,8 @@ currencies are skipped, not converted.
      App Store row reads "Not connected" and the total says **"Total
      excludes App Store (not connected)"**; it is never counted as 0.
      Stale → its last good count, with "App Store as of <time>".
-  3. **Free accounts** (`isFreeAccount`) — Stripe status exactly `active`
+  3. **Free accounts** (`isFreeAccount`, labelled **"Free (never paid)"**
+     in the breakdown) — Stripe status exactly `active`
      and **never** paid an invoice with `amount_paid > 0`, coupon on it now
      or not (100%-off launch annuals, and ones whose coupon has dropped off
      but have not been charged yet). Never-paid `trialing` and `past_due`

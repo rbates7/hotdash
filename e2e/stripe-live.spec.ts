@@ -214,7 +214,7 @@ test.describe("Stripe stale (1440)", () => {
 const ROWS_CONNECTED = [
   ["Stripe paying", "1,110"],
   ["App Store", "53"],
-  ["Free (coupon, never paid)", "174"],
+  ["Free (never paid)", "174"],
 ]
 
 async function rowsOf(scope: ReturnType<Page["locator"]>) {
@@ -252,7 +252,7 @@ test.describe("Subscribers total, App Store connected (1440)", () => {
     await open(page, "/home")
     const link = ticker(page).getByRole("link")
     await expect(link).toHaveAccessibleName("Subscribers: 1,337, up 3 today")
-    await expect(link).toHaveAccessibleDescription("Stripe paying 1,110, App Store 53, Free (coupon, never paid) 174.")
+    await expect(link).toHaveAccessibleDescription("Stripe paying 1,110, App Store 53, Free (never paid) 174.")
     await expect(spoken(page)).toHaveText("Subscribers: 1,337, up 3 today")
 
     const tip = page.getByTestId("ticker-breakdown")
@@ -295,13 +295,13 @@ test.describe("Subscribers total, App Store not connected (1440)", () => {
     expect(await rowsOf(card)).toEqual([
       ["Stripe paying", "1,110"],
       ["App Store", "Not connected"],
-      ["Free (coupon, never paid)", "174"],
+      ["Free (never paid)", "174"],
     ])
     await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText("Total excludes App Store (not connected)")
     await expect(card).not.toContainText(/App Store\s*0\b/)
     const link = ticker(page).getByRole("link")
     await expect(link).toHaveAccessibleDescription(
-      "Stripe paying 1,110, App Store Not connected, Free (coupon, never paid) 174. Total excludes App Store (not connected)."
+      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
     )
     await link.hover()
     await expect(page.getByTestId("ticker-breakdown")).toContainText("Total excludes App Store (not connected)")

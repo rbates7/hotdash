@@ -50,7 +50,7 @@ export function subscriberTotal(metrics: Pick<StripeMetrics, "subscribers" | "fr
 export const BREAKDOWN_LABELS = {
   stripePaying: "Stripe paying",
   appStore: "App Store",
-  freeAccounts: "Free (coupon, never paid)",
+  freeAccounts: "Free (never paid)",
 } as const
 
 export const APP_STORE_NOT_CONNECTED_TEXT = "Not connected"

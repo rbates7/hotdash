@@ -275,7 +275,7 @@ describe("Subscribers total and its breakdown", () => {
     expect(rowsOf(c)).toEqual([
       ["Stripe paying", "1,110"],
       ["App Store", "53"],
-      ["Free (coupon, never paid)", "174"],
+      ["Free (never paid)", "174"],
     ])
     expect(within(c).getByTestId("subscriber-breakdown-note")).toBeEmptyDOMElement()
   })
@@ -306,7 +306,7 @@ describe("Subscribers total and its breakdown", () => {
     expect(rowsOf(c)).toEqual([
       ["Stripe paying", "1,110"],
       ["App Store", "53"],
-      ["Free (coupon, never paid)", "174"],
+      ["Free (never paid)", "174"],
     ])
     expect(within(c).getByTestId("trend")).toHaveTextContent("+34")
   })

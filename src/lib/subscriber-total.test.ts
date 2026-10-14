@@ -46,7 +46,7 @@ describe("breakdown", () => {
     expect(breakdownRows(subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTED))).toEqual([
       { key: "stripePaying", label: "Stripe paying", value: "1,110" },
       { key: "appStore", label: "App Store", value: "53" },
-      { key: "freeAccounts", label: "Free (coupon, never paid)", value: "174" },
+      { key: "freeAccounts", label: "Free (never paid)", value: "174" },
     ])
   })
 
@@ -55,7 +55,7 @@ describe("breakdown", () => {
     expect(breakdownRows(t)[1]).toEqual({ key: "appStore", label: "App Store", value: "Not connected" })
     expect(breakdownNote(t, CENTRAL)).toBe(EXCLUDES_APP_STORE)
     expect(breakdownText(t, CENTRAL)).toBe(
-      "Stripe paying 1,110, App Store Not connected, Free (coupon, never paid) 174. Total excludes App Store (not connected)."
+      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
     )
   })
 

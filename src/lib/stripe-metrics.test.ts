@@ -23,6 +23,8 @@ import {
   type StripePrice,
   type StripeSubscription,
 } from "@/lib/stripe-metrics"
+import { BREAKDOWN_LABELS, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
+import { APP_STORE_OFF } from "@/test/stripe-fixture"
 
 /* ------------------------------------------------------------- builders */
 
@@ -192,7 +194,7 @@ describe("isPaying (Rashad + Bobbi, final, Oct 14 2026)", () => {
   })
 })
 
-describe("isFreeAccount (group 3: free coupon, never paid)", () => {
+describe("isFreeAccount (group 3: Free (never paid))", () => {
   it("is status exactly active with no paid invoice, coupon or not", () => {
     expect(isFreeAccount(sub({ first_paid_at: null, discounts: FREE }))).toBe(true)
     expect(isFreeAccount(sub({ first_paid_at: null }))).toBe(true) // coupon dropped off, not charged yet
@@ -216,6 +218,17 @@ describe("isFreeAccount (group 3: free coupon, never paid)", () => {
         expect(isFreeAccount(s) && isPaying(s)).toBe(false)
       }
     }
+  })
+})
+
+describe("an active, never-paid account with no coupon", () => {
+  it("lands in Free (never paid), and the label does not say coupon", () => {
+    const free = sub({ first_paid_at: null, discounts: [] })
+    const m = metrics([free])
+    expect([m.subscribers.value, m.freeAccounts.value]).toEqual([0, 1])
+    const rows = breakdownRows(subscriberTotal(m, APP_STORE_OFF))
+    expect(rows.find((r) => r.key === "freeAccounts")).toEqual({ key: "freeAccounts", label: "Free (never paid)", value: "1" })
+    expect(BREAKDOWN_LABELS.freeAccounts).not.toMatch(/coupon/i)
   })
 })
 
