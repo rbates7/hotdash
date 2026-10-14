@@ -20,6 +20,8 @@ import { SYNC_TIMEOUT_MS } from "@/lib/server/time-limit"
 /** A made-up URL: loopback, a fake role, never a real database. */
 const URL_OK = "postgresql://hotdash_ro:not-a-real-password@127.0.0.1:5432/postgres"
 const ENV = { SUPABASE_READONLY_DB_URL: URL_OK }
+/** `URL_OK` as `readAppStoreConfig` hands it on: TLS required. */
+const URL_TLS = `${URL_OK}?sslmode=require`
 const T0 = Date.parse("2026-10-14T13:00:00.000Z")
 /** Real wall time, taken before fake timers replace `performance.now`. */
 const wallClock = performance.now.bind(performance)
@@ -72,8 +74,24 @@ describe("readAppStoreConfig", () => {
   })
 
   it("accepts postgres:// and postgresql://", () => {
-    expect(readAppStoreConfig(ENV)).toEqual({ kind: "ok", url: URL_OK })
+    expect(readAppStoreConfig(ENV)).toEqual({ kind: "ok", url: URL_TLS })
     expect(readAppStoreConfig({ SUPABASE_READONLY_DB_URL: URL_OK.replace("postgresql", "postgres") }).kind).toBe("ok")
+  })
+
+  it("requires TLS: no sslmode, or a plaintext-allowing one, becomes sslmode=require", () => {
+    const url = (u: string) => (readAppStoreConfig({ SUPABASE_READONLY_DB_URL: u }) as { url: string }).url
+    expect(url(URL_OK)).toBe(`${URL_OK}?sslmode=require`)
+    expect(url(`${URL_OK}?application_name=x`)).toBe(`${URL_OK}?application_name=x&sslmode=require`)
+    for (const weak of ["disable", "allow", "prefer", "false", ""]) {
+      expect(url(`${URL_OK}?sslmode=${weak}&connect_timeout=5`), weak).toBe(`${URL_OK}?sslmode=require&connect_timeout=5`)
+    }
+    expect(url(`${URL_OK}?sslmode=require`)).toBe(`${URL_OK}?sslmode=require`)
+    // Stronger, certificate-checking modes are kept as given.
+    expect(url(`${URL_OK}?sslmode=verify-full`)).toBe(`${URL_OK}?sslmode=verify-full`)
+    expect(url(`${URL_OK}?sslmode=verify-ca`)).toBe(`${URL_OK}?sslmode=verify-ca`)
+    // The password goes through byte for byte.
+    const encoded = "postgresql://ro:p%40ss%2Fw0rd@db.example.supabase.co:6543/postgres"
+    expect(url(encoded)).toBe(`${encoded}?sslmode=require`)
   })
 })
 
@@ -84,8 +102,21 @@ describe("postgresQuery (the default provider)", () => {
     expect(calls.url).toBe(URL_OK)
     expect(calls.mode).toBe("read only")
     expect(sent).toEqual([`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`, APP_STORE_PAYERS_SQL])
-    expect(calls.options).toMatchObject({ max: 1, prepare: false })
+    expect(calls.options).toMatchObject({ max: 1, prepare: false, ssl: "require" })
     expect(calls.ended).toBe(1)
+  })
+
+  it("passes ssl to the client (it outranks the URL): require, or the URL's verifying mode", async () => {
+    for (const [u, ssl] of [
+      [URL_OK, "require"],
+      [`${URL_OK}?sslmode=disable`, "require"],
+      [`${URL_OK}?sslmode=verify-full`, "verify-full"],
+      [`${URL_OK}?sslmode=verify-ca`, { rejectUnauthorized: true }],
+    ] as const) {
+      const { connect, calls } = fakeClient()
+      await postgresQuery(connect)(u)
+      expect(calls.options, u).toMatchObject({ ssl })
+    }
   })
 
   it("the SQL is Rashad and Bobbi's, with the plan join and the Stripe/invoice overlap excluded", () => {
@@ -126,7 +157,7 @@ describe("createAppStoreSource", () => {
     const query = vi.fn(async () => 53)
     const { src } = source(query)
     expect(await synced(src)).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
-    expect(query).toHaveBeenCalledWith(URL_OK)
+    expect(query).toHaveBeenCalledWith(URL_TLS)
   })
 
   it("caches for 5 minutes, then reads again", async () => {

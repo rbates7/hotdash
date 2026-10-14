@@ -52,17 +52,50 @@ type Env = Record<string, string | undefined>
 
 export type AppStoreConfig = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; url: string }
 
-/** `SUPABASE_READONLY_DB_URL`: a `postgres://` / `postgresql://` URL, or nothing is sent anywhere. */
+/** `sslmode`s that verify the server's certificate; kept as given. */
+const VERIFYING_SSLMODES = new Set(["verify-ca", "verify-full"])
+
+/**
+ * `SUPABASE_READONLY_DB_URL`: a `postgres://` / `postgresql://` URL, or
+ * nothing is sent anywhere. Always over TLS: no `sslmode` (or one that
+ * allows plaintext — `disable`, `allow`, `prefer`) becomes
+ * `sslmode=require`; `verify-ca` / `verify-full` are kept.
+ */
 export function readAppStoreConfig(env: Env = process.env): AppStoreConfig {
   const url = env.SUPABASE_READONLY_DB_URL?.trim()
   if (!url) return { kind: "missing" }
+  let sslmode: string | null
   try {
-    const { protocol, hostname } = new URL(url)
-    if ((protocol !== "postgres:" && protocol !== "postgresql:") || !hostname) return { kind: "invalid" }
+    const parsed = new URL(url)
+    if ((parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") || !parsed.hostname) return { kind: "invalid" }
+    sslmode = parsed.searchParams.get("sslmode")
   } catch {
     return { kind: "invalid" }
   }
-  return { kind: "ok", url }
+  if (sslmode !== null && VERIFYING_SSLMODES.has(sslmode)) return { kind: "ok", url }
+  // String edits, not URL re-serialisation, so the rest of the URL (an
+  // encoded password) goes through byte for byte.
+  const tls =
+    sslmode === null
+      ? `${url}${url.includes("?") ? "&" : "?"}sslmode=require`
+      : url.replace(/([?&])sslmode=[^&#]*/g, "$1sslmode=require")
+  return { kind: "ok", url: tls }
+}
+
+/**
+ * The `ssl` option for the client: `require`, or the URL's verifying mode
+ * (`verify-ca`: check the chain, not the host name). An explicit option
+ * outranks the URL in `postgres`, so TLS holds even for a URL that did not
+ * come through `readAppStoreConfig`.
+ */
+export function sslOption(url: string): "require" | "verify-full" | { rejectUnauthorized: true; checkServerIdentity: () => undefined } {
+  let mode: string | null = null
+  try {
+    mode = new URL(url).searchParams.get("sslmode")
+  } catch {}
+  if (mode === "verify-full") return "verify-full"
+  if (mode === "verify-ca") return { rejectUnauthorized: true, checkServerIdentity: () => undefined }
+  return "require"
 }
 
 /** Counts App Store payers at `url`. Rejects on any failure. */
@@ -86,6 +119,7 @@ export function postgresQuery(connect: Connect = postgres as unknown as Connect)
       max: 1,
       // Supabase's pooler (transaction mode) does not keep prepared statements.
       prepare: false,
+      ssl: sslOption(url),
       connect_timeout: 10,
       idle_timeout: 1,
       onnotice: () => {},
