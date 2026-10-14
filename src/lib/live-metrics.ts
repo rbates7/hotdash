@@ -2,13 +2,14 @@ import { formatWallClock } from "@/lib/clock"
 import type { Kpi } from "@/lib/home"
 import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
 import { formatCurrency, formatMetricValue, trendFor, type MetricId, type MetricSnapshot } from "@/lib/metrics"
+import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
 import type { StripeFeed } from "@/lib/stripe-summary"
 import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from "@/lib/subscriber-total"
 
 /**
- * Which numbers come from Stripe, and how a screen shows them. Everything
- * else on Home and Metrics stays sample, labelled.
+ * Which numbers come from Stripe or PostHog, and how a screen shows them.
+ * Everything else on Home and Metrics stays sample, labelled.
  *
  * - Not connected → the sample figure with its Sample label, as before.
  * - Connected     → Stripe's figure, no label.
@@ -25,13 +26,22 @@ import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from
  */
 export const STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set(["mrr", "churn", "trials", "subscribers"])
 
+/**
+ * The Metrics cards PostHog feeds: Active Users (an extra card, in "Add
+ * metric") and Retention, which turns from the sample's subscriber
+ * retention into app retention when live (its note says so). PostHog has
+ * iOS app events only, from June 2026.
+ */
+export const POSTHOG_METRIC_IDS: ReadonlySet<MetricId> = new Set(["active", "retention"])
+
 /** "Last updated Tue, Oct 13 · 9:41 PM CDT", on the shared clock, in the founder's zone. */
 export function lastUpdatedLabel(at: Date, timeZone: string) {
   return `Last updated ${formatWallClock(at, timeZone)}`
 }
 
-/** A Stripe figure as a Metrics card shows it. */
+/** A live (Stripe or PostHog) figure as a Metrics card shows it. */
 export type LiveMetric = {
+  source: "stripe" | "posthog"
   /** Null when there was nothing to divide by (no trials ended, nobody to churn). */
   value: number | null
   previous: number | null
@@ -40,6 +50,8 @@ export type LiveMetric = {
   updated: string | null
   /** Why `value` is null, in the card's words. */
   empty: string | null
+  /** What the live figure counts, under the headline (PostHog's cards). */
+  note?: string
   /** Subscribers only: the groups the total adds up. */
   breakdown?: SubscriberBreakdownView
 }
@@ -72,6 +84,7 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
   return {
     kind: "live",
     metric: {
+      source: "stripe",
       value: source.value,
       previous: source.previous,
       series: source.series,
@@ -80,6 +93,52 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
       ...(subscribers && { breakdown: subscribers.breakdown }),
     },
   }
+}
+
+const count = (n: number) => n.toLocaleString("en-US")
+
+/** What the Metrics card `id` shows from PostHog's feed. */
+export function posthogMetric(id: MetricId, feed: PosthogFeed, timeZone: string): LiveState {
+  if (!POSTHOG_METRIC_IDS.has(id) || feed.kind === "sample") return { kind: "sample" }
+  if (feed.kind === "loading") return { kind: "loading" }
+  const updated = feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null
+  if (id === "active") {
+    const a = feed.metrics.activeUsers
+    return {
+      kind: "live",
+      metric: {
+        source: "posthog",
+        value: a.value,
+        previous: a.previous,
+        series: a.series,
+        updated,
+        empty: a.value === null ? "PostHog has under 28 days of app events" : null,
+        note: `iOS app · ${count(a.day)} in 24 h · ${count(a.week)} in 7 days`,
+      },
+    }
+  }
+  const r = feed.metrics.retention
+  return {
+    kind: "live",
+    metric: {
+      source: "posthog",
+      value: r.value,
+      previous: r.previous,
+      series: r.series,
+      updated,
+      empty:
+        r.value !== null ? null : r.base === 0 ? "No app users in the 28 days before" : "PostHog has under 56 days of app events",
+      note:
+        r.base && r.retained !== null
+          ? `iOS app · ${count(r.retained)} of ${count(r.base)} users came back`
+          : "iOS app users active again within 28 days",
+    },
+  }
+}
+
+/** What Metrics card `id` shows: PostHog's figure for its cards, Stripe's for Stripe's, sample otherwise. */
+export function liveCard(id: MetricId, stripe: StripeFeed, posthog: PosthogFeed, timeZone: string): LiveState {
+  return POSTHOG_METRIC_IDS.has(id) ? posthogMetric(id, posthog, timeZone) : liveMetric(id, stripe, timeZone)
 }
 
 /** The headline as the card prints it: the unit's format, or an em dash with nothing to show. */
