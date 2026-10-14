@@ -4,6 +4,7 @@ import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
 import { formatCurrency, formatMetricValue, trendFor, type MetricId, type MetricSnapshot } from "@/lib/metrics"
 import type { Rate } from "@/lib/stripe-metrics"
 import type { StripeFeed } from "@/lib/stripe-summary"
+import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from "@/lib/subscriber-total"
 
 /**
  * Which numbers come from Stripe, and how a screen shows them. Everything
@@ -18,7 +19,9 @@ import type { StripeFeed } from "@/lib/stripe-summary"
 /**
  * The Metrics cards Stripe feeds. Subscribers is here as well as MRR,
  * Churn Rate and Trial Conversions so the card never disagrees with Home's
- * Subscribers card and ticker, which link to it.
+ * Subscribers card and ticker, which link to it. Subscribers is the total
+ * (`subscriberTotal`: Stripe paying + App Store + free accounts), with
+ * its breakdown.
  */
 export const STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set(["mrr", "churn", "trials", "subscribers"])
 
@@ -37,6 +40,18 @@ export type LiveMetric = {
   updated: string | null
   /** Why `value` is null, in the card's words. */
   empty: string | null
+  /** Subscribers only: the groups the total adds up. */
+  breakdown?: SubscriberBreakdownView
+}
+
+/** The rows under a Subscribers total, and its fine print (or null). */
+export type SubscriberBreakdownView = { rows: BreakdownRow[]; note: string | null }
+
+/** Stripe's figures as the Subscribers total, with its breakdown. */
+export function liveSubscribers(feed: Extract<StripeFeed, { kind: "live" }>, timeZone: string) {
+  const total = subscriberTotal(feed.metrics, feed.appStore)
+  const breakdown: SubscriberBreakdownView = { rows: breakdownRows(total), note: breakdownNote(total, timeZone) }
+  return { total, breakdown }
 }
 
 export type LiveState = { kind: "sample" } | { kind: "loading" } | { kind: "live"; metric: LiveMetric }
@@ -51,8 +66,9 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
   if (!STRIPE_METRIC_IDS.has(id) || feed.kind === "sample") return { kind: "sample" }
   if (feed.kind === "loading") return { kind: "loading" }
   const m = feed.metrics
+  const subscribers = id === "subscribers" ? liveSubscribers(feed, timeZone) : null
   const source: { value: Rate; previous: Rate; series: Rate[] } =
-    id === "mrr" ? m.mrr : id === "churn" ? m.churn : id === "trials" ? m.trialToPaid : m.subscribers
+    id === "mrr" ? m.mrr : id === "churn" ? m.churn : id === "trials" ? m.trialToPaid : subscribers!.total
   return {
     kind: "live",
     metric: {
@@ -61,6 +77,7 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
       series: source.series,
       updated: feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null,
       empty: source.value === null ? (EMPTY[id] ?? "No data yet") : null,
+      ...(subscribers && { breakdown: subscribers.breakdown }),
     },
   }
 }
@@ -124,6 +141,7 @@ export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id:
       direction: t ? direction(t) : "flat",
       source: "stripe",
       updated,
+      ...(state.metric.breakdown && { breakdown: state.metric.breakdown }),
     }
   })
 }

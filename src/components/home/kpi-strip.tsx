@@ -4,6 +4,7 @@ import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
+import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 import { HOME_KPI_HEAD } from "@/components/home/responsive"
 
 const TONE_CLASS: Record<KpiTone, string> = {
@@ -91,6 +92,10 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
         <p data-testid="kpi-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
           {kpi.updated}
         </p>
+      )}
+      {/* The total's three groups; a sample or loading card keeps their room. */}
+      {kpi.id === "subscribers" && (
+        <SubscriberBreakdown breakdown={kpi.breakdown} reserve={!kpi.breakdown} className="mt-2.5" />
       )}
       {/* Always a pill's height: a loading card or one with no comparison
           keeps the row, so the strip does not grow when the figures land. */}

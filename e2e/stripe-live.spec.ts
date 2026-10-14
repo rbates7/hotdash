@@ -3,14 +3,16 @@ import { expect, test, type Page } from "@playwright/test"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
-import { liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { MIN_TAP, expectTapTarget } from "./support/tap-target"
 import { setTheme } from "./support/theme"
 
 /**
- * Live Stripe, three states, three screens. e2e never has a Stripe key:
- * "not connected" is the real server with none; "connected" and "stale"
- * mock /api/stripe/summary in the browser. Nothing here reaches Stripe.
+ * Live Stripe, three states, three screens, and the App Store count beside
+ * it (connected or not). e2e never has a Stripe key or a database URL:
+ * "not connected" is the real server with neither; "connected" and
+ * "stale" mock /api/stripe/summary in the browser. Nothing here reaches
+ * Stripe or Chlk's database.
  */
 
 const main = (page: Page) => page.getByRole("main")
@@ -23,6 +25,8 @@ const stripeRow = (page: Page) =>
 const metricsHeaderTag = (page: Page) => main(page).locator("header").first().getByTestId("sample-data-tag")
 const ticker = (page: Page) => page.getByTestId("subscriber-ticker").filter({ visible: true })
 const spoken = (page: Page) => ticker(page).getByRole("status").locator(".sr-only")
+const breakdownRows = (scope: ReturnType<Page["locator"]>) =>
+  scope.getByTestId("subscriber-breakdown").locator("[data-row]")
 
 async function open(page: Page, path: string) {
   await page.goto(path)
@@ -32,11 +36,16 @@ async function open(page: Page, path: string) {
 /* ---------------------------------------------------- the real endpoints */
 
 test.describe("server endpoints with no key", () => {
-  test("/api/stripe/summary is not_connected — no figures, no error text", async ({ request }) => {
+  test("/api/stripe/summary is not_connected, App Store too — no figures, no error text", async ({ request }) => {
     const res = await request.get("/api/stripe/summary?tz=America/Chicago")
     expect(res.status()).toBe(200)
     expect(res.headers()["cache-control"]).toBe("no-store")
-    expect(await res.json()).toEqual({ status: "not_connected", lastSyncedAt: null, metrics: null })
+    expect(await res.json()).toEqual({
+      status: "not_connected",
+      lastSyncedAt: null,
+      metrics: null,
+      appStore: { status: "not_connected" },
+    })
   })
 
   test("/api/health/stripe says only not_configured", async ({ request }) => {
@@ -60,6 +69,9 @@ test.describe("Stripe not connected (1440)", () => {
     await expect(strip(page).getByTestId("kpi-sample-label")).toBeVisible()
     await expect(ticker(page).getByTestId("sample-data-tag")).toBeVisible()
     await expect(main(page).getByText(/Last updated/)).toHaveCount(0)
+    // Sample, as before: no breakdown, and the ticker has nothing to describe.
+    await expect(kpi(page, "Subscribers").getByTestId("subscriber-breakdown")).toHaveCount(0)
+    await expect(ticker(page).getByRole("link")).not.toHaveAttribute("aria-describedby")
   })
 
   test("Metrics: every card is sample, labelled", async ({ page }) => {
@@ -91,13 +103,13 @@ test.describe("Stripe connected (1440)", () => {
     const zones = await mockStripe(page, liveSummary("connected"))
     await open(page, "/home")
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe")
-    await expect(kpi(page, "Subscribers")).toContainText("1,284")
+    await expect(kpi(page, "Subscribers")).toContainText("1,337")
     await expect(kpi(page, "Subscribers")).toContainText("+34 vs previous 28 days")
     await expect(kpi(page, "Cash this week")).toContainText("$4,322")
     await expect(kpi(page, "Cash this week")).toContainText("vs same time last week")
     await expect(strip(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
-    await expect(spoken(page)).toHaveText("Subscribers: 1,284, up 3 today")
+    await expect(spoken(page)).toHaveText("Subscribers: 1,337, up 3 today")
     await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
     // Asked in the founder's zone (Central by default).
     expect(zones[0]).toBe("America/Chicago")
@@ -106,7 +118,7 @@ test.describe("Stripe connected (1440)", () => {
   test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest sample", async ({ page }) => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/metrics")
-    const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,284" }
+    const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,337" }
     for (const [name, value] of Object.entries(live)) {
       await expect(metricCard(page, name)).toHaveAttribute("data-source", "stripe")
       await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText(value)
@@ -161,6 +173,7 @@ test.describe("Stripe stale (1440)", () => {
     }
     await expect(ticker(page)).toHaveAttribute("data-state", "stale")
     await expect(ticker(page).getByText("Last updated 9:41 AM CDT", { exact: true })).toBeVisible()
+    await expect(kpi(page, "Subscribers")).toContainText("1,337")
   })
 
   test("Metrics: the live cards say Last updated", async ({ page }) => {
@@ -187,12 +200,117 @@ test.describe("Stripe stale (1440)", () => {
     )
     await page.clock.install()
     await open(page, "/home")
-    await expect(kpi(page, "Subscribers")).toContainText("1,284")
+    await expect(kpi(page, "Subscribers")).toContainText("1,337")
     fail = true
     await page.clock.runFor(61_000)
     await expect(kpi(page, "Subscribers").getByTestId("kpi-updated")).toHaveText(/^Last updated /)
-    await expect(kpi(page, "Subscribers")).toContainText("1,284")
+    await expect(kpi(page, "Subscribers")).toContainText("1,337")
     await expect(main(page).getByText(/boom|error/i)).toHaveCount(0)
+  })
+})
+
+/* ------------------------------------------- the Subscribers total (1440) */
+
+const ROWS_CONNECTED = [
+  ["Stripe paying", "1,110"],
+  ["App Store", "53"],
+  ["Free (coupon, never paid)", "174"],
+]
+
+async function rowsOf(scope: ReturnType<Page["locator"]>) {
+  const rows = breakdownRows(scope)
+  await expect(rows).toHaveCount(3)
+  return Promise.all(
+    (await rows.all()).map(async (r) => [await r.locator("dt").innerText(), await r.locator("dd").innerText()])
+  )
+}
+
+test.describe("Subscribers total, App Store connected (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("Home card, ticker and Metrics card all show 1,337 = 1,110 + 53 + 174", async ({ page }) => {
+    await mockStripe(page, liveSummary("connected"))
+    await open(page, "/home")
+    const card = kpi(page, "Subscribers")
+    await expect(card).toContainText("1,337")
+    expect(await rowsOf(card)).toEqual(ROWS_CONNECTED)
+    await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText("")
+    await expect(ticker(page).getByTestId("ticker-tiles")).toHaveText("1,337")
+
+    await open(page, "/metrics")
+    const metrics = metricCard(page, "Subscribers")
+    await expect(metrics.getByTestId("metric-value")).toHaveText("1,337")
+    expect(await rowsOf(metrics)).toEqual(ROWS_CONNECTED)
+    await expect(page.getByRole("note", { name: "Partly live" })).toContainText("App Store payers from Chlk’s database")
+  })
+
+  test("ticker: the breakdown is its accessible description and a tooltip on hover and keyboard focus; the live region speaks the total only", async ({
+    page,
+  }) => {
+    await mockStripe(page, liveSummary("connected"))
+    await open(page, "/home")
+    const link = ticker(page).getByRole("link")
+    await expect(link).toHaveAccessibleName("Subscribers: 1,337, up 3 today")
+    await expect(link).toHaveAccessibleDescription("Stripe paying 1,110, App Store 53, Free (coupon, never paid) 174.")
+    await expect(spoken(page)).toHaveText("Subscribers: 1,337, up 3 today")
+
+    const tip = page.getByTestId("ticker-breakdown")
+    const before = await ticker(page).boundingBox()
+    await link.hover()
+    await expect(tip).toBeVisible()
+    await expect(tip).toContainText("Stripe paying1,110")
+    // Portalled: opening it moves nothing in the header.
+    expect(await ticker(page).boundingBox()).toEqual(before)
+    await page.mouse.move(1, 1)
+    await expect(tip).toBeHidden()
+
+    await link.focus()
+    await page.keyboard.press("Shift+Tab")
+    await page.keyboard.press("Tab")
+    await expect(link).toBeFocused()
+    await expect(tip).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(tip).toBeHidden()
+  })
+
+  test("ticker: a click still goes to Metrics › New Subscribers", async ({ page }) => {
+    await mockStripe(page, liveSummary("connected"))
+    await open(page, "/home")
+    await ticker(page).getByRole("link").click()
+    await expect(page).toHaveURL(/\/metrics\?tab=new$/)
+  })
+})
+
+test.describe("Subscribers total, App Store not connected (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("the total is Stripe paying + free, the App Store row says Not connected, and the total says it excludes it", async ({
+    page,
+  }) => {
+    await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
+    await open(page, "/home")
+    const card = kpi(page, "Subscribers")
+    await expect(card).toContainText("1,284")
+    expect(await rowsOf(card)).toEqual([
+      ["Stripe paying", "1,110"],
+      ["App Store", "Not connected"],
+      ["Free (coupon, never paid)", "174"],
+    ])
+    await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText("Total excludes App Store (not connected)")
+    await expect(card).not.toContainText(/App Store\s*0\b/)
+    const link = ticker(page).getByRole("link")
+    await expect(link).toHaveAccessibleDescription(
+      "Stripe paying 1,110, App Store Not connected, Free (coupon, never paid) 174. Total excludes App Store (not connected)."
+    )
+    await link.hover()
+    await expect(page.getByTestId("ticker-breakdown")).toContainText("Total excludes App Store (not connected)")
+
+    await open(page, "/metrics")
+    const metrics = metricCard(page, "Subscribers")
+    await expect(metrics.getByTestId("metric-value")).toHaveText("1,284")
+    await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText("Total excludes App Store (not connected)")
+    const notice = page.getByRole("note", { name: "Partly live" })
+    await expect(notice).not.toContainText("App Store")
   })
 })
 

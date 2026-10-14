@@ -1,14 +1,19 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest"
 
 import { CENTRAL } from "@/lib/clock"
-import { computeStripeMetrics, isPaying, type StripeSubscription } from "@/lib/stripe-metrics"
+import { createAppStoreSource } from "@/lib/server/app-store"
+import { computeStripeMetrics, isFreeAccount, isPaying, type StripeSubscription } from "@/lib/stripe-metrics"
+import { subscriberTotal } from "@/lib/subscriber-total"
 import R from "@/lib/__fixtures__/stripe-reconcile-2026-10-14.json"
 
 /**
  * Bobbi's reconciliation (Data, Oct 14 2026) as a synthetic Stripe: one
  * made-up subscription per real one in each category she counted, so the
- * dashboard's definition must land on her headline, and Coulson's older
- * method on his 1,156, from the same list. No real Stripe data.
+ * dashboard's definitions must land on her headlines — 1,110 paying, 174
+ * free, plus the App Store's 53 from a mocked provider: 1,337 — and
+ * Coulson's older method on his 1,156, from the same list. No real Stripe
+ * data, no database.
  */
 
 const NOW = new Date("2026-10-14T13:00:00.000Z") // ~8 AM CT
@@ -72,11 +77,40 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
     expect(FIXTURE.filter((s) => s.status === "active" && hasFullCouponNow(s)).length).toBe(R.coulson.active_with_100pct_coupon)
   })
 
-  it("Subscribers is the 1,110 headline: active and past_due that have paid", () => {
+  it("Stripe paying is the 1,110 headline: active and past_due that have paid", () => {
     const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
     expect(m.subscribers.value).toBe(1110)
     expect(m.subscribers.value).toBe(R.paying.headline)
     expect(FIXTURE.filter((s) => isPaying(s) && s.status === "active").length).toBe(1079)
+  })
+
+  it("Free accounts are the 174 active subscriptions that never paid, coupon or not", () => {
+    const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
+    expect(m.freeAccounts.value).toBe(174)
+    expect(m.freeAccounts.value).toBe(R.free_never_paid_active)
+    expect(FIXTURE.filter((s) => isFreeAccount(s) && isPaying(s))).toHaveLength(0)
+    // Never-paid trialing and past_due are in neither group.
+    const neither = FIXTURE.filter((s) => s.ended_at === null && !isPaying(s) && !isFreeAccount(s))
+    expect(neither).toHaveLength(R.never_paid_not_ended.trialing + R.never_paid_not_ended.past_due)
+  })
+
+  it("the total is 1,337 = 1,110 + 53 + 174, with the App Store from a mocked provider", async () => {
+    const appStore = createAppStoreSource({
+      env: () => ({ SUPABASE_READONLY_DB_URL: "postgresql://ro:fake@127.0.0.1:5432/postgres" }),
+      query: async () => R.app_store.payers_not_in_stripe,
+      clock: () => NOW.getTime(),
+    })
+    const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
+    const total = subscriberTotal(m, await appStore.read())
+    expect([total.stripePaying, total.appStore, total.freeAccounts]).toEqual([1110, 53, 174])
+    expect(total.value).toBe(1337)
+    expect(total.value).toBe(R.total_headline)
+
+    // The App Store not connected: the total leaves it out, never counts it as 0 payers.
+    const off = createAppStoreSource({ env: () => ({}) })
+    const without = subscriberTotal(m, await off.read())
+    expect(without.appStore).toBeNull()
+    expect(without.value).toBe(1110 + 174)
   })
 
   it("Coulson's old method gives 1,156 on the same list, and the bridge explains the gap", () => {
