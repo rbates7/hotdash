@@ -8,10 +8,12 @@ import {
   ChevronRightIcon,
   CircleQuestionMarkIcon,
   LogOutIcon,
+  SettingsIcon,
   XIcon,
 } from "lucide-react"
 
-import { isActiveRoute, navItems } from "@/lib/nav"
+import { SIGN_OUT_PATH } from "@/lib/auth/paths"
+import { SETTINGS_LABEL, SETTINGS_PATH, isActiveRoute, navItems } from "@/lib/nav"
 import { cn } from "@/lib/utils"
 import { FounderIdentity } from "@/components/founder-identity"
 import { Button } from "@/components/ui/button"
@@ -34,6 +36,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 export const CLOSE_DRAWER_NAME = "Close"
 export const EXPAND_SIDEBAR_NAME = "Expand sidebar"
 export const COLLAPSE_SIDEBAR_NAME = "Collapse sidebar"
+const SIGN_OUT_FORM_ID = "sidebar-sign-out"
 
 /**
  * Deke tablet including 1180 (768–1279): 44px rows. Desktop ≥1280 keeps h-8.
@@ -180,6 +183,17 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
+              isActive={isActiveRoute(pathname, SETTINGS_PATH)}
+              tooltip={SETTINGS_LABEL}
+              className={TABLET_ROW}
+              render={<Link href={SETTINGS_PATH} onClick={closeOverlay} />}
+            >
+              <SettingsIcon />
+              <span>{SETTINGS_LABEL}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
               tooltip="Help"
               className={TABLET_ROW}
             >
@@ -188,7 +202,11 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            {/* POSTs the form below; a GET link could be hit by a prefetch. */}
+            <form id={SIGN_OUT_FORM_ID} action={SIGN_OUT_PATH} method="post" hidden />
             <SidebarMenuButton
+              type="submit"
+              form={SIGN_OUT_FORM_ID}
               tooltip="Logout"
               className={cn(
                 "text-destructive hover:text-destructive [&_svg]:text-destructive",

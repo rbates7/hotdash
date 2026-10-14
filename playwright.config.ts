@@ -1,7 +1,12 @@
 import { defineConfig, devices } from "@playwright/test"
 
+import { SIGNED_IN_STATE, TEST_AUTH_ENV } from "./e2e/support/test-credentials"
+
 const PORT = Number(process.env.PORT ?? 3001)
 const baseURL = `http://localhost:${PORT}`
+
+/** Specs that manage their own (signed-out) browser state. */
+const SIGNED_OUT_SPECS = /sign-in\.spec\.ts/
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,9 +23,24 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    // Signs in once through the real form and saves the cookie for the rest.
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], storageState: SIGNED_IN_STATE },
+      dependencies: ["setup"],
+      testIgnore: SIGNED_OUT_SPECS,
+    },
+    {
+      name: "signed-out",
+      use: { ...devices["Desktop Chrome"], storageState: { cookies: [], origins: [] } },
+      testMatch: SIGNED_OUT_SPECS,
+    },
+  ],
   // CI builds first so the smoke runs against the production bundle; locally
-  // it reuses a dev server you already have on the port.
+  // it reuses a dev server you already have on the port (start that one with
+  // the TEST_AUTH_ENV values, or sign-in will fail).
   webServer: {
     command: process.env.CI
       ? `pnpm start --port ${PORT}`
@@ -28,5 +48,7 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // TEST-ONLY credentials; see e2e/support/test-credentials.ts.
+    env: TEST_AUTH_ENV,
   },
 })
