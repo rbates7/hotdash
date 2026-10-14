@@ -1,11 +1,7 @@
 import type { Metadata } from "next"
-import { cookies } from "next/headers"
 import { Geist, Geist_Mono } from "next/font/google"
 
-import { AppHeader } from "@/components/app-header"
-import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 import "./globals.css"
 
@@ -24,16 +20,15 @@ export const metadata: Metadata = {
   description: "Founder dashboard for Chlk.",
 }
 
-export default async function RootLayout({
+/**
+ * Document and theme only. The sidebar shell lives in `(dashboard)/layout.tsx`
+ * so /sign-in can render without it.
+ */
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // The sidebar persists its open state in a cookie; read it here so the
-  // first paint already matches, instead of flashing open then collapsing.
-  const sidebarOpen =
-    (await cookies()).get("sidebar_state")?.value !== "false"
-
   return (
     <html
       lang="en"
@@ -43,19 +38,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full">
-        <ThemeProvider>
-          <SidebarProvider defaultOpen={sidebarOpen}>
-            <AppSidebar />
-            {/* SidebarInset already renders the <main> landmark. It also sets
-                w-full, which beside a sibling rail resolves wider than the space
-                actually left — min-w-0 lets it shrink so wide content scrolls
-                inside the page instead of off the edge. */}
-            <SidebarInset className="min-w-0 p-4 md:p-6">
-              <AppHeader />
-              {children}
-            </SidebarInset>
-          </SidebarProvider>
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   )

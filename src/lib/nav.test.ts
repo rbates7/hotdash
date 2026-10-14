@@ -14,6 +14,10 @@ describe("navLabelFor", () => {
     expect(navLabelFor("/crm/contacts/1")).toBe("CRM")
   })
 
+  it("names the footer's Settings route", () => {
+    expect(navLabelFor("/settings")).toBe("Settings")
+  })
+
   it("falls back when the path is not a sidebar item", () => {
     expect(navLabelFor("/nope")).toBe("Founder dashboard")
   })
