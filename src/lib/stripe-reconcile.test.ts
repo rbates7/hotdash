@@ -101,6 +101,8 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
       clock: () => NOW.getTime(),
     })
     const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
+    await appStore.read() // starts the count in the background
+    await appStore.settled()
     const total = subscriberTotal(m, await appStore.read())
     expect([total.stripePaying, total.appStore, total.freeAccounts]).toEqual([1110, 53, 174])
     expect(total.value).toBe(1337)

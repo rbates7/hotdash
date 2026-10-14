@@ -11,9 +11,9 @@ Postgres. Everything else on the dashboard is still sample data, labelled.
 | Env vars | `STRIPE_READONLY_KEY` and `SUPABASE_READONLY_DB_URL` — **server only**, never `NEXT_PUBLIC_`. Either can be missing: that source is then "not connected". |
 | Database URL | `SUPABASE_READONLY_DB_URL`: a `postgres://`/`postgresql://` URL for a **read-only role** with `SELECT` on `chlk.subscriptions` and `chlk.plans` only. Schema owner: **Radcliffe**. |
 | Key | A Stripe **restricted** key (`rk_live_…`) with read access to Subscriptions, Invoices, Charges and Coupons. The server refuses anything that is not `rk_…`/`sk_…`. |
-| Calls | `subscriptions.list` (all statuses, discounts expanded), `invoices.list` (`status=paid`, every page, listed once and joined on `parent.subscription_details.subscription` — never one call per subscription) and `charges.list` (last 15 days), via the official `stripe` package (pinned). List calls only. A full sync takes a few minutes at ~3k subscriptions; the routes allow 300 s. |
-| Cache | One sync per server process every 5 minutes; a failed sync retries after 1 minute. The last good copy is kept. |
-| App Store read | `src/lib/server/app-store.ts`, via the `postgres` package (pinned): one short-lived connection per count (`max: 1`, `prepare: false` for Supabase's pooler), a `begin read only` transaction with `set local statement_timeout = 10000`, then the fixed query below. Same 5-minute cache, 1-minute retry and last good count. Any failure is `stale` (with a last good count) or `not_connected` — never a throw, never held up with Stripe's sync, never a made-up 0. Logs only the error's class name. |
+| Calls | `subscriptions.list` (all statuses, discounts expanded), `invoices.list` (`status=paid`, every page, listed once and joined on `parent.subscription_details.subscription` — never one call per subscription) and `charges.list` (last 15 days), via the official `stripe` package (pinned). List calls only. A full sync takes a few minutes at ~3k subscriptions; it is cut off at 240 s (the routes allow 300 s). |
+| Cache | One sync per server process every 5 minutes, always **in the background**: a request never waits for it. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with no copy yet it gets `not_connected` at once (the dashboard shows its labelled sample figures) and the next poll, a minute later, picks up the sync once it lands. The routes hand the running sync to `after()` so it outlives the response. A sync over 240 s is a failure; a failed sync retries 1 minute after it failed. The last good copy is kept. |
+| App Store read | `src/lib/server/app-store.ts`, via the `postgres` package (pinned): one short-lived connection per count (`max: 1`, `prepare: false` for Supabase's pooler), a `begin read only` transaction with `set local statement_timeout = 10000`, then the fixed query below. Same background refresh (never awaited by a request; `not_connected` until the first count lands), 240 s limit, 5-minute cache, 1-minute retry and last good count. Any failure is `stale` (with a last good count) or `not_connected` — never a throw, never held up with Stripe's sync, never a made-up 0. Logs only the error's class name. |
 
 Optional, local only: `STRIPE_API_BASE=http://127.0.0.1:<port>` points the SDK
 at a loopback mock. It is ignored in a production build unless
@@ -25,7 +25,8 @@ entirely, so a key can never be sent somewhere else.
 - `GET /api/stripe/summary?tz=<zone>` → `{ status, lastSyncedAt, metrics, appStore }`.
   `status` is `connected` (synced within 5 min), `stale` (Stripe failed; the
   last good figures and their `lastSyncedAt`), or `not_connected` (no key, or
-  never synced; `metrics: null`). `appStore` is its own source:
+  no sync has landed yet — including the first few minutes after a cold
+  start; `metrics: null`). `appStore` is its own source:
   `{ status: "connected" | "stale", count, asOf }` or
   `{ status: "not_connected" }`. The two are read side by side and fail
   independently. Never an error body, never made-up zeros.

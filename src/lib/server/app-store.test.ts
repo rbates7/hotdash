@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import {
@@ -15,17 +15,27 @@ import {
   setAppStoreSource,
   type Connect,
 } from "@/lib/server/app-store"
+import { SYNC_TIMEOUT_MS } from "@/lib/server/time-limit"
 
 /** A made-up URL: loopback, a fake role, never a real database. */
 const URL_OK = "postgresql://hotdash_ro:not-a-real-password@127.0.0.1:5432/postgres"
 const ENV = { SUPABASE_READONLY_DB_URL: URL_OK }
 const T0 = Date.parse("2026-10-14T13:00:00.000Z")
+/** Real wall time, taken before fake timers replace `performance.now`. */
+const wallClock = performance.now.bind(performance)
 
 function source(query: (url: string) => Promise<number>, env: Record<string, string | undefined> = ENV) {
   let now = T0
   const logs: string[] = []
   const src = createAppStoreSource({ env: () => env, query, clock: () => now, log: (k) => logs.push(k) })
   return { src, logs, tick: (ms: number) => (now += ms) }
+}
+
+/** A read that starts a count, then the count itself run to the end. */
+async function synced(src: ReturnType<typeof createAppStoreSource>) {
+  await src.read()
+  await src.settled()
+  return src.read()
 }
 
 /** A stand-in `postgres` client that records what it was sent. */
@@ -115,29 +125,30 @@ describe("createAppStoreSource", () => {
   it("connected: the count and when it was taken", async () => {
     const query = vi.fn(async () => 53)
     const { src } = source(query)
-    expect(await src.read()).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await synced(src)).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
     expect(query).toHaveBeenCalledWith(URL_OK)
   })
 
   it("caches for 5 minutes, then reads again", async () => {
     const query = vi.fn(async () => 53)
     const { src, tick } = source(query)
-    await src.read()
+    await synced(src)
     tick(CACHE_TTL_MS - 1)
-    await src.read()
+    await synced(src)
     expect(query).toHaveBeenCalledTimes(1)
     tick(1)
-    await src.read()
+    await synced(src)
     expect(query).toHaveBeenCalledTimes(2)
   })
 
-  it("concurrent reads share one query", async () => {
+  it("concurrent reads share one background query (single flight), and neither waits for it", async () => {
     let release!: (n: number) => void
     const query = vi.fn(() => new Promise<number>((r) => (release = r)))
     const { src } = source(query)
-    const both = Promise.all([src.read(), src.read()])
+    expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_NOT_CONNECTED, APP_STORE_NOT_CONNECTED])
     release(53)
-    expect((await both).map((r) => r.status)).toEqual(["connected", "connected"])
+    await src.settled()
+    expect((await src.read()).status).toBe("connected")
     expect(query).toHaveBeenCalledTimes(1)
   })
 
@@ -145,7 +156,7 @@ describe("createAppStoreSource", () => {
     const { src, logs } = source(async () => {
       throw new TypeError("connect ECONNREFUSED postgresql://hotdash_ro:not-a-real-password@127.0.0.1")
     })
-    await expect(src.read()).resolves.toEqual(APP_STORE_NOT_CONNECTED)
+    await expect(synced(src)).resolves.toEqual(APP_STORE_NOT_CONNECTED)
     expect(logs).toEqual(["TypeError"])
   })
 
@@ -156,23 +167,23 @@ describe("createAppStoreSource", () => {
       return 53
     })
     const { src, tick } = source(query)
-    await src.read()
+    await synced(src)
     fail = true
     tick(CACHE_TTL_MS)
-    expect(await src.read()).toEqual({ status: "stale", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await synced(src)).toEqual({ status: "stale", count: 53, asOf: new Date(T0).toISOString() })
     tick(RETRY_AFTER_MS - 1)
-    await src.read()
+    await synced(src)
     expect(query).toHaveBeenCalledTimes(2)
     fail = false
     tick(1)
-    expect((await src.read()).status).toBe("connected")
+    expect((await synced(src)).status).toBe("connected")
   })
 
   it("the URL removed after a good count: stale, not queried", async () => {
     const env: Record<string, string | undefined> = { ...ENV }
     const query = vi.fn(async () => 53)
     const { src } = source(query, env)
-    await src.read()
+    await synced(src)
     delete env.SUPABASE_READONLY_DB_URL
     expect((await src.read()).status).toBe("stale")
     expect(query).toHaveBeenCalledTimes(1)
@@ -186,11 +197,49 @@ describe("createAppStoreSource", () => {
         throw new Error(`password authentication failed for ${URL_OK}`)
       },
     })
-    await src.read()
+    await synced(src)
     const logged = warn.mock.calls.flat().join(" ")
     expect(logged).toBe("[app-store] read failed: Error")
     expect(logged).not.toContain("not-a-real-password")
     warn.mockRestore()
+  })
+})
+
+describe("createAppStoreSource never waits for the database", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("a slow first count: not connected at once, connected once it lands", async () => {
+    vi.useFakeTimers({ now: T0 })
+    const src = createAppStoreSource({ env: () => ENV, query: () => new Promise((r) => setTimeout(() => r(53), 200_000)) })
+    const started = wallClock()
+    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    expect(wallClock() - started).toBeLessThan(1_000)
+    await vi.advanceTimersByTimeAsync(200_000)
+    expect(await src.read()).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
+  })
+
+  it("a count over the time limit is a failure: the last good count is stale, retried a minute later", async () => {
+    vi.useFakeTimers({ now: T0 })
+    const logs: string[] = []
+    const query = vi.fn(async () => 53)
+    const src = createAppStoreSource({ env: () => ENV, query, log: (k) => logs.push(k) })
+    await synced(src)
+
+    query.mockImplementation(() => new Promise(() => {})) // never answers
+    vi.advanceTimersByTime(CACHE_TTL_MS)
+    expect((await src.read()).status).toBe("connected")
+    await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
+    expect(logs).toEqual(["SyncTimeoutError"])
+    expect(await src.read()).toEqual({ status: "stale", count: 53, asOf: new Date(T0).toISOString() })
+
+    query.mockImplementation(async () => 54)
+    vi.advanceTimersByTime(RETRY_AFTER_MS - 1)
+    await src.read()
+    expect(query).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    expect(await synced(src)).toMatchObject({ status: "connected", count: 54 })
   })
 })
 

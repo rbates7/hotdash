@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server"
+import { after, type NextRequest } from "next/server"
 
 import { APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-summary"
 import { DEFAULT_TIME_ZONE, isTimeZoneId } from "@/lib/clock"
@@ -16,10 +16,13 @@ export const dynamic = "force-dynamic"
  * `?tz=` is the founder's Settings zone (one of the offered zones; anything
  * else is Central) — "today" and "this week" start at its midnight.
  * Never an error body: a failure is `stale` or `not_connected`, and the
- * two sources are read side by side, each failing on its own.
+ * two sources are read side by side, each failing on its own. Neither
+ * waits for its source: a due sync runs after the response (`after`), and
+ * the next poll picks it up.
  */
 export async function GET(request: NextRequest) {
   const tz = request.nextUrl.searchParams.get("tz")
+  after(() => Promise.all([stripeService.settled(), appStoreSource().settled?.()]))
   const [stripe, appStore] = await Promise.all([
     stripeService.summary(isTimeZoneId(tz) ? tz : DEFAULT_TIME_ZONE).catch((): StripeSummary => NOT_CONNECTED),
     appStoreSource()
@@ -30,5 +33,8 @@ export async function GET(request: NextRequest) {
   return Response.json(body, { headers: { "Cache-Control": "no-store" } })
 }
 
-/** A full sync lists every subscription and paid invoice (~3.5 min at 3k subs). */
+/**
+ * A full sync lists every subscription and paid invoice (~3.5 min at 3k
+ * subs). It runs after the response, cut off at `SYNC_TIMEOUT_MS` (240 s).
+ */
 export const maxDuration = 300

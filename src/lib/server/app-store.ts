@@ -3,6 +3,7 @@ import "server-only"
 import postgres from "postgres"
 
 import { APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-summary"
+import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
  * App Store payers — group (2) of the Subscribers total — read from Chlk's
@@ -11,9 +12,10 @@ import { APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-s
  *
  * The database URL lives in one server env var and never leaves this
  * module: it is not logged, not returned, and nothing here is importable
- * from a client component (`server-only`). One count per `CACHE_TTL_MS`;
- * the last good count is kept, so an outage shows it as stale rather than
- * nothing. Anything that goes wrong — no URL, a bad URL, the database down
+ * from a client component (`server-only`). One count per `CACHE_TTL_MS`,
+ * read in the background — a request never waits for it, and gets
+ * `not_connected` until the first count lands; the last good count is
+ * kept, so an outage shows it as stale rather than nothing. Anything that goes wrong — no URL, a bad URL, the database down
  * or slow, an odd answer — is `not_connected` (or `stale`), never a throw:
  * the Stripe figures beside it are never held up or broken by this.
  *
@@ -118,13 +120,15 @@ export function failureKind(error: unknown) {
 
 /** How long a good count is served before the next request reads again. */
 export const CACHE_TTL_MS = 5 * 60_000
-/** After a failed read, wait this long before trying again. */
+/** After a failed (or timed-out) read, wait this long before trying again. */
 export const RETRY_AFTER_MS = 60_000
 
 /** Where the App Store count comes from. Swappable (`setAppStoreSource`). */
 export interface AppStoreSource {
-  /** Never rejects: a failure is `stale` or `not_connected`. */
+  /** Never rejects, never waits for the database: a failure is `stale` or `not_connected`. */
   read(): Promise<AppStoreSummary>
+  /** Settles when the background read running now (if any) is done (for `after()`). */
+  settled?(): Promise<void>
 }
 
 export function createAppStoreSource({
@@ -133,6 +137,7 @@ export function createAppStoreSource({
   clock = () => Date.now(),
   ttlMs = CACHE_TTL_MS,
   retryMs = RETRY_AFTER_MS,
+  timeoutMs = SYNC_TIMEOUT_MS,
   log = (kind: string) => console.warn(`[app-store] read failed: ${kind}`),
 }: {
   env?: () => Env
@@ -140,33 +145,39 @@ export function createAppStoreSource({
   clock?: () => number
   ttlMs?: number
   retryMs?: number
+  timeoutMs?: number
   log?: (kind: string) => void
-} = {}): AppStoreSource & { reset(): void } {
+} = {}): Required<AppStoreSource> & { reset(): void } {
   let lastGood: { count: number; at: number } | null = null
   let lastAttempt: { at: number; ok: boolean } | null = null
   let inflight: Promise<void> | null = null
+  /** Bumped by `reset()`, so a read started before it cannot write after it. */
+  let generation = 0
 
   async function sync(url: string) {
     const at = clock()
+    const mine = generation
     try {
-      const count = await query(url)
+      const count = await withTimeout(() => query(url), timeoutMs)
+      if (mine !== generation) return
       lastGood = { count, at }
       lastAttempt = { at, ok: true }
     } catch (error) {
-      lastAttempt = { at, ok: false }
+      if (mine !== generation) return
+      lastAttempt = { at: clock(), ok: false }
       log(failureKind(error))
     }
   }
 
-  async function read(): Promise<AppStoreSummary> {
+  function read(): AppStoreSummary {
     const config = readAppStoreConfig(env())
     if (config.kind === "ok") {
       const age = lastAttempt ? clock() - lastAttempt.at : Infinity
-      if (!lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)) {
-        inflight ??= sync(config.url).finally(() => {
-          inflight = null
+      if ((!lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)) && !inflight) {
+        const run: Promise<void> = sync(config.url).finally(() => {
+          if (inflight === run) inflight = null
         })
-        await inflight
+        inflight = run
       }
     }
     if (!lastGood) return APP_STORE_NOT_CONNECTED
@@ -177,13 +188,17 @@ export function createAppStoreSource({
   return {
     async read() {
       try {
-        return await read()
+        return read()
       } catch (error) {
         log(failureKind(error))
         return APP_STORE_NOT_CONNECTED
       }
     },
+    async settled() {
+      await inflight
+    },
     reset() {
+      generation += 1
       lastGood = null
       lastAttempt = null
       inflight = null

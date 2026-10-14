@@ -8,10 +8,13 @@ import { APP_STORE_CONNECTED, liveSummary } from "@/test/stripe-fixture"
 
 // The routes' dependencies, mocked: these tests never reach Stripe or a
 // database, even on a machine that has a key or URL in its environment.
-const service = vi.hoisted(() => ({ summary: vi.fn(), health: vi.fn() }))
+const service = vi.hoisted(() => ({ summary: vi.fn(), health: vi.fn(), settled: vi.fn(async () => {}) }))
 vi.mock("@/lib/server/stripe", () => ({ stripeService: service }))
-const appStore = vi.hoisted(() => ({ read: vi.fn() }))
+const appStore = vi.hoisted(() => ({ read: vi.fn(), settled: vi.fn(async () => {}) }))
 vi.mock("@/lib/server/app-store", () => ({ appStoreSource: () => appStore }))
+// `after` needs a live request scope; here it only records the callback.
+const after = vi.hoisted(() => vi.fn<(task: () => unknown) => void>())
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<object>()), after }))
 
 const { GET: summary } = await import("@/app/api/stripe/summary/route")
 const { GET: health } = await import("@/app/api/health/stripe/route")
@@ -21,6 +24,9 @@ beforeEach(() => {
   service.health.mockReset()
   appStore.read.mockReset()
   appStore.read.mockResolvedValue(APP_STORE_NOT_CONNECTED)
+  service.settled.mockClear()
+  appStore.settled.mockClear()
+  after.mockReset()
 })
 
 const NOT_CONNECTED_BODY = { ...NOT_CONNECTED, appStore: APP_STORE_NOT_CONNECTED }
@@ -32,6 +38,16 @@ describe("GET /api/stripe/summary", () => {
     await summary(new NextRequest("http://localhost/api/stripe/summary?tz=Mars/Olympus"))
     await summary(new NextRequest("http://localhost/api/stripe/summary"))
     expect(service.summary.mock.calls).toEqual([["America/Denver"], ["America/Chicago"], ["America/Chicago"]])
+  })
+
+  it("answers without waiting for a sync, and keeps both sources' background syncs alive after the response", async () => {
+    service.summary.mockResolvedValue(NOT_CONNECTED)
+    await summary(new NextRequest("http://localhost/api/stripe/summary"))
+    expect(after).toHaveBeenCalledTimes(1)
+    expect(service.settled).not.toHaveBeenCalled()
+    await after.mock.calls[0][0]()
+    expect(service.settled).toHaveBeenCalledTimes(1)
+    expect(appStore.settled).toHaveBeenCalledTimes(1)
   })
 
   it("is never cached by a browser or CDN", async () => {
@@ -83,6 +99,13 @@ describe("GET /api/health/stripe", () => {
     const res = await health()
     expect(await res.json()).toEqual({ stripe: status })
     expect(res.headers.get("cache-control")).toBe("no-store")
+  })
+
+  it("keeps a background sync alive after the response", async () => {
+    service.health.mockResolvedValue("unavailable")
+    await health()
+    await after.mock.calls[0][0]()
+    expect(service.settled).toHaveBeenCalledTimes(1)
   })
 
   it("an unexpected throw is unavailable, with no error text", async () => {
