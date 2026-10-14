@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   CENTRAL,
+  DEFAULT_TIME_ZONE,
+  TIME_ZONES,
+  formatWallClock,
+  isTimeZoneId,
+  timeZoneOption,
   addDays,
   daysBetween,
   formatDate,
@@ -246,5 +251,37 @@ describe("formatRelativeDay — calendar days in Central, both directions", () =
     expect(formatRelativeDay("2026-03-09", "2026-03-07")).toBe("in 2 days") // US spring-forward weekend
     expect(formatRelativeDay("2026-01-01", "2025-12-31")).toBe("Tomorrow")
     expect(formatRelativeDay("2025-12-31", "2026-01-01")).toBe("Yesterday")
+  })
+})
+
+describe("time zones", () => {
+  it("offer the US zones plus UTC, Central by default", () => {
+    expect(DEFAULT_TIME_ZONE).toBe(CENTRAL)
+    expect(TIME_ZONES.map((z) => z.label)).toEqual([
+      "Eastern",
+      "Central",
+      "Mountain",
+      "Arizona",
+      "Pacific",
+      "Alaska",
+      "Hawaii",
+      "UTC",
+    ])
+  })
+
+  it("validate ids and fall back to Central for anything unknown", () => {
+    expect(isTimeZoneId("America/Denver")).toBe(true)
+    expect(isTimeZoneId("Europe/Paris")).toBe(false)
+    expect(isTimeZoneId(42)).toBe(false)
+    expect(timeZoneOption("nope").id).toBe(CENTRAL)
+    expect(timeZoneOption("UTC").label).toBe("UTC")
+  })
+
+  it("format the wall clock in the chosen zone, not the machine's", () => {
+    // 23:30 Central on 7 Oct is 8 Oct in UTC and 21:30 in Pacific.
+    expect(formatWallClock(LATE_EVENING_CT)).toBe("Wed, Oct 7 · 11:30 PM CDT")
+    expect(formatWallClock(LATE_EVENING_CT, "UTC")).toBe("Thu, Oct 8 · 4:30 AM UTC")
+    expect(formatWallClock(LATE_EVENING_CT, "America/Los_Angeles")).toBe("Wed, Oct 7 · 9:30 PM PDT")
+    expect(formatWallClock(LATE_EVENING_CT, "America/Phoenix")).toBe("Wed, Oct 7 · 9:30 PM MST")
   })
 })

@@ -25,3 +25,9 @@ describe("isActiveRoute", () => {
     expect(isActiveRoute("/home", "/crm")).toBe(false)
   })
 })
+
+describe("settings route", () => {
+  it("labels /settings for the header", () => {
+    expect(navLabelFor("/settings")).toBe("Settings")
+  })
+})

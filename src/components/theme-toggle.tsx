@@ -28,7 +28,8 @@ export function ThemeToggle({
   appearance?: "auto" | "icon" | "segmented"
   className?: string
 }) {
-  const { theme, setTheme } = useTheme()
+  // `resolvedTheme` so "Match device" (system) shows the theme actually painted.
+  const { resolvedTheme: theme, setTheme } = useTheme()
   const { state, isMobile, isTabletPortrait } = useSidebar()
   const surface = useSidebarSurface()
   const mounted = useMounted()
