@@ -22,6 +22,7 @@ import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { METRICS_ICON, METRICS_PRESSED } from "@/components/metrics/responsive"
 import { SampleDataTag } from "@/components/sample-data"
+import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 
 function ToolButton({
   className,
@@ -185,6 +186,7 @@ export function MetricCard({
               {stripe.updated}
             </p>
           )}
+          {stripe?.breakdown && <SubscriberBreakdown breakdown={stripe.breakdown} className="mt-2.5 max-w-64" />}
           {trend ? (
             <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
               <TrendPill

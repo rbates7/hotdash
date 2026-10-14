@@ -1,3 +1,4 @@
+import { APP_STORE_NOT_CONNECTED, parseAppStoreSummary, type AppStoreSummary } from "@/lib/app-store-summary"
 import type { StripeMetrics } from "@/lib/stripe-metrics"
 
 /**
@@ -9,12 +10,16 @@ import type { StripeMetrics } from "@/lib/stripe-metrics"
  *                     removed); these are the last good figures, as of
  *                     `lastSyncedAt`.
  * - `not_connected` — no key, or Stripe has never answered: no figures.
+ *
+ * `appStore` is a separate source (Chlk's database, not Stripe) with its
+ * own status; the route always sets it, the Stripe service never does.
  */
 export type StripeStatus = "connected" | "stale" | "not_connected"
 
-export type StripeSummary =
+export type StripeSummary = (
   | { status: "connected" | "stale"; lastSyncedAt: string; metrics: StripeMetrics }
   | { status: "not_connected"; lastSyncedAt: null; metrics: null }
+) & { appStore?: AppStoreSummary }
 
 export const NOT_CONNECTED: StripeSummary = { status: "not_connected", lastSyncedAt: null, metrics: null }
 
@@ -27,6 +32,14 @@ export const STRIPE_HEALTH_PATH = "/api/health/stripe"
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v)
 const isRate = (v: unknown) => v === null || isNum(v)
 const isNums = (v: unknown, each: (x: unknown) => boolean = isNum) => Array.isArray(v) && v.every(each)
+const isCounts = (v: Record<string, unknown> | undefined) =>
+  Boolean(v) && isNum(v!.value) && isNum(v!.previous) && isNum(v!.today) && isNums(v!.series)
+
+/** The `appStore` field, kept only when it reads cleanly (a bad one is left off: not connected). */
+function withAppStore<T extends StripeSummary>(summary: T, raw: unknown): T {
+  const appStore = parseAppStoreSummary(raw)
+  return appStore ? { ...summary, appStore } : summary
+}
 
 /**
  * A response body read back defensively: anything that is not a complete
@@ -35,14 +48,14 @@ const isNums = (v: unknown, each: (x: unknown) => boolean = isNum) => Array.isAr
 export function parseStripeSummary(value: unknown): StripeSummary | null {
   if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  if (v.status === "not_connected") return NOT_CONNECTED
+  if (v.status === "not_connected") return withAppStore(NOT_CONNECTED, v.appStore)
   if (v.status !== "connected" && v.status !== "stale") return null
   if (typeof v.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(v.lastSyncedAt))) return null
   const m = v.metrics as Record<string, Record<string, unknown>> | null
   if (!m || typeof m !== "object") return null
-  const { subscribers: s, cashThisWeek: c, mrr, churn, trialToPaid: t } = m
+  const { subscribers: s, freeAccounts: f, cashThisWeek: c, mrr, churn, trialToPaid: t } = m
   const ok =
-    s && isNum(s.value) && isNum(s.previous) && isNum(s.today) && isNums(s.series) &&
+    isCounts(s) && isCounts(f) &&
     c && isNum(c.value) && isNum(c.previous) && typeof c.since === "string" &&
     mrr && isNum(mrr.value) && isNum(mrr.previous) && isNums(mrr.series) &&
     churn && isRate(churn.value) && isRate(churn.previous) && isNums(churn.series, isRate) &&
@@ -50,7 +63,7 @@ export function parseStripeSummary(value: unknown): StripeSummary | null {
     t && isRate(t.value) && isRate(t.previous) && isNums(t.series, isRate) &&
     isNum(t.converted) && isNum(t.ended)
   if (!ok) return null
-  return { status: v.status, lastSyncedAt: v.lastSyncedAt, metrics: m as unknown as StripeMetrics }
+  return withAppStore({ status: v.status, lastSyncedAt: v.lastSyncedAt, metrics: m as unknown as StripeMetrics }, v.appStore)
 }
 
 /* ---------------------------------------------------------- in the browser */
@@ -67,7 +80,7 @@ export type StripeView = { phase: "loading" } | { phase: "ready"; summary: Strip
 export type StripeFeed =
   | { kind: "loading" }
   | { kind: "sample" }
-  | { kind: "live"; stale: boolean; lastSyncedAt: Date; metrics: StripeMetrics }
+  | { kind: "live"; stale: boolean; lastSyncedAt: Date; metrics: StripeMetrics; appStore: AppStoreSummary }
 
 export function feedOf(view: StripeView): StripeFeed {
   if (view.phase === "loading") return { kind: "loading" }
@@ -78,5 +91,6 @@ export function feedOf(view: StripeView): StripeFeed {
     stale: summary.status === "stale",
     lastSyncedAt: new Date(summary.lastSyncedAt),
     metrics: summary.metrics,
+    appStore: summary.appStore ?? APP_STORE_NOT_CONNECTED,
   }
 }

@@ -11,6 +11,7 @@ import {
 } from "@/lib/issues"
 import { CENTRAL, todayIn } from "@/lib/clock"
 import { pendingInboxItems } from "@/lib/inbox"
+import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 import type { InboxItem } from "@/lib/workplace-fixture"
 
 /* ------------------------------------------------------------------ types */
@@ -35,6 +36,8 @@ export type Kpi = {
   source?: "sample" | "stripe" | "loading"
   /** "Last updated …" on a stale Stripe figure. */
   updated?: string | null
+  /** Live Subscribers only: the groups the total adds up. */
+  breakdown?: SubscriberBreakdownView
 }
 
 /** The single thing the founder has pinned for today, lifted from My Desk. */

@@ -4,7 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { waitForHydration } from "./support/shell"
-import { liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { setTheme } from "./support/theme"
 
 /**
@@ -121,4 +121,79 @@ test(`stale 1440 ${theme} (Home + Settings)`, async ({ page }) => {
   save(`stale-settings-1440-${theme}.png`, settings)
   save(`stale-1440-${theme}.png`, await sideBySide(page, home, settings))
 })
+}
+
+/**
+ * The paying-subscribers PR set (24 files), all mocked — 1,110 + 53 + 174
+ * = 1,337, never real Stripe or database figures:
+ * - Home and Metrics, Stripe and the App Store connected, at 1440, 1180,
+ *   820 and 390, both themes (16);
+ * - the ticker's breakdown open at 1440 (hover) and 390 (keyboard focus:
+ *   the ticker is in the top bar there), both themes (4);
+ * - Home with the App Store not connected at 1440 and 390, both themes (4).
+ * Run on its own so the set above is not rewritten into the same folder:
+ *
+ *   STRIPE_READONLY_KEY= SCREENSHOT_DIR=… pnpm screens:stripe-live -g paying-subs
+ */
+const PAYING_SUBS_WIDTHS = [WIDTHS[3], WIDTHS[2], WIDTHS[1], WIDTHS[0]]
+const PHONE_AND_DESKTOP = [WIDTHS[3], WIDTHS[0]]
+
+for (const vp of PAYING_SUBS_WIDTHS) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`paying-subs home ${vp.width} ${theme}`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected"))
+      await openLive(page, "/home")
+      await setTheme(page, theme)
+      save(`home-${vp.width}-${theme}.png`, await capture(page))
+    })
+
+    test(`paying-subs metrics ${vp.width} ${theme}`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected"))
+      await openLive(page, "/metrics")
+      await setTheme(page, theme)
+      await expect(page.getByRole("note", { name: "Partly live" })).toBeVisible()
+      await expect(page.locator("main header").first().getByTestId("sample-data-tag")).toHaveCount(0)
+      save(`metrics-${vp.width}-${theme}.png`, await capture(page))
+    })
+  }
+}
+
+for (const vp of PHONE_AND_DESKTOP) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`paying-subs ticker breakdown ${vp.width} ${theme} (tooltip open)`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected"))
+      await openLive(page, "/home")
+      await setTheme(page, theme)
+      const link = page.getByTestId("subscriber-ticker").filter({ visible: true }).getByRole("link")
+      // A phone has no hover: the breakdown opens on keyboard focus there
+      // (a real Tab, so it counts as keyboard focus).
+      if (vp.width < 768) {
+        await link.focus()
+        await page.keyboard.press("Shift+Tab")
+        await page.keyboard.press("Tab")
+        await expect(link).toBeFocused()
+      } else await link.hover()
+      const tip = page.getByTestId("ticker-breakdown")
+      await expect(tip).toBeVisible()
+      await expect(tip).toContainText("Free (never paid)174")
+      await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
+      await page.waitForTimeout(300)
+      // Not full page: the tooltip is anchored to the viewport's header.
+      save(`ticker-breakdown-${vp.width}-${theme}.png`, await page.screenshot())
+    })
+
+    test(`paying-subs home ${vp.width} ${theme}, App Store not connected`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
+      await openLive(page, "/home")
+      await setTheme(page, theme)
+      await expect(page.getByTestId("subscriber-breakdown-note").filter({ visible: true }).first()).toHaveText(
+        "Total excludes App Store (not connected)"
+      )
+      save(`home-${vp.width}-${theme}-appstore-not-connected.png`, await capture(page))
+    })
+  }
 }

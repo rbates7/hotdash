@@ -6,8 +6,7 @@ import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
 import { METRICS_HEADER, METRICS_HEADER_META } from "@/components/metrics/responsive"
-import { MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
-import { SampleDataTag } from "@/components/sample-data"
+import { MetricsHeaderSampleTag, MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
 
 export const metadata = {
   title: "Metrics · Chlk",
@@ -30,7 +29,7 @@ export default function MetricsPage() {
           <h1 className="text-display-sm font-semibold tracking-tight">Metrics</h1>
           <div className={METRICS_HEADER_META}>
             <MetricsPersistenceNote />
-            <SampleDataTag className="h-6 px-2" />
+            <MetricsHeaderSampleTag className="h-6 px-2" />
             <MetricsHeaderPeriod />
           </div>
         </header>

@@ -14,6 +14,7 @@ import {
   announceDelay,
   deltaChip,
   flapSteps,
+  formatCount,
   formatTicker,
   keyFor,
   placeholderGlyphs,
@@ -30,6 +31,8 @@ import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
 import { SampleDataTag } from "@/components/sample-data"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 
 /** Metrics › New Subscribers: the list behind the number. */
 export const TICKER_HREF = "/metrics?tab=new"
@@ -330,6 +333,32 @@ function Crossfade(props: RowProps) {
   )
 }
 
+/* ------------------------------------------------------------- breakdown */
+
+/**
+ * The tooltip's body: the total and its three groups. Inverted colours
+ * (the shared tooltip is foreground-on-background), so no muted tokens.
+ */
+function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdownView }) {
+  return (
+    <div data-testid="ticker-breakdown" className="flex min-w-52 flex-col gap-1 py-0.5 text-left">
+      <p className="flex items-baseline justify-between gap-4 font-semibold">
+        <span>Subscribers</span>
+        <span className="tabular-nums">{total}</span>
+      </p>
+      <dl className="flex flex-col gap-0.5">
+        {view.rows.map((row) => (
+          <div key={row.key} className="flex items-baseline justify-between gap-4">
+            <dt className="opacity-75">{row.label}</dt>
+            <dd className="tabular-nums">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {view.note && <p className="opacity-75">{view.note}</p>}
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------------- ticker */
 
 /**
@@ -372,8 +401,14 @@ function rowFor(state: TickerState, maxTiles: number) {
  *
  * role=status + aria-live=polite carries the figure as sr-only text (no
  * aria-label of its own, spoken at most once a minute); the tiles are
- * aria-hidden.
- * Click goes to Metrics › New Subscribers.
+ * aria-hidden. Only the total is ever announced.
+ *
+ * With Stripe live, the total's breakdown (Stripe paying, App Store, free
+ * accounts) is the link's accessible description (`aria-describedby`, a
+ * hidden copy, so it is read on focus and never announced), and a tooltip
+ * on hover or keyboard focus. The tooltip is portalled: nothing in the
+ * header moves when it opens.
+ * Click (or tap) goes to Metrics › New Subscribers.
  */
 export function SubscriberTicker({
   variant,
@@ -385,7 +420,8 @@ export function SubscriberTicker({
   /** Pins the ticker to one source (tests); by default it follows Stripe. */
   source?: SubscriberSource
 }) {
-  const { state, refresh, sample, timeZone } = useSubscriberTicker(source)
+  const { state, refresh, sample, timeZone, breakdown } = useSubscriberTicker(source)
+  const describedBy = `${React.useId()}-breakdown`
   const reduced = useReducedMotion()
   const row = rowFor(state, MAX_TILES[variant])
   const loading = state.status === "loading"
@@ -416,55 +452,69 @@ export function SubscriberTicker({
           right-anchored, so growth to 1,000 moves nothing. */}
       <span aria-hidden className="flex-none" style={{ width: reserveGap(row.glyphs, variant) }} />
       {sample && <SampleDataTag compact={!header} className={cn(header && "h-6 px-2")} />}
-      {/* The link is named outright: Chromium does not name a link from
-          text inside a live region, and the region's copy may lag. */}
-      <Link
-        href={TICKER_HREF}
-        aria-label={label}
-        className={cn(
-          "focus-visible:ring-ring/50 flex flex-none items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none",
-          // Bar: no side padding, so 99,999 fits a 360 phone (the tiles are 44+ wide).
-          header ? "gap-2 px-1 max-xl:min-h-11" : "min-h-11 min-w-11 justify-center"
-        )}
-      >
-        <span
-          role="status"
-          aria-live="polite"
-          aria-busy={loading}
-          className="flex items-center gap-2"
-        >
-          <span className="sr-only">{announced}</span>
-          {header && (
-            <span aria-hidden className="text-caption text-muted-foreground font-medium tracking-tight">
-              Subscribers
-            </span>
+      <Tooltip disabled={!breakdown}>
+        {/* The link is named outright: Chromium does not name a link from
+            text inside a live region, and the region's copy may lag. */}
+        <TooltipTrigger
+          delay={150}
+          render={<Link href={TICKER_HREF} />}
+          aria-label={label}
+          aria-describedby={breakdown ? describedBy : undefined}
+          className={cn(
+            "focus-visible:ring-ring/50 flex flex-none items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none",
+            // Bar: no side padding, so 99,999 fits a 360 phone (the tiles are 44+ wide).
+            header ? "gap-2 px-1 max-xl:min-h-11" : "min-h-11 min-w-11 justify-center"
           )}
-          <span aria-hidden data-testid="ticker-tiles" className="inline-flex">
-            {reduced ? (
-              <Crossfade key={mode} {...row} animate={false} variant={variant} />
-            ) : (
-              <TileRow key={mode} {...row} animate variant={variant} />
+        >
+          <span
+            role="status"
+            aria-live="polite"
+            aria-busy={loading}
+            className="flex items-center gap-2"
+          >
+            <span className="sr-only">{announced}</span>
+            {header && (
+              <span aria-hidden className="text-caption text-muted-foreground font-medium tracking-tight">
+                Subscribers
+              </span>
+            )}
+            <span aria-hidden data-testid="ticker-tiles" className="inline-flex">
+              {reduced ? (
+                <Crossfade key={mode} {...row} animate={false} variant={variant} />
+              ) : (
+                <TileRow key={mode} {...row} animate variant={variant} />
+              )}
+            </span>
+            {stale && (
+              <span
+                aria-hidden
+                title={formatWallClock(stale, timeZone)}
+                className="text-muted-foreground text-[11px] leading-none whitespace-nowrap max-md:hidden"
+              >
+                {staleLabel(stale, timeZone)}
+              </span>
+            )}
+            {chip && header && (
+              <span
+                aria-hidden
+                className="bg-success/10 text-success-text text-caption rounded-full px-1.5 py-[3px] leading-[1.2] font-medium tabular-nums"
+              >
+                {chip}
+              </span>
             )}
           </span>
-          {stale && (
-            <span
-              aria-hidden
-              title={formatWallClock(stale, timeZone)}
-              className="text-muted-foreground text-[11px] leading-none whitespace-nowrap max-md:hidden"
-            >
-              {staleLabel(stale, timeZone)}
-            </span>
-          )}
-          {chip && header && (
-            <span
-              aria-hidden
-              className="bg-success/10 text-success-text text-caption rounded-full px-1.5 py-[3px] leading-[1.2] font-medium tabular-nums"
-            >
-              {chip}
-            </span>
-          )}
+        </TooltipTrigger>
+        {breakdown && reading && (
+          <TooltipContent side="bottom" align="end" sideOffset={6}>
+            <BreakdownTip total={formatCount(reading.total)} view={breakdown.view} />
+          </TooltipContent>
+        )}
+      </Tooltip>
+      {breakdown && (
+        <span id={describedBy} hidden>
+          {breakdown.text}
         </span>
-      </Link>
+      )}
       {failed && (
         <button
           type="button"

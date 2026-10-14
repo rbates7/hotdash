@@ -116,6 +116,22 @@ describe("parseStripeSummary", () => {
     expect(
       parseStripeSummary({ ...good, metrics: { ...good.metrics, subscribers: { ...good.metrics!.subscribers, value: null } } })
     ).toBeNull()
+    const { freeAccounts: _free, ...noFree } = good.metrics!
+    void _free
+    expect(parseStripeSummary({ ...good, metrics: noFree })).toBeNull()
+  })
+
+  it("reads the App Store field on its own: a bad or missing one is left off, never the Stripe figures", () => {
+    const good = liveSummary()
+    for (const appStore of [undefined, { status: "connected", count: "53" }, { status: "connected", count: -1, asOf: good.lastSyncedAt }, { status: "up" }]) {
+      const parsed = parseStripeSummary({ ...good, appStore })
+      expect(parsed?.metrics).toEqual(good.metrics)
+      expect(parsed?.appStore).toBeUndefined()
+    }
+    expect(parseStripeSummary({ ...NOT_CONNECTED, appStore: { status: "not_connected" } })).toEqual({
+      ...NOT_CONNECTED,
+      appStore: { status: "not_connected" },
+    })
   })
 })
 
@@ -127,6 +143,11 @@ describe("feedOf", () => {
       kind: "live",
       stale: true,
       lastSyncedAt: new Date("2026-10-13T14:41:00.000Z"),
+      appStore: { status: "connected", count: 53 },
     })
+    // A summary without the field (an older server) reads as App Store not connected.
+    const { appStore: _a, ...bare } = liveSummary("connected")
+    void _a
+    expect(feedOf({ phase: "ready", summary: bare })).toMatchObject({ appStore: { status: "not_connected" } })
   })
 })

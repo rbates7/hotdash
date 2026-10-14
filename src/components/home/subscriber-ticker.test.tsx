@@ -1,11 +1,14 @@
 import * as React from "react"
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ANNOUNCE_MIN_MS, CROSSFADE_MS, ERROR_TOOLTIP, FLAP_MS, LOADING_LABEL } from "@/lib/subscriber-ticker"
 import type { SubscriberReading, SubscriberSource } from "@/lib/subscriber-source"
 import { updateSettings } from "@/hooks/use-settings"
 import { SubscriberTicker, TICKER_HREF } from "@/components/home/subscriber-ticker"
+import { NOT_CONNECTED } from "@/lib/stripe-summary"
+import { APP_STORE_OFF, LIVE_METRICS, liveSummary, setStripeSummaryForTest } from "@/test/stripe"
 
 const AT = new Date("2026-10-13T14:41:00Z")
 const reading = (total: number, today = 0): SubscriberReading => ({ total, today, at: AT })
@@ -282,5 +285,71 @@ describe("SubscriberTicker", () => {
     await act(() => vi.advanceTimersByTimeAsync(1))
     expect(spoken()).toBe("Subscribers: 188, up 4 today")
     expect(screen.getByRole("link")).toHaveAccessibleName("Subscribers: 188, up 4 today")
+  })
+})
+
+describe("SubscriberTicker breakdown (Stripe live)", () => {
+  beforeEach(() => vi.useRealTimers())
+  afterEach(() => setStripeSummaryForTest(NOT_CONNECTED))
+
+  const link = () => screen.getByRole("link")
+
+  it("the total's groups are the link's accessible description; the live region speaks the total only", () => {
+    setStripeSummaryForTest(liveSummary("connected"))
+    render(<SubscriberTicker variant="header" />)
+    expect(link()).toHaveAccessibleName("Subscribers: 1,337, up 3 today")
+    expect(link()).toHaveAccessibleDescription(
+      "Stripe paying 1,110, App Store 53, Free (never paid) 174."
+    )
+    const id = link().getAttribute("aria-describedby")!
+    expect(document.getElementById(id)).not.toBeVisible()
+    expect(spoken()).toBe("Subscribers: 1,337, up 3 today")
+    expect(status()).not.toHaveTextContent(/Stripe paying|App Store/)
+  })
+
+  it("App Store not connected: described honestly, and the total leaves it out", () => {
+    setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
+    render(<SubscriberTicker variant="header" />)
+    expect(link()).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+    expect(link()).toHaveAccessibleDescription(
+      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
+    )
+  })
+
+  it("keyboard focus opens the breakdown tooltip; Escape closes it; the link still goes to Metrics", async () => {
+    setStripeSummaryForTest(liveSummary("connected"))
+    const user = userEvent.setup()
+    render(<SubscriberTicker variant="header" />)
+    expect(screen.queryByTestId("ticker-breakdown")).toBeNull()
+    await user.tab()
+    expect(link()).toHaveFocus()
+    const tip = await screen.findByTestId("ticker-breakdown")
+    expect(tip).toHaveTextContent("Subscribers1,337")
+    expect(tip).toHaveTextContent("Stripe paying1,110")
+    expect(tip).toHaveTextContent("App Store53")
+    expect(tip).toHaveTextContent("Free (never paid)174")
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByTestId("ticker-breakdown")).toBeNull())
+    expect(link()).toHaveAttribute("href", TICKER_HREF)
+  })
+
+  it("hover opens it too", async () => {
+    setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
+    const user = userEvent.setup()
+    render(<SubscriberTicker variant="header" />)
+    await user.hover(link())
+    const tip = await screen.findByTestId("ticker-breakdown")
+    expect(tip).toHaveTextContent("App StoreNot connected")
+    expect(tip).toHaveTextContent("Total excludes App Store (not connected)")
+  })
+
+  it("sample or loading: no description and no tooltip", async () => {
+    const user = userEvent.setup()
+    render(<SubscriberTicker variant="header" />)
+    expect(link()).not.toHaveAttribute("aria-describedby")
+    await user.tab()
+    await user.hover(link())
+    await new Promise((r) => setTimeout(r, 300))
+    expect(screen.queryByTestId("ticker-breakdown")).toBeNull()
   })
 })

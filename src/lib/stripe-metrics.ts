@@ -72,6 +72,12 @@ export type StripeSubscription = {
   cancellation_details?: { reason?: string | null } | null
   items: { data: StripeSubscriptionItem[] }
   discounts?: Array<string | StripeDiscount> | null
+  /**
+   * When the subscription first paid an invoice with `amount_paid > 0`
+   * (unix seconds), joined in from one `invoices.list({ status: "paid" })`.
+   * `null`/absent: it has never paid (e.g. a 100%-off launch annual).
+   */
+  first_paid_at?: number | null
 }
 
 export type StripeCharge = {
@@ -94,17 +100,25 @@ export type StripeData = {
 /** `null` means there was nothing to divide by — never a made-up 0. */
 export type Rate = number | null
 
+/** A count now, with its history on the 28-day windows. */
+export type CountSeries = {
+  value: number
+  /** At the start of the 28-day window. */
+  previous: number
+  /** Net change since 00:00 today in the founder's zone. */
+  today: number
+  /** At the end of each of six 28-day windows, oldest first. */
+  series: number[]
+}
+
 export type StripeMetrics = {
-  /** Active subscriptions (see `isCounted`). */
-  subscribers: {
-    value: number
-    /** At the start of the 28-day window. */
-    previous: number
-    /** Net change since 00:00 today in the founder's zone. */
-    today: number
-    /** At the end of each of six 28-day windows, oldest first. */
-    series: number[]
-  }
+  /**
+   * Stripe paying subscriptions (`isPaying`): group (1) of the Subscribers
+   * total, not the total itself (`subscriberTotal` adds the rest).
+   */
+  subscribers: CountSeries
+  /** Free accounts (`isFreeAccount`): group (3) of the Subscribers total. */
+  freeAccounts: CountSeries
   /** Gross succeeded charges since Monday 00:00. */
   cashThisWeek: {
     value: number
@@ -126,16 +140,78 @@ export type StripeMetrics = {
 const SECOND = 1000
 
 /**
- * Statuses that count as an active subscriber right now: `active`, plus
+ * Statuses that count as an active subscription for churn and its history
+ * (`activeAt`), and the statuses `isPaying` allows: `active`, plus
  * `past_due` (a renewal failed and Stripe is still retrying — the customer
  * has not left, and Stripe's own dashboard counts them). `trialing` is not
- * counted: nobody has paid yet; trials are measured by trial-to-paid.
- * `unpaid`, `paused`, `incomplete*` and `canceled` are not active.
+ * counted: trials are measured by trial-to-paid. `unpaid`, `paused`,
+ * `incomplete*` and `canceled` are not active.
  */
 export const COUNTED_STATUSES: ReadonlySet<string> = new Set(["active", "past_due"])
 
 export function isCounted(sub: Pick<StripeSubscription, "status">) {
   return COUNTED_STATUSES.has(sub.status)
+}
+
+/**
+ * A paying Stripe subscriber now (Rashad + Bobbi, Data, final, Oct 14
+ * 2026): status `active` or `past_due` (a renewal failed and Stripe is
+ * still retrying — the customer has not left) **and** at least one paid
+ * invoice with `amount_paid > 0`. `trialing`, `unpaid` and `paused` do not
+ * count, paid before or not. No "has a coupon now" filter: a launch annual
+ * that paid once and now sits on a coupon still counts. Group (1) of the
+ * Subscribers total; MRR is computed over this set only.
+ */
+export function isPaying(sub: Pick<StripeSubscription, "status" | "first_paid_at">) {
+  return isCounted(sub) && sub.first_paid_at != null
+}
+
+/**
+ * Whether `sub` was a paying subscriber at `atSec`. Stripe keeps no status
+ * history, so this reads timestamps: from its first paid invoice until it
+ * ended. Only subscriptions that are paying now, or have since been
+ * canceled, are in the history; one sitting in `unpaid`, `paused` or
+ * `trialing` now cannot be dated, so it is left out of every point. For
+ * now it agrees with `isPaying`.
+ */
+export function payingAt(sub: StripeSubscription, atSec: number) {
+  if (sub.first_paid_at == null) return false
+  if (!isCounted(sub) && sub.status !== "canceled") return false
+  return sub.first_paid_at <= atSec && (sub.ended_at == null || atSec < sub.ended_at)
+}
+
+export function payingCountAt(subs: readonly StripeSubscription[], atSec: number) {
+  return subs.filter((s) => payingAt(s, atSec)).length
+}
+
+/**
+ * A free account now (group (3) of the Subscribers total): status exactly
+ * `active` and **never** paid an invoice with `amount_paid > 0` — a
+ * 100%-off launch annual, or one whose coupon has since dropped off but
+ * has not been charged yet. Whether a coupon is on it now does not
+ * matter. Never-paid `trialing` and `past_due` are not free accounts.
+ */
+export function isFreeAccount(sub: Pick<StripeSubscription, "status" | "first_paid_at">) {
+  return sub.status === "active" && sub.first_paid_at == null
+}
+
+/**
+ * Whether `sub` was a free account at `atSec`, best effort: from the end
+ * of any trial until it first paid (when it moves to paying) or ended.
+ * Only subscriptions `active` now or since canceled (not for a failed
+ * payment — those were past due, not free) are in the history. For now
+ * it agrees with `isFreeAccount`.
+ */
+export function freeAt(sub: StripeSubscription, atSec: number) {
+  if (sub.status !== "active" && sub.status !== "canceled") return false
+  if (sub.cancellation_details?.reason === "payment_failed") return false
+  const from = paidFrom(sub)
+  const until = Math.min(sub.first_paid_at ?? Infinity, sub.ended_at ?? Infinity)
+  return from <= atSec && atSec < until
+}
+
+export function freeCountAt(subs: readonly StripeSubscription[], atSec: number) {
+  return subs.filter((s) => freeAt(s, atSec)).length
 }
 
 /** When the subscription started paying: after its trial, if it had one. */
@@ -251,12 +327,14 @@ export function subscriptionMrrCents(sub: StripeSubscription, atSec: number) {
 }
 
 /**
- * MRR at `atSec`: every subscription active then (`activeAt`), at its
+ * MRR at `atSec`: every Stripe subscription paying then (`payingAt` —
+ * group (1) of Subscribers only: not free accounts, not App Store), USD
+ * only, at its
  * current prices — Stripe has no price history, so past points assume
  * today's plan. In whole dollars.
  */
 export function mrrAt(subs: readonly StripeSubscription[], atSec: number) {
-  const cents = subs.reduce((sum, s) => (activeAt(s, atSec) ? sum + subscriptionMrrCents(s, atSec) : sum), 0)
+  const cents = subs.reduce((sum, s) => (payingAt(s, atSec) ? sum + subscriptionMrrCents(s, atSec) : sum), 0)
   return Math.round(cents) / 100
 }
 
@@ -368,8 +446,16 @@ export function computeStripeMetrics(
   const current = windows[windows.length - 1]
   const prior = windows[windows.length - 2]
 
-  const active = subs.filter(isCounted).length
   const todayStart = toSec(startOfDay(todayIn(now, timeZone), timeZone))
+  const countSeries = (isNow: (s: StripeSubscription) => boolean, countAt: typeof payingCountAt): CountSeries => {
+    const value = subs.filter(isNow).length
+    return {
+      value,
+      previous: countAt(subs, current.startSec),
+      today: value - countAt(subs, todayStart),
+      series: windows.map((w, i) => (i === windows.length - 1 ? value : countAt(subs, w.endSec))),
+    }
+  }
 
   const weekStart = startOfWeek(now, timeZone)
   const lastWeekStart = startOfDay(addDays(todayIn(weekStart, timeZone), -7), timeZone)
@@ -386,12 +472,8 @@ export function computeStripeMetrics(
   const last = churns.length - 1
 
   return {
-    subscribers: {
-      value: active,
-      previous: activeCountAt(subs, current.startSec),
-      today: active - activeCountAt(subs, todayStart),
-      series: windows.map((w, i) => (i === windows.length - 1 ? active : activeCountAt(subs, w.endSec))),
-    },
+    subscribers: countSeries(isPaying, payingCountAt),
+    freeAccounts: countSeries(isFreeAccount, freeCountAt),
     cashThisWeek: {
       value: cash / 100,
       previous: cashBefore / 100,
