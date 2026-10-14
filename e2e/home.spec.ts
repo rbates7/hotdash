@@ -39,9 +39,10 @@ test.describe("Home", () => {
     // A real trailing-7-day figure from the shared daily revenue spread.
     await expect(kpis.getByText("$7,848")).toBeVisible()
     await expect(kpis.getByText(/\+6\.8% vs previous 7 days/)).toBeVisible()
-    // Two card chips + the strip label; plus the Metrics door's chip.
+    // Two card chips + the strip label; plus the Metrics door's chip and the
+    // header subscriber ticker's (the top-bar ticker's copy is phone-only).
     await expect(kpis.getByTestId("sample-data-tag")).toHaveCount(3)
-    await expect(page.getByTestId("sample-data-tag")).toHaveCount(4)
+    await expect(page.getByTestId("sample-data-tag").filter({ visible: true })).toHaveCount(5)
 
     // Home reads the Workplace's browser-saved board and says so. Nothing
     // has been edited in this browser, so nothing is saved yet.
@@ -110,9 +111,10 @@ test.describe("Home", () => {
   test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {
     await page.goto("/home")
     const label = page.getByTestId("kpi-sample-label")
-    // Two on the truth-strip cards, one strip label, one on the Metrics door.
-    const chips = page.getByTestId("sample-data-tag")
-    await expect(chips).toHaveCount(4)
+    // Two on the truth-strip cards, one strip label, one on the Metrics door,
+    // one on the header subscriber ticker.
+    const chips = page.getByTestId("sample-data-tag").filter({ visible: true })
+    await expect(chips).toHaveCount(5)
 
     for (const theme of ["Light", "Dark"] as const) {
       await setTheme(page, theme === "Dark" ? "dark" : "light")
