@@ -27,31 +27,10 @@ The other 11 routes are intentional stubs; each gets its own build phase.
 
 ```bash
 pnpm install
-cp .env.example .env.local   # then fill it in, see "Sign-in" below
 pnpm dev
 ```
 
-Open http://localhost:3000 — it sends you to `/sign-in`, then to `/home`.
-
-## Sign-in
-
-Every page and API route is locked by `src/proxy.ts` (Next 16's name for
-middleware). One account can sign in, with email and password:
-
-| Variable | What |
-|---|---|
-| `ADMIN_EMAIL` | The one email allowed in |
-| `ADMIN_PASSWORD_HASH` | From `pnpm auth:hash` (prompts; never pass the password as an argument) |
-| `AUTH_SECRET` | 32+ random characters, e.g. `openssl rand -base64 48`; signs the 7-day session cookie |
-
-If any is missing or invalid, nobody can sign in and `/sign-in` says
-"Sign-in isn't configured". In `.env.local`, escape every `$` in the hash as
-`\$` (Next expands `$NAME` even inside quotes); in Vercel, paste it raw.
-Changing `AUTH_SECRET` or `ADMIN_EMAIL` signs everyone out. Failed sign-ins
-are limited to 5 per 15 minutes per IP + email, counted per server instance.
-
-Sign out from Settings → Account or the sidebar's Logout. The e2e suite uses
-the test-only credentials in `e2e/support/test-credentials.ts`.
+Open http://localhost:3000 — it redirects to `/home`.
 
 ## Scripts
 

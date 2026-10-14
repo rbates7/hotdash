@@ -18,12 +18,6 @@ jobs:
     env:
       CI: true
       NEXT_TELEMETRY_DISABLED: 1
-      # TEST-ONLY sign-in credentials for the build and the Playwright run.
-      # Not real secrets; never use them on a deployed site. They must match
-      # e2e/support/test-credentials.ts (the test password is in that file).
-      ADMIN_EMAIL: founder@example.test
-      ADMIN_PASSWORD_HASH: scrypt$32768$8$1$CUDnCcpP3PW/111lcw8oeQ==$Sx3j9M02rMDNxlpkWtI6M/my57xpBoMcsLxVaE8kwmg=
-      AUTH_SECRET: test-only-auth-secret-not-for-production-0123456789
     steps:
       - uses: actions/checkout@v4
 

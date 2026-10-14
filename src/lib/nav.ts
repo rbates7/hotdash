@@ -54,13 +54,6 @@ export const navItems: NavItem[] = [
   },
 ]
 
-/**
- * Settings sits in the sidebar footer beside Help and Logout, not in the
- * screen list above, so it is not a `navItems` entry.
- */
-export const SETTINGS_PATH = "/settings"
-export const SETTINGS_LABEL = "Settings"
-
 /** True when `pathname` is `href` or a descendant of it. */
 export function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -71,7 +64,6 @@ export function isActiveRoute(pathname: string, href: string) {
  * Unknown paths fall back to the product name so the compact header is never blank.
  */
 export function navLabelFor(pathname: string) {
-  if (isActiveRoute(pathname, SETTINGS_PATH)) return SETTINGS_LABEL
   const match = navItems
     .filter((item) => !item.external && isActiveRoute(pathname, item.href))
     .sort((a, b) => b.href.length - a.href.length)[0]
