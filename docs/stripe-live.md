@@ -20,6 +20,24 @@ at a loopback mock. It is ignored in a production build unless
 `STRIPE_ALLOW_MOCK_BASE=1`, and any non-loopback host disables Stripe
 entirely, so a key can never be sent somewhere else.
 
+### Read-only database role
+
+`SUPABASE_READONLY_DB_URL` connects as a role that can only read the two
+tables the App Store count uses. **Owner: Radcliffe**, who creates it and
+sets the password; it has not been run from here, and nobody else should
+run it.
+
+```sql
+create role hotdash_readonly login password '<set by Radcliffe>';
+grant usage on schema chlk to hotdash_readonly;
+grant select on chlk.subscriptions, chlk.plans to hotdash_readonly;
+alter role hotdash_readonly set default_transaction_read_only = on;
+```
+
+No other grants: no `insert`/`update`/`delete`, nothing outside `chlk`,
+no other `chlk` table. `default_transaction_read_only` is a second guard
+behind the server's own `begin read only` transaction.
+
 ## Endpoints
 
 - `GET /api/stripe/summary?tz=<zone>` → `{ status, lastSyncedAt, metrics, appStore }`.
