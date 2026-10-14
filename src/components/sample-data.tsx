@@ -59,14 +59,15 @@ export function SampleDataTag({
 /**
  * The page-wide notice above the tabs; says what is and is not real. Pass
  * `children` to replace the body with a screen's own wording; the default
- * is the Metrics copy.
+ * is the Metrics copy. `label` replaces the bold lead ("Sample data"), e.g.
+ * "Partly live" once some of the page is.
  */
-export function SampleDataNotice({ children }: { children?: React.ReactNode }) {
+export function SampleDataNotice({ children, label = SAMPLE_DATA_LABEL }: { children?: React.ReactNode; label?: string }) {
   return (
     <SampleDataGate>
       <div
         role="note"
-        aria-label={SAMPLE_DATA_LABEL}
+        aria-label={label}
         data-testid="sample-data-notice"
         className={cn(
           "text-body flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5",
@@ -75,7 +76,7 @@ export function SampleDataNotice({ children }: { children?: React.ReactNode }) {
       >
         <FlaskConicalIcon className="mt-0.5 size-4 flex-none" aria-hidden />
         <p>
-          <strong className="font-semibold">{SAMPLE_DATA_LABEL}.</strong>{" "}
+          <strong className="font-semibold">{label}.</strong>{" "}
           {children ?? (
             <>
               Every number on this page is illustrative. Nothing is connected to Stripe,

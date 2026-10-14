@@ -15,7 +15,7 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
+import { MetricsHeaderSampleTag, MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 
 /**
@@ -52,6 +52,9 @@ function renderMetrics() {
   navigation.params = new URLSearchParams()
   return render(
     <MetricsProvider nowMs={FIXED_NOW_MS}>
+      <header data-testid="metrics-header">
+        <MetricsHeaderSampleTag />
+      </header>
       <MetricsSampleNotice />
       <MetricsTabs />
     </MetricsProvider>
@@ -62,6 +65,7 @@ const strip = () => screen.getByRole("region", { name: "KPI strip" })
 const kpi = (name: string) => within(strip()).getByRole("article", { name })
 const card = (name: RegExp) => within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name })
 const ticker = () => screen.getByTestId("subscriber-ticker")
+const headerTag = () => within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")
 const spoken = () => ticker().querySelector("[role=status] .sr-only")?.textContent
 
 /* ------------------------------------------------------------------ Home */
@@ -187,11 +191,19 @@ describe("Metrics with Stripe connected", () => {
     expect(within(trials).getByRole("img").getAttribute("aria-label")).toMatch(/no data, .*no data, .*30%/)
   })
 
-  it("the page notice says which cards are live", () => {
+  it("the page notice says Partly live and which cards are live", () => {
     renderMetrics()
-    expect(screen.getByTestId("sample-data-notice")).toHaveTextContent(
-      "MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe (read-only)."
+    const notice = screen.getByRole("note", { name: "Partly live" })
+    expect(notice).toHaveTextContent(
+      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\)\./
     )
+    expect(notice).not.toHaveTextContent("Sample data")
+  })
+
+  it("drops the header Sample chip; the sample cards keep theirs", () => {
+    renderMetrics()
+    expect(headerTag()).toBeNull()
+    expect(within(card(/^ARR\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
   })
 })
 
@@ -218,6 +230,8 @@ describe("Metrics with Stripe stale", () => {
     expect(within(card(/^MRR\b/)).getByTestId("metric-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
     expect(within(card(/^ARR\b/)).queryByTestId("metric-updated")).toBeNull()
     expect(screen.getByTestId("sample-data-notice")).toHaveTextContent("as of their last update")
+    expect(screen.getByRole("note", { name: "Partly live" })).toBeInTheDocument()
+    expect(headerTag()).toBeNull()
   })
 })
 
@@ -227,6 +241,8 @@ describe("Metrics with Stripe not connected", () => {
     expect(within(card(/^MRR\b/)).getByTestId("metric-value")).toHaveTextContent("$26,190")
     expect(within(card(/^MRR\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
     expect(screen.getByTestId("sample-data-notice")).toHaveTextContent("Nothing is connected to Stripe")
+    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent(/^Sample data\./)
+    expect(headerTag()).toHaveTextContent("Sample data")
   })
 })
 

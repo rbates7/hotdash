@@ -20,6 +20,7 @@ const metricCard = (page: Page, name: string) =>
   main(page).getByRole("region", { name: "Metric cards" }).getByRole("article", { name: new RegExp(`^${name}\\b`) })
 const stripeRow = (page: Page) =>
   main(page).getByRole("region", { name: "Connected data" }).getByRole("listitem", { name: "Stripe" })
+const metricsHeaderTag = (page: Page) => main(page).locator("header").first().getByTestId("sample-data-tag")
 const ticker = (page: Page) => page.getByTestId("subscriber-ticker").filter({ visible: true })
 const spoken = (page: Page) => ticker(page).getByRole("status").locator(".sr-only")
 
@@ -68,6 +69,8 @@ test.describe("Stripe not connected (1440)", () => {
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
     }
     await expect(page.getByTestId("sample-data-notice")).toContainText("Nothing is connected to Stripe")
+    await expect(page.getByRole("note", { name: "Sample data" })).toContainText(/^Sample data\./)
+    await expect(metricsHeaderTag(page)).toHaveText("Sample data")
   })
 
   test("Settings: Stripe and every other source say Not connected", async ({ page }) => {
@@ -112,7 +115,11 @@ test.describe("Stripe connected (1440)", () => {
     for (const name of ["ARR", "Revenue", "Retention", "Expenses"]) {
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
     }
-    await expect(page.getByTestId("sample-data-notice")).toContainText("live from Stripe")
+    const notice = page.getByRole("note", { name: "Partly live" })
+    await expect(notice).toContainText(/^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe/)
+    await expect(notice).not.toContainText("Sample data")
+    // The page is not all sample any more: the header chip goes.
+    await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
 
   test("Settings: Stripe Connected, with the last sync on the shared clock", async ({ page }) => {
@@ -163,6 +170,8 @@ test.describe("Stripe stale (1440)", () => {
       await expect(metricCard(page, name).getByTestId("metric-updated")).toHaveText("Last updated Tue, Oct 13 · 9:41 AM CDT")
     }
     await expect(metricCard(page, "ARR").getByTestId("metric-updated")).toHaveCount(0)
+    await expect(page.getByRole("note", { name: "Partly live" })).toContainText("as of their last update")
+    await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
 
   test("Settings: Stripe shows Last updated <time>", async ({ page }) => {
