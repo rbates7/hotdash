@@ -1,6 +1,7 @@
 "use client"
 
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
+import { isSuspectAppStore } from "@/lib/app-store-summary"
 import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 
 export const PARTLY_LIVE_LABEL = "Partly live"
@@ -9,17 +10,20 @@ export const PARTLY_LIVE_LABEL = "Partly live"
  * The Metrics notice, honest about what is live: with Stripe feeding the
  * MRR, Churn Rate, Trial Conversions and Subscribers cards it leads with
  * "Partly live", says which cards, and that the rest is still illustrative.
- * Subscribers also counts App Store payers when Chlk's database answers.
+ * Subscribers also counts App Store payers when Chlk's database answers
+ * — but not when it answers 0 (suspect: a blocked read), which it says.
  */
 export function MetricsSampleNotice() {
   const feed = useStripeFeed()
   if (feed.kind !== "live") return <SampleDataNotice />
-  const appStore = feed.appStore.status !== "not_connected"
+  const suspect = isSuspectAppStore(feed.appStore)
+  const appStore = feed.appStore.status !== "not_connected" && !suspect
   return (
     <SampleDataNotice label={PARTLY_LIVE_LABEL}>
       MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe (read-only)
       {feed.stale ? ", as of their last update" : ""}
-      {appStore ? "; Subscribers also counts App Store payers from Chlk\u2019s database (read-only)" : ""}. Every
+      {appStore ? "; Subscribers also counts App Store payers from Chlk\u2019s database (read-only)" : ""}
+      {suspect ? "; Subscribers leaves out App Store payers until Chlk\u2019s database read is checked (it read 0)" : ""}. Every
       other number on this page is illustrative —{" "}
       {appStore ? "PostHog is not connected yet, and Supabase only for that count" : "Supabase and PostHog are not connected yet"},
       and the expenses you enter live in this browser.

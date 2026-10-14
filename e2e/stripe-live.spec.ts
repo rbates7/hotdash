@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
-import { APP_STORE_OFF, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, APP_STORE_ZERO, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { MIN_TAP, expectTapTarget } from "./support/tap-target"
 import { setTheme } from "./support/theme"
 
@@ -52,6 +52,13 @@ test.describe("server endpoints with no key", () => {
     const res = await request.get("/api/health/stripe")
     expect(res.status()).toBe(200)
     expect(await res.text()).toBe('{"stripe":"not_configured"}')
+  })
+
+  test("/api/health/app-store says only not_connected, never cached", async ({ request }) => {
+    const res = await request.get("/api/health/app-store")
+    expect(res.status()).toBe(200)
+    expect(res.headers()["cache-control"]).toBe("no-store")
+    expect(await res.text()).toBe('{"appStore":"not_connected"}')
   })
 })
 
@@ -313,6 +320,64 @@ test.describe("Subscribers total, App Store not connected (1440)", () => {
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).not.toContainText("App Store")
   })
+})
+
+const SUSPECT_NOTE = "App Store read 0 — check database access (likely a permissions/RLS issue)"
+
+test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: the App Store row warns instead of saying 0, and the total leaves it out (Home, ticker, Metrics)`, async ({
+      page,
+    }) => {
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO))
+      await open(page, "/home")
+      await setTheme(page, theme)
+      const card = kpi(page, "Subscribers")
+      await expect(card).toContainText("1,284")
+      expect(await rowsOf(card)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      const row = card.locator("[data-row='appStore']")
+      await expect(row).toHaveAttribute("data-warning", "")
+      await expect(row.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expect(card).not.toContainText(/App Store\s*0\b/)
+      await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} suspect breakdown`, expect)
+
+      const link = ticker(page).getByRole("link")
+      await expect(link).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+      await expect(link).toHaveAccessibleDescription(
+        `Stripe paying 1,110, App Store Check source (warning), Free (never paid) 174. ${SUSPECT_NOTE}.`
+      )
+      await link.hover()
+      const tip = page.getByTestId("ticker-breakdown")
+      await expect(tip.locator("[data-warning]")).toContainText("Check source")
+      await expect(tip.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      // The warning and its note (the other labels are the tooltip's existing 75% secondary text).
+      await expectReadable(tip.locator("[data-warning] dd"), `${theme} suspect tooltip row`, expect)
+      await expectReadable(tip.getByText(SUSPECT_NOTE), `${theme} suspect tooltip note`, expect)
+
+      await open(page, "/metrics")
+      await setTheme(page, theme)
+      const metrics = metricCard(page, "Subscribers")
+      await expect(metrics.getByTestId("metric-value")).toHaveText("1,284")
+      expect(await rowsOf(metrics)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      await expect(metrics.locator("[data-row='appStore']").getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expectReadable(metrics.getByTestId("subscriber-breakdown"), `${theme} suspect Metrics breakdown`, expect)
+      const notice = page.getByRole("note", { name: "Partly live" })
+      await expect(notice).not.toContainText("also counts App Store payers")
+      await expect(notice).toContainText("leaves out App Store payers")
+    })
+  }
 })
 
 /* ----------------------------------------------------------- responsive */
