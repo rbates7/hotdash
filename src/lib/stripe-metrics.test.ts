@@ -7,6 +7,9 @@ import {
   churnFor,
   computeStripeMetrics,
   convertedFromTrial,
+  freeAt,
+  freeCountAt,
+  isFreeAccount,
   isPaying,
   grossChargesCents,
   itemMonthlyCents,
@@ -155,14 +158,15 @@ describe("paying subscriber count", () => {
 /** A 100%-off coupon on the subscription now (e.g. a launch annual). */
 const FREE = [{ source: { coupon: { percent_off: 100, amount_off: null, duration: "forever" } }, start: NOW_SEC - 30 * DAY }]
 
-describe("isPaying (Bobbi's definition, Oct 14 2026)", () => {
-  it("past_due with paid history counts: the customer has not left", () => {
+describe("isPaying (Rashad + Bobbi, final, Oct 14 2026)", () => {
+  it("active and past_due with paid history count: the customer has not left", () => {
+    expect(isPaying(sub({ status: "active" }))).toBe(true)
     expect(isPaying(sub({ status: "past_due" }))).toBe(true)
   })
 
-  it("trialing, unpaid and paused count if they have paid before", () => {
-    for (const status of ["trialing", "unpaid", "paused"]) {
-      expect(isPaying(sub({ status, first_paid_at: NOW_SEC - 60 * DAY })), status).toBe(true)
+  it("trialing, unpaid and paused never count, even if they have paid before", () => {
+    for (const status of ["trialing", "unpaid", "paused", "incomplete"]) {
+      expect(isPaying(sub({ status, first_paid_at: NOW_SEC - 60 * DAY })), status).toBe(false)
       expect(isPaying(sub({ status, first_paid_at: null })), `${status}, never paid`).toBe(false)
     }
   })
@@ -175,17 +179,101 @@ describe("isPaying (Bobbi's definition, Oct 14 2026)", () => {
     expect(isPaying(sub({ status: "active", first_paid_at: NOW_SEC - 300 * DAY, discounts: FREE }))).toBe(true)
   })
 
-  it("canceled, incomplete_expired and anything with ended_at never count, paid or not", () => {
+  it("canceled and incomplete_expired never count, paid or not", () => {
     expect(isPaying(sub({ status: "canceled", ended_at: NOW_SEC - DAY }))).toBe(false)
     expect(isPaying(sub({ status: "incomplete_expired", ended_at: NOW_SEC - DAY }))).toBe(false)
     expect(isPaying(sub({ status: "incomplete_expired", ended_at: null }))).toBe(false)
-    expect(isPaying(sub({ status: "active", ended_at: NOW_SEC - DAY }))).toBe(false)
   })
 
   it("treats a missing first_paid_at as never paid", () => {
     const { first_paid_at: _omit, ...noField } = sub()
     void _omit
     expect(isPaying(noField)).toBe(false)
+  })
+})
+
+describe("isFreeAccount (group 3: free coupon, never paid)", () => {
+  it("is status exactly active with no paid invoice, coupon or not", () => {
+    expect(isFreeAccount(sub({ first_paid_at: null, discounts: FREE }))).toBe(true)
+    expect(isFreeAccount(sub({ first_paid_at: null }))).toBe(true) // coupon dropped off, not charged yet
+  })
+
+  it("a paid subscription is paying, not free — on a coupon now or not", () => {
+    expect(isFreeAccount(sub())).toBe(false)
+    expect(isFreeAccount(sub({ discounts: FREE }))).toBe(false)
+  })
+
+  it("never-paid trialing, past_due, unpaid and ended ones are not free accounts", () => {
+    for (const status of ["trialing", "past_due", "unpaid", "paused", "incomplete", "canceled", "incomplete_expired"]) {
+      expect(isFreeAccount(sub({ status, first_paid_at: null })), status).toBe(false)
+    }
+  })
+
+  it("free and paying never overlap", () => {
+    for (const status of ["active", "past_due", "trialing"]) {
+      for (const first_paid_at of [null, NOW_SEC - DAY]) {
+        const s = sub({ status, first_paid_at })
+        expect(isFreeAccount(s) && isPaying(s)).toBe(false)
+      }
+    }
+  })
+})
+
+describe("freeAt (history)", () => {
+  it("is free from the start (or trial end) until the first payment, then paying", () => {
+    const s = sub({ start_date: NOW_SEC - 100 * DAY, first_paid_at: NOW_SEC - 10 * DAY })
+    expect(freeAt(s, NOW_SEC - 120 * DAY)).toBe(false)
+    expect(freeAt(s, NOW_SEC - 50 * DAY)).toBe(true)
+    expect(payingAt(s, NOW_SEC - 50 * DAY)).toBe(false)
+    expect(freeAt(s, NOW_SEC)).toBe(false)
+    expect(payingAt(s, NOW_SEC)).toBe(true)
+  })
+
+  it("a never-paid account that was canceled is free until it ended — unless it was dropped for a failed payment", () => {
+    const left = sub({ status: "canceled", first_paid_at: null, start_date: NOW_SEC - 100 * DAY, ended_at: NOW_SEC - 10 * DAY })
+    expect(freeAt(left, NOW_SEC - 50 * DAY)).toBe(true)
+    expect(freeAt(left, NOW_SEC)).toBe(false)
+    const failed = { ...left, cancellation_details: { reason: "payment_failed" } }
+    expect(freeAt(failed, NOW_SEC - 50 * DAY)).toBe(false)
+  })
+
+  it("a trial cancelled during the trial was never free", () => {
+    const s = sub({
+      status: "canceled",
+      first_paid_at: null,
+      trial_start: NOW_SEC - 20 * DAY,
+      trial_end: NOW_SEC - 6 * DAY,
+      start_date: NOW_SEC - 20 * DAY,
+      ended_at: NOW_SEC - 10 * DAY,
+    })
+    for (const t of [NOW_SEC - 15 * DAY, NOW_SEC - 8 * DAY, NOW_SEC]) expect(freeAt(s, t)).toBe(false)
+  })
+
+  it("for now it agrees with isFreeAccount", () => {
+    const subs = [
+      sub({ first_paid_at: null }),
+      sub({ first_paid_at: null, discounts: FREE }),
+      sub(),
+      sub({ status: "past_due", first_paid_at: null }),
+      sub({ status: "trialing", first_paid_at: null, trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + DAY }),
+      sub({ status: "canceled", first_paid_at: null, ended_at: NOW_SEC - DAY }),
+    ]
+    expect(freeCountAt(subs, NOW_SEC)).toBe(subs.filter(isFreeAccount).length)
+    expect(freeCountAt(subs, NOW_SEC)).toBe(2)
+  })
+
+  it("drives freeAccounts' previous, today and series", () => {
+    const m = metrics([
+      sub({ first_paid_at: null, start_date: NOW_SEC - 200 * DAY }),
+      sub({ first_paid_at: null, start_date: sec("2026-10-14T06:00:00Z") }), // free since today (Central)
+      sub({ first_paid_at: sec("2026-10-14T07:00:00Z"), start_date: NOW_SEC - 100 * DAY }), // free until it paid today
+    ])
+    expect(m.freeAccounts.value).toBe(2)
+    expect(m.freeAccounts.previous).toBe(2)
+    expect(m.freeAccounts.today).toBe(0) // +1 started, −1 moved to paying
+    expect(m.freeAccounts.series).toEqual([1, 1, 2, 2, 2, 2])
+    expect(m.subscribers.value).toBe(1)
+    expect(m.subscribers.today).toBe(1)
   })
 })
 
@@ -219,11 +307,20 @@ describe("payingAt (history)", () => {
       sub({ status: "past_due" }),
       sub({ first_paid_at: null }),
       sub({ status: "trialing", first_paid_at: NOW_SEC - DAY }),
+      sub({ status: "unpaid", first_paid_at: NOW_SEC - 90 * DAY }),
+      sub({ status: "paused", first_paid_at: NOW_SEC - 90 * DAY }),
       sub({ status: "canceled", ended_at: NOW_SEC - DAY }),
       sub({ status: "incomplete_expired", ended_at: NOW_SEC - DAY }),
     ]
     expect(payingCountAt(subs, NOW_SEC)).toBe(subs.filter(isPaying).length)
-    expect(payingCountAt(subs, NOW_SEC)).toBe(3)
+    expect(payingCountAt(subs, NOW_SEC)).toBe(2)
+  })
+
+  it("unpaid, paused and trialing subscriptions that paid before are in no past point either", () => {
+    for (const status of ["unpaid", "paused", "trialing"]) {
+      const s = sub({ status, first_paid_at: NOW_SEC - 90 * DAY })
+      for (const t of [NOW_SEC - 60 * DAY, NOW_SEC - DAY, NOW_SEC]) expect(payingAt(s, t), status).toBe(false)
+    }
   })
 
   it("drives previous, today and series on the card", () => {
@@ -327,10 +424,11 @@ describe("MRR uses only the paying set", () => {
       sub({ status: "past_due" }), // $49, paying
       sub({ first_paid_at: null }), // active, never paid, no coupon now: $0 of MRR
       sub({ status: "trialing", first_paid_at: null }),
-      sub({ status: "unpaid", first_paid_at: NOW_SEC - 90 * DAY }), // paid before: in, like Subscribers
+      sub({ status: "unpaid", first_paid_at: NOW_SEC - 90 * DAY }), // paid before, but unpaid now: out, like Subscribers
+      sub({ status: "paused", first_paid_at: NOW_SEC - 90 * DAY }), // out
     ]
-    expect(mrrAt(subs, NOW_SEC)).toBe(147)
-    expect(metrics(subs).mrr.value).toBe(147)
+    expect(mrrAt(subs, NOW_SEC)).toBe(98)
+    expect(metrics(subs).mrr.value).toBe(98)
   })
 
   it("a paid-once subscription now on a 100% coupon counts as a subscriber at $0", () => {
