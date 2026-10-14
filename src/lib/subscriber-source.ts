@@ -9,7 +9,7 @@ import { snapshotFor } from "@/lib/kpis"
  */
 
 export type SubscriberReading = {
-  /** Active subscribers right now. */
+  /** Paying subscribers right now (see `isPaying`). */
   total: number
   /** Net change since 00:00 in the founder's time zone. */
   today: number

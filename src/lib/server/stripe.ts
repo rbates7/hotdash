@@ -16,8 +16,8 @@ import { NOT_CONNECTED, type StripeHealth, type StripeSummary } from "@/lib/stri
  * and never leaves this module: it is not logged, not returned, and nothing
  * here is importable from a client component (`server-only`).
  *
- * One sync lists every subscription and the last two weeks of charges
- * (read-only list calls), keeps the result for `CACHE_TTL_MS`, and keeps
+ * One sync lists every subscription, every paid invoice and the last two
+ * weeks of charges (read-only list calls), keeps the result for `CACHE_TTL_MS`, and keeps
  * the last good copy indefinitely so a Stripe outage shows the last figures
  * as stale instead of nothing. Figures are computed from the copy on each
  * request, in the caller's time zone.
@@ -79,7 +79,8 @@ export type Loader = (config: Extract<StripeConfig, { kind: "ok" }>, now: Date) 
 
 /**
  * The read-only calls: `subscriptions.list` (every status, with discounts
- * and their coupons expanded for MRR) and `charges.list` since the Monday
+ * and their coupons expanded for MRR), `invoices.list` (paid, for each
+ * subscription's first payment) and `charges.list` since the Monday
  * before last. Only the fields the metrics read are kept — no customer
  * names, emails or card details are held in memory.
  */

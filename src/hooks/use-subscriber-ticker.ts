@@ -38,7 +38,7 @@ const IDLE: TickerStore = {
  * The subscriber count for the founder's Settings zone, shared by every
  * ticker on the page:
  *
- * - Stripe connected → its active subscription count and today's net
+ * - Stripe connected → its paying subscriber count (`isPaying`) and today's net
  *   change, as of the last sync; stale → the same, marked stale.
  * - Stripe not connected → the sample source, wearing the Sample chip.
  * - Until the summary answers → the loading tiles (the server render too).

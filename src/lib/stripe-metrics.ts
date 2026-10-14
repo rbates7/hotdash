@@ -132,7 +132,8 @@ export type StripeMetrics = {
 const SECOND = 1000
 
 /**
- * Statuses that count as an active subscriber right now: `active`, plus
+ * Statuses that count as an active subscription for churn and its history
+ * (`activeAt`); Subscribers and MRR use `isPaying` instead: `active`, plus
  * `past_due` (a renewal failed and Stripe is still retrying — the customer
  * has not left, and Stripe's own dashboard counts them). `trialing` is not
  * counted: nobody has paid yet; trials are measured by trial-to-paid.

@@ -89,7 +89,7 @@ describe("Home with Stripe connected", () => {
     expect(screen.queryByTestId("kpi-updated")).toBeNull()
   })
 
-  it("the ticker shows the active subscription count and today's net change, unlabelled", () => {
+  it("the ticker shows the paying subscriber count and today's net change, unlabelled", () => {
     renderHome()
     expect(spoken()).toBe("Subscribers: 1,284, up 3 today")
     expect(ticker()).toHaveAttribute("data-state", "ready")
