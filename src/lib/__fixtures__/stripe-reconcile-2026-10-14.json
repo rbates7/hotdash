@@ -1,0 +1,11 @@
+{
+  "source": "Bobbi (Data), stripe_chlk/trend_2026_10_14/reconcile.json: Stripe Sigma pulled 2026-10-14 ~08:00 CT. Aggregate counts only, no customer data.",
+  "definition": "not-ended Stripe subs with >=1 invoice amount_paid>0; App Store excluded",
+  "paying": { "headline": 1110, "active": 1079, "past_due": 31 },
+  "paid_once_now_100pct_coupon": 7,
+  "never_paid_not_ended": { "active": 174, "trialing": 18, "past_due": 13 },
+  "never_paid_active_no_current_coupon": 84,
+  "all_not_ended_any_status": 1315,
+  "coulson": { "status_active": 1253, "active_with_100pct_coupon": 97, "result": 1156 },
+  "bridge_to_coulson": { "remove_past_due": -31, "add_never_paid_active_no_current_coupon": 84, "remove_paid_before_now_on_100pct_coupon": -7 }
+}
