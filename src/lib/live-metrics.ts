@@ -73,6 +73,10 @@ export function liveValueText(metric: Pick<LiveMetric, "value">, unit: MetricSna
 /* ------------------------------------------------------------------ Home */
 
 /** The cash card compares Monday-to-now against last week to the same point. */
+/** Fine print on the Stripe-fed money figures (Mack, PR #42 round 1). */
+export const CASH_NOTE = "Gross, before refunds"
+export const MRR_NOTE = "USD only · past points use today\u2019s prices"
+
 export const VS_SAME_POINT_LAST_WEEK = "vs same time last week"
 
 function direction(t: ReturnType<typeof trendFor>): Kpi["direction"] {

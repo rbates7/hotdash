@@ -14,6 +14,7 @@ import {
   type ChartType,
   type MetricSnapshot,
 } from "@/lib/metrics"
+import { MRR_NOTE } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
 import { liveValueText, type LiveState } from "@/lib/live-metrics"
@@ -172,6 +173,11 @@ export function MetricCard({
           {snapshot.note && (
             <p className="text-micro text-muted-foreground mt-1.5 font-medium tracking-tight">
               {snapshot.note}
+            </p>
+          )}
+          {snapshot.id === "mrr" && (
+            <p data-testid="metric-mrr-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+              {MRR_NOTE}
             </p>
           )}
           {stripe?.updated && (

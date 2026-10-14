@@ -68,30 +68,31 @@ for (const vp of WIDTHS) {
   }
 }
 
-test("metrics 1440 light (connected)", async ({ page }) => {
+for (const theme of ["light", "dark"] as const) {
+test(`metrics 1440 ${theme} (connected)`, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await mockStripe(page, liveSummary("connected"))
   await openLive(page, "/metrics")
-  await setTheme(page, "light")
-  save("metrics-1440-light.png", await capture(page))
+  await setTheme(page, theme)
+  save(`metrics-1440-${theme}.png`, await capture(page))
 })
 
-test("settings 1440 light (connected)", async ({ page }) => {
+test(`settings 1440 ${theme} (connected)`, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await mockStripe(page, liveSummary("connected"))
   await page.goto("/settings")
   await waitForHydration(page)
-  await setTheme(page, "light")
+  await setTheme(page, theme)
   await expect(page.getByTestId("stripe-status")).toHaveText("Connected")
   await page.getByRole("region", { name: "Connected data" }).scrollIntoViewIfNeeded()
-  save("settings-1440-light.png", await capture(page))
+  save(`settings-1440-${theme}.png`, await capture(page))
 })
 
-test("not connected 1440 light (no key: Home + Settings)", async ({ page }) => {
+test(`not connected 1440 ${theme} (no key: Home + Settings)`, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto("/home")
   await waitForHydration(page)
-  await setTheme(page, "light")
+  await setTheme(page, theme)
   await expect(page.getByRole("article", { name: "Subscribers", exact: true })).toHaveAttribute("data-source", "sample")
   const home = await capture(page)
   await page.goto("/settings")
@@ -100,23 +101,24 @@ test("not connected 1440 light (no key: Home + Settings)", async ({ page }) => {
     page.getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
   ).toHaveCount(4)
   const settings = await capture(page)
-  save("not-connected-home-1440-light.png", home)
-  save("not-connected-settings-1440-light.png", settings)
-  save("not-connected-1440-light.png", await sideBySide(page, home, settings))
+  save(`not-connected-home-1440-${theme}.png`, home)
+  save(`not-connected-settings-1440-${theme}.png`, settings)
+  save(`not-connected-1440-${theme}.png`, await sideBySide(page, home, settings))
 })
 
-test("stale 1440 light (Home + Settings)", async ({ page }) => {
+test(`stale 1440 ${theme} (Home + Settings)`, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await mockStripe(page, liveSummary("stale"))
   await openLive(page, "/home")
-  await setTheme(page, "light")
+  await setTheme(page, theme)
   await expect(page.getByTestId("kpi-updated").first()).toBeVisible()
   const home = await capture(page)
   await page.goto("/settings")
   await waitForHydration(page)
   await expect(page.getByTestId("stripe-status")).toContainText("Last updated")
   const settings = await capture(page)
-  save("stale-home-1440-light.png", home)
-  save("stale-settings-1440-light.png", settings)
-  save("stale-1440-light.png", await sideBySide(page, home, settings))
+  save(`stale-home-1440-${theme}.png`, home)
+  save(`stale-settings-1440-${theme}.png`, settings)
+  save(`stale-1440-${theme}.png`, await sideBySide(page, home, settings))
 })
+}

@@ -1,3 +1,4 @@
+import { CASH_NOTE, MRR_NOTE } from "@/lib/live-metrics"
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
@@ -81,6 +82,11 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
       >
         {loading ? <span aria-label="Loading">–</span> : kpi.value}
       </p>
+      {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
+        <p data-testid="kpi-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+          {kpi.id === "mrr" ? MRR_NOTE : CASH_NOTE}
+        </p>
+      )}
       {kpi.updated && (
         <p data-testid="kpi-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
           {kpi.updated}
