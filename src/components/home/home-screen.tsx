@@ -1,10 +1,12 @@
 "use client"
 
 import { todayIn } from "@/lib/clock"
-import { boardPreview, needsYou } from "@/lib/home"
+import { boardPreview, needsYou, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
 import { mrrTrend } from "@/lib/kpis"
 import { buildInbox } from "@/lib/workplace-fixture"
+import { useSettings } from "@/hooks/use-settings"
+import { useWallClock } from "@/hooks/use-wall-clock"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 import { PersistenceNote } from "@/components/persistence-note"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
@@ -27,9 +29,14 @@ import {
  * Must sit inside an IssuesProvider — the Dev board and Needs-you doors read
  * the Workplace store so Home always matches the board.
  */
-export function HomeScreen({ pulse }: { pulse: string }) {
+export function HomeScreen() {
   const store = useIssues()
   const { issues, sprints, actors, now, persisted } = store
+  // The weekday and the clock read in the founder's Settings zone (Central
+  // until the browser's copy is read, so the server HTML hydrates cleanly).
+  const { timeZone } = useSettings()
+  const pulse = pulseLabel(now, timeZone)
+  const clock = useWallClock(timeZone)
   // The page's instant, as the founder's calendar day: the same `today` the
   // Metrics page would compute, so the strip and door match it.
   const today = todayIn(now)
@@ -45,7 +52,13 @@ export function HomeScreen({ pulse }: { pulse: string }) {
         <div className="min-w-0 max-md:w-full">
           <h1 className="text-display-sm font-semibold tracking-tight">Home</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
-            {pulse}
+            <span>{pulse}</span>
+            {clock ? (
+              <span className="tabular-nums" data-testid="home-clock">
+                {" · "}
+                {clock}
+              </span>
+            ) : null}
           </p>
         </div>
         <div className={HOME_HEADER_META}>

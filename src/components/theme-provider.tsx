@@ -10,7 +10,8 @@ export function ThemeProvider({
     <NextThemesProvider
       attribute="class"
       defaultTheme="dark"
-      enableSystem={false}
+      // Settings › Appearance offers "Match device"; Dark stays the default.
+      enableSystem
       disableTransitionOnChange
       {...props}
     >

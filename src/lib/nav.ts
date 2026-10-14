@@ -11,6 +11,7 @@ import {
   NotebookPenIcon,
   PresentationIcon,
   ServerIcon,
+  SettingsIcon,
   TargetIcon,
   UsersIcon,
   type LucideIcon,
@@ -54,6 +55,15 @@ export const navItems: NavItem[] = [
   },
 ]
 
+/** The one screen that cannot be hidden from the sidebar. */
+export const HOME_HREF = "/home"
+
+/**
+ * Settings lives in the sidebar footer (above Help), not in `navItems`, so
+ * it can never be hidden or reordered away — it is always reachable.
+ */
+export const settingsItem: NavItem = { label: "Settings", href: "/settings", icon: SettingsIcon }
+
 /** True when `pathname` is `href` or a descendant of it. */
 export function isActiveRoute(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -64,7 +74,7 @@ export function isActiveRoute(pathname: string, href: string) {
  * Unknown paths fall back to the product name so the compact header is never blank.
  */
 export function navLabelFor(pathname: string) {
-  const match = navItems
+  const match = [...navItems, settingsItem]
     .filter((item) => !item.external && isActiveRoute(pathname, item.href))
     .sort((a, b) => b.href.length - a.href.length)[0]
   return match?.label ?? "Founder dashboard"

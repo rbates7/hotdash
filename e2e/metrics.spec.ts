@@ -191,8 +191,12 @@ test.describe("Metrics", () => {
   test("switches views and each table shows its locked columns", async ({ page }) => {
     await page.goto("/metrics")
 
-    await tab(page, "New Subscribers").click()
-    await expect(page).toHaveURL(/tab=new$/)
+    // The tab can be clicked before hydration attaches its handler; retry the
+    // click until the URL changes rather than racing hydration.
+    await expect(async () => {
+      await tab(page, "New Subscribers").click()
+      await expect(page).toHaveURL(/tab=new$/, { timeout: 1000 })
+    }).toPass({ timeout: 10_000 })
     const fresh = table(page, "New subscribers")
     await expect(fresh.getByRole("columnheader")).toHaveText(["Name / Email", "Plan", "Signup Date"])
     await expect(fresh.getByRole("row")).toHaveCount(9)

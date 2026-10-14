@@ -19,6 +19,58 @@ export function now(): Date {
 /** Where the founder is. Display-side weekday and clock labels use it. */
 export const CENTRAL = "America/Chicago"
 
+/* ------------------------------------------------------------ time zones */
+
+/**
+ * The zones Settings offers: the US zones plus UTC. Central is the default
+ * and what every screen still dates its figures in; the founder's choice is
+ * stored by Settings and read back through `timeZoneOption` /
+ * `formatWallClock` — never a zone string copied into a component.
+ */
+export const TIME_ZONES = [
+  { id: "America/New_York", label: "Eastern" },
+  { id: CENTRAL, label: "Central" },
+  { id: "America/Denver", label: "Mountain" },
+  { id: "America/Phoenix", label: "Arizona" },
+  { id: "America/Los_Angeles", label: "Pacific" },
+  { id: "America/Anchorage", label: "Alaska" },
+  { id: "Pacific/Honolulu", label: "Hawaii" },
+  { id: "UTC", label: "UTC" },
+] as const
+
+export type TimeZoneId = (typeof TIME_ZONES)[number]["id"]
+
+export const DEFAULT_TIME_ZONE: TimeZoneId = CENTRAL
+
+export function isTimeZoneId(value: unknown): value is TimeZoneId {
+  return TIME_ZONES.some((zone) => zone.id === value)
+}
+
+/** The option for `id`; anything unknown falls back to Central. */
+export function timeZoneOption(id: unknown) {
+  return TIME_ZONES.find((zone) => zone.id === id) ?? TIME_ZONES[1]
+}
+
+/**
+ * "Tue, Oct 13 · 9:41 PM CDT": an instant as the wall clock reads in
+ * `timeZone`, with the zone's own abbreviation so the label is never
+ * ambiguous about which clock it means.
+ */
+export function formatWallClock(instant: Date, timeZone: string = CENTRAL) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).formatToParts(instant)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? ""
+  return `${get("weekday")}, ${get("month")} ${get("day")} · ${get("hour")}:${get("minute")} ${get("dayPeriod")} ${get("timeZoneName")}`
+}
+
 /* ------------------------------------------------------------ calendar */
 
 /**
