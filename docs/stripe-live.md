@@ -1,8 +1,8 @@
-# Live Stripe (read-only) and App Store payers
+# Live Stripe (read-only), App Store payers and invoice coaches
 
 Home, Metrics and Settings read live figures from Stripe, and the
-Subscribers total also counts App Store payers read from Chlk's Supabase
-Postgres. Everything else on the dashboard is still sample data, labelled.
+Subscribers total also counts active App Store payers and invoice
+(school/district) coaches read from Chlk's Supabase Postgres. Everything else on the dashboard is still sample data, labelled.
 
 ## Setup
 
@@ -13,7 +13,7 @@ Postgres. Everything else on the dashboard is still sample data, labelled.
 | Key | A Stripe **restricted** key (`rk_live_…`) with read access to Subscriptions, Invoices, Charges and Coupons. The server refuses anything that is not `rk_…`/`sk_…`. |
 | Calls | `subscriptions.list` (all statuses, discounts expanded), `invoices.list` (`status=paid`, every page, listed once and joined on `parent.subscription_details.subscription` — never one call per subscription) and `charges.list` (last 15 days), via the official `stripe` package (pinned). List calls only. A full sync takes a few minutes at ~3k subscriptions; it is cut off at 240 s (the routes allow 300 s). |
 | Cache | One sync per server process every 5 minutes, always **in the background**: a request never waits for it. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with no copy yet it gets `not_connected` at once (the dashboard shows its labelled sample figures) and the next poll, a minute later, picks up the sync once it lands. The routes hand the running sync to `after()` so it outlives the response. A sync over 240 s is a failure; a failed sync retries 1 minute after it failed. The last good copy is kept. |
-| App Store read | `src/lib/server/app-store.ts`, via the `postgres` package (pinned): one short-lived connection per count (`max: 1`, `prepare: false` for Supabase's pooler), a `begin read only` transaction with `set local statement_timeout = 10000`, then the fixed query below. Same background refresh (never awaited by a request; `not_connected` until the first count lands), 240 s limit, 5-minute cache, 1-minute retry and last good count. Any failure is `stale` (with a last good count) or `not_connected` — never a throw, never held up with Stripe's sync, never a made-up 0. Logs only the error's class name. |
+| App Store read | `src/lib/server/app-store.ts`, via the `postgres` package (pinned): one short-lived connection per count (`max: 1`, `prepare: false` for Supabase's pooler), a `begin read only` transaction with `set local statement_timeout = 10000`, then the fixed query below (both counts in one read). Same background refresh (never awaited by a request; `not_connected` until the first count lands), 240 s limit, 5-minute cache, 1-minute retry and last good count. Any failure is `stale` (with a last good count) or `not_connected` — never a throw, never held up with Stripe's sync, never a made-up 0. Logs only the error's class name. |
 
 Optional, local only: `STRIPE_API_BASE=http://127.0.0.1:<port>` points the SDK
 at a loopback mock. It is ignored in a production build unless
@@ -23,7 +23,7 @@ entirely, so a key can never be sent somewhere else.
 ### Read-only database role
 
 `SUPABASE_READONLY_DB_URL` connects as a role that can only read the two
-tables the App Store count uses. **Owner: Radcliffe**, who creates it and
+tables the App Store and invoice counts use. **Owner: Radcliffe**, who creates it and
 sets the password; it has not been run from here, and nobody else should
 run it.
 
@@ -45,7 +45,8 @@ behind the server's own `begin read only` transaction.
   last good figures and their `lastSyncedAt`), or `not_connected` (no key, or
   no sync has landed yet — including the first few minutes after a cold
   start; `metrics: null`). `appStore` is its own source:
-  `{ status: "connected" | "stale", count, asOf }` or
+  `{ status: "connected" | "stale", count, invoice, asOf }` (`count` is
+  App Store, `invoice` the invoice coaches) or
   `{ status: "not_connected" }`. The two are read side by side and fail
   independently. Never an error body, never made-up zeros.
 - `GET /api/health/stripe` → `{"stripe":"ok"|"unavailable"|"not_configured"}`
@@ -60,7 +61,7 @@ behind the server's own `begin read only` transaction.
 | Stale | Stripe's last figure + "Last updated <time>" | none |
 | Not connected | The sample figure, as before | Sample data |
 
-With Stripe not connected, the App Store count is not shown either: the
+With Stripe not connected, the App Store and invoice counts are not shown either: the
 Subscribers surfaces stay sample, as before.
 
 Stripe feeds: the Home ticker and Subscribers card, Home's Cash this week,
@@ -74,72 +75,91 @@ Times use the shared clock (`formatWallClock`) in the Settings time zone.
 All in `src/lib/stripe-metrics.ts` (pure, unit-tested). USD only; other
 currencies are skipped, not converted.
 
-- **Subscribers** — Rashad + Bobbi's final definition (Data, Oct 14 2026).
+- **Subscribers** — Rashad + Bobbi's definition (Data, Oct 14 2026), with
+  Rashad + Radcliffe's active-only Supabase rule and invoice coaches.
   The Home card, the ticker and Metrics › Subscribers all show the
-  **total** = (1) + (2) + (3), with the three groups listed under it (the
-  ticker: as a tooltip on hover/keyboard focus and as the link's
+  **total** = (1) + (2) + (3) + (4), with the four groups listed under it
+  (the ticker: as a tooltip on hover/keyboard focus and as the link's
   accessible description; its live region announces the total only).
-  On Oct 14: **1,337 = 1,110 + 53 + 174**.
+  Nobody is counted twice: Stripe's own figure (1) already covers every
+  `method = 'Stripe'` row in Chlk's database, so from the database only
+  App Store and invoice users with no Stripe subscription are added.
   1. **Stripe paying** (`isPaying`) — status `active` or `past_due` **and**
      at least one paid invoice with `amount_paid > 0`. `trialing`, `unpaid`
      and `paused` do not count, even with paid history. No "has a coupon
      now" filter: a subscription that paid once and now sits on a 100%
      coupon counts. 1,110 on Oct 14 (1,079 `active` + 31 `past_due`).
-  2. **App Store payers** — Chlk users paying through Apple, with no
-     active, past-due or trialing Stripe or invoice subscription (overlap
-     with Stripe was 0 on Oct 14). Counted in Chlk's database with exactly
-     this query (verified read-only on prod: 53). `apple_product_id` is on
-     `chlk.plans`, not `chlk.subscriptions`; `method` is one of
-     `AppStore`, `Stripe`, `invoice`.
+  2. **App Store** — Chlk users on an App Store plan whose subscription is
+     `active` (not `trialing`, `past_due` or `billing_retry`), with no
+     active, past-due or trialing Stripe subscription. 53 on prod.
+  3. **Invoice (school/district)** — coaches billed by invoice, `active`
+     only, with no active, past-due or trialing Stripe subscription. 83 on
+     prod. Their `subscription_id`s are not Stripe ids (Stripe has no
+     `send_invoice` subscriptions), so Stripe never counts them.
+
+     (2) and (3) come from one read of Chlk's database (verified read-only
+     on prod: 53 and 83, zero overlap with Stripe or with each other).
+     `apple_product_id` is on `chlk.plans`, not `chlk.subscriptions`;
+     `method` is one of `AppStore`, `Stripe`, `invoice`. LEFT JOIN, so an
+     invoice row without a plans row still counts. The status filter is
+     in the query on purpose: the table's RLS policy is `using (true)`, so
+     every row is visible and nothing else narrows it.
 
      ```sql
-     select count(distinct a.user_id)::int as n
+     select
+       count(distinct a.user_id) filter (where a.method = 'AppStore' and p.apple_product_id is not null)::int as app_store,
+       count(distinct a.user_id) filter (where a.method = 'invoice')::int as invoice
      from chlk.subscriptions a
-     join chlk.plans p on p.id = a.plan_id
-     where a.method = 'AppStore'
-       and p.apple_product_id is not null
-       and a.subscription_status in ('active','billing_retry')
+     left join chlk.plans p on p.id = a.plan_id
+     where a.subscription_status = 'active'
+       and a.method in ('AppStore','invoice')
        and not exists (
          select 1 from chlk.subscriptions x
          where x.user_id = a.user_id
-           and x.method in ('Stripe','invoice')
+           and x.method = 'Stripe'
            and x.subscription_status in ('active','past_due','trialing')
        )
      ```
 
-     Only in the total when that source has answered. Not connected → the
-     App Store row reads "Not connected" and the total says **"Total
-     excludes App Store (not connected)"**; it is never counted as 0.
-     Stale → its last good count, with "App Store as of <time>".
-  3. **Free accounts** (`isFreeAccount`, labelled **"Free (never paid)"**
+     Both values must be non-negative integers, or the read is a failure.
+     Only in the total when that source has answered. Not connected → both
+     rows read "Not connected" and the total says **"Total excludes App
+     Store and invoice (not connected)"**; never counted as 0. Stale → the
+     last good counts, with "App Store and invoice as of <time>". A
+     payload from an older server with no `invoice` shows "—" on that row
+     and "Total excludes invoice (not reported)".
+  4. **Free accounts** (`isFreeAccount`, labelled **"Free (never paid)"**
      in the breakdown) — Stripe status exactly `active`
      and **never** paid an invoice with `amount_paid > 0`, coupon on it now
      or not (100%-off launch annuals, and ones whose coupon has dropped off
      but have not been charged yet). Never-paid `trialing` and `past_due`
      are in no group. 174 on Oct 14.
 
+  With the review fixture: **1,414 = 1,107 + 53 + 83 + 171**.
+
   **History** (previous, today, the six-window series): (1) counts a
   subscription from its first paid invoice until it ended (`payingAt`);
   ones sitting in `unpaid`/`paused`/`trialing` now cannot be dated and are
-  in no point. (3) counts an account from the end of any trial until it
+  in no point. (4) counts an account from the end of any trial until it
   first paid (then it is in (1)) or ended (`freeAt`); one dropped for a
-  failed payment was past due, not free, and is left out. (2) has **no
-  history** — the query is a count now — so the App Store count is held at
-  its current value at every past point. The line sits at the right level,
-  and the delta and "today" are the change in (1) + (3) alone, not a jump
-  the size of the App Store count on the day it connected. Today's change
+  failed payment was past due, not free, and is left out. (2) and (3) have
+  **no history** — the query is a count now — so they are held at their
+  current values at every past point. The line sits at the right level, and the delta and "today" are the change
+  in (1) + (4) alone, not a jump the size of those counts on the day they
+  connected. Today's change
   is the count now minus the count at 00:00 in the Settings zone.
 
   Coulson's earlier 1,156 (`status=active` minus subscriptions on a 100%
   coupon now) differs from (1) by −31 past_due, +84 never-paid active with
   no coupon now, −7 paid before and now on a 100% coupon.
-  `src/lib/stripe-reconcile.test.ts` pins that bridge and the 1,337 total
-  (App Store from a mocked provider) on a synthetic fixture.
+  `src/lib/stripe-reconcile.test.ts` pins that bridge and the 1,420 total
+  (1,110 + 53 + 83 + 174; App Store and invoice from a mocked provider) on
+  a synthetic fixture.
 - **Cash this week** — gross amount of succeeded, captured charges since
   Monday 00:00 in the Settings zone. Refunds and fees are not netted out.
   Compared with last week from Monday to the same point in the week.
 - **MRR** — over the **Stripe paying set (1) only** (not free accounts,
-  not App Store), USD only: for each
+  not App Store or invoice), USD only: for each
   paying subscription, Σ unit amount × quantity per item,
   normalized to a month (year ÷ 12, week × 52/12, day × 365/12, divided by
   `interval_count`), less live percent-off / amount-off discounts (`once`
@@ -168,7 +188,9 @@ history; they are best effort.
   and fails if any is there.
 - CI and Playwright run the app with both blank; Playwright mocks
   `/api/stripe/summary` in the browser for the connected and stale states,
-  with the App Store connected and not connected. CI never calls Stripe or
+  with the database (App Store and invoice) connected and not connected. CI never calls Stripe or
   the database. Unit tests swap the App Store provider
   (`createAppStoreSource({ query })`, `setAppStoreSource`) and fake the
-  `postgres` client to check the exact SQL and the read-only transaction.
+  `postgres` client to check the exact SQL (counted status `active` only,
+  never `trialing`/`past_due`/`billing_retry`) and the read-only
+  transaction.

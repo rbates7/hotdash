@@ -120,7 +120,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
 
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    expect(subs).toBe("1,337")
+    expect(subs).toBe("1,414")
     expect(within(homeCard).getByText(subs!)).toBeInTheDocument()
     expect(homeCard).toHaveTextContent(`${subsTrend} vs previous`)
     expect(within(homeCard).getByTestId("subscriber-breakdown").textContent).toBe(subsRows)

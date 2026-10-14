@@ -1,7 +1,7 @@
 {
   "source": "Bobbi (Data), stripe_chlk/trend_2026_10_14/reconcile.json: Stripe Sigma pulled 2026-10-14 ~08:00 CT. Aggregate counts only, no customer data.",
-  "source_app_store": "Rashad + Bobbi: read-only SQL on Chlk's Supabase prod (chlk.subscriptions join chlk.plans), 2026-10-14. Aggregate counts only.",
-  "definition": "final (Rashad + Bobbi): total = (1) Stripe paying (active|past_due with >=1 invoice amount_paid>0) + (2) App Store payers with no active/past_due/trialing Stripe or invoice subscription + (3) Stripe status=active never paid",
+  "source_app_store": "Rashad + Bobbi + Radcliffe: read-only SQL on Chlk's Supabase prod (chlk.subscriptions join chlk.plans), 2026-10-14, subscription_status = 'active' only. Aggregate counts only.",
+  "definition": "final (Rashad + Bobbi): total = (1) Stripe paying (active|past_due with >=1 invoice amount_paid>0) + (2) active App Store subscriptions with no active/past_due/trialing Stripe subscription + (3) active invoice (school/district) subscriptions with none either + (4) Stripe status=active never paid",
   "paying": {
     "headline": 1110,
     "active": 1079,
@@ -19,7 +19,12 @@
     "payers_not_in_stripe": 53,
     "overlap_with_stripe": 0
   },
-  "total_headline": 1337,
+  "invoice": {
+    "coaches_not_in_stripe": 83,
+    "overlap_with_stripe": 0,
+    "overlap_with_app_store": 0
+  },
+  "total_headline": 1420,
   "all_not_ended_any_status": 1315,
   "coulson": {
     "status_active": 1253,

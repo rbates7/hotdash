@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import {
-  APP_STORE_PAYERS_SQL,
+  SUPABASE_PAYERS_SQL,
   CACHE_TTL_MS,
   RETRY_AFTER_MS,
   STATEMENT_TIMEOUT_MS,
@@ -14,6 +14,7 @@ import {
   readAppStoreConfig,
   setAppStoreSource,
   type Connect,
+  type SupabaseCounts,
 } from "@/lib/server/app-store"
 import { SYNC_TIMEOUT_MS } from "@/lib/server/time-limit"
 
@@ -25,8 +26,11 @@ const URL_TLS = `${URL_OK}?sslmode=require`
 const T0 = Date.parse("2026-10-14T13:00:00.000Z")
 /** Real wall time, taken before fake timers replace `performance.now`. */
 const wallClock = performance.now.bind(performance)
+/** Prod's Oct 14 counts: active App Store payers and invoice coaches. */
+const COUNTS: SupabaseCounts = { appStore: 53, invoice: 83 }
+const READING = { status: "connected", count: 53, invoice: 83, asOf: new Date(T0).toISOString() }
 
-function source(query: (url: string) => Promise<number>, env: Record<string, string | undefined> = ENV) {
+function source(query: (url: string) => Promise<SupabaseCounts>, env: Record<string, string | undefined> = ENV) {
   let now = T0
   const logs: string[] = []
   const src = createAppStoreSource({ env: () => env, query, clock: () => now, log: (k) => logs.push(k) })
@@ -41,7 +45,7 @@ async function synced(src: ReturnType<typeof createAppStoreSource>) {
 }
 
 /** A stand-in `postgres` client that records what it was sent. */
-function fakeClient(answer: () => Promise<unknown> = async () => [{ n: 53 }]) {
+function fakeClient(answer: () => Promise<unknown> = async () => [{ app_store: 53, invoice: 83 }]) {
   const sent: string[] = []
   const calls = { url: "", options: null as unknown, mode: "", ended: 0 }
   const connect: Connect = (url, options) => {
@@ -53,7 +57,7 @@ function fakeClient(answer: () => Promise<unknown> = async () => [{ n: 53 }]) {
         return fn({
           unsafe: async (q: string) => {
             sent.push(q)
-            return q === APP_STORE_PAYERS_SQL ? answer() : []
+            return q === SUPABASE_PAYERS_SQL ? answer() : []
           },
         })
       },
@@ -98,10 +102,10 @@ describe("readAppStoreConfig", () => {
 describe("postgresQuery (the default provider)", () => {
   it("sends exactly the verified SQL, in a read-only transaction with a statement timeout", async () => {
     const { connect, sent, calls } = fakeClient()
-    expect(await postgresQuery(connect)(URL_OK)).toBe(53)
+    expect(await postgresQuery(connect)(URL_OK)).toEqual(COUNTS)
     expect(calls.url).toBe(URL_OK)
     expect(calls.mode).toBe("read only")
-    expect(sent).toEqual([`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`, APP_STORE_PAYERS_SQL])
+    expect(sent).toEqual([`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`, SUPABASE_PAYERS_SQL])
     expect(calls.options).toMatchObject({ max: 1, prepare: false, ssl: "require" })
     expect(calls.ended).toBe(1)
   })
@@ -119,18 +123,42 @@ describe("postgresQuery (the default provider)", () => {
     }
   })
 
-  it("the SQL is Rashad and Bobbi's, with the plan join and the Stripe/invoice overlap excluded", () => {
-    const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ").trim()
+  it("the SQL: active App Store and invoice rows only, LEFT JOIN on plans, Stripe overlap excluded", () => {
+    const flat = SUPABASE_PAYERS_SQL.replace(/\s+/g, " ").trim()
     expect(flat).toBe(
-      "select count(distinct a.user_id)::int as n from chlk.subscriptions a join chlk.plans p on p.id = a.plan_id " +
-        "where a.method = 'AppStore' and p.apple_product_id is not null and a.subscription_status in ('active','billing_retry') " +
-        "and not exists ( select 1 from chlk.subscriptions x where x.user_id = a.user_id and x.method in ('Stripe','invoice') " +
+      "select count(distinct a.user_id) filter (where a.method = 'AppStore' and p.apple_product_id is not null)::int as app_store, " +
+        "count(distinct a.user_id) filter (where a.method = 'invoice')::int as invoice " +
+        "from chlk.subscriptions a left join chlk.plans p on p.id = a.plan_id " +
+        "where a.subscription_status = 'active' and a.method in ('AppStore','invoice') " +
+        "and not exists ( select 1 from chlk.subscriptions x where x.user_id = a.user_id and x.method = 'Stripe' " +
         "and x.subscription_status in ('active','past_due','trialing') )"
     )
   })
 
+  it("counts only subscription_status = 'active': never trialing, past_due or billing_retry", () => {
+    expect(SUPABASE_PAYERS_SQL).toContain("a.subscription_status = 'active'")
+    expect(SUPABASE_PAYERS_SQL).not.toContain("billing_retry")
+    // The only other statuses are the Stripe rows that exclude a user, never ones that count.
+    const counted = SUPABASE_PAYERS_SQL.slice(0, SUPABASE_PAYERS_SQL.indexOf("not exists"))
+    expect(counted).not.toMatch(/trialing|past_due|billing_retry/)
+    expect(counted).not.toMatch(/subscription_status\s+in\b/)
+    expect(SUPABASE_PAYERS_SQL.match(/subscription_status/g)).toHaveLength(2)
+    // Read-only: nothing but a select.
+    expect(SUPABASE_PAYERS_SQL).not.toMatch(/\b(insert|update|delete|drop|alter|create|grant|truncate)\b/i)
+  })
+
   it("an odd answer is an error, and the connection is still closed", async () => {
-    for (const rows of [[], [{ n: "53" }], [{ n: -1 }], [{ n: 1.5 }]]) {
+    for (const rows of [
+      [],
+      [{ app_store: "53", invoice: 83 }],
+      [{ app_store: 53, invoice: "83" }],
+      [{ app_store: -1, invoice: 83 }],
+      [{ app_store: 53, invoice: -1 }],
+      [{ app_store: 1.5, invoice: 83 }],
+      [{ app_store: 53, invoice: 8.3 }],
+      [{ app_store: 53 }],
+      [{ n: 53 }],
+    ]) {
       const { connect, calls } = fakeClient(async () => rows)
       await expect(postgresQuery(connect)(URL_OK)).rejects.toThrow()
       expect(calls.ended).toBe(1)
@@ -140,28 +168,28 @@ describe("postgresQuery (the default provider)", () => {
 
 describe("createAppStoreSource", () => {
   it("missing env is not connected, and nothing is queried", async () => {
-    const query = vi.fn(async () => 53)
+    const query = vi.fn(async () => COUNTS)
     const { src } = source(query, {})
     expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
     expect(query).not.toHaveBeenCalled()
   })
 
   it("an invalid URL is not connected, and nothing is queried", async () => {
-    const query = vi.fn(async () => 53)
+    const query = vi.fn(async () => COUNTS)
     const { src } = source(query, { SUPABASE_READONLY_DB_URL: "mysql://x@127.0.0.1/db" })
     expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
     expect(query).not.toHaveBeenCalled()
   })
 
-  it("connected: the count and when it was taken", async () => {
-    const query = vi.fn(async () => 53)
+  it("connected: both counts and when they were taken", async () => {
+    const query = vi.fn(async () => COUNTS)
     const { src } = source(query)
-    expect(await synced(src)).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await synced(src)).toEqual(READING)
     expect(query).toHaveBeenCalledWith(URL_TLS)
   })
 
   it("caches for 5 minutes, then reads again", async () => {
-    const query = vi.fn(async () => 53)
+    const query = vi.fn(async () => COUNTS)
     const { src, tick } = source(query)
     await synced(src)
     tick(CACHE_TTL_MS - 1)
@@ -173,11 +201,11 @@ describe("createAppStoreSource", () => {
   })
 
   it("concurrent reads share one background query (single flight), and neither waits for it", async () => {
-    let release!: (n: number) => void
-    const query = vi.fn(() => new Promise<number>((r) => (release = r)))
+    let release!: (c: SupabaseCounts) => void
+    const query = vi.fn(() => new Promise<SupabaseCounts>((r) => (release = r)))
     const { src } = source(query)
     expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_NOT_CONNECTED, APP_STORE_NOT_CONNECTED])
-    release(53)
+    release(COUNTS)
     await src.settled()
     expect((await src.read()).status).toBe("connected")
     expect(query).toHaveBeenCalledTimes(1)
@@ -195,13 +223,13 @@ describe("createAppStoreSource", () => {
     let fail = false
     const query = vi.fn(async () => {
       if (fail) throw new Error("down")
-      return 53
+      return COUNTS
     })
     const { src, tick } = source(query)
     await synced(src)
     fail = true
     tick(CACHE_TTL_MS)
-    expect(await synced(src)).toEqual({ status: "stale", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await synced(src)).toEqual({ ...READING, status: "stale" })
     tick(RETRY_AFTER_MS - 1)
     await synced(src)
     expect(query).toHaveBeenCalledTimes(2)
@@ -212,7 +240,7 @@ describe("createAppStoreSource", () => {
 
   it("the URL removed after a good count: stale, not queried", async () => {
     const env: Record<string, string | undefined> = { ...ENV }
-    const query = vi.fn(async () => 53)
+    const query = vi.fn(async () => COUNTS)
     const { src } = source(query, env)
     await synced(src)
     delete env.SUPABASE_READONLY_DB_URL
@@ -243,18 +271,18 @@ describe("createAppStoreSource never waits for the database", () => {
 
   it("a slow first count: not connected at once, connected once it lands", async () => {
     vi.useFakeTimers({ now: T0 })
-    const src = createAppStoreSource({ env: () => ENV, query: () => new Promise((r) => setTimeout(() => r(53), 200_000)) })
+    const src = createAppStoreSource({ env: () => ENV, query: () => new Promise((r) => setTimeout(() => r(COUNTS), 200_000)) })
     const started = wallClock()
     expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
     expect(wallClock() - started).toBeLessThan(1_000)
     await vi.advanceTimersByTimeAsync(200_000)
-    expect(await src.read()).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await src.read()).toEqual(READING)
   })
 
   it("a count over the time limit is a failure: the last good count is stale, retried a minute later", async () => {
     vi.useFakeTimers({ now: T0 })
     const logs: string[] = []
-    const query = vi.fn(async () => 53)
+    const query = vi.fn(async () => COUNTS)
     const src = createAppStoreSource({ env: () => ENV, query, log: (k) => logs.push(k) })
     await synced(src)
 
@@ -263,14 +291,14 @@ describe("createAppStoreSource never waits for the database", () => {
     expect((await src.read()).status).toBe("connected")
     await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
     expect(logs).toEqual(["SyncTimeoutError"])
-    expect(await src.read()).toEqual({ status: "stale", count: 53, asOf: new Date(T0).toISOString() })
+    expect(await src.read()).toEqual({ ...READING, status: "stale" })
 
-    query.mockImplementation(async () => 54)
+    query.mockImplementation(async () => ({ appStore: 54, invoice: 84 }))
     vi.advanceTimersByTime(RETRY_AFTER_MS - 1)
     await src.read()
     expect(query).toHaveBeenCalledTimes(2)
     vi.advanceTimersByTime(1)
-    expect(await synced(src)).toMatchObject({ status: "connected", count: 54 })
+    expect(await synced(src)).toMatchObject({ status: "connected", count: 54, invoice: 84 })
   })
 })
 

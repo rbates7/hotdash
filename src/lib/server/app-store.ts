@@ -6,9 +6,10 @@ import { APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-s
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
- * App Store payers — group (2) of the Subscribers total — read from Chlk's
- * Supabase Postgres, read-only, server only. They pay Apple, not Stripe,
- * so Stripe cannot count them.
+ * App Store payers and invoice coaches — groups (2) and (3) of the
+ * Subscribers total — read from Chlk's Supabase Postgres, read-only, server
+ * only. They pay Apple or a school/district invoice, not Stripe, so Stripe
+ * cannot count them.
  *
  * The database URL lives in one server env var and never leaves this
  * module: it is not logged, not returned, and nothing here is importable
@@ -25,23 +26,34 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 /* ------------------------------------------------------------------ query */
 
 /**
- * The count, exactly as Rashad and Bobbi verified it read-only on prod
- * (Oct 14 2026): distinct users on an active App Store subscription (or
- * one Apple is retrying) whose plan is an App Store product, and who have
- * no active, past-due or trialing Stripe or invoice subscription — so
- * nobody is counted here and in Stripe. `apple_product_id` is on
- * `chlk.plans`, not `chlk.subscriptions`.
+ * Two counts in one read, as Rashad and Radcliffe settled them (Oct 14
+ * 2026): distinct users whose Chlk subscription is `active` — not
+ * trialing, past_due or billing_retry — and who have no active, past-due
+ * or trialing Stripe subscription (Stripe's own figure already counts
+ * those):
+ *
+ * - `app_store` — paying Apple, on a plan that is an App Store product
+ *   (`apple_product_id` is on `chlk.plans`, not `chlk.subscriptions`);
+ * - `invoice`   — school/district coaches billed by invoice. Their
+ *   `subscription_id`s are not Stripe ids (Stripe has no `send_invoice`
+ *   subscriptions), so Stripe never counts them.
+ *
+ * Verified read-only on prod: 53 and 83, no overlap with Stripe or with
+ * each other. The status filter is in the query on purpose: the table's
+ * RLS policy is `using (true)`, so every row is visible and nothing else
+ * narrows it. LEFT JOIN: an invoice row need not have a plans row.
  */
-export const APP_STORE_PAYERS_SQL = `select count(distinct a.user_id)::int as n
+export const SUPABASE_PAYERS_SQL = `select
+  count(distinct a.user_id) filter (where a.method = 'AppStore' and p.apple_product_id is not null)::int as app_store,
+  count(distinct a.user_id) filter (where a.method = 'invoice')::int as invoice
 from chlk.subscriptions a
-join chlk.plans p on p.id = a.plan_id
-where a.method = 'AppStore'
-  and p.apple_product_id is not null
-  and a.subscription_status in ('active','billing_retry')
+left join chlk.plans p on p.id = a.plan_id
+where a.subscription_status = 'active'
+  and a.method in ('AppStore','invoice')
   and not exists (
     select 1 from chlk.subscriptions x
     where x.user_id = a.user_id
-      and x.method in ('Stripe','invoice')
+      and x.method = 'Stripe'
       and x.subscription_status in ('active','past_due','trialing')
   )`
 
@@ -98,8 +110,11 @@ export function sslOption(url: string): "require" | "verify-full" | { rejectUnau
   return "require"
 }
 
-/** Counts App Store payers at `url`. Rejects on any failure. */
-export type AppStoreQuery = (url: string) => Promise<number>
+/** One reading of the two counts. */
+export type SupabaseCounts = { appStore: number; invoice: number }
+
+/** Counts App Store payers and invoice coaches at `url`. Rejects on any failure. */
+export type AppStoreQuery = (url: string) => Promise<SupabaseCounts>
 
 /** The slice of the `postgres` client this module uses (tests pass a fake). */
 export type Connect = (url: string, options: postgres.Options<Record<string, never>>) => {
@@ -128,11 +143,13 @@ export function postgresQuery(connect: Connect = postgres as unknown as Connect)
     try {
       const rows = await sql.begin("read only", async (tx) => {
         await tx.unsafe(`set local statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
-        return tx.unsafe(APP_STORE_PAYERS_SQL)
+        return tx.unsafe(SUPABASE_PAYERS_SQL)
       })
-      const n = (rows as Array<{ n?: unknown }>)[0]?.n
-      if (typeof n !== "number" || !Number.isInteger(n) || n < 0) throw new InvalidDataError()
-      return n
+      const row = (rows as Array<{ app_store?: unknown; invoice?: unknown }>)[0]
+      const appStore = row?.app_store
+      const invoice = row?.invoice
+      if (!isCount(appStore) || !isCount(invoice)) throw new InvalidDataError()
+      return { appStore, invoice }
     } finally {
       await sql.end({ timeout: 5 }).catch(() => {})
     }
@@ -140,6 +157,10 @@ export function postgresQuery(connect: Connect = postgres as unknown as Connect)
 }
 
 class InvalidDataError extends Error {}
+
+function isCount(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n >= 0
+}
 
 /**
  * A word for the log: the error's class name, never its message (a
@@ -182,7 +203,7 @@ export function createAppStoreSource({
   timeoutMs?: number
   log?: (kind: string) => void
 } = {}): Required<AppStoreSource> & { reset(): void } {
-  let lastGood: { count: number; at: number } | null = null
+  let lastGood: { counts: SupabaseCounts; at: number } | null = null
   let lastAttempt: { at: number; ok: boolean } | null = null
   let inflight: Promise<void> | null = null
   /** Bumped by `reset()`, so a read started before it cannot write after it. */
@@ -192,9 +213,9 @@ export function createAppStoreSource({
     const at = clock()
     const mine = generation
     try {
-      const count = await withTimeout(() => query(url), timeoutMs)
+      const counts = await withTimeout(() => query(url), timeoutMs)
       if (mine !== generation) return
-      lastGood = { count, at }
+      lastGood = { counts, at }
       lastAttempt = { at, ok: true }
     } catch (error) {
       if (mine !== generation) return
@@ -216,7 +237,12 @@ export function createAppStoreSource({
     }
     if (!lastGood) return APP_STORE_NOT_CONNECTED
     const fresh = config.kind === "ok" && Boolean(lastAttempt?.ok)
-    return { status: fresh ? "connected" : "stale", count: lastGood.count, asOf: new Date(lastGood.at).toISOString() }
+    return {
+      status: fresh ? "connected" : "stale",
+      count: lastGood.counts.appStore,
+      invoice: lastGood.counts.invoice,
+      asOf: new Date(lastGood.at).toISOString(),
+    }
   }
 
   return {

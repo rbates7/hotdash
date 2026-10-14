@@ -133,6 +133,15 @@ describe("parseStripeSummary", () => {
       appStore: { status: "not_connected" },
     })
   })
+
+  it("reads the invoice count with the App Store's; an older payload without it keeps the App Store count", () => {
+    const good = liveSummary()
+    expect(parseStripeSummary(good)?.appStore).toEqual({ status: "connected", count: 53, invoice: 83, asOf: good.lastSyncedAt })
+    for (const invoice of [undefined, "83", -1, 8.3, null]) {
+      const parsed = parseStripeSummary({ ...good, appStore: { status: "stale", count: 53, invoice, asOf: good.lastSyncedAt } })
+      expect(parsed?.appStore, String(invoice)).toEqual({ status: "stale", count: 53, asOf: good.lastSyncedAt })
+    }
+  })
 })
 
 describe("feedOf", () => {
@@ -143,7 +152,7 @@ describe("feedOf", () => {
       kind: "live",
       stale: true,
       lastSyncedAt: new Date("2026-10-13T14:41:00.000Z"),
-      appStore: { status: "connected", count: 53 },
+      appStore: { status: "connected", count: 53, invoice: 83 },
     })
     // A summary without the field (an older server) reads as App Store not connected.
     const { appStore: _a, ...bare } = liveSummary("connected")
