@@ -5,6 +5,9 @@ import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
+import { liveMetric, liveValueText } from "@/lib/live-metrics"
+import { useSettings } from "@/hooks/use-settings"
+import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -36,6 +39,8 @@ function PickerChoices({
   chrome?: boolean
 }) {
   const { today, visible, expenses } = useMetrics()
+  const feed = useStripeFeed()
+  const { timeZone } = useSettings()
   const choices = pickerIds(visible)
 
   return (
@@ -60,6 +65,13 @@ function PickerChoices({
         <ul className="flex flex-col">
           {choices.map((id) => {
             const snap = snapshotFor(id, { today, expenses })
+            const live = liveMetric(id, feed, timeZone)
+            const figure =
+              live.kind === "live"
+                ? liveValueText(live.metric, snap.unit)
+                : live.kind === "loading"
+                  ? "–"
+                  : formatMetricValue(snap.value, snap.unit)
             return (
               <li key={id}>
                 <button
@@ -68,9 +80,7 @@ function PickerChoices({
                   className={METRICS_PICKER_ITEM}
                 >
                   <span>{snap.label}</span>
-                  <span className="text-caption text-muted-foreground tabular-nums">
-                    {formatMetricValue(snap.value, snap.unit)}
-                  </span>
+                  <span className="text-caption text-muted-foreground tabular-nums">{figure}</span>
                 </button>
               </li>
             )
@@ -155,6 +165,8 @@ function AddMetric() {
 
 export function OverviewPanel() {
   const { today, visible, charts, expenses, setChart, removeMetric } = useMetrics()
+  const feed = useStripeFeed()
+  const { timeZone } = useSettings()
 
   return (
     <div className="flex flex-col items-start gap-[18px]">
@@ -183,6 +195,7 @@ export function OverviewPanel() {
                 chart={charts[id] ?? METRIC_DEFS[id].defaultChart}
                 onChartChange={(chart) => setChart(id, chart)}
                 onRemove={() => removeMetric(id)}
+                live={liveMetric(id, feed, timeZone)}
               />
             )
           })}

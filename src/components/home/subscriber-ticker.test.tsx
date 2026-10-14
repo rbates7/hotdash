@@ -130,6 +130,17 @@ describe("SubscriberTicker", () => {
     expect(tiles().textContent).toBe("––,––––––")
   })
 
+  it("loading → first figure does not start the once-a-minute clock: the next change is spoken at once", async () => {
+    const { source, set } = controlled(null)
+    render(<SubscriberTicker variant="header" source={source} />)
+    expect(spoken()).toBe(LOADING_LABEL)
+    await set(reading(186))
+    expect(spoken()).toBe("Subscribers: 186, no change today")
+    await set(reading(187, 1))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(spoken()).toBe("Subscribers: 187, up 1 today")
+  })
+
   it("error before any value: dashes and a Retry dot, never 0", async () => {
     const { source, set } = controlled(null)
     render(<SubscriberTicker variant="header" source={source} />)
@@ -147,14 +158,14 @@ describe("SubscriberTicker", () => {
     fireEvent.click(screen.getByRole("link"))
   })
 
-  it("stale: keeps the last value, says as of when, hides the delta chip", async () => {
+  it("stale: keeps the last value, says when it was last updated, hides the delta chip", async () => {
     const { source, fail } = controlled(reading(1_284, 3))
     render(<SubscriberTicker variant="header" source={source} />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     await fail()
     await act(() => vi.advanceTimersByTimeAsync(0))
-    expect(spoken()).toBe("Subscribers: 1,284, up 3 today, as of 9:41 AM CDT")
-    expect(screen.getByText("as of 9:41 AM CDT")).toHaveAttribute("title", "Tue, Oct 13 · 9:41 AM CDT")
+    expect(spoken()).toBe("Subscribers: 1,284, up 3 today, Last updated 9:41 AM CDT")
+    expect(screen.getByText("Last updated 9:41 AM CDT")).toHaveAttribute("title", "Tue, Oct 13 · 9:41 AM CDT")
     expect(screen.queryByText("+3")).not.toBeInTheDocument()
   })
 
@@ -164,7 +175,7 @@ describe("SubscriberTicker", () => {
     render(<SubscriberTicker variant="header" source={source} />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     await fail()
-    expect(screen.getByText("as of 7:41 AM PDT")).toBeInTheDocument()
+    expect(screen.getByText("Last updated 7:41 AM PDT")).toBeInTheDocument()
     act(() => updateSettings((s) => ({ ...s, timeZone: "America/Chicago" })))
   })
 

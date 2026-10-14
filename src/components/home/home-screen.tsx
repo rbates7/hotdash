@@ -3,9 +3,11 @@
 import { todayIn } from "@/lib/clock"
 import { boardPreview, needsYou, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
-import { mrrTrend } from "@/lib/kpis"
+import { mrrTrend, snapshotFor } from "@/lib/kpis"
+import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { buildInbox } from "@/lib/workplace-fixture"
 import { useSettings } from "@/hooks/use-settings"
+import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { useIssues } from "@/components/agent-workplace/issues-store"
 import { PersistenceNote } from "@/components/persistence-note"
@@ -49,6 +51,10 @@ export function HomeScreen() {
   // Until the browser's saved board is read, the two store-backed doors show
   // placeholders rather than flashing the seed and then swapping.
   const loading = !persisted
+  // Stripe's figures where it feeds them; the rest stay sample, labelled.
+  const feed = useStripeFeed()
+  const strip = liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)
+  const mrr = liveMetric("mrr", feed, timeZone)
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -84,9 +90,15 @@ export function HomeScreen() {
 
       <div className="flex flex-1 flex-col gap-4">
         <NumberOneStrip item={numberOne} />
-        <KpiStrip kpis={kpis(today)} title={kpiStripTitle} />
+        <KpiStrip kpis={strip} title={kpiStripTitle} />
         <div role="group" aria-label="Doors" className={HOME_DOORS}>
-          <MetricsDoor trend={mrrTrend({ today })} today={today} />
+          <MetricsDoor
+            // MRR always has a value (a sum, never a ratio), so no point is null.
+            trend={mrr.kind === "live" ? (mrr.metric.series as number[]) : mrrTrend({ today })}
+            today={today}
+            state={mrr.kind}
+            updated={mrr.kind === "live" ? mrr.metric.updated : null}
+          />
           <DevBoardDoor preview={board} loading={loading} />
           <NeedsYouDoor
             className={HOME_INBOX_DOOR}

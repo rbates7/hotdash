@@ -24,9 +24,11 @@ const CHART_CONFIG = {
  * Pad the value range the way the mock does, so a flat-ish series still
  * reads as a trend instead of six identical columns.
  */
-export function chartDomain(series: readonly number[]): [number, number] {
-  const min = Math.min(...series)
-  const max = Math.max(...series)
+export function chartDomain(series: readonly (number | null)[]): [number, number] {
+  const values = series.filter((v): v is number => v !== null)
+  if (values.length === 0) return [0, 1]
+  const min = Math.min(...values)
+  const max = Math.max(...values)
   const pad = (max - min) * 0.28 || Math.abs(max) * 0.16 || 1
   return [min - pad, max + pad * 0.1]
 }
@@ -34,6 +36,8 @@ export function chartDomain(series: readonly number[]): [number, number] {
 /** Columns made of small stacked squares, as in the mock's sparkline. */
 function DottedColumn(props: BarShapeProps) {
   const { x, y, width, height, fill } = props
+  // A window with no reading (a live rate with nothing to divide by) has no column.
+  if (![x, y, width, height].every(Number.isFinite)) return null
   const square = 3.4
   const gap = 1.55
   const segments = Math.max(2, Math.round(height / (square + gap)))
@@ -63,7 +67,8 @@ export function MetricChart({
   unit,
   today,
 }: {
-  series: readonly number[]
+  /** Null is a window with no reading: no column, a gap in the line. */
+  series: readonly (number | null)[]
   type: ChartType
   label: string
   /** How each point is read aloud, e.g. "$26,190". */
@@ -82,7 +87,7 @@ export function MetricChart({
   const domain = React.useMemo(() => chartDomain(series), [series])
   const last = data.length - 1
   const span = formatWindowSpan(windows)
-  const readings = data.map((d) => `to ${d.ends} ${formatMetricValue(d.v, unit)}`)
+  const readings = data.map((d) => `to ${d.ends} ${d.v === null ? "no data" : formatMetricValue(d.v, unit)}`)
   const name = `${label}, ${type} chart of six 28-day windows, ${span}: ${readings.join(", ")}`
 
   return (
@@ -133,7 +138,7 @@ export function MetricChart({
             strokeLinecap="round"
             isAnimationActive={false}
             dot={(props: { cx?: number; cy?: number; index?: number }) =>
-              props.index === last ? (
+              props.index === last && Number.isFinite(props.cy) ? (
                 <circle
                   key="end"
                   cx={props.cx}

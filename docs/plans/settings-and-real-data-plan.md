@@ -3,7 +3,7 @@
 
 ## The short version
 - **Today every screen shows made-up sample numbers.** I read the code (rbates7/hotdash, main branch). There is no connection to Stripe, PostHog, Sentry, Gmail, or anything else yet. Numbers come from files built into the app. When you edit something (a deal, a contact, a roadmap card), the change is saved only in your own browser, so it doesn't follow you to another device.
-- **There's also no sign-in.** Anyone with the link can see the dashboard. That has to be fixed **before** any real revenue or customer data goes on it. That's step 0.
+- **There's also no sign-in.** Anyone with the link can see the dashboard. This plan originally required the sign-in lock before any real data (step 0). **Superseded:** Decision: keep the dashboard public with real data. Chosen by Rashad on 2026-10-13 at 11:50 PM CT, picked from three options Coulson offered (bring sign-in back first / connect live data without sign-in / wait), after he rolled back sign-in at 8:59 PM CT. Sign-in must come back before anyone else is given access.
 - **Recommended order:** lock it down, then Stripe (subscribers and revenue, which also powers the Grand Central ticker), then Sentry, then PostHog, then Gmail, then the rest.
 - **Settings v1:** Account, Connected data, Sample data on/off, Appearance, Time zone, Goals and targets.
 
@@ -61,7 +61,7 @@ Note: in v1, settings would be saved in the browser, the same way the app saves 
 | 13 | **Infrastructure** | Vercel plus Supabase status, if you keep it | **Decide: build it or cut it** | S–M |
 
 ### Suggested order
-1. **Step 0:** sign-in lock (required before any real data)
+1. **Step 0:** sign-in lock. *Was required before any real data; superseded, see the decision below. Sign-in must come back before anyone else is given access.*
 2. **Stripe → Home ticker + KPIs** (your top ask; one key powers a lot)
 3. **Settings v1** (Connected data and Sample data switch, so you can tell what's real)
 4. **Sentry → System Status + Bugs**
@@ -87,3 +87,7 @@ The sign-in lock shipped in #38 and was then reverted at Rashad's request (via C
 - Rate limiting in a shared store (not per-instance memory), plus a per-email cap on failed attempts.
 - A session version, so a copied cookie can be revoked without rotating AUTH_SECRET.
 - A Secure cookie flag that doesn't depend only on NODE_ENV (e.g. also on the request protocol or the deployment URL).
+
+## Decision: real data without sign-in
+
+**Decision: keep the dashboard public with real data. Chosen by Rashad on 2026-10-13 at 11:50 PM CT, picked from three options Coulson offered (bring sign-in back first / connect live data without sign-in / wait), after he rolled back sign-in at 8:59 PM CT. Sign-in must come back before anyone else is given access.**

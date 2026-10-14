@@ -14,8 +14,10 @@ import {
   type ChartType,
   type MetricSnapshot,
 } from "@/lib/metrics"
+import { MRR_NOTE } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
+import { liveValueText, type LiveState } from "@/lib/live-metrics"
 import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { METRICS_ICON, METRICS_PRESSED } from "@/components/metrics/responsive"
@@ -72,12 +74,15 @@ export function TrendPill({
   )
 }
 
+const SAMPLE: LiveState = { kind: "sample" }
+
 export function MetricCard({
   snapshot,
   chart,
   onChartChange,
   onRemove,
   className,
+  live = SAMPLE,
 }: {
   snapshot: MetricSnapshot
   chart: ChartType
@@ -85,20 +90,34 @@ export function MetricCard({
   /** Omit to hide the × (the Expenses tab's card is not removable). */
   onRemove?: () => void
   className?: string
+  /** Stripe's figures for this card, when Stripe feeds it (`liveMetric`). */
+  live?: LiveState
 }) {
   const { today } = useMetrics()
-  const trend = trendFor(snapshot.value, snapshot.previous, snapshot.trendKind, {
-    lowerIsBetter: snapshot.lowerIsBetter,
-    unit: snapshot.unit,
-  })
-  const valueText = formatMetricValue(snapshot.value, snapshot.unit)
+  const loading = live.kind === "loading"
+  const stripe = live.kind === "live" ? live.metric : null
+  // Live figures replace the sample ones wholesale; a null is shown as one.
+  const shown = stripe ?? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series }
+  const trendable = !loading && shown.value !== null && shown.previous !== null
+  const trend = trendable
+    ? trendFor(shown.value!, shown.previous!, snapshot.trendKind, {
+        lowerIsBetter: snapshot.lowerIsBetter,
+        unit: snapshot.unit,
+      })
+    : null
+  const valueText = loading ? "–" : stripe ? liveValueText(stripe, snapshot.unit) : formatMetricValue(snapshot.value, snapshot.unit)
+  const charted = !loading && shown.series.some((v) => v !== null)
   // Key facts once: label, headline, delta. Inner copy is the same words,
   // so the article name is the aria-label rather than a concatenation.
-  const name = `${snapshot.label} ${valueText} ${trend.text}`
+  const name = loading
+    ? `${snapshot.label} loading`
+    : [snapshot.label, valueText, trend?.text ?? stripe?.empty].filter(Boolean).join(" ")
   return (
     <article
       aria-label={name}
+      aria-busy={loading || undefined}
       data-metric={snapshot.id}
+      data-source={live.kind === "live" ? "stripe" : live.kind}
       className={cn(
         "group/metric bg-surface border-surface-border flex min-h-[176px] flex-col rounded-xl border px-5 pt-5 pb-[18px]",
         className
@@ -107,7 +126,7 @@ export function MetricCard({
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
-          <SampleDataTag />
+          {live.kind === "sample" && <SampleDataTag />}
         </div>
         <div
           className="flex flex-none items-center gap-1"
@@ -144,7 +163,10 @@ export function MetricCard({
         <div className="min-w-0">
           <p
             data-testid="metric-value"
-            className="text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums"
+            className={cn(
+              "text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
+              loading && "text-muted-foreground"
+            )}
           >
             {valueText}
           </p>
@@ -153,20 +175,42 @@ export function MetricCard({
               {snapshot.note}
             </p>
           )}
-          <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
-            <TrendPill snapshot={snapshot} />
-            <span className="text-caption text-muted-foreground tracking-tight whitespace-nowrap">
-              {VS_PREVIOUS_WINDOW}
-            </span>
-          </div>
+          {snapshot.id === "mrr" && (
+            <p data-testid="metric-mrr-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+              {MRR_NOTE}
+            </p>
+          )}
+          {stripe?.updated && (
+            <p data-testid="metric-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+              {stripe.updated}
+            </p>
+          )}
+          {trend ? (
+            <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
+              <TrendPill
+                snapshot={{ ...snapshot, value: shown.value!, previous: shown.previous! }}
+              />
+              <span className="text-caption text-muted-foreground tracking-tight whitespace-nowrap">
+                {VS_PREVIOUS_WINDOW}
+              </span>
+            </div>
+          ) : stripe ? (
+            <p className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+              {stripe.empty ?? `No reading for the previous 28 days`}
+            </p>
+          ) : null}
         </div>
-        <MetricChart
-          series={snapshot.series}
-          type={chart}
-          label={snapshot.label}
-          unit={snapshot.unit}
-          today={today}
-        />
+        {charted ? (
+          <MetricChart
+            series={shown.series}
+            type={chart}
+            label={snapshot.label}
+            unit={snapshot.unit}
+            today={today}
+          />
+        ) : (
+          <div aria-hidden className="h-[52px] w-[120px] flex-none" />
+        )}
       </div>
     </article>
   )

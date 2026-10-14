@@ -339,6 +339,12 @@ function Crossfade(props: RowProps) {
  */
 function useAnnouncement(label: string) {
   const [announced, setAnnounced] = React.useState({ text: label, at: null as number | null })
+  // Loading → the first figure is the page settling, not a change: it takes
+  // the region's text without starting the once-a-minute clock, so the
+  // first real change is spoken straight away.
+  if (announced.text === LOADING_LABEL && label !== LOADING_LABEL) {
+    setAnnounced({ text: label, at: null })
+  }
   React.useEffect(() => {
     if (label === announced.text) return
     const id = setTimeout(
@@ -376,7 +382,7 @@ export function SubscriberTicker({
 }: {
   variant: TickerVariant
   className?: string
-  /** Defaults to the app's source (sample until Stripe is wired). */
+  /** Pins the ticker to one source (tests); by default it follows Stripe. */
   source?: SubscriberSource
 }) {
   const { state, refresh, sample, timeZone } = useSubscriberTicker(source)

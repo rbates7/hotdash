@@ -28,5 +28,10 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // e2e never talks to Stripe: the server it starts has no key (so the
+    // app is "not connected"), and specs mock /api/stripe/* in the browser
+    // for the connected and stale states. This holds even on a machine
+    // whose shell has a key.
+    env: { STRIPE_READONLY_KEY: "", STRIPE_API_BASE: "" },
   },
 })
