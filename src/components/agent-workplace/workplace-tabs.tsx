@@ -15,6 +15,7 @@ import { BacklogPanel } from "@/components/agent-workplace/backlog-panel"
 import { ChatDoor } from "@/components/agent-workplace/chat-door"
 import { InboxPanel } from "@/components/agent-workplace/inbox-panel"
 import { IssuesBoard } from "@/components/agent-workplace/issues-board"
+import { WorkBoard } from "@/components/agent-workplace/work-board"
 import { TicketView } from "@/components/agent-workplace/ticket-view"
 
 /**
@@ -24,6 +25,7 @@ import { TicketView } from "@/components/agent-workplace/ticket-view"
 export const WORKPLACE_TABS = [
   { value: "issues", label: "Issues" },
   { value: "backlog", label: "Backlog" },
+  { value: "workboard", label: "Work board" },
   { value: "agents", label: "Agents" },
   { value: "chat", label: "Chat" },
   { value: "autopilots", label: "Autopilots" },
@@ -99,6 +101,9 @@ export function WorkplaceTabs() {
       </TabsContent>
       <TabsContent value="backlog" className="min-w-0">
         <BacklogPanel onOpenIssue={openIssue} />
+      </TabsContent>
+      <TabsContent value="workboard" className="min-w-0">
+        <WorkBoard />
       </TabsContent>
       <TabsContent value="agents" className="min-w-0">
         <AgentsRoster onOpenIssue={openIssue} />
