@@ -79,16 +79,20 @@ currencies are skipped, not converted.
   **total** = (1) + (2) + (3), with the three groups listed under it (the
   ticker: as a tooltip on hover/keyboard focus and as the link's
   accessible description; its live region announces the total only).
-  On Oct 14: **1,337 = 1,110 + 53 + 174**.
+  Old Oct 14 figure: **1,337 = 1,110 + 53 + 174** (the e2e and unit mocks
+  still reuse these Oct 14 figures).
   1. **Stripe paying** (`isPaying`) — status `active` or `past_due` **and**
      at least one paid invoice with `amount_paid > 0`. `trialing`, `unpaid`
      and `paused` do not count, even with paid history. No "has a coupon
      now" filter: a subscription that paid once and now sits on a 100%
      coupon counts. 1,110 on Oct 14 (1,079 `active` + 31 `past_due`).
-  2. **App Store payers** — Chlk users paying through Apple, with no
+  2. **App Store payers** — Rashad + Bobbi's definition, with the status
+     filter tightened to `active` only for #47 (not `trialing`, `past_due`
+     or `billing_retry`): Chlk users paying through Apple, with no
      active, past-due or trialing Stripe or invoice subscription (overlap
      with Stripe was 0 on Oct 14). Counted in Chlk's database with exactly
-     this query (verified read-only on prod: 53). `apple_product_id` is on
+     this query (verified read-only on prod: **51 on Oct 16 2026, 10:30 PM
+     CT**, active-only; billing_retry adds 0; the count is live and moves). `apple_product_id` is on
      `chlk.plans`, not `chlk.subscriptions`; `method` is one of
      `AppStore`, `Stripe`, `invoice`.
 
@@ -98,7 +102,7 @@ currencies are skipped, not converted.
      join chlk.plans p on p.id = a.plan_id
      where a.method = 'AppStore'
        and p.apple_product_id is not null
-       and a.subscription_status in ('active','billing_retry')
+       and a.subscription_status = 'active'
        and not exists (
          select 1 from chlk.subscriptions x
          where x.user_id = a.user_id
@@ -106,6 +110,10 @@ currencies are skipped, not converted.
            and x.subscription_status in ('active','past_due','trialing')
        )
      ```
+
+     Invoice (school/district) coaches are **not** in the total (Rashad,
+     Oct 16): Subscribers = Stripe paying + App Store + free. The total is
+     live and moves; App Store read 51 at Oct 16 2026, 10:30 PM CT.
 
      Only in the total when that source has answered. Not connected → the
      App Store row reads "Not connected" and the total says **"Total
