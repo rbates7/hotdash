@@ -69,10 +69,14 @@ jobs:
           STRIPE_READONLY_KEY: ""
           SUPABASE_READONLY_DB_URL: ""
 
+      # Every run, pass or fail, so a green run's report can be checked too.
       - name: Upload Playwright report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
           retention-days: 7
