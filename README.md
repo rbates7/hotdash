@@ -29,6 +29,11 @@ the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
 no key those tiles show their sample figures, labelled. Definitions, states
 and checks: [docs/stripe-live.md](docs/stripe-live.md).
 
+**Live PostHog (read-only)** feeds Metrics' Retention and Active Users
+(iOS app events only, from June 2026) when the server has
+`POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS"); otherwise those cards
+are sample, labelled. See [docs/posthog-live.md](docs/posthog-live.md).
+
 ## Getting started
 
 ```bash
@@ -44,7 +49,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe key (or its env var name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key or database URL (or their env var names) is in client output |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
