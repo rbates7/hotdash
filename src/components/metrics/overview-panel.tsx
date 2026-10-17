@@ -99,6 +99,11 @@ function AddMetric() {
   const phone = useIsMobile()
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
+  // Stripe or PostHog live: some choices carry real figures, so the sheet
+  // cannot call them all sample.
+  const stripeLive = useStripeFeed().kind === "live"
+  const posthogLive = usePosthogFeed().kind === "live"
+  const anyLive = stripeLive || posthogLive
   useMetricsSheetTabTrap(phone && open)
 
   function pick(id: MetricId) {
@@ -132,7 +137,8 @@ function AddMetric() {
             <SheetHeader className={METRICS_SHEET_HEADER}>
               <SheetTitle>Add a metric</SheetTitle>
               <SheetDescription>
-                Extra metrics and any card you have removed. Sample figures.
+                Extra metrics and any card you have removed.{" "}
+                {anyLive ? "Live where connected; the rest are sample figures." : "Sample figures."}
               </SheetDescription>
             </SheetHeader>
             <PickerChoices onPick={pick} chrome={false} />

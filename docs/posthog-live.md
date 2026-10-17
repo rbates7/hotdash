@@ -38,6 +38,7 @@ says which cards are live from Stripe and/or PostHog.
 
 | | |
 | --- | --- |
+| Project | PostHog project id **472613** ("CHLK iOS"), pinned as `CHLK_POSTHOG_PROJECT_ID` in `src/lib/server/posthog.ts`. Not an env var and not a secret. Moving to another project is a code change. |
 | Env vars | `POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS") — **server only**, never `NEXT_PUBLIC_`. The only PostHog variable. Unset → "not connected"; a key that is not `phx_…` → refused (not configured), nothing is sent. The project id is not a secret (it is in every PostHog URL), so it is pinned in `src/lib/server/posthog.ts` as `CHLK_POSTHOG_PROJECT_ID` rather than a second variable. |
 | `POSTHOG_HOST` | Optional; default `https://us.posthog.com`. Set `https://eu.posthog.com` for an EU project. Only `https://` hosts under `posthog.com`, with no path, port or credentials, are accepted — anything else disables PostHog, so the key is never sent elsewhere. A loopback host (`http://127.0.0.1:<port>`) is for tests/mocks only and is refused in a production build unless `POSTHOG_ALLOW_MOCK_HOST=1`. |
 | Key | A PostHog **personal API key** scoped to **this one project** with **Query: Read** only (PostHog › Settings › Personal API keys › scopes). No other scopes; no organization-wide access. |

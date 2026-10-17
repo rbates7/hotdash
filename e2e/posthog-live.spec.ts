@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { expectReadable } from "./support/contrast"
 import { waitForHydration } from "./support/shell"
+import { setTheme } from "./support/theme"
 import { livePosthogSummary, mockPosthog } from "./support/posthog"
 import { liveSummary, mockStripe } from "./support/stripe"
 
@@ -154,3 +156,45 @@ test.describe("PostHog stale (1440)", () => {
     await expect(main(page).getByText(/boom|error/i)).toHaveCount(0)
   })
 })
+
+/* ------------------------------------------------- below 1280: a11y bars */
+
+for (const vp of [
+  { width: 390, height: 844 },
+  { width: 820, height: 1180 },
+] as const) {
+  for (const theme of ["light", "dark"] as const) {
+    test.describe(`PostHog's new text and targets (${vp.width} ${theme})`, () => {
+      test.use({ viewport: vp })
+
+      test("Metrics: notes and Last updated clear 4.5:1; Active Users in the picker is a 44 px target", async ({ page }) => {
+        await mockPosthog(page, livePosthogSummary("stale"))
+        await open(page, "/metrics")
+        await setTheme(page, theme)
+        await main(page).getByRole("button", { name: "Add metric", exact: true }).click()
+        const picker = page.getByRole("dialog", { name: "Add a metric" })
+        if (vp.width < 768) {
+          await expect(picker).toContainText("Live where connected; the rest are sample figures.")
+          await expect(picker).not.toContainText("removed. Sample figures.")
+        }
+        const choice = picker.getByRole("button", { name: /^Active Users/ })
+        // Polled: the popover opens with a short zoom-in.
+        await expect.poll(async () => (await choice.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+        await choice.click()
+        for (const name of ["Retention", "Active Users"]) {
+          for (const id of ["metric-live-note", "metric-updated"]) {
+            await expectReadable(metricCard(page, name).getByTestId(id), `${name} ${id}`, expect)
+          }
+        }
+      })
+
+      test("Settings: PostHog's status and detail clear 4.5:1", async ({ page }) => {
+        await mockPosthog(page, livePosthogSummary("connected"))
+        await open(page, "/settings")
+        await setTheme(page, theme)
+        await expectReadable(posthogRow(page).getByTestId("posthog-status"), "posthog-status", expect)
+        await expectReadable(posthogRow(page).getByTestId("posthog-detail"), "posthog-detail", expect)
+      })
+    })
+  }
+}
