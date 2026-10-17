@@ -48,10 +48,13 @@ test.describe("Settings (desktop 1440)", () => {
       await expect(section(page, name)).toBeVisible()
     }
     const connected = section(page, "Connected data")
-    for (const source of ["Stripe", "PostHog", "Sentry", "Gmail"]) {
+    for (const source of ["Stripe", "App Store", "PostHog", "Notion", "Gmail", "Sentry"]) {
       await expect(connected.getByText(source, { exact: true })).toBeVisible()
     }
-    await expect(connected.getByText("Not connected", { exact: true })).toHaveCount(4)
+    // No Stripe key on the CI server: Stripe is Not connected; the rest have no health route yet.
+    await expect(connected.getByRole("listitem", { name: "Stripe" }).getByText("Not connected", { exact: true })).toBeVisible()
+    await expect(connected.getByText("Needs setup", { exact: true })).toHaveCount(5)
+    await expect(connected.getByText("Connected", { exact: true })).toHaveCount(0)
   })
 
   test("appearance drives the real theme provider", async ({ page }) => {

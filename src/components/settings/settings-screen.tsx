@@ -35,6 +35,7 @@ import {
   type GoalField,
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+import { CONNECTED_SOURCES, SOURCE_STATE_LABEL } from "@/lib/connected-sources"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useMounted } from "@/hooks/use-mounted"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
@@ -384,12 +385,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
 
 /* -------------------------------------------------------- connected data */
 
-const SOURCES = [
-  { name: "Stripe", feeds: "Subscribers, revenue, churn, trials" },
-  { name: "PostHog", feeds: "Usage, active coaches, funnels" },
-  { name: "Sentry", feeds: "Errors, crash-free rate, bugs" },
-  { name: "Gmail", feeds: "Coach conversations for CRM" },
-] as const
+const SOURCES = CONNECTED_SOURCES
 
 const STATUS_BADGE = "h-6 px-2.5"
 
@@ -440,8 +436,18 @@ function StripeDetail({ timeZone }: { timeZone: string }) {
 
 function NotConnected() {
   return (
-    <Badge variant="outline" className={cn("text-muted-foreground!", STATUS_BADGE)}>
-      Not connected
+    <Badge variant="outline" data-state="not_connected" className={cn("text-muted-foreground!", STATUS_BADGE)}>
+      {SOURCE_STATE_LABEL.not_connected}
+    </Badge>
+  )
+}
+
+/** A source with no live health route yet: never shown as connected. */
+function NeedsSetup() {
+  return (
+    <Badge variant="outline" data-state="needs_setup" className={cn("text-warning-text border-current/30", STATUS_BADGE)}>
+      <AlertTriangleIcon aria-hidden />
+      {SOURCE_STATE_LABEL.needs_setup}
     </Badge>
   )
 }
@@ -451,7 +457,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe is the first."
+      description="Where real numbers come from. Each connection needs a read-only key on the server and a health check. Sources without one show Needs setup."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
@@ -461,9 +467,13 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
-                {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
+                {source.name === "Stripe" ? (
+                  <StripeDetail timeZone={timeZone} />
+                ) : (
+                  <p className="text-caption text-muted-foreground">No health check yet</p>
+                )}
               </div>
-              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
+              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NeedsSetup />}
             </div>
           </li>
         ))}
