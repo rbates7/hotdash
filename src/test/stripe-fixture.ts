@@ -29,6 +29,9 @@ export const LIVE_METRICS: StripeMetrics = {
 export const APP_STORE_CONNECTED: AppStoreSummary = { status: "connected", count: 53, asOf: SYNCED_AT }
 export const APP_STORE_STALE: AppStoreSummary = { ...APP_STORE_CONNECTED, status: "stale" }
 export const APP_STORE_OFF: AppStoreSummary = { status: "not_connected" }
+/** Connected, but read 0: what a read-only role blocked by RLS sees. Suspect, never a real count. */
+export const APP_STORE_ZERO: AppStoreSummary = { status: "connected", count: 0, asOf: SYNCED_AT }
+export const APP_STORE_ZERO_STALE: AppStoreSummary = { status: "stale", count: 0, asOf: SYNCED_AT }
 
 /** Stripe `status` with these figures; the App Store connected unless said otherwise. */
 export function liveSummary(

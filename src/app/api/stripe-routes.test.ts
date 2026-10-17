@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
-import { APP_STORE_CONNECTED, liveSummary } from "@/test/stripe-fixture"
+import { APP_STORE_CONNECTED, APP_STORE_STALE, APP_STORE_ZERO, liveSummary } from "@/test/stripe-fixture"
 
 // The routes' dependencies, mocked: these tests never reach Stripe or a
 // database, even on a machine that has a key or URL in its environment.
@@ -18,6 +18,7 @@ vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<obj
 
 const { GET: summary } = await import("@/app/api/stripe/summary/route")
 const { GET: health } = await import("@/app/api/health/stripe/route")
+const { GET: appStoreHealth } = await import("@/app/api/health/app-store/route")
 
 beforeEach(() => {
   service.summary.mockReset()
@@ -112,5 +113,32 @@ describe("GET /api/health/stripe", () => {
     service.health.mockRejectedValue(new Error("secret detail"))
     const res = await health()
     expect(await res.text()).toBe(JSON.stringify({ stripe: "unavailable" }))
+  })
+})
+
+describe("GET /api/health/app-store", () => {
+  it.each([
+    [APP_STORE_CONNECTED, "ok"],
+    [APP_STORE_ZERO, "suspect_zero"],
+    [APP_STORE_STALE, "stale"],
+    [APP_STORE_NOT_CONNECTED, "not_connected"],
+  ] as const)("%o → only {appStore: %s}, no count, never cached", async (reading, status) => {
+    appStore.read.mockResolvedValue(reading)
+    const res = await appStoreHealth()
+    expect(await res.text()).toBe(JSON.stringify({ appStore: status }))
+    expect(res.headers.get("cache-control")).toBe("no-store")
+  })
+
+  it("keeps a background read alive after the response", async () => {
+    await appStoreHealth()
+    await after.mock.calls[0][0]()
+    expect(appStore.settled).toHaveBeenCalledTimes(1)
+    expect(service.settled).not.toHaveBeenCalled()
+  })
+
+  it("an unexpected throw is not_connected, with no error text", async () => {
+    appStore.read.mockRejectedValue(new Error("postgres://secret"))
+    const res = await appStoreHealth()
+    expect(await res.text()).toBe(JSON.stringify({ appStore: "not_connected" }))
   })
 })
