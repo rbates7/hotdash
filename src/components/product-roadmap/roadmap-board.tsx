@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { FlaskConicalIcon, RouteIcon } from "lucide-react"
+import { FlaskConicalIcon, InfoIcon, RouteIcon } from "lucide-react"
 
 import {
   COLUMN_CONFIG,
   COLUMN_ORDER,
   inColumn,
+  type BoardItem,
   type RoadmapColumn,
 } from "@/lib/roadmap/roadmap"
 import { cn } from "@/lib/utils"
@@ -51,6 +52,27 @@ function RoadmapSampleNotice({ count }: { count: number }) {
         {count === 1 ? "is an" : "are"} invented example{count === 1 ? "" : "s"} of a
         Chlk roadmap, not signed bets. Bets you add or rewrite are yours, and they live
         only in this browser.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Live only: Notion rows the board could not place (no status, or one it
+ * does not know). Said, never guessed into a column.
+ */
+function UnplacedNotice({ count }: { count: number }) {
+  return (
+    <div
+      role="note"
+      aria-label="Rows not shown"
+      data-testid="notion-unplaced-notice"
+      className="border-border text-body text-muted-foreground flex items-start gap-2.5 rounded-xl border border-dashed px-3.5 py-2.5"
+    >
+      <InfoIcon className="mt-0.5 size-4 flex-none" aria-hidden />
+      <p>
+        {count === 1 ? "1 row" : `${count} rows`} in Notion {count === 1 ? "has" : "have"} no Now, Next or
+        Later status, so {count === 1 ? "it is" : "they are"} not on the board.
       </p>
     </div>
   )
@@ -168,7 +190,7 @@ function Column({
   onFocusConsumed,
 }: {
   column: RoadmapColumn
-  cards: ReturnType<typeof inColumn>
+  cards: BoardItem[]
   listed?: boolean
   onEdit: (id: string) => void
   focusRequest: FocusRequest | null
@@ -269,7 +291,9 @@ export function BoardSkeleton({
 }
 
 export function RoadmapBoard() {
-  const { items, persisted } = useRoadmap()
+  const { items: localItems, persisted, source, live, readOnly } = useRoadmap()
+  // Notion's rows when it is connected (read-only), else this browser's board.
+  const items: readonly BoardItem[] = live ? live.items : localItems
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [phoneColumn, setPhoneColumn] = React.useState<RoadmapColumn>("now")
   const [focusRequest, setFocusRequest] = React.useState<FocusRequest | null>(null)
@@ -349,10 +373,10 @@ export function RoadmapBoard() {
     return () => window.clearTimeout(id)
   }, [compact, editingId, persisted])
 
-  if (!persisted) return <BoardSkeleton layout={layout} />
+  if (!persisted || source === "loading") return <BoardSkeleton layout={layout} />
 
   const sampleCount = items.filter((i) => i.sample).length
-  const editing = items.find((i) => i.id === editingId) ?? null
+  const editing = readOnly ? null : (localItems.find((i) => i.id === editingId) ?? null)
   const counts = Object.fromEntries(
     COLUMN_ORDER.map((column) => [column, inColumn(items, column).length])
   ) as Record<RoadmapColumn, number>
@@ -363,8 +387,20 @@ export function RoadmapBoard() {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {sampleCount > 0 && <RoadmapSampleNotice count={sampleCount} />}
+      {live && live.unplaced > 0 && <UnplacedNotice count={live.unplaced} />}
 
-      {items.length === 0 && (
+      {items.length === 0 && live && (
+        <div
+          role="status"
+          aria-label="Empty board"
+          className="border-border text-body text-muted-foreground flex items-center gap-2.5 rounded-xl border border-dashed px-3.5 py-3"
+        >
+          <RouteIcon className="size-4 flex-none" aria-hidden />
+          <p>No bets on the roadmap in Notion yet.</p>
+        </div>
+      )}
+
+      {items.length === 0 && !live && (
         <div
           role="status"
           aria-label="Empty board"

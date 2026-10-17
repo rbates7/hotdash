@@ -48,10 +48,10 @@ test.describe("Settings (desktop 1440)", () => {
       await expect(section(page, name)).toBeVisible()
     }
     const connected = section(page, "Connected data")
-    for (const source of ["Stripe", "PostHog", "Sentry", "Gmail"]) {
+    for (const source of ["Stripe", "PostHog", "Sentry", "Gmail", "Notion"]) {
       await expect(connected.getByText(source, { exact: true })).toBeVisible()
     }
-    await expect(connected.getByText("Not connected", { exact: true })).toHaveCount(4)
+    await expect(connected.getByText("Not connected", { exact: true })).toHaveCount(5)
   })
 
   test("appearance drives the real theme provider", async ({ page }) => {

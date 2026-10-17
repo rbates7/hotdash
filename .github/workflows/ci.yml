@@ -41,33 +41,40 @@ jobs:
         run: pnpm test:tz
 
       # Dummies, only for the build and the scan below: they prove the
-      # values never land in client code. The key has a hyphen, which the
-      # server refuses as a key, and the database URL points at a closed
-      # loopback port, so even an accidental build-time call cannot go to
-      # Stripe or a database. The steps that run the app have neither.
-      - name: Build (with a dummy Stripe key and database URL)
+      # values never land in client code. The Stripe key and Notion token
+      # have hyphens, which the server refuses, and the database URL points
+      # at a closed loopback port, so even an accidental build-time call
+      # cannot go to Stripe, Notion or a database. The steps that run the
+      # app have none of them.
+      - name: Build (with a dummy Stripe key, database URL and Notion token)
         run: pnpm build
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          NOTION_READONLY_TOKEN: ntn_CI-DUMMY-not-a-real-token-4b8e1d
+          NOTION_ROADMAP_PAGE_ID: 00000000000000000000000000000000
 
-      - name: Client bundle holds neither secret nor its env var name
+      - name: Client bundle holds no secret nor its env var name
         run: pnpm check:bundle
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          NOTION_READONLY_TOKEN: ntn_CI-DUMMY-not-a-real-token-4b8e1d
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      # No Stripe key or database URL here: the app is "not connected", and
-      # the specs mock /api/stripe/* in the browser for the connected and
-      # stale states. CI never calls Stripe or Chlk's database.
+      # No Stripe key, database URL or Notion token here: the app is "not
+      # connected", and the specs mock /api/stripe/* and /api/notion/roadmap
+      # in the browser for the connected and stale states. CI never calls
+      # Stripe, Chlk's database or Notion.
       - name: Playwright smoke (a retry may not hide a flake)
         run: pnpm test:e2e:ci
         env:
           STRIPE_READONLY_KEY: ""
           SUPABASE_READONLY_DB_URL: ""
+          NOTION_READONLY_TOKEN: ""
+          NOTION_ROADMAP_PAGE_ID: ""
 
       - name: Upload Playwright report
         if: failure()

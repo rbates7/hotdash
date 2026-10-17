@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Fails the build if a server secret could reach a browser: the Stripe key
- * (`STRIPE_READONLY_KEY`) or Chlk's read-only database URL
- * (`SUPABASE_READONLY_DB_URL`, which carries a password).
+ * (`STRIPE_READONLY_KEY`), Chlk's read-only database URL
+ * (`SUPABASE_READONLY_DB_URL`, which carries a password) or the Notion
+ * token (`NOTION_READONLY_TOKEN`).
  *
  * Scans everything Next serves to clients — `.next/static` (every JS/CSS
  * chunk) and the prerendered pages and RSC payloads under
@@ -19,7 +20,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
 
-const ENV_NAMES = ["STRIPE_READONLY_KEY", "SUPABASE_READONLY_DB_URL"]
+const ENV_NAMES = ["STRIPE_READONLY_KEY", "SUPABASE_READONLY_DB_URL", "NOTION_READONLY_TOKEN"]
 const buildDir = path.resolve(process.argv[2] ?? ".next")
 const staticDir = path.join(buildDir, "static")
 const prerenderDir = path.join(buildDir, "server", "app")
@@ -72,6 +73,6 @@ if (hits.length > 0) {
 }
 
 console.log(
-  `check-client-bundle: ${files.length} client files clean of ${needles.map((n) => n.label).join(" and ")}` +
-    (unset.length === 0 ? "." : ` (${unset.join(" and ")} not set here, so only the name was checked).`)
+  `check-client-bundle: ${files.length} client files clean of ${needles.map((n) => n.label).join(", ")}` +
+    (unset.length === 0 ? "." : ` (${unset.join(", ")} not set here, so only the name was checked).`)
 )

@@ -17,11 +17,19 @@ import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
  * The one New bet control. The page renders it beside the title on phone
  * and again in Page actions from `md` up (Deke 13:2202 / 13:2650).
  */
+export const NEW_BET_READ_ONLY_TITLE = "Read-only: the roadmap comes from Notion. Add bets there."
+
 export function NewBetButton({ className }: { className?: string }) {
+  const { readOnly, source } = useRoadmap()
   return (
     <NewBetDialog
       trigger={
-        <Button size="sm" className={cn(ROADMAP_TOUCH, className)}>
+        <Button
+          size="sm"
+          className={cn(ROADMAP_TOUCH, className)}
+          disabled={readOnly}
+          title={source === "notion" ? NEW_BET_READ_ONLY_TITLE : undefined}
+        >
           <PlusIcon />
           New bet
         </Button>
@@ -43,8 +51,9 @@ export function HeaderActions({
   className?: string
   newBetClassName?: string
 }) {
-  const { items, persisted } = useRoadmap()
-  const hasSample = persisted && items.some((i) => i.sample)
+  const { items, persisted, source } = useRoadmap()
+  // Notion's rows are never sample; the badge is only for the local board.
+  const hasSample = persisted && source === "local" && items.some((i) => i.sample)
 
   return (
     <div

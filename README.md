@@ -29,6 +29,12 @@ the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
 no key those tiles show their sample figures, labelled. Definitions, states
 and checks: [docs/stripe-live.md](docs/stripe-live.md).
 
+**Product Roadmap from Notion (read-only)** when the server has
+`NOTION_READONLY_TOKEN` and `NOTION_ROADMAP_PAGE_ID` (server only). With
+either missing, the Roadmap is the labelled sample board, editable in this
+browser. Setup, token scope and the property mapping:
+[docs/notion-roadmap.md](docs/notion-roadmap.md).
+
 ## Getting started
 
 ```bash
@@ -44,7 +50,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe key (or its env var name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe key, database URL or Notion token (or their env var names) are in client output |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |

@@ -3,7 +3,9 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
 // Stripe starts not connected in every test (no fetch to a server that is
@@ -14,6 +16,12 @@ beforeEach(() => {
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
     fetcher: async () => NOT_CONNECTED,
+  })
+  // Notion likewise: the Roadmap shows its local board (sample + edits).
+  // See src/test/notion.ts for live rows.
+  configureNotionRoadmap({
+    initial: { phase: "ready", summary: NOTION_NOT_CONNECTED },
+    fetcher: async () => NOTION_NOT_CONNECTED,
   })
 })
 
