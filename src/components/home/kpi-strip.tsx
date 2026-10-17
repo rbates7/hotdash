@@ -93,7 +93,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
           {kpi.updated}
         </p>
       )}
-      {/* The total's four groups; a sample or loading card keeps their room. */}
+      {/* The total's three groups; a sample or loading card keeps their room. */}
       {kpi.id === "subscribers" && (
         <SubscriberBreakdown breakdown={kpi.breakdown} reserve={!kpi.breakdown} className="mt-2.5" />
       )}

@@ -297,23 +297,22 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
   it("the total's groups are the link's accessible description; the live region speaks the total only", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,414, up 3 today")
+    expect(link()).toHaveAccessibleName("Subscribers: 1,337, up 3 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,107, App Store 53, Invoice (school/district) 83, Free (never paid) 171."
+      "Stripe paying 1,110, App Store 53, Free (never paid) 174."
     )
     const id = link().getAttribute("aria-describedby")!
     expect(document.getElementById(id)).not.toBeVisible()
-    expect(spoken()).toBe("Subscribers: 1,414, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,337, up 3 today")
     expect(status()).not.toHaveTextContent(/Stripe paying|App Store/)
   })
 
   it("App Store not connected: described honestly, and the total leaves it out", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,278, up 3 today")
+    expect(link()).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,107, App Store Not connected, Invoice (school/district) Not connected, Free (never paid) 171. " +
-        "Total excludes App Store and invoice (not connected)."
+      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
     )
   })
 
@@ -325,11 +324,10 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.tab()
     expect(link()).toHaveFocus()
     const tip = await screen.findByTestId("ticker-breakdown")
-    expect(tip).toHaveTextContent("Subscribers1,414")
-    expect(tip).toHaveTextContent("Stripe paying1,107")
+    expect(tip).toHaveTextContent("Subscribers1,337")
+    expect(tip).toHaveTextContent("Stripe paying1,110")
     expect(tip).toHaveTextContent("App Store53")
-    expect(tip).toHaveTextContent("Invoice (school/district)83")
-    expect(tip).toHaveTextContent("Free (never paid)171")
+    expect(tip).toHaveTextContent("Free (never paid)174")
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByTestId("ticker-breakdown")).toBeNull())
     expect(link()).toHaveAttribute("href", TICKER_HREF)
@@ -342,8 +340,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.hover(link())
     const tip = await screen.findByTestId("ticker-breakdown")
     expect(tip).toHaveTextContent("App StoreNot connected")
-    expect(tip).toHaveTextContent("Invoice (school/district)Not connected")
-    expect(tip).toHaveTextContent("Total excludes App Store and invoice (not connected)")
+    expect(tip).toHaveTextContent("Total excludes App Store (not connected)")
   })
 
   it("sample or loading: no description and no tooltip", async () => {

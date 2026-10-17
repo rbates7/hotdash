@@ -11,8 +11,7 @@ import R from "@/lib/__fixtures__/stripe-reconcile-2026-10-14.json"
  * Bobbi's reconciliation (Data, Oct 14 2026) as a synthetic Stripe: one
  * made-up subscription per real one in each category she counted, so the
  * dashboard's definitions must land on her headlines — 1,110 paying, 174
- * free, plus the App Store's 53 and invoice's 83 from a mocked provider:
- * 1,420 — and
+ * free, plus the App Store's 53 from a mocked provider: 1,337 — and
  * Coulson's older method on his 1,156, from the same list. No real Stripe
  * data, no database.
  */
@@ -95,25 +94,24 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
     expect(neither).toHaveLength(R.never_paid_not_ended.trialing + R.never_paid_not_ended.past_due)
   })
 
-  it("the total is 1,420 = 1,110 + 53 + 83 + 174, with App Store and invoice from a mocked provider", async () => {
+  it("the total is 1,337 = 1,110 + 53 + 174, with the App Store from a mocked provider", async () => {
     const appStore = createAppStoreSource({
       env: () => ({ SUPABASE_READONLY_DB_URL: "postgresql://ro:fake@127.0.0.1:5432/postgres" }),
-      query: async () => ({ appStore: R.app_store.payers_not_in_stripe, invoice: R.invoice.coaches_not_in_stripe }),
+      query: async () => R.app_store.payers_not_in_stripe,
       clock: () => NOW.getTime(),
     })
     const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
     await appStore.read() // starts the count in the background
     await appStore.settled()
     const total = subscriberTotal(m, await appStore.read())
-    expect([total.stripePaying, total.appStore, total.invoice, total.freeAccounts]).toEqual([1110, 53, 83, 174])
-    expect(total.value).toBe(1420)
+    expect([total.stripePaying, total.appStore, total.freeAccounts]).toEqual([1110, 53, 174])
+    expect(total.value).toBe(1337)
     expect(total.value).toBe(R.total_headline)
 
-    // The database not connected: the total leaves both out, never counts them as 0.
+    // The App Store not connected: the total leaves it out, never counts it as 0 payers.
     const off = createAppStoreSource({ env: () => ({}) })
     const without = subscriberTotal(m, await off.read())
     expect(without.appStore).toBeNull()
-    expect(without.invoice).toBeNull()
     expect(without.value).toBe(1110 + 174)
   })
 

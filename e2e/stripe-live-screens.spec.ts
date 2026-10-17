@@ -124,8 +124,8 @@ test(`stale 1440 ${theme} (Home + Settings)`, async ({ page }) => {
 }
 
 /**
- * The paying-subscribers PR set (24 files), all mocked — 1,107 + 53 + 83
- * + 171 = 1,414, never real Stripe or database figures:
+ * The paying-subscribers PR set (24 files), all mocked — 1,110 + 53 + 174
+ * = 1,337, never real Stripe or database figures:
  * - Home and Metrics, Stripe and the App Store connected, at 1440, 1180,
  *   820 and 390, both themes (16);
  * - the ticker's breakdown open at 1440 (hover) and 390 (keyboard focus:
@@ -178,7 +178,7 @@ for (const vp of PHONE_AND_DESKTOP) {
       } else await link.hover()
       const tip = page.getByTestId("ticker-breakdown")
       await expect(tip).toBeVisible()
-      await expect(tip).toContainText("Free (never paid)171")
+      await expect(tip).toContainText("Free (never paid)174")
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
       await page.waitForTimeout(300)
       // Not full page: the tooltip is anchored to the viewport's header.
@@ -191,39 +191,9 @@ for (const vp of PHONE_AND_DESKTOP) {
       await openLive(page, "/home")
       await setTheme(page, theme)
       await expect(page.getByTestId("subscriber-breakdown-note").filter({ visible: true }).first()).toHaveText(
-        "Total excludes App Store and invoice (not connected)"
+        "Total excludes App Store (not connected)"
       )
       save(`home-${vp.width}-${theme}-appstore-not-connected.png`, await capture(page))
     })
   }
-}
-
-/**
- * The active-only / invoice PR set (4 files), all mocked — 1,107 + 53 + 83
- * + 171 = 1,414: Home at 1440 (full page) and its Subscribers card with the
- * four-row breakdown, both themes.
- *
- *   STRIPE_READONLY_KEY= SCREENSHOT_DIR=… pnpm screens:stripe-live -g appstore-active
- */
-for (const theme of ["light", "dark"] as const) {
-  test(`appstore-active home 1440 ${theme}`, async ({ page }) => {
-    await page.setViewportSize(WIDTHS[3])
-    await mockStripe(page, liveSummary("connected"))
-    await openLive(page, "/home")
-    await setTheme(page, theme)
-    const card = page.getByRole("article", { name: "Subscribers", exact: true })
-    await expect(card).toContainText("1,414")
-    await expect(card.getByTestId("subscriber-breakdown").locator("[data-row]")).toHaveCount(4)
-    await expect(card.locator('[data-row="invoice"]')).toHaveText("Invoice (school/district)83")
-    save(`home-1440-${theme}.png`, await capture(page))
-    // The card alone, with a little of the page around it.
-    const box = (await card.boundingBox())!
-    const pad = 16
-    save(
-      `breakdown-1440-${theme}.png`,
-      await page.screenshot({
-        clip: { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad), width: box.width + 2 * pad, height: box.height + 2 * pad },
-      })
-    )
-  })
 }

@@ -336,7 +336,7 @@ function Crossfade(props: RowProps) {
 /* ------------------------------------------------------------- breakdown */
 
 /**
- * The tooltip's body: the total and its four groups. Inverted colours
+ * The tooltip's body: the total and its three groups. Inverted colours
  * (the shared tooltip is foreground-on-background), so no muted tokens.
  */
 function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdownView }) {
@@ -403,8 +403,8 @@ function rowFor(state: TickerState, maxTiles: number) {
  * aria-label of its own, spoken at most once a minute); the tiles are
  * aria-hidden. Only the total is ever announced.
  *
- * With Stripe live, the total's breakdown (Stripe paying, App Store,
- * invoice, free accounts) is the link's accessible description (`aria-describedby`, a
+ * With Stripe live, the total's breakdown (Stripe paying, App Store, free
+ * accounts) is the link's accessible description (`aria-describedby`, a
  * hidden copy, so it is read on focus and never announced), and a tooltip
  * on hover or keyboard focus. The tooltip is portalled: nothing in the
  * header moves when it opens.

@@ -1,5 +1,5 @@
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
-import { APP_STORE_NOT_CONNECTED_TEXT, BREAKDOWN_LABELS, NOT_REPORTED_TEXT } from "@/lib/subscriber-total"
+import { APP_STORE_NOT_CONNECTED_TEXT, BREAKDOWN_LABELS } from "@/lib/subscriber-total"
 import { cn } from "@/lib/utils"
 
 /** Same rows, dashes for figures: holds the breakdown's height while there is none. */
@@ -13,9 +13,9 @@ const PLACEHOLDER: SubscriberBreakdownView = {
 }
 
 /**
- * The four groups under a Subscribers total — Stripe paying, App Store,
- * invoice (school/district), free accounts — and the fine print when the
- * total leaves a group out. The note's line is always there (blank when there is nothing to
+ * The three groups under a Subscribers total — Stripe paying, App Store,
+ * free accounts — and the fine print when the total leaves the App Store
+ * out. The note's line is always there (blank when there is nothing to
  * say), so the block is one height whatever the sources answer.
  *
  * `reserve` paints nothing (sample or loading), but takes the same room,
@@ -39,7 +39,7 @@ export function SubscriberBreakdown({
     >
       <dl className="flex flex-col gap-0.5">
         {view.rows.map((row) => {
-          const off = row.value === APP_STORE_NOT_CONNECTED_TEXT || row.value === NOT_REPORTED_TEXT
+          const off = row.value === APP_STORE_NOT_CONNECTED_TEXT
           return (
             <div key={row.key} data-row={row.key} className="flex items-baseline justify-between gap-3">
               <dt className="text-muted-foreground truncate">{row.label}</dt>
