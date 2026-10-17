@@ -129,6 +129,13 @@ describe("postgresQuery (the default provider)", () => {
     )
   })
 
+  it("counts active App Store rows only: billing_retry (and trialing, past_due) is not counted", () => {
+    const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ")
+    const main = flat.slice(0, flat.indexOf("not exists"))
+    expect(main).toContain("a.subscription_status = 'active'")
+    expect(main).not.toMatch(/billing_retry|trialing|past_due/)
+  })
+
   it("an odd answer is an error, and the connection is still closed", async () => {
     for (const rows of [[], [{ n: "53" }], [{ n: -1 }], [{ n: 1.5 }]]) {
       const { connect, calls } = fakeClient(async () => rows)

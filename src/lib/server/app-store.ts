@@ -25,13 +25,16 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 /* ------------------------------------------------------------------ query */
 
 /**
- * The count, as Rashad and Radcliffe settled it (Oct 14 2026, verified
- * read-only on prod: 53): distinct users whose App Store subscription is
- * `active` — not trialing, past_due or billing_retry — on a plan that is
- * an App Store product, and who have
+ * The count, as Rashad and Bobbi defined it (Oct 14 2026), with the status
+ * filter tightened to `active` only for #47: distinct users whose App
+ * Store subscription is `active` — not trialing, past_due or
+ * billing_retry — on a plan that is an App Store product, and who have
  * no active, past-due or trialing Stripe or invoice subscription — so
  * nobody is counted here and in Stripe. `apple_product_id` is on
  * `chlk.plans`, not `chlk.subscriptions`.
+ *
+ * Verified read-only on prod: 51 on Oct 16 2026, 10:30 PM CT (active-only;
+ * billing_retry adds 0). The count is live and moves.
  */
 export const APP_STORE_PAYERS_SQL = `select count(distinct a.user_id)::int as n
 from chlk.subscriptions a
