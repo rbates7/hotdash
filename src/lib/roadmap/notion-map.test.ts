@@ -173,3 +173,30 @@ describe("parseNotionRoadmapSummary", () => {
     for (const value of bad) expect(parseNotionRoadmapSummary(value)).toBeNull()
   })
 })
+
+
+describe("CHLK Product Roadmap schema (recorded fixture rows, tests only)", () => {
+  const sel = (name: string | null) => ({ type: "select", select: name ? { name } : null })
+  const txt = (t: string) => ({ type: "rich_text", rich_text: t ? [{ plain_text: t }] : [] })
+  const row = (props: Record<string, unknown>) => ({
+    object: "page", created_time: "2026-03-01T12:00:00.000Z", last_edited_time: "2026-03-02T12:00:00.000Z",
+    properties: { Name: { type: "title", title: [{ plain_text: String(props.name ?? "") }] }, ...(props.p as object) },
+  })
+  it("places by Priority (Now/Next/Later), drops Status Done, reads Feature Description and Timeline", () => {
+    const out = mapNotionRows([
+      row({ name: "Shareable Plays", p: { Priority: sel("Now"), Status: sel("Development"),
+        "Feature Description": txt("Share plays in-app."), Timeline: { type: "multi_select", multi_select: [{ name: "Q1 S1" }] } } }),
+      row({ name: "Churn doc", p: { Priority: sel("Now"), Status: sel("Done") } }),
+      row({ name: "Later thing", p: { Priority: sel("Later"), Status: sel("Backlog"),
+        "Public Release": { type: "date", date: { start: "2026-11-03", end: null } } } }),
+      row({ name: "", p: { Priority: sel(null), Status: sel(null) } }),
+    ])
+    expect(out.items.map((i) => [i.title, i.column, i.window])).toEqual([
+      ["Shareable Plays", "now", "Q1 S1"],
+      ["Later thing", "later", "Nov 2026"],
+    ])
+    expect(out.items[0].why).toBe("Share plays in-app.")
+    expect(out.items[0].owner).toBeNull()
+    expect(out.unplaced).toBe(1)
+  })
+})

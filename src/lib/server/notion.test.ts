@@ -27,6 +27,7 @@ import {
   type NotionConfig,
   type NotionRequest,
   type NotionService,
+  DEFAULT_ROADMAP_DATABASE_ID,
 } from "@/lib/server/notion"
 import { SYNC_TIMEOUT_MS, SyncTimeoutError } from "@/lib/server/time-limit"
 import { LIVE_ROADMAP, notionRow } from "@/test/notion-fixture"
@@ -100,9 +101,12 @@ describe("parseNotionId", () => {
 })
 
 describe("readNotionConfig", () => {
-  it("is missing until both the token and the id are set", () => {
+  it("is missing without a token; the id defaults to CHLK's Product Roadmap database", () => {
     expect(readNotionConfig({})).toEqual({ kind: "missing" })
-    expect(readNotionConfig({ NOTION_READONLY_TOKEN: TOKEN })).toEqual({ kind: "missing" })
+    expect(readNotionConfig({ NOTION_READONLY_TOKEN: TOKEN })).toEqual({
+      kind: "ok", token: TOKEN, id: DEFAULT_ROADMAP_DATABASE_ID, base: NOTION_API,
+    })
+    expect(readNotionConfig({ NOTION_READONLY_TOKEN: TOKEN, NOTION_ROADMAP_PAGE_ID: " " }).kind).toBe("ok")
     expect(readNotionConfig({ NOTION_ROADMAP_PAGE_ID: PAGE_HEX })).toEqual({ kind: "missing" })
     expect(readNotionConfig({ NOTION_READONLY_TOKEN: " ", NOTION_ROADMAP_PAGE_ID: PAGE_HEX })).toEqual({ kind: "missing" })
     expect(readNotionConfig(ENV)).toEqual({ kind: "ok", token: TOKEN, id: PAGE_ID, base: NOTION_API })
@@ -274,7 +278,6 @@ describe("fallback", () => {
   it("missing or invalid token / id → not_connected / not_configured, and Notion is never called", async () => {
     for (const env of [
       {},
-      { NOTION_READONLY_TOKEN: TOKEN },
       { NOTION_ROADMAP_PAGE_ID: PAGE_HEX },
       { ...ENV, NOTION_READONLY_TOKEN: "ntn_CI-DUMMY-not-a-real-token-4b8e1d" },
       { ...ENV, NOTION_ROADMAP_PAGE_ID: "https://example.com/x" },

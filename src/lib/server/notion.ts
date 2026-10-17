@@ -32,6 +32,12 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /* ----------------------------------------------------------------- config */
 
+/**
+ * CHLK's "Product Roadmap" database (CHLK Wiki). Not a secret: useless
+ * without a token it is shared with. `NOTION_ROADMAP_PAGE_ID` overrides it.
+ */
+export const DEFAULT_ROADMAP_DATABASE_ID = "7928ae1b-cfc2-45d5-abb3-f5e997cc94e4"
+
 type Env = Record<string, string | undefined>
 
 export const NOTION_API = "https://api.notion.com"
@@ -105,8 +111,8 @@ function mockBase(raw: string): string | null {
  */
 export function readNotionConfig(env: Env = process.env): NotionConfig {
   const token = env.NOTION_READONLY_TOKEN?.trim()
-  const rawId = env.NOTION_ROADMAP_PAGE_ID?.trim()
-  if (!token || !rawId) return { kind: "missing" }
+  const rawId = env.NOTION_ROADMAP_PAGE_ID?.trim() || DEFAULT_ROADMAP_DATABASE_ID
+  if (!token) return { kind: "missing" }
   const id = parseNotionId(rawId)
   if (!TOKEN_PATTERN.test(token) || !id) return { kind: "invalid" }
   const rawBase = env.NOTION_API_BASE?.trim()

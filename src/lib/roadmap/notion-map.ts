@@ -32,11 +32,15 @@ import { MAX_TITLE, MAX_WHY, MAX_WINDOW, type RoadmapColumn } from "@/lib/roadma
 /* ----------------------------------------------------------- property names */
 
 export const PROPERTY_NAMES = {
-  column: ["Column", "Roadmap", "Horizon", "Stage", "Phase", "Status"],
-  why: ["Why", "Why it matters", "Summary", "Description", "Problem", "Notes"],
+  /** Tried in order; the first whose value names a board column wins (CHLK's roadmap: Priority = Now/Next/Later). */
+  column: ["Column", "Roadmap", "Horizon", "Priority", "Stage", "Phase", "Status"],
+  /** A done/shipped value here takes the row off the board even when a column property places it. */
+  status: ["Status", "State"],
+  why: ["Why", "Why it matters", "Feature Description", "Summary", "Description", "Problem", "Notes"],
   owner: ["Owner", "Owners", "DRI", "Lead", "Assignee", "Assignees", "Assigned to"],
   window: [
     "Window", "Target window", "Target", "Quarter", "Timeline", "Timeframe", "When", "Release",
+    "Public Release", "Tech Ready",
     "Target date", "Due date", "Due", "ETA", "Launch date", "Date",
   ],
   order: ["Order", "Rank", "Position", "Sort"],
@@ -212,6 +216,28 @@ function instant(value: string | null): string | null {
   return Number.isFinite(t) ? new Date(t).toISOString() : null
 }
 
+/** Every property named in `names` (in that order) that exists on the row. */
+function findAll(properties: Json, names: readonly string[]): Json[] {
+  const out: Json[] = []
+  for (const name of names) {
+    const prop = find(properties, [name])
+    if (prop && !out.includes(prop)) out.push(prop)
+  }
+  return out
+}
+
+/** The row's column: the first candidate whose value is a column; done if the status says so. */
+function columnOf(properties: Json): ColumnReading {
+  if (readColumn(asText(find(properties, PROPERTY_NAMES.status))).kind === "done") return { kind: "done" }
+  let done = false
+  for (const prop of findAll(properties, PROPERTY_NAMES.column)) {
+    const reading = readColumn(asText(prop))
+    if (reading.kind === "column") return reading
+    if (reading.kind === "done") done = true
+  }
+  return done ? { kind: "done" } : { kind: "unknown" }
+}
+
 function isFeatureRequest(properties: Json): boolean {
   const box = find(properties, PROPERTY_NAMES.fromFeatureRequestCheckbox)
   if (box && str(box.type) === "checkbox" && box.checkbox === true) return true
@@ -245,7 +271,7 @@ export function mapNotionRows(rows: readonly unknown[]): LiveRoadmap {
     if (row.in_trash === true || row.archived === true) return
     const properties = obj(row.properties) ?? {}
 
-    const reading = readColumn(asText(find(properties, PROPERTY_NAMES.column)))
+    const reading = columnOf(properties)
     if (reading.kind === "done") return
     if (reading.kind === "unknown") {
       unplaced += 1
