@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
-import { APP_STORE_OFF, APP_STORE_ZERO, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, APP_STORE_ZERO, APP_STORE_ZERO_STALE, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { MIN_TAP, expectTapTarget } from "./support/tap-target"
 import { setTheme } from "./support/theme"
 
@@ -376,6 +376,45 @@ test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
       const notice = page.getByRole("note", { name: "Partly live" })
       await expect(notice).not.toContainText("also counts App Store payers")
       await expect(notice).toContainText("leaves out App Store payers")
+    })
+  }
+})
+
+test.describe("Subscribers total, App Store stale and read 0 — still suspect (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: a stale 0 warns in amber with the icon, and the total leaves it out (1,284)`, async ({ page }) => {
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO_STALE))
+      await open(page, "/home")
+      await setTheme(page, theme)
+      const card = kpi(page, "Subscribers")
+      await expect(card).toContainText("1,284")
+      await expect(card).not.toContainText("1,337")
+      expect(await rowsOf(card)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      const row = card.locator("[data-row='appStore']")
+      await expect(row).toHaveAttribute("data-warning", "")
+      await expect(row.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      // Amber: the figure is painted in the theme's --warning-text, not the default foreground.
+      const [value, amber] = await row.locator("dd").evaluate((dd) => {
+        const probe = document.createElement("span")
+        probe.style.color = "var(--warning-text)"
+        dd.parentElement!.appendChild(probe)
+        const want = getComputedStyle(probe).color
+        probe.remove()
+        return [getComputedStyle(dd).color, want]
+      })
+      expect(value).toBe(amber)
+      // Suspect wins over stale: the RLS note, not "App Store as of …".
+      await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expect(card).not.toContainText(/App Store\s*0\b/)
+      await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} stale suspect breakdown`, expect)
+
+      await expect(ticker(page).getByRole("link")).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
     })
   }
 })
