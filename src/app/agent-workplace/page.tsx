@@ -3,7 +3,8 @@ import { Suspense } from "react"
 import { ExternalLinkIcon } from "lucide-react"
 
 import { now } from "@/lib/clock"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import {
   WORKPLACE_DUMMY,
@@ -34,12 +35,15 @@ export default function AgentWorkplacePage() {
           <div className={WORKPLACE_HEADER_META}>
             <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
             <span className={WORKPLACE_DUMMY}>Dummy / design mock</span>
-            <Button asChild variant="outline" size="sm" className="min-h-11 xl:min-h-0">
-              <a href={PLAYBOOK_URL} target="_blank" rel="noopener noreferrer">
-                Engineering playbook
-                <ExternalLinkIcon aria-hidden />
-              </a>
-            </Button>
+            <a
+              href={PLAYBOOK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 xl:min-h-0")}
+            >
+              Engineering playbook
+              <ExternalLinkIcon aria-hidden />
+            </a>
           </div>
         </header>
         {/* WorkplaceTabs reads the tab and open ticket from the URL, so it
