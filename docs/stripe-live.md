@@ -112,9 +112,8 @@ currencies are skipped, not converted.
      ```
 
      Invoice (school/district) coaches are **not** in the total (Rashad,
-     Oct 16): Subscribers = Stripe paying + App Store + free. Earlier Oct
-     16 snapshot: 1,324 = 1,102 + 53 + 169 (live figures move; App Store
-     read 51 at 10:30 PM CT).
+     Oct 16): Subscribers = Stripe paying + App Store + free. The total is
+     live and moves; App Store read 51 at Oct 16 2026, 10:30 PM CT.
 
      Only in the total when that source has answered. Not connected → the
      App Store row reads "Not connected" and the total says **"Total
