@@ -103,7 +103,7 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     expect(items).toHaveLength(3)
     expect(within(items[0]).getByRole("article", { name: "Flag Football 2026" })).toBeInTheDocument()
     expect(card("Flag Football 2026")).toHaveTextContent("biggest wave of new coaches")
-    expect(within(card("Flag Football 2026")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card("Flag Football 2026")).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" })).toBeInTheDocument()
     expect(within(card("Flag Football 2026")).getByRole("button", { name: "Move down" })).toBeInTheDocument()
   })

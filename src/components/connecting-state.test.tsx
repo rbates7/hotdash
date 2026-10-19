@@ -158,7 +158,7 @@ describe("No key at all", () => {
 
 const notice = () => screen.getByTestId("metrics-connection-notice")
 const sampleSection = () => screen.getByRole("region", { name: "Sample data" })
-const REST = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
+const REST = `Home, Metrics, Bugs, CRM and My Desk show nothing invented. Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
 
 function renderMetricsHeader() {
   return render(
@@ -270,11 +270,19 @@ describe("page-level wording unchanged when live or not connected", () => {
       expect(sampleDataSummary(flags)).not.toMatch(/every (other )?number/i)
     }
     // Only screens that still have seed rows are named: not Home, Metrics
-    // (Expenses starts empty), System Status (seeded checks are a preview)
-    // or the Product Roadmap (Notion, or an empty Not connected board).
-    for (const name of ["Home", "Metrics", "Expenses", "System Status", "Product Roadmap"]) {
-      expect(SEEDED_SCREENS as readonly string[]).not.toContain(name)
+    // (Expenses starts empty), System Status (seeded checks are a preview),
+    // the Product Roadmap (Notion, or an empty Not connected board), Bugs
+    // (Sentry plus the founder's bug tickets), CRM or My Desk (start empty).
+    for (const name of ["Home", "Metrics", "Expenses", "System Status", "Product Roadmap", "Bugs", "CRM", "My Desk"]) {
+      expect((SEEDED_SCREENS as readonly string[]).some((s) => s === name || s.includes(`${name} `) || s.includes(` ${name}`))).toBe(false)
     }
+    expect(SEEDED_SCREENS).toEqual([
+      "Agent Workplace",
+      "Feature Requests",
+      "Clinics",
+      "Community Development",
+      "Sales Opportunities",
+    ])
 
     // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
     const ROADMAP_LIVE = "The Product Roadmap is read from Notion."

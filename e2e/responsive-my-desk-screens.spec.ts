@@ -3,20 +3,25 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { EMPTY_COPY, FINISHED_EARLIER_COPY, SCRATCH_PLACEHOLDER } from "../src/components/my-desk/my-desk-screen"
 import { addDays, now, todayIn } from "../src/lib/clock"
+import { CLEAR_COPY, CLEAR_DESCRIPTION } from "../src/components/persistence-note"
 import { carryFromLabel } from "../src/lib/my-desk"
 import { settleAnimations } from "./support/contrast"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { CLEAR_CONFIRM_NAME, NOTE, persistenceNote } from "./support/persistence"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
 /**
- * Review stills for My Desk at the four target widths, both themes.
- * Opt-in against a production build so the Next.js dev “N” badge is absent:
+ * Review stills for My Desk at the four target widths, both themes. The
+ * walk and its assertions run in every e2e run (CI included); the PNGs are
+ * written only with SCREENSHOTS=1, against a production build so the
+ * Next.js dev “N” badge is absent:
  * `CI=true SCREENSHOTS=1 playwright test e2e/responsive-my-desk-screens.spec.ts`
- * (or `pnpm screens:responsive-my-desk` after a build).
+ * (or `pnpm screens:responsive-my-desk`). Nothing is hidden: no
+ * nextjs-portal override.
  */
-test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
+const CAPTURE = Boolean(process.env.SCREENSHOTS)
 
 const OUT_DIRS = [
   path.resolve("docs/screenshots/responsive/my-desk"),
@@ -37,7 +42,7 @@ const SIZES = {
  * is shot at the viewport, where it really sits on the screen.
  */
 async function shoot(page: Page, name: string, { fullPage = true }: { fullPage?: boolean } = {}) {
-  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
+  if (!CAPTURE) return
   await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
@@ -48,7 +53,25 @@ async function shoot(page: Page, name: string, { fullPage = true }: { fullPage?:
 const header = (page: Page) => page.getByRole("main").locator("header").first()
 const todayList = (page: Page) => page.getByRole("region", { name: "Today list", exact: true })
 const notes = (page: Page) => page.getByRole("region", { name: "Notes", exact: true })
+const empty = (page: Page) => page.getByRole("status", { name: "No to-dos", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
+
+/** The founder's own rows, as a copy saved earlier: two open, one done today. */
+const FIRST = "Call the AD"
+
+function userDesk(day: string) {
+  return {
+    todos: [
+      { id: "todo-8", title: FIRST, note: "Friday walk-through", done: false, createdOn: day, doneOn: null },
+      { id: "todo-9", title: "Book the clinic room", note: "Houston — Saturday", done: false, createdOn: day, doneOn: null },
+      { id: "todo-10", title: "Send the packet", note: "11-personnel", done: true, createdOn: day, doneOn: day },
+    ],
+    nextId: 11,
+    scratch: "",
+    scratchUpdatedAt: new Date().toISOString(),
+  }
+}
 
 async function closeAll(page: Page) {
   for (let i = 0; i < 3 && (await page.getByRole("dialog").count()) > 0; i++) {
@@ -79,27 +102,40 @@ for (const theme of ["light", "dark"] as const) {
       await page.setViewportSize(viewport)
       const phone = size === "phone"
       const desktop = size === "desktop"
+      const today = todayIn(now())
 
       await page.goto("/my-desk?shot=loading")
       await setTheme(page, theme)
       await expect(page.getByRole("status", { name: "Loading saved desk", exact: true })).toBeVisible()
       await shoot(page, `my-desk-${size}-loading-${theme}`)
 
+      // A fresh desk: nothing saved, nothing invented.
       await open(page, theme, null)
-      await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
+      await expect(todayList(page).locator("[data-todo]")).toHaveCount(0)
+      await expect(empty(page)).toContainText(EMPTY_COPY)
+      await expect(notes(page).getByLabel("Scratch")).toHaveValue("")
+      await expect(notes(page).getByLabel("Scratch")).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
+      await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+      await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(0)
+      await shoot(page, `my-desk-${size}-empty-${theme}`)
+
+      await open(page, theme, userDesk(today))
+      await expect(todayList(page).locator("[data-todo]")).toHaveCount(3)
+      await expect(clearButton(page)).toBeEnabled()
       await shoot(page, `my-desk-${size}-with-data-${theme}`)
 
       if (phone) {
-        await todayList(page).getByRole("button", { name: "Open Call Aledo", exact: true }).click()
-        const sheet = dialog(page, "Call Aledo")
+        await todayList(page).getByRole("button", { name: `Open ${FIRST}`, exact: true }).click()
+        const sheet = dialog(page, FIRST)
         await expect(sheet).toBeVisible()
         await expect(sheet.getByRole("button", { name: "Close", exact: true })).toBeVisible()
         await shoot(page, `my-desk-${size}-sheet-${theme}`, { fullPage: false })
         await sheet.getByRole("group", { name: "To-do actions" }).getByRole("button", { name: "Edit" }).click()
       } else {
-        await todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true }).click()
+        await todayList(page).getByRole("button", { name: `Edit ${FIRST}`, exact: true }).click()
       }
       await expect(dialog(page, "Edit to-do")).toBeVisible()
+      await expect(dialog(page, "Edit to-do").getByLabel("Title")).toHaveValue(FIRST)
       await shoot(page, `my-desk-${size}-edit-${theme}`, { fullPage: desktop })
       await closeAll(page)
 
@@ -110,35 +146,37 @@ for (const theme of ["light", "dark"] as const) {
         await closeAll(page)
 
         if (phone) {
-          await todayList(page).getByRole("button", { name: "Open Call Aledo", exact: true }).click()
-          await dialog(page, "Call Aledo")
+          await todayList(page).getByRole("button", { name: `Open ${FIRST}`, exact: true }).click()
+          await dialog(page, FIRST)
             .getByRole("group", { name: "To-do actions" })
             .getByRole("button", { name: "Delete" })
             .click()
         } else {
-          await todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true }).click()
+          await todayList(page).getByRole("button", { name: `Delete ${FIRST}`, exact: true }).click()
         }
-        await expect(dialog(page, "Delete this to-do?")).toBeVisible()
+        await expect(dialog(page, "Delete this to-do?")).toContainText(FIRST)
         await shoot(page, `my-desk-${size}-dialog-delete-${theme}`, { fullPage: false })
         await closeAll(page)
       }
 
+      // The Clear my entries confirm, at every width: its title, what it
+      // deletes, and both choices; nothing is cleared from here.
+      await clearButton(page).click()
+      const confirm = dialog(page, CLEAR_CONFIRM_NAME)
+      await expect(confirm).toBeVisible()
+      await expect(confirm).toContainText(CLEAR_DESCRIPTION)
+      await expect(confirm.getByRole("button", { name: "Keep my edits", exact: true })).toBeVisible()
+      await expect(confirm.getByRole("button", { name: CLEAR_COPY.confirm, exact: true })).toBeVisible()
+      await shoot(page, `my-desk-${size}-clear-confirm-${theme}`, { fullPage: desktop })
+      await closeAll(page)
+      await expect(todayList(page).locator("[data-todo]")).toHaveCount(3)
+
       const scratch = notes(page).getByLabel("Scratch")
-      await scratch.fill("Aledo packet — keep this off Workplace.\n\nPersonal only.")
+      await scratch.fill("Packet before Friday — keep this off Workplace.\n\nPersonal only.")
       await scratch.blur()
       await expect(page.getByTestId("scratch-status")).toContainText("Saved")
       await shoot(page, `my-desk-${size}-scratch-saved-${theme}`)
 
-      await open(page, theme, {
-        todos: [],
-        nextId: 1,
-        scratch: "",
-        scratchUpdatedAt: new Date().toISOString(),
-      })
-      await expect(page.getByRole("status", { name: "No to-dos", exact: true })).toBeVisible()
-      await shoot(page, `my-desk-${size}-empty-${theme}`)
-
-      const today = todayIn(now())
       const yesterday = addDays(today, -1)
       const label = carryFromLabel(yesterday, today)
       await open(page, theme, {
@@ -182,7 +220,7 @@ for (const theme of ["light", "dark"] as const) {
         scratch: "",
         scratchUpdatedAt: new Date().toISOString(),
       })
-      await expect(page.getByRole("status", { name: "No to-dos", exact: true })).toBeVisible()
+      await expect(empty(page)).toContainText(FINISHED_EARLIER_COPY)
       await shoot(page, `my-desk-${size}-finished-earlier-${theme}`)
     })
   }

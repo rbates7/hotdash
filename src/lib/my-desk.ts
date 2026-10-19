@@ -202,16 +202,18 @@ export function formatDeskDate(day: IsoDay): string {
   return `${weekdayOf(day)} ${d} ${MONTHS[m - 1]}`
 }
 
-/* ------------------------------------------------------------------ seed */
+/* ------------------------------------------------------- the old seed */
 
 /**
- * The day Deke's founder mock was drawn. Fresh seed rows are dated from
- * the request's Central day (Reset too); the chip next to Today follows
- * the same clock via `formatDeskDate`.
+ * My Desk starts empty: no sample to-dos and no sample note. The mock's
+ * old rows are kept here only so a copy saved before they were removed can
+ * be cleaned on load (`dropSeed` in the store): untouched seed rows and
+ * the untouched seed note are dropped, anything the founder edited or
+ * ticked stays. Nothing renders these.
  */
 export const DESK_MOCK_DAY: IsoDay = "2026-08-26"
 
-/** The mock's one scratch note. Plain text, not an editor. */
+/** The mock's one scratch note, recognised only by an exact match. */
 export const SEED_SCRATCH = [
   "Aledo wants the 11-personnel packet before Friday.",
   "",
@@ -230,7 +232,7 @@ export function isSeedScratch(text: string) {
   return text === SEED_SCRATCH
 }
 
-/** Seven rows as the mock shows them — five open, two done. Dated `day`. */
+/** The mock's seven rows — five open, two done. Dated `day`. */
 export function seedTodos(day: IsoDay = DESK_MOCK_DAY): Todo[] {
   const row = (n: number, title: string, note: string, done: boolean): Todo => ({
     id: `todo-${n}`,
@@ -251,9 +253,18 @@ export function seedTodos(day: IsoDay = DESK_MOCK_DAY): Todo[] {
   ]
 }
 
-/** Ids the seed uses; anything else was entered by the user. */
+/** Ids the old seed used. New to-dos start after them, so none reuses one. */
 export const SEED_TODO_IDS: ReadonlySet<string> = new Set(seedTodos().map((t) => t.id))
 
-export function isSeedTodo(t: Pick<Todo, "id">) {
-  return SEED_TODO_IDS.has(t.id)
+const SEED_BY_ID = new Map(seedTodos().map((t) => [t.id, t]))
+
+/**
+ * A seed row exactly as the seed wrote it: same id, title, note and done
+ * state. Its dates are ignored (the seed was re-dated on every load). An
+ * edited title or note, or a ticked or unticked box, makes it the
+ * founder's row.
+ */
+export function isUntouchedSeedTodo(t: Pick<Todo, "id" | "title" | "note" | "done">) {
+  const seed = SEED_BY_ID.get(t.id)
+  return !!seed && seed.title === t.title && seed.note === t.note && seed.done === t.done
 }

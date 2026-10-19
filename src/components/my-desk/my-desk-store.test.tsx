@@ -3,7 +3,7 @@ import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { now, todayIn } from "@/lib/clock"
-import { DESK_MOCK_DAY, SEED_SCRATCH, seedTodos, type TodoInput } from "@/lib/my-desk"
+import { DESK_MOCK_DAY, SEED_SCRATCH, seedTodos, type Todo, type TodoInput } from "@/lib/my-desk"
 import { initialShell, type LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
@@ -12,6 +12,7 @@ import {
   STORAGE_KEY,
   clearState,
   deskStorage,
+  dropSeed,
   initialState,
   isState,
   legacyDesk,
@@ -41,6 +42,37 @@ const WALK: TodoInput = {
   done: false,
 }
 
+/**
+ * The founder's own desk: three to-dos they added (ids after the old
+ * seed's) and a note they typed. Tests that need rows start from this,
+ * never from a seed.
+ */
+const MINE: State = {
+  todos: [
+    { id: "todo-8", title: "Book the bus", note: "Aledo trip", done: false, createdOn: TODAY, doneOn: null },
+    { id: "todo-9", title: "Order cones", note: "", done: false, createdOn: TODAY, doneOn: null },
+    {
+      id: "todo-10",
+      title: "Email the printer",
+      note: "Proofs back Thursday",
+      done: true,
+      createdOn: TODAY,
+      doneOn: TODAY,
+    },
+  ],
+  nextId: 11,
+  scratch: "Mine: call the printer back.",
+  scratchUpdatedAt: new Date(NOW_MS).toISOString(),
+}
+
+/** What the old initialState wrote: the mock's seven rows and note, dated `day`. */
+const oldSeedCopy = (day = TODAY): State => ({
+  todos: seedTodos(day),
+  nextId: 8,
+  scratch: SEED_SCRATCH,
+  scratchUpdatedAt: new Date(NOW_MS).toISOString(),
+})
+
 const addWalk = (state: State, today = TODAY) =>
   reducer(state, { type: "add", input: WALK, today })
 
@@ -56,17 +88,17 @@ const hydrate = (state: State | null, nowMs = NOW_MS) => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("reducer", () => {
-  it("starts with the seven seed to-dos, the mock scratch, and the next id after them", () => {
+  it("starts empty: no to-dos, an empty note, and ids after the old seed's", () => {
     const s = initialState(NOW_MS)
-    expect(s.todos).toEqual(seedTodos())
-    expect(s.scratch).toBe(SEED_SCRATCH)
+    expect(s.todos).toEqual([])
+    expect(s.scratch).toBe("")
     expect(s.nextId).toBe(8)
     expect(s.scratchUpdatedAt).toBe(new Date(NOW_MS).toISOString())
   })
 
   it("adds a normalised to-do with the next id and bumps the counter", () => {
     const s = addWalk(initialState(NOW_MS))
-    expect(s.todos).toHaveLength(8)
+    expect(s.todos).toHaveLength(1)
     expect(s.todos.at(-1)).toEqual({
       id: "todo-8",
       title: "Walk the dog",
@@ -145,25 +177,25 @@ describe("reducer", () => {
   })
 
   it("toggles done and is a no-op for an unknown id", () => {
-    const start = initialState(NOW_MS)
-    const s = reducer(start, { type: "toggle", id: "todo-1", today: TODAY })
+    const start = MINE
+    const s = reducer(start, { type: "toggle", id: "todo-8", today: TODAY })
     expect(s.todos[0].done).toBe(true)
     expect(s.todos[0].doneOn).toBe(TODAY)
-    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].done).toBe(false)
-    expect(reducer(s, { type: "toggle", id: "todo-1", today: TODAY }).todos[0].doneOn).toBeNull()
+    expect(reducer(s, { type: "toggle", id: "todo-8", today: TODAY }).todos[0].done).toBe(false)
+    expect(reducer(s, { type: "toggle", id: "todo-8", today: TODAY }).todos[0].doneOn).toBeNull()
     expect(reducer(start, { type: "toggle", id: "nope", today: TODAY })).toBe(start)
   })
 
   it("removes by id and is a no-op for an unknown id; the counter never goes back", () => {
-    const start = addWalk(initialState(NOW_MS))
-    const s = reducer(start, { type: "remove", id: "todo-8" })
-    expect(s.todos).toHaveLength(7)
-    expect(s.nextId).toBe(9)
-    expect(reducer(s, { type: "remove", id: "todo-8" })).toBe(s)
+    const start = addWalk(MINE)
+    const s = reducer(start, { type: "remove", id: "todo-11" })
+    expect(s.todos).toHaveLength(3)
+    expect(s.nextId).toBe(12)
+    expect(reducer(s, { type: "remove", id: "todo-11" })).toBe(s)
   })
 
   it("restores a removed to-do under its original id", () => {
-    const start = initialState(NOW_MS)
+    const start = MINE
     const removed = start.todos[0]
     const without = reducer(start, { type: "remove", id: removed.id })
     const back = reducer(without, { type: "restore", todo: removed })
@@ -185,8 +217,8 @@ describe("reducer", () => {
 describe("shellReducer (the shared persistence shell around the desk)", () => {
   const fresh = initialShell(initialState(NOW_MS), NOW_MS)
 
-  it("hydrate takes the saved copy whole and keeps the clock; an empty result re-seeds around the event's instant", () => {
-    const edited = reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" })
+  it("hydrate takes the saved copy whole and keeps the clock; an empty result starts fresh around the event's instant", () => {
+    const edited = reducer(MINE, { type: "remove", id: "todo-8" })
     const s = shellReducer(fresh, hydrate(edited, noonMs("2026-09-30")))
     expect(s.data).toEqual(edited)
     expect(s).toMatchObject({ persisted: true, edited: false, saved: true, saveFailed: false, edits: 0, nowMs: NOW_MS })
@@ -201,7 +233,8 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
     expect(shellToday({ nowMs: LATE_EVENING_CT_MS })).toBe("2026-10-07")
     expect(LATE_EVENING_CT.getUTCDate()).toBe(8)
     const s = shellReducer(fresh, hydrate(null, LATE_EVENING_CT_MS))
-    expect(s.data.todos).toEqual(seedTodos("2026-10-07"))
+    expect(s.data).toEqual(initialState(LATE_EVENING_CT_MS))
+    expect(s.data.todos).toEqual([])
     expect(shellToday(s)).toBe("2026-10-07")
   })
 
@@ -217,7 +250,7 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
     expect(settled.edited).toBe(false)
   })
 
-  it("reset regenerates the seed around the given instant and returns to the never-edited state", () => {
+  it("reset (Clear my entries) starts a fresh desk around the given instant and returns to the never-edited state", () => {
     const s = shellReducer(shellReducer(fresh, { type: "add", input: WALK, today: TODAY }), {
       type: "reset",
       nowMs: noonMs("2026-10-07"),
@@ -228,9 +261,9 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
   })
 
   it("a no-op edit returns the same shell, so nothing re-renders or writes", () => {
-    const shell = shellReducer(fresh, hydrate(null))
+    const shell = shellReducer(fresh, hydrate(MINE))
     expect(shellReducer(shell, { type: "remove", id: "nope" })).toBe(shell)
-    const edited = shellReducer(shell, { type: "remove", id: "todo-1" })
+    const edited = shellReducer(shell, { type: "remove", id: "todo-8" })
     expect(edited.edited).toBe(true)
     expect(edited.edits).toBe(1)
   })
@@ -245,7 +278,7 @@ describe("shellReducer (the shared persistence shell around the desk)", () => {
 })
 
 describe("isState rejects a bad saved copy", () => {
-  const good = initialState(NOW_MS)
+  const good = MINE
   const cases: [string, unknown][] = [
     ["not an object", "nope"],
     ["an array", [good]],
@@ -255,8 +288,8 @@ describe("isState rejects a bad saved copy", () => {
     ["a row missing createdOn", { ...good, todos: [{ ...good.todos[0], createdOn: undefined }] }],
     ["a done row with no doneOn", { ...good, todos: [{ ...good.todos[0], done: true, doneOn: null }] }],
     ["duplicate ids", { ...good, todos: [good.todos[0], good.todos[0]] }],
-    ["nextId not above the highest id", { ...good, nextId: 7 }],
-    ["nextId fractional", { ...good, nextId: 8.5 }],
+    ["nextId not above the highest id", { ...good, nextId: 10 }],
+    ["nextId fractional", { ...good, nextId: 11.5 }],
     ["nextId missing", (() => { const { nextId: _n, ...rest } = good; void _n; return rest })()],
     ["scratch missing", (() => { const { scratch: _s, ...rest } = good; void _s; return rest })()],
     ["scratchUpdatedAt not an instant", { ...good, scratchUpdatedAt: "26 Aug" }],
@@ -266,8 +299,9 @@ describe("isState rejects a bad saved copy", () => {
     expect(isState(value)).toBe(false)
   })
 
-  it("accepts the seed, an edited copy and an empty list", () => {
+  it("accepts the founder's copy, an edited copy, a fresh desk and an empty list", () => {
     expect(isState(good)).toBe(true)
+    expect(isState(initialState(NOW_MS))).toBe(true)
     expect(isState(addWalk(good))).toBe(true)
     expect(
       isState({
@@ -289,7 +323,7 @@ describe("isState rejects a bad saved copy", () => {
     expect(parseState({ ...good, nextId: 1 })).toBeNull()
   })
 
-  it("a rejected copy gives the page the seed without writing (load is pure); the first real save parks it", () => {
+  it("a rejected copy gives the page a fresh desk without writing (load is pure); the first real save parks it", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const raw = JSON.stringify({ ...good, nextId: 1 })
     window.localStorage.setItem(STORAGE_KEY, raw)
@@ -323,7 +357,7 @@ describe("localStorage", () => {
     const s = addWalk(initialState(NOW_MS))
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
-    const other = reducer(s, { type: "remove", id: "todo-1" })
+    const other = reducer(s, { type: "remove", id: "todo-8" })
     expect(saveState(quotaExceededStorage() as unknown as Storage, other)).toBe(false)
   })
 
@@ -337,6 +371,81 @@ describe("localStorage", () => {
   })
 })
 
+describe("dropSeed: a copy saved before the seed was removed", () => {
+  const seedRow = (id: string): Todo => {
+    const row = seedTodos().find((t) => t.id === id)
+    if (!row) throw new Error(id)
+    return row
+  }
+
+  it("drops every untouched seed to-do and the seed note; the counter stays past the seed", () => {
+    const cleaned = dropSeed(oldSeedCopy())
+    expect(cleaned.todos).toEqual([])
+    expect(cleaned.scratch).toBe("")
+    expect(cleaned.nextId).toBe(8)
+    expect(isState(cleaned)).toBe(true)
+  })
+
+  it("ignores the seed's dates: it was re-dated on every load", () => {
+    expect(dropSeed(oldSeedCopy("2026-10-07")).todos).toEqual([])
+    const carried = { ...seedRow("todo-1"), createdOn: "2026-08-20" }
+    expect(dropSeed({ ...MINE, todos: [carried, ...MINE.todos] }).todos).toEqual(MINE.todos)
+  })
+
+  it("keeps a seed to-do whose title or note the founder edited", () => {
+    const retitled = { ...seedRow("todo-1"), title: "Call Aledo back" }
+    const renoted = { ...seedRow("todo-2"), note: "Houston staff — two-pager" }
+    const todos = seedTodos().map((t) => (t.id === "todo-1" ? retitled : t.id === "todo-2" ? renoted : t))
+    expect(dropSeed({ ...oldSeedCopy(), todos }).todos).toEqual([retitled, renoted])
+  })
+
+  it("keeps a seed to-do the founder ticked, or unticked", () => {
+    const ticked = { ...seedRow("todo-3"), done: true, doneOn: TODAY }
+    const unticked = { ...seedRow("todo-5"), done: false, doneOn: null }
+    const todos = seedTodos().map((t) => (t.id === "todo-3" ? ticked : t.id === "todo-5" ? unticked : t))
+    expect(dropSeed({ ...oldSeedCopy(), todos }).todos).toEqual([ticked, unticked])
+  })
+
+  it("keeps the founder's own to-dos, in order, beside dropped seed rows", () => {
+    const s = dropSeed({ ...MINE, todos: [seedRow("todo-1"), MINE.todos[0], seedRow("todo-6"), ...MINE.todos.slice(1)] })
+    expect(s.todos).toEqual(MINE.todos)
+    expect(s.scratch).toBe(MINE.scratch)
+    expect(s.nextId).toBe(11)
+  })
+
+  it("clears the note only when it is the seed's character for character", () => {
+    expect(dropSeed({ ...MINE, scratch: SEED_SCRATCH }).scratch).toBe("")
+    const oneCharOff = SEED_SCRATCH.replace("Aledo", "Aledp")
+    expect(oneCharOff).not.toBe(SEED_SCRATCH)
+    expect(dropSeed({ ...MINE, scratch: oneCharOff }).scratch).toBe(oneCharOff)
+    expect(dropSeed({ ...MINE, scratch: `${SEED_SCRATCH}\nmine` }).scratch).toBe(`${SEED_SCRATCH}\nmine`)
+  })
+
+  it("never moves the counter back, and lifts a low one past the seed's ids", () => {
+    expect(dropSeed({ ...oldSeedCopy(), nextId: 15 }).nextId).toBe(15)
+    const low: State = { ...oldSeedCopy(), todos: [seedRow("todo-1")], nextId: 2 }
+    expect(isState(low)).toBe(true)
+    expect(dropSeed(low)).toMatchObject({ todos: [], nextId: 8 })
+  })
+
+  it("returns the same object when there is nothing to drop", () => {
+    expect(dropSeed(MINE)).toBe(MINE)
+    const fresh = initialState(NOW_MS)
+    expect(dropSeed(fresh)).toBe(fresh)
+  })
+
+  it("runs on load (parseState / loadState) and writes nothing back", () => {
+    const old: State = { ...oldSeedCopy(), todos: [...seedTodos(), MINE.todos[0]], nextId: 9 }
+    expect(parseState(old)).toEqual({ ...old, todos: [MINE.todos[0]], scratch: "" })
+    const raw = JSON.stringify(old)
+    window.localStorage.setItem(STORAGE_KEY, raw)
+    const setItem = vi.spyOn(Storage.prototype, "setItem")
+    expect(loadState(window.localStorage)?.todos).toEqual([MINE.todos[0]])
+    expect(setItem).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
+  })
+})
+
 /* ---------------------------------------------------------------- provider */
 
 function Probe({ label = "" }: { label?: string }) {
@@ -345,7 +454,6 @@ function Probe({ label = "" }: { label?: string }) {
     todos,
     nextId,
     scratch,
-    scratchSample,
     persisted,
     edited,
     saved,
@@ -370,23 +478,19 @@ function Probe({ label = "" }: { label?: string }) {
       <span data-testid="done-on">{todos.map((t) => t.doneOn ?? "-").join("|")}</span>
       <span data-testid="done">{todos.map((t) => String(t.done)).join(",")}</span>
       <span data-testid="scratch">{scratch}</span>
-      <span data-testid="scratch-sample">{String(scratchSample)}</span>
       <button type="button" onClick={() => addTodo(WALK)}>
         add
       </button>
-      <button type="button" onClick={() => toggleTodo("todo-1")}>
+      <button type="button" onClick={() => toggleTodo("todo-8")}>
         toggle
-      </button>
-      <button type="button" onClick={() => toggleTodo("todo-1")}>
-        noop-same-toggle-twice
       </button>
       <button
         type="button"
-        onClick={() => updateTodo("todo-2", { title: seedTodos()[1].title, note: "edited", done: false })}
+        onClick={() => updateTodo("todo-9", { title: MINE.todos[1].title, note: "edited", done: false })}
       >
         edit
       </button>
-      <button type="button" onClick={() => removeTodo("todo-3")}>
+      <button type="button" onClick={() => removeTodo("todo-10")}>
         remove
       </button>
       <button type="button" onClick={() => setScratch("typed in scratch")}>
@@ -422,33 +526,54 @@ describe("MyDeskProvider", () => {
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
   })
 
-  it("does not write the untouched seed on first load", () => {
+  it("does not write the fresh desk on first load", () => {
     const writes = countingSetItem()
     mount()
     expect(screen.getByTestId("persisted")).toHaveTextContent("true")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
+    expect(screen.getByTestId("scratch")).toBeEmptyDOMElement()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(writes.calls).toEqual([])
     writes.restore()
   })
 
-  it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
-    saveState(window.localStorage, reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" }))
+  it("is hydrated before the first paint, so saved data never follows a flash of the empty desk", () => {
+    saveState(window.localStorage, MINE)
     mount()
-    expect(screen.getByTestId("count")).toHaveTextContent("6")
+    expect(screen.getByTestId("count")).toHaveTextContent("3")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
-    expect(screen.getByTestId("titles")).not.toHaveTextContent("Call Aledo")
+    expect(screen.getByTestId("titles")).toHaveTextContent("Book the bus|Order cones|Email the printer")
+    expect(screen.getByTestId("scratch")).toHaveTextContent(MINE.scratch)
+  })
+
+  it("an old copy loads without its untouched seed rows and writes nothing until a real edit", () => {
+    const ticked = { ...seedTodos()[0], done: true, doneOn: TODAY }
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...oldSeedCopy(), todos: [ticked, ...seedTodos().slice(1)] })
+    )
+    const writes = countingSetItem()
+    mount()
+    expect(screen.getByTestId("titles")).toHaveTextContent(/^Call Aledo$/)
+    expect(screen.getByTestId("scratch")).toBeEmptyDOMElement()
+    expect(writes.calls).toEqual([])
+    act(() => screen.getByRole("button", { name: "add" }).click())
+    expect(loadState(window.localStorage)?.todos.map((t) => t.id)).toEqual(["todo-1", "todo-8"])
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("Clinic follow-up")
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toContain("11-personnel")
+    writes.restore()
   })
 
   it("a hydrate from a saved copy never triggers a save", () => {
-    saveState(window.localStorage, reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" }))
+    saveState(window.localStorage, MINE)
     const writes = countingSetItem()
     mount()
     expect(writes.calls).toEqual([])
     writes.restore()
   })
 
-  it("persists edits (saved=true), rehydrates after a remount, and Reset clears the key", () => {
+  it("persists edits (saved=true), rehydrates after a remount, and Clear my entries clears the key", () => {
     const writes = countingSetItem()
     const first = mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
@@ -458,7 +583,8 @@ describe("MyDeskProvider", () => {
 
     first.unmount()
     mount()
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("1")
+    expect(screen.getByTestId("titles")).toHaveTextContent("Walk the dog")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
     expect(writes.calls).toHaveLength(1)
 
@@ -466,22 +592,22 @@ describe("MyDeskProvider", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo")
+    expect(screen.getByTestId("titles")).toBeEmptyDOMElement()
     expect(writes.calls).toHaveLength(1)
     vi.useRealTimers()
     writes.restore()
   })
 
-  it("opened at 23:30 CT and Reset after midnight: today moves to the new day", () => {
+  it("opened at 23:30 CT and cleared after midnight: today moves to the new day", () => {
     mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     act(() => screen.getByRole("button", { name: "add" }).click())
     vi.useFakeTimers({ now: new Date("2026-10-08T05:30:00.000Z"), toFake: ["Date"] })
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     vi.useRealTimers()
   })
 
@@ -494,43 +620,43 @@ describe("MyDeskProvider", () => {
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     spy.mockRestore()
+    // The unsaved Walk the dog is todo-8; ticking it is the next edit.
     act(() => screen.getByRole("button", { name: "toggle" }).click())
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"Walk the dog"')
   })
 
-  it("scratch edits persist and drop the sample flag", () => {
+  it("scratch starts empty; typing persists it", () => {
     mount()
-    expect(screen.getByTestId("scratch-sample")).toHaveTextContent("true")
+    expect(screen.getByTestId("scratch")).toBeEmptyDOMElement()
     act(() => screen.getByRole("button", { name: "scratch" }).click())
     expect(screen.getByTestId("scratch")).toHaveTextContent("typed in scratch")
-    expect(screen.getByTestId("scratch-sample")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("typed in scratch")
   })
 
   it("re-hydrates when another tab writes the key, without writing back", () => {
     mount()
     const writes = countingSetItem()
-    const theirs = reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" })
+    const theirs = MINE
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
-    expect(screen.getByTestId("count")).toHaveTextContent("6")
+    expect(screen.getByTestId("count")).toHaveTextContent("3")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
     expect(writes.calls).toEqual([STORAGE_KEY])
     writes.restore()
   })
 
-  it("a storage event with the key removed (Reset elsewhere) re-seeds this tab from now()", () => {
+  it("a storage event with the key removed (Clear elsewhere) empties this tab from now()", () => {
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("1")
 
     const writes = countingSetItem()
     window.localStorage.removeItem(STORAGE_KEY)
     vi.useFakeTimers({ now: new Date(noonMs("2026-10-07")), toFake: ["Date"] })
     act(() => fireStorageEvent(STORAGE_KEY, null))
     vi.useRealTimers()
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("titles")).not.toHaveTextContent("Walk the dog")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
@@ -538,17 +664,17 @@ describe("MyDeskProvider", () => {
     writes.restore()
   })
 
-  it("a corrupt copy written by another tab leaves this tab on the seed and is parked by the next real save", () => {
+  it("a corrupt copy written by another tab leaves this tab on the empty desk and is parked by the next real save", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     mount()
     const writes = countingSetItem()
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     act(() => fireStorageEvent(STORAGE_KEY, "{not json"))
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
     expect(writes.calls).toEqual([STORAGE_KEY])
     expect(deskStorage.rejected(window.localStorage)).toEqual([])
-    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     expect(deskStorage.rejected(window.localStorage)[0]?.raw).toBe("{not json")
     writes.restore()
   })
@@ -576,7 +702,7 @@ describe("MyDeskProvider", () => {
       act(() => a.getByRole("button", { name: "add" }).click())
       expect(writes.calls).toEqual([STORAGE_KEY])
       relay()
-      expect(b.getByTestId("count")).toHaveTextContent("8")
+      expect(b.getByTestId("count")).toHaveTextContent("1")
       expect(b.getByTestId("status")).toHaveTextContent("edited=false saved=true")
       relay()
       relay()
@@ -585,13 +711,13 @@ describe("MyDeskProvider", () => {
       act(() => b.getByRole("button", { name: "toggle" }).click())
       expect(writes.calls).toHaveLength(2)
       relay()
-      expect(a.getByTestId("done").textContent).toMatch(/^true,/)
+      expect(a.getByTestId("done")).toHaveTextContent(/^true$/)
       relay()
       expect(writes.calls).toHaveLength(2)
 
       act(() => a.getByRole("button", { name: "reset" }).click())
       act(() => fireStorageEvent(STORAGE_KEY, null))
-      expect(b.getByTestId("count")).toHaveTextContent("7")
+      expect(b.getByTestId("count")).toHaveTextContent("0")
       expect(b.getByTestId("status")).toHaveTextContent("edited=false saved=false")
       expect(writes.calls).toHaveLength(2)
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
@@ -645,58 +771,73 @@ describe("v1 → v2 migration (loadDesk)", () => {
     writeV1()
     mount()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     const saved = loadState(window.localStorage)
-    expect(saved?.todos.map((t) => t.id)).toEqual(["todo-1", "todo-2"])
-    expect(saved?.todos[0]).toMatchObject({ createdOn: TODAY, done: true, doneOn: TODAY })
+    expect(saved?.todos.map((t) => t.id)).toEqual(["todo-1", "todo-2", "todo-9"])
+    expect(saved?.todos[0]).toMatchObject({ createdOn: TODAY, done: false, doneOn: null })
+    expect(saved?.todos[1]).toMatchObject({ createdOn: TODAY, done: true, doneOn: TODAY })
     expect(saved?.scratch).toBe("Keep this personal.")
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
   })
 
   it("(c) v1 and v2 both present: v2 wins, and v1 is removed on the next save", () => {
     writeV1()
-    const v2 = reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" })
-    saveState(window.localStorage, v2)
+    saveState(window.localStorage, MINE)
     writeV1()
-    expect(loadDesk(window.localStorage, NOW_MS).state?.todos.map((t) => t.title)[0]).toBe(
-      "Clinic follow-up"
-    )
+    expect(loadDesk(window.localStorage, NOW_MS).state?.todos.map((t) => t.title)[0]).toBe("Book the bus")
     mount()
-    expect(screen.getByTestId("titles")).toHaveTextContent("Clinic follow-up")
+    expect(screen.getByTestId("titles")).toHaveTextContent("Book the bus")
     expect(screen.getByTestId("titles")).not.toHaveTextContent("Call Aledo")
     expect(window.localStorage.getItem(LEGACY_KEY)).not.toBeNull()
     act(() => screen.getByRole("button", { name: "edit" }).click())
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
   })
 
-  it("(d) corrupt v1 shows the seed; the first save parks the raw copy under v1.rejected", () => {
+  it("(d) corrupt v1 shows the empty desk; the first save parks the raw copy under v1.rejected", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     writeV1("{not a desk")
     const writes = countingSetItem()
     mount()
-    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo")
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(writes.calls).toEqual([])
-    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     expect(legacyDesk.rejected(window.localStorage)[0]?.raw).toBe("{not a desk")
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
     expect(window.localStorage.getItem(`${LEGACY_KEY}.rejected`)).toContain("{not a desk")
     writes.restore()
   })
 
-  it("(f) Reset and clearState remove v1; a reload after Reset shows the seed", () => {
+  it("(e) a v1 copy still holding the untouched seed migrates without it; edited seed rows stay", () => {
+    const seedV1 = seedTodos().map(({ id, title, note, done }) => ({ id, title, note, done }))
+    const old: V1State = {
+      todos: [...seedV1.slice(0, 6), { ...seedV1[6], done: true }, { id: "todo-8", title: "Mine", note: "", done: false }],
+      nextId: 9,
+      scratch: SEED_SCRATCH,
+      scratchUpdatedAt: "2026-08-26T17:00:00.000Z",
+    }
+    expect(migrateV1(old, TODAY)).toMatchObject({ nextId: 9, scratch: "" })
+    expect(migrateV1(old, TODAY)?.todos.map((t) => [t.id, t.done])).toEqual([
+      ["todo-7", true],
+      ["todo-8", false],
+    ])
+    writeV1(old)
+    mount()
+    expect(screen.getByTestId("titles")).toHaveTextContent(/^Sketch Aledo install notes\|Mine$/)
+    expect(screen.getByTestId("scratch")).toBeEmptyDOMElement()
+  })
+
+  it("(f) Clear my entries and clearState remove v1; a reload after clearing shows the empty desk", () => {
     writeV1()
     const first = mount()
     expect(screen.getByTestId("count")).toHaveTextContent("2")
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
-    expect(screen.getByTestId("titles")).toHaveTextContent("Call Aledo|Clinic follow-up")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
+    expect(screen.getByTestId("scratch")).toBeEmptyDOMElement()
     first.unmount()
     mount()
-    expect(screen.getByTestId("count")).toHaveTextContent("7")
-    expect(screen.getByTestId("titles")).toHaveTextContent("Clinic follow-up")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull()
     writeV1()
     clearState(window.localStorage)
@@ -710,7 +851,7 @@ describe("v1 → v2 migration (loadDesk)", () => {
       throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
     })
     mount()
-    act(() => screen.getByRole("button", { name: "toggle" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("status")).toHaveTextContent("failed=true")
     spy.mockRestore()
     expect(window.localStorage.getItem(LEGACY_KEY)).toBe(JSON.stringify(V1))
@@ -727,7 +868,7 @@ describe("today advances past Central midnight in an open tab", () => {
   const overnight: State = {
     todos: [
       {
-        id: "todo-1",
+        id: "todo-8",
         title: "Finish the packet",
         note: "",
         done: false,

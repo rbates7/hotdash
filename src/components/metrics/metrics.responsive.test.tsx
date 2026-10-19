@@ -106,7 +106,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
 
     const alisha = within(list).getByText("Alisha Patel").closest("[data-slot='row-collapse']") as HTMLElement
     expect(alisha).toHaveTextContent("Monthly")
-    expect(alisha).toHaveTextContent("apatel@canyonridgesports.com")
+    expect(alisha).toHaveTextContent("apatel@example.com")
     expect(alisha).toHaveTextContent("18 Aug 2026")
     expect(within(alisha).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(alisha).getByText("Email:")).toHaveClass("sr-only")
@@ -118,7 +118,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
     const list = screen.getByRole("list")
     const brett = within(list).getByText("Brett Holloway").closest("[data-slot='row-collapse']")!
     expect(brett).toHaveTextContent("$199")
-    expect(brett).toHaveTextContent("b.holloway@meadowpark.edu")
+    expect(brett).toHaveTextContent("b.holloway@example.org")
     expect(brett).toHaveTextContent("12 Jan 2026 → 8 Aug 2026")
   })
 

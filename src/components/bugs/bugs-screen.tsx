@@ -7,11 +7,14 @@ import { useIssues } from "@/components/agent-workplace/issues-store"
 import { TicketView } from "@/components/agent-workplace/ticket-view"
 import { BugsList } from "@/components/bugs/bugs-list"
 import { CrashCountCard } from "@/components/bugs/crash-count-card"
+import { SentryCrashes } from "@/components/bugs/sentry-crashes"
 
 export const BACK_TO_BUGS = "Back to Bugs"
 
 /**
- * Yo-Yo's page: the Workplace tickets tagged `bug`, plus a crash count.
+ * Yo-Yo's page: Sentry's crash and error issues (from `/api/inbox`), the
+ * founder's own Workplace tickets tagged `bug`, and the crash count card
+ * (Not connected: there is no daily crash count source yet). No seed rows.
  * Must sit inside an `IssuesProvider` — it reads the same store and the
  * same saved copy as Agent Workplace, so there is nothing of its own to
  * save, reset or get out of sync. An open ticket is the Workplace's own
@@ -48,6 +51,7 @@ export function BugsScreen() {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <CrashCountCard />
+      <SentryCrashes />
       <BugsList issues={issues} actors={actors} now={now} onOpen={openIssue} />
     </div>
   )

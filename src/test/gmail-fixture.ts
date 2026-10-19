@@ -27,48 +27,48 @@ const THREADS: Array<{ id: string; messages: Seed[] }> = [
     // Replied, then the coach wrote back: open; starred: high.
     id: "18f0a1b2c3d4e5f1",
     messages: [
-      { ago: 3 * HOUR, from: '"Dana Ortiz" <dortiz@lakeviewfootball.org>', to: ME, subject: "Roster import fails on a CSV with accents", snippet: "Hi! The roster import stops at row 12 — it&#39;s the first name with an accent (José).", labels: ["INBOX", "STARRED"] },
-      { ago: 2 * HOUR, from: ME, to: "Dana Ortiz <dortiz@lakeviewfootball.org>", subject: "Re: Roster import fails on a CSV with accents", snippet: "Thanks Dana — can you send the file? We&#39;ll look today.", labels: ["SENT"] },
-      { ago: 40 * MIN, from: "Dana Ortiz <dortiz@lakeviewfootball.org>", to: ME, subject: "Re: Roster import fails on a CSV with accents", snippet: "Attached. Same thing happens on the iPad app &amp; the web.", labels: ["INBOX", "UNREAD"] },
+      { ago: 3 * HOUR, from: '"Dana Ortiz" <dortiz@example.org>', to: ME, subject: "Roster import fails on a CSV with accents", snippet: "Hi! The roster import stops at row 12 — it&#39;s the first name with an accent (José).", labels: ["INBOX", "STARRED"] },
+      { ago: 2 * HOUR, from: ME, to: "Dana Ortiz <dortiz@example.org>", subject: "Re: Roster import fails on a CSV with accents", snippet: "Thanks Dana — can you send the file? We&#39;ll look today.", labels: ["SENT"] },
+      { ago: 40 * MIN, from: "Dana Ortiz <dortiz@example.org>", to: ME, subject: "Re: Roster import fails on a CSV with accents", snippet: "Attached. Same thing happens on the iPad app &amp; the web.", labels: ["INBOX", "UNREAD"] },
     ],
   },
   {
     // Replied, nothing back yet: waiting. The draft is never read.
     id: "18f0a1b2c3d4e5f2",
     messages: [
-      { ago: 2 * DAY, from: "Kelly Nguyen <knguyen@summitprep.edu>", to: ME, subject: "Annual invoice for Summit Prep", snippet: "Could you resend the Annual invoice with our PO number on it?", labels: ["INBOX"] },
-      { ago: 1 * DAY, from: ME, to: "knguyen@summitprep.edu", subject: "Re: Annual invoice for Summit Prep", snippet: "Here you go — PO 4471 is on the new copy.", labels: ["SENT", "INBOX"] },
-      { ago: 20 * HOUR, from: ME, to: "knguyen@summitprep.edu", subject: "Re: Annual invoice for Summit Prep", snippet: "Draft: following up", labels: ["DRAFT"] },
+      { ago: 2 * DAY, from: "Kelly Nguyen <knguyen@example.com>", to: ME, subject: "Annual invoice for Summit Prep", snippet: "Could you resend the Annual invoice with our PO number on it?", labels: ["INBOX"] },
+      { ago: 1 * DAY, from: ME, to: "knguyen@example.com", subject: "Re: Annual invoice for Summit Prep", snippet: "Here you go — PO 4471 is on the new copy.", labels: ["SENT", "INBOX"] },
+      { ago: 20 * HOUR, from: ME, to: "knguyen@example.com", subject: "Re: Annual invoice for Summit Prep", snippet: "Draft: following up", labels: ["DRAFT"] },
     ],
   },
   {
     // A known sender's new thread: a case straight away, new.
     id: "18f0a1b2c3d4e5f3",
     messages: [
-      { ago: 5 * HOUR, from: "Dana Ortiz <dortiz@lakeviewfootball.org>", to: ME, subject: "Can assistants share one playbook?", snippet: "Our two assistants want to edit the same playbook. Is that a Staff seat each?", labels: ["INBOX", "UNREAD"] },
+      { ago: 5 * HOUR, from: "Dana Ortiz <dortiz@example.org>", to: ME, subject: "Can assistants share one playbook?", snippet: "Our two assistants want to edit the same playbook. Is that a Staff seat each?", labels: ["INBOX", "UNREAD"] },
     ],
   },
   {
     // Replied and archived: closed. gmail.com: no organization.
     id: "18f0a1b2c3d4e5f4",
     messages: [
-      { ago: 9 * DAY, from: '"Ben Carter" <ben.carter@gmail.com>', to: ME, subject: "Refund for a duplicate charge", snippet: "I was charged twice for Monthly this morning.", labels: [] },
-      { ago: 8 * DAY, from: ME, to: "ben.carter@gmail.com", subject: "Re: Refund for a duplicate charge", snippet: "Refunded the second charge — sorry about that, Ben.", labels: ["SENT"] },
+      { ago: 9 * DAY, from: '"Ben Carter" <ben.carter@example.com>', to: ME, subject: "Refund for a duplicate charge", snippet: "I was charged twice for Monthly this morning.", labels: [] },
+      { ago: 8 * DAY, from: ME, to: "ben.carter@example.com", subject: "Re: Refund for a duplicate charge", snippet: "Refunded the second charge — sorry about that, Ben.", labels: ["SENT"] },
     ],
   },
   {
     // Unknown sender, in the inbox: triage.
     id: "18f0a1b2c3d4e5f5",
     messages: [
-      { ago: 6 * HOUR, from: "Sam Patel <sam@ridgecrestathletics.com>", to: ME, subject: "Pricing for a district license", snippet: "We have nine schools in the district. Is there a district price?", labels: ["INBOX", "UNREAD"] },
+      { ago: 6 * HOUR, from: "Sam Patel <sam@example.com>", to: ME, subject: "Pricing for a district license", snippet: "We have nine schools in the district. Is there a district price?", labels: ["INBOX", "UNREAD"] },
     ],
   },
   {
     // Unknown sender, two messages: one triage card.
     id: "18f0a1b2c3d4e5f6",
     messages: [
-      { ago: 1 * DAY, from: "Jordan Lee <jlee@northfieldhs.org>", to: ME, subject: "Do you integrate with Hudl?", snippet: "Our film is all in Hudl — can Chlk pull clips from it?", labels: ["INBOX"] },
-      { ago: 20 * HOUR, from: "Jordan Lee <jlee@northfieldhs.org>", to: ME, subject: "Re: Do you integrate with Hudl?", snippet: "Bumping this one before our staff meeting.", labels: ["INBOX", "UNREAD"] },
+      { ago: 1 * DAY, from: "Jordan Lee <jlee@example.org>", to: ME, subject: "Do you integrate with Hudl?", snippet: "Our film is all in Hudl — can Chlk pull clips from it?", labels: ["INBOX"] },
+      { ago: 20 * HOUR, from: "Jordan Lee <jlee@example.org>", to: ME, subject: "Re: Do you integrate with Hudl?", snippet: "Bumping this one before our staff meeting.", labels: ["INBOX", "UNREAD"] },
     ],
   },
   {

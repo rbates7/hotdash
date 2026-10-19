@@ -3,7 +3,8 @@
 The Workplace **Inbox** tab and Home's **Needs you** door read one
 server endpoint, `GET /api/inbox`, so they always agree. It is read-only and
 server-side: no token reaches the browser, the response never carries an
-error message, and it never returns sample rows.
+error message, and it never returns sample rows. Bugs reads the same
+endpoint for its "Crashes and errors from Sentry" list (Sentry rows only).
 
 ## Sources and what becomes a row
 

@@ -50,7 +50,6 @@ const IDLE: TickerStore = {
 export function useSubscriberTicker(source?: SubscriberSource): {
   state: TickerState
   refresh: () => void
-  sample: boolean
   /** Stripe has no key: nothing to count, and the ticker says so. */
   notConnected: boolean
   timeZone: string
@@ -66,21 +65,20 @@ export function useSubscriberTicker(source?: SubscriberSource): {
   const sampleState = React.useSyncExternalStore(store.subscribe, store.getState, () => serverState)
 
   if (source) {
-    return { state: sampleState, refresh: store.refresh, sample: source.sample, notConnected: false, timeZone, breakdown: null }
+    return { state: sampleState, refresh: store.refresh, notConnected: false, timeZone, breakdown: null }
   }
   if (feed.kind === "not_connected") {
-    return { state: LOADING_STATE, refresh: IDLE.refresh, sample: false, notConnected: true, timeZone, breakdown: null }
+    return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: true, timeZone, breakdown: null }
   }
   // Still connecting (Stripe, or App Store for its group): no total yet.
   if (feed.kind === "loading" || isAppStoreConnecting(feed.appStore)) {
-    return { state: LOADING_STATE, refresh: IDLE.refresh, sample: false, notConnected: false, timeZone, breakdown: null }
+    return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: false, timeZone, breakdown: null }
   }
   const { total, breakdown } = liveSubscribers(feed, timeZone)
   const reading = { total: total.value, today: total.today, at: feed.lastSyncedAt }
   return {
     state: feed.stale ? { status: "stale", reading, failures: 1 } : { status: "ready", reading },
     refresh: IDLE.refresh,
-    sample: false,
     notConnected: false,
     timeZone,
     breakdown: { view: breakdown, text: breakdownText(total, timeZone) },

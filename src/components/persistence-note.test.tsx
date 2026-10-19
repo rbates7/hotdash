@@ -1,13 +1,16 @@
 import * as React from "react"
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
 import type { PersistenceStore } from "@/lib/persistence"
 import {
+  CLEAR_COPY,
+  CLEAR_DESCRIPTION,
   PERSISTENCE_COPY,
   PERSISTENCE_NOTE_NAME,
   PersistenceNote,
+  RESET_DESCRIPTION,
   RESET_DISABLED_HINT,
   persistenceCopy,
 } from "@/components/persistence-note"
@@ -117,5 +120,70 @@ describe("PersistenceNote", () => {
     await user.click(screen.getAllByRole("button", { name: "Reset" }).at(-1)!)
     expect(s.resetDemoData).toHaveBeenCalledTimes(1)
     expect(dialog).not.toBeInTheDocument()
+  })
+
+  it("defaults to Reset with the demo-data wording; nothing says Clear", async () => {
+    const user = userEvent.setup()
+    render(<PersistenceNote store={store({ edited: true, saved: true })} />)
+    const reset = screen.getByRole("button", { name: "Reset" })
+    expect(reset).toHaveAttribute("title", "Discard this browser's edits and restore the demo data")
+    expect(screen.queryByRole("button", { name: CLEAR_COPY.button })).not.toBeInTheDocument()
+    await user.click(reset)
+    const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
+    expect(dialog).toHaveAccessibleDescription(RESET_DESCRIPTION)
+    expect(within(dialog).getByRole("button", { name: "Reset" })).toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: CLEAR_COPY.confirm })).not.toBeInTheDocument()
+  })
+})
+
+describe("PersistenceNote mode=\"clear\" (screens with no sample data)", () => {
+  it("labels the button Clear my entries; disabled before a save, with its own hint", async () => {
+    const user = userEvent.setup()
+    render(<PersistenceNote store={store()} mode="clear" />)
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+    const clear = screen.getByRole("button", { name: "Clear my entries" })
+    expect(clear).toHaveAttribute("aria-disabled", "true")
+    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
+    expect(clear).toHaveAttribute("title", CLEAR_COPY.disabledHint)
+    expect(CLEAR_COPY.disabledHint).not.toBe(RESET_DISABLED_HINT)
+    await user.tab()
+    expect(clear).toHaveFocus()
+    await user.keyboard("{Enter}")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("once saved: enabled, no hint, and the tooltip says what it discards", () => {
+    render(<PersistenceNote store={store({ edited: true, saved: true })} mode="clear" />)
+    const clear = screen.getByRole("button", { name: "Clear my entries" })
+    expect(clear).toBeEnabled()
+    expect(clear).not.toHaveAttribute("aria-describedby")
+    expect(clear).toHaveAttribute("title", CLEAR_COPY.tooltip)
+  })
+
+  it("asks 'Clear my entries?' with its own description; Keep my edits cancels, Clear clears", async () => {
+    const user = userEvent.setup()
+    const s = store({ edited: true, saved: true })
+    render(<PersistenceNote store={s} mode="clear" resetClassName="max-xl:h-11!" />)
+    expect(screen.getByRole("button", { name: "Clear my entries" }).className.split(" ")).toContain("max-xl:h-11!")
+    await user.click(screen.getByRole("button", { name: "Clear my entries" }))
+    let dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    expect(dialog).toHaveAccessibleDescription(CLEAR_DESCRIPTION)
+    expect(within(dialog).queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Keep my edits" }))
+    expect(s.resetDemoData).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Clear my entries" }))
+    dialog = await screen.findByRole("dialog", { name: "Clear my entries?" })
+    await user.click(within(dialog).getByRole("button", { name: "Clear" }))
+    expect(s.resetDemoData).toHaveBeenCalledTimes(1)
+    expect(dialog).not.toBeInTheDocument()
+  })
+
+  it("a screen's own resetDescription still wins in clear mode", async () => {
+    const user = userEvent.setup()
+    render(<PersistenceNote store={store({ edited: true, saved: true })} mode="clear" resetDescription="Only the CRM." />)
+    await user.click(screen.getByRole("button", { name: "Clear my entries" }))
+    expect(await screen.findByRole("dialog", { name: CLEAR_COPY.title })).toHaveAccessibleDescription("Only the CRM.")
   })
 })

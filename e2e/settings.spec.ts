@@ -176,7 +176,7 @@ test.describe("Settings (desktop 1440)", () => {
     await waitForHydration(page)
     await expect(page.getByRole("heading", { level: 1, name: "Bugs" })).toBeVisible()
 
-    // Sample data off reaches the screens that use the shared helper.
+    // Home has no sample left to label, so no Sample data tag renders there.
     await page.goto("/home")
     await waitForHydration(page)
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)

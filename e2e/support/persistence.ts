@@ -43,6 +43,28 @@ export async function resetDemoData(
   await expect(dialog).toBeHidden()
 }
 
+/** The confirm's accessible name on screens with no sample data (My Desk, CRM). */
+export const CLEAR_CONFIRM_NAME = "Clear my entries?"
+
+/**
+ * My Desk and the CRM offer "Clear my entries" instead of Reset, behind the
+ * same confirm ("Clear my entries?" → "Clear"); click through it. `scope`
+ * and `confirmScope` work as in `resetDemoData`.
+ */
+export async function clearMyEntries(
+  page: Page,
+  scope: Locator | Page = page,
+  confirmScope: Locator | Page = page
+) {
+  const clear = scope.getByRole("button", { name: "Clear my entries", exact: true })
+  await expect(clear).toBeEnabled()
+  await clear.click()
+  const dialog = confirmScope.getByRole("dialog", { name: CLEAR_CONFIRM_NAME, exact: true })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(dialog).toBeHidden()
+}
+
 /**
  * Count `localStorage.setItem` calls to `key` from before the page's own
  * scripts run. Install on the context so every page (every tab) gets it,

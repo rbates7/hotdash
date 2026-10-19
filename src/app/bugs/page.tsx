@@ -31,14 +31,12 @@ export default function BugsPage() {
               Yo-Yo&apos;s page. Coach-reported and crashes.
             </p>
           </div>
-          {/* Phone (Deke 12:1465): the note, then the badge on its own line. */}
+          {/* No "Dummy / design mock" chip: Bugs shows only Sentry and the
+              founder's own tickets now. */}
           <div className="flex items-center gap-2.5 max-md:flex-col max-md:items-start max-md:gap-2">
             {/* Edits here are Workplace edits, so the note is the Workplace's.
                 Below 1280 its Reset is a 44px hit via the shared Workplace class. */}
             <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
-            <span className="text-muted-foreground border-surface-border bg-surface rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] uppercase">
-              Dummy / design mock
-            </span>
           </div>
         </header>
         {/* BugsScreen reads the open ticket from the URL, so it needs a

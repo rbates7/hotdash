@@ -9,7 +9,6 @@ import {
   carryFromSpoken,
   describeTodo,
   formatDeskDate,
-  isSeedTodo,
   openCount,
   TODO_LIMITS,
   todaysTodos,
@@ -37,7 +36,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { PersistenceNote } from "@/components/persistence-note"
-import { SampleDataTag } from "@/components/sample-data"
 import { TodoDialog } from "@/components/my-desk/todo-dialog"
 import { saveState, useMyDesk } from "@/components/my-desk/my-desk-store"
 import {
@@ -71,14 +69,14 @@ export const TODAY_FOOTER = "Personal list. Not Issues. Not agent work."
 export const NOTES_FOOTER = "One note. Scratchpad — not a docs product."
 export const SCRATCH_HINT = "jot, not an editor"
 export const SCRATCH_SAVE_MS = 300
-export const EMPTY_COPY =
-  "Every to-do has been removed. Add one, or Reset to bring the sample rows back."
+export const EMPTY_COPY = "No to-dos yet. Add one and it stays in this browser."
 export const FINISHED_EARLIER_COPY =
-  "Nothing open today. To-dos you finished on earlier days drop off this list. Add one, or Reset to bring the sample rows back."
+  "Nothing open today. To-dos you finished on earlier days drop off this list. Add one when something comes up."
+export const SCRATCH_PLACEHOLDER = "Jot anything here. It saves as you type."
 
 /**
  * Stands in for both cards until localStorage has been read. Showing the
- * seed here would flash rows the founder may have deleted.
+ * empty desk here would flash "No to-dos yet" over rows the founder has.
  */
 function ScreenSkeleton() {
   return (
@@ -253,7 +251,6 @@ function TodoSheet({
                 <span className="sr-only">{carrySpoken}</span>
               </p>
             ) : null}
-            {isSeedTodo(todo) && <SampleDataTag className="h-5 self-start" />}
           </SheetHeader>
           <div role="group" aria-label="To-do actions" className="flex flex-col px-2 pb-2">
             <button type="button" className={DESK_SHEET_ACTION} onClick={() => onToggle(todo)}>
@@ -358,7 +355,6 @@ function TodoRow({
                 <span className="sr-only">{carrySpoken}</span>
               </span>
             ) : null}
-            {isSeedTodo(todo) && <SampleDataTag className="h-5" />}
           </div>
           {todo.note ? (
             <p
@@ -413,7 +409,7 @@ function TodoRow({
 
 function ScratchPane() {
   const store = useMyDesk()
-  const { scratch, scratchUpdatedAt, scratchSample, persisted, saved, saveFailed, nowMs, today, setScratch } =
+  const { scratch, scratchUpdatedAt, persisted, saved, saveFailed, nowMs, today, setScratch } =
     store
   const [draft, setDraft] = React.useState(scratch)
   const [seenScratch, setSeenScratch] = React.useState(scratch)
@@ -421,8 +417,8 @@ function ScratchPane() {
   const draftRef = React.useRef(draft)
   const storeRef = React.useRef(store)
 
-  // Store scratch is the source of truth after Reset, hydrate, or our own
-  // save. Adjust during render rather than in an effect so a Reset cannot
+  // Store scratch is the source of truth after Clear, hydrate, or our own
+  // save. Adjust during render rather than in an effect so a Clear cannot
   // flash the previous draft.
   if (scratch !== seenScratch) {
     setSeenScratch(scratch)
@@ -504,7 +500,6 @@ function ScratchPane() {
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="text-[13px] font-semibold tracking-tight">Notes</CardTitle>
-            {scratchSample && <SampleDataTag className="h-5" />}
           </div>
           <p className="text-micro text-muted-foreground tabular-nums" data-testid="scratch-status">
             {status}
@@ -527,6 +522,7 @@ function ScratchPane() {
           onChange={(e) => onChange(e.target.value)}
           onBlur={() => flush(draft)}
           maxLength={TODO_LIMITS.scratch}
+          placeholder={SCRATCH_PLACEHOLDER}
           aria-label="Scratch"
           className={DESK_SCRATCH}
         />
@@ -618,8 +614,7 @@ export function MyDeskScreen() {
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
         <div className={DESK_HEADER_ACTIONS}>
-          <PersistenceNote store={store} resetClassName={DESK_RESET} />
-          <SampleDataTag className="h-6 px-2" />
+          <PersistenceNote store={store} mode="clear" resetClassName={DESK_RESET} />
           <Button size="sm" className={DESK_ADD} onClick={() => setAdding(true)}>
             <PlusIcon aria-hidden />
             Add to-do

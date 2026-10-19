@@ -67,9 +67,9 @@ export type RoadmapItem = {
   /** True when the bet came in through the Feature Request intake. */
   fromFeatureRequest?: true
   /**
-   * True for the invented examples shipped with the page. Cleared the moment
-   * the words (title, why, window) are rewritten, because then they are the
-   * founder's, not ours. Moving or re-owning a bet keeps the tag.
+   * Set only on the invented bets the page once shipped. No board shows
+   * one: `parseSavedBoard` leaves them out of an old saved copy, and
+   * nothing creates one. Kept so that copy can be recognised.
    */
   sample?: true
   /** When the bet was signed. ISO instant. */

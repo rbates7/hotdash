@@ -10,11 +10,9 @@ import {
   formatCrmRelative,
   timelineFor,
 } from "@/lib/crm/crm"
-import { isSeedCase, isSeedNote } from "@/lib/crm/fixture"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge } from "@/components/crm/case-badges"
 import { CasePrioritySelect } from "@/components/crm/case-priority-select"
 import { CaseStatusPath } from "@/components/crm/case-status-path"
@@ -73,7 +71,6 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           </p>
           <h2 className="mt-1 flex flex-wrap items-center gap-2 truncate text-lg font-semibold tracking-tight max-md:whitespace-normal">
             {caseRow.subject}
-            {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -120,9 +117,6 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium">
                       Internal note · {formatCrmDateTime(note.createdAt)}
-                      {store.sample && isSeedNote(note.id) ? (
-                        <SampleDataTag className="ml-2 align-middle" />
-                      ) : null}
                     </p>
                     <Button
                       size="icon-xs"

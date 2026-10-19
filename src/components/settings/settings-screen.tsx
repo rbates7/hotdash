@@ -342,17 +342,17 @@ function SwitchRow({
 
 /**
  * The screens that still render seed rows. Home, Metrics (the Expenses tab
- * starts empty), System Status (real page only; seeded checks are unit-test-only) and the
- * Product Roadmap (Notion, or an empty board under Not connected) have none;
- * keep this list to screens that really do.
+ * starts empty), Bugs (Sentry plus the founder's own bug tickets), CRM
+ * (Gmail, or the founder's own contacts), My Desk (starts empty), System
+ * Status (real page only; seeded checks are unit-test-only) and the
+ * Product Roadmap (Notion, or an empty board under Not connected) have
+ * none; keep this list to screens that really do.
  */
 export const SEEDED_SCREENS = [
-  "My Desk",
-  "Agent Workplace and Bugs",
+  "Agent Workplace",
   "Feature Requests",
   "Clinics",
   "Community Development",
-  "CRM",
   "Sales Opportunities",
 ] as const
 
@@ -410,8 +410,8 @@ function figuresSummary(
         : gmail
           ? "The CRM's Gmail conversations are"
           : null
-  // Home and Metrics never show an invented figure: a card with no source says Not connected.
-  const rest = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
+  // Home and Metrics never show an invented figure; Bugs, CRM and My Desk never an invented row.
+  const rest = `Home, Metrics, Bugs, CRM and My Desk show nothing invented. Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
   const then = roadmap ? ` ${roadmap} ${rest}` : ` ${rest}`
   if (!live && !stripeConnecting) return roadmap ? `${roadmap} ${rest}` : `Nothing is connected yet. ${rest}`
   if (!live) return `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then.${then}`

@@ -11,8 +11,8 @@ import {
   describeTodo,
   formatDeskDate,
   isSeedScratch,
-  isSeedTodo,
   isTodo,
+  isUntouchedSeedTodo,
   msUntilNextCentralMidnight,
   normalizeScratch,
   normalizeTodoInput,
@@ -43,16 +43,30 @@ describe("seed", () => {
     expect(openCount(seed)).toBe(5)
     expect(seed.every(isTodo)).toBe(true)
     expect([...SEED_TODO_IDS]).toEqual(seed.map((t) => t.id))
-    expect(isSeedTodo({ id: "todo-3" })).toBe(true)
-    expect(isSeedTodo({ id: "todo-9" })).toBe(false)
     expect(todoNumber("todo-12")).toBe(12)
     expect(todoNumber("item-12")).toBe(0)
   })
 
-  it("the scratch note is the mock's six lines, marked as sample until the founder types", () => {
+  it("isUntouchedSeedTodo: a seed row as written, on any date; any edit or tick makes it the founder's", () => {
+    expect(seed.every(isUntouchedSeedTodo)).toBe(true)
+    // Re-dated on every load, so the dates never count.
+    expect(seedTodos("2026-10-07").every(isUntouchedSeedTodo)).toBe(true)
+    expect(isUntouchedSeedTodo({ ...one, title: "Call Aledo back" })).toBe(false)
+    expect(isUntouchedSeedTodo({ ...one, note: "" })).toBe(false)
+    expect(isUntouchedSeedTodo({ ...one, done: true })).toBe(false)
+    expect(isUntouchedSeedTodo({ ...seed[4], done: false })).toBe(false)
+    // The same words under a non-seed id, or under another seed row's id, are the founder's.
+    expect(isUntouchedSeedTodo({ ...one, id: "todo-9" })).toBe(false)
+    expect(isUntouchedSeedTodo({ ...one, id: "todo-2" })).toBe(false)
+  })
+
+  it("the scratch note is the mock's six lines, recognised only by an exact match", () => {
     expect(SEED_SCRATCH).toContain("Aledo wants the 11-personnel packet")
     expect(SEED_SCRATCH).toContain("Dan’s hash-left idea")
     expect(isSeedScratch(SEED_SCRATCH)).toBe(true)
+    expect(isSeedScratch(`${SEED_SCRATCH} `)).toBe(false)
+    expect(isSeedScratch(SEED_SCRATCH.replace("Friday", "Fridya"))).toBe(false)
+    expect(isSeedScratch("")).toBe(false)
     expect(isSeedScratch("something else")).toBe(false)
   })
 })
