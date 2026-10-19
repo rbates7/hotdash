@@ -2,10 +2,11 @@ import { formatWallClock, now, todayIn } from "@/lib/clock"
 import { snapshotFor } from "@/lib/kpis"
 
 /**
- * Where the Home ticker's number comes from when Stripe is not connected:
- * the sample source below, behind one interface (the store polls every 60s
- * and backs off on failure). With Stripe connected the ticker reads the
- * shared Stripe summary instead (`useSubscriberTicker`).
+ * The Home ticker's source interface and store policy (poll every 60s,
+ * back off on failure). The app's ticker reads the shared Stripe summary
+ * (`useSubscriberTicker`) and says Not connected without a key; the
+ * simulated source below is pinned only by tests (`SubscriberTicker`'s
+ * `source` prop) to drive the tiles' animation.
  */
 
 export type SubscriberReading = {
@@ -23,8 +24,6 @@ export type SubscriberQuery = {
 }
 
 export interface SubscriberSource {
-  /** Hard-coded figures: the ticker wears the Sample data chip. */
-  readonly sample: boolean
   /**
    * A reading available synchronously, for the server render and hydration,
    * or null (a network source) so the ticker starts in its loading state.
@@ -196,7 +195,7 @@ export function createTickerStore(
   }
 }
 
-/* ---------------------------------------------------------------- sample */
+/* ------------------------------------------- simulated source (tests only) */
 
 /** A simulated sign-up lands this often, so the flaps can be seen. */
 export const SAMPLE_CADENCE_MS = 20_000
@@ -259,7 +258,6 @@ export function createSampleSource({
     }, wait)
   }
   return {
-    sample: true,
     // The page-open figure, wherever it is asked: the server's module has
     // been loaded far longer than this page has been open.
     initial: () => {

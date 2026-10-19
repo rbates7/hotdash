@@ -21,7 +21,6 @@ import {
   ROADMAP_ICON,
 } from "@/components/product-roadmap/responsive"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
-import { SampleDataTag } from "@/components/sample-data"
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 
 /** Sequencing control that just ran; the board asks the moved card to refocus it. */
@@ -136,7 +135,6 @@ export function RoadmapCard({
         <h3 className="text-label min-w-0 leading-[1.35] font-semibold tracking-tight">
           {item.title}
         </h3>
-        {item.sample && <SampleDataTag />}
       </div>
 
       {item.why && (

@@ -20,7 +20,6 @@ import {
   netSubscribers,
   priorExpensesTotal,
   seedChurnedSubscribers,
-  seedEventDates,
   seedExpenses,
   seedNewSubscribers,
   snapshotFor,
@@ -127,7 +126,11 @@ describe("the seed reconciles", () => {
 
   it.each(DAYS)("every seed event sits inside the trailing-28-day period shown in the header (%s)", (today) => {
     const period = periodEnding(today)
-    const dates = seedEventDates(today)
+    const dates = [
+      ...seedExpenses(today).map((e) => e.date),
+      ...seedNewSubscribers(today).map((s) => s.signupDate),
+      ...seedChurnedSubscribers(today).map((s) => s.churnDate),
+    ]
     expect(dates.length).toBe(8 + 8 + 5)
     for (const d of dates) expect(inPeriod(d, period), `${d} in ${period.start}..${period.end}`).toBe(true)
     // Churned sign-ups are months before the churn, as churn is; they are

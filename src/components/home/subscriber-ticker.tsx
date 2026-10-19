@@ -33,7 +33,6 @@ import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
-import { SampleDataTag } from "@/components/sample-data"
 import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
@@ -404,7 +403,7 @@ function rowFor(state: TickerState, maxTiles: number) {
 /**
  * The Grand Central subscriber ticker (option A). `header` is the Home
  * header from tablet up ("Subscribers" + up to 7 tiles); `bar` is the phone
- * top bar (tiles only, up to 5, with the compact Sample chip). Both read
+ * top bar (tiles only, up to 5). Both read
  * one shared store, so they always show the same number.
  *
  * role=status + aria-live=polite carries the figure as sr-only text (no
@@ -428,7 +427,7 @@ export function SubscriberTicker({
   /** Pins the ticker to one source (tests); by default it follows Stripe. */
   source?: SubscriberSource
 }) {
-  const { state, refresh, sample, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
+  const { state, refresh, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
   // #50: a key is set and the first sync (Stripe, or App Store's group) is
   // running. The row stays the loading placeholder and says Connecting….
   const feed = useStripeFeed()
@@ -491,7 +490,6 @@ export function SubscriberTicker({
       {/* Room for four digits, kept on the far left: the ticker is
           right-anchored, so growth to 1,000 moves nothing. */}
       <span aria-hidden className="flex-none" style={{ width: reserveGap(row.glyphs, variant) }} />
-      {sample && <SampleDataTag compact={!header} className={cn(header && "h-6 px-2")} />}
       {/* Header only: the phone bar has no room beside the tiles. */}
       {connecting && header && <ConnectingBadge />}
       <Tooltip disabled={!breakdown}>

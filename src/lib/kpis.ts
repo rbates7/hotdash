@@ -311,13 +311,4 @@ export function seedChurnedSubscribers(today: IsoDay | Date): ChurnedSubscriber[
   ]
 }
 
-/** Every dated event the seed shows for `today`'s period, for reconciliation tests. */
-export function seedEventDates(today: IsoDay | Date): IsoDay[] {
-  return [
-    ...seedExpenses(today).map((e) => e.date),
-    ...seedNewSubscribers(today).map((s) => s.signupDate),
-    ...seedChurnedSubscribers(today).map((s) => s.churnDate),
-  ]
-}
-
 export { inPeriod }
