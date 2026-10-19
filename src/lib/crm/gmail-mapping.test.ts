@@ -6,6 +6,7 @@ import {
   decodeEntities,
   mapGmailThreads,
   parseAddressList,
+  skipReason,
   type GmailThreadMeta,
 } from "@/lib/crm/gmail-mapping"
 import { isCrmLiveData } from "@/lib/crm/gmail-summary"
@@ -154,5 +155,110 @@ describe("mapGmailThreads", () => {
 
   it("nothing to read is empty, not an error", () => {
     expect(map([])).toEqual({ organizations: [], contacts: [], cases: [], messages: [] })
+  })
+})
+
+/* Synthetic only: invented people at example domains, never real mail. */
+let seq = 0
+function msg(from: string, subject: string, snippet: string, at: number, labels: string[] = ["INBOX"]) {
+  seq += 1
+  return { id: `m${seq}`, labelIds: labels, internalDate: String(at), snippet, headers: { from, to: null, subject } }
+}
+const thread = (id: string, ...messages: ReturnType<typeof msg>[]): GmailThreadMeta => ({ id, messages })
+const CUSTOMER = '"Testy McTest" <testy@example.org>'
+const ME = `Chlk <${MAILBOX}>`
+const SENT = ["SENT"]
+
+/** A real conversation, kept beside each filtered thread to show only that one goes. */
+const KEPT = thread(
+  "kept",
+  msg(CUSTOMER, "Question about drills", "Can I share a drill?", NOW - 3 * HOUR),
+  msg(ME, "Re: Question about drills", "Yes, from the menu.", NOW - 2 * HOUR, SENT)
+)
+
+/** Every string the CRM shows, so a dropped thread's words can be looked for anywhere. */
+const everything = (threads: GmailThreadMeta[]) => JSON.stringify(map(threads))
+
+describe("filters: not every thread is a conversation", () => {
+  it("drops bounces and delivery failures (mailer-daemon, postmaster, Mail Delivery Subsystem, Undeliverable)", () => {
+    const bounces = [
+      thread(
+        "b1",
+        msg(ME, "Welcome aboard", "Hi Bouncy, welcome", NOW - 5 * HOUR, SENT),
+        msg('"Mail Delivery Subsystem" <mailer-daemon@googlemail.com>', "Delivery Status Notification (Failure)", "Address not found", NOW - 4 * HOUR)
+      ),
+      thread("b2", msg("postmaster@example.net", "Undeliverable: Welcome aboard", "Your message to bouncy@example.net couldn't be delivered", NOW - 4 * HOUR)),
+      thread("b3", msg('"Mail Delivery System" <relay@example.net>', "Returned mail: see transcript", "The original message was received", NOW - 4 * HOUR)),
+      thread("b4", msg("someone@example.net", "Address not found", "Your message wasn't delivered to bouncy@example.net", NOW - 4 * HOUR)),
+    ]
+    for (const b of bounces) expect(skipReason(b, MAILBOX)).toBe("bounce")
+    const out = map([KEPT, ...bounces])
+    expect(out.contacts.map((c) => c.email)).toEqual(["testy@example.org"])
+    expect(out.messages.every((m) => m.threadId === out.messages[0]!.threadId)).toBe(true)
+    expect(everything([KEPT, ...bounces])).not.toMatch(/bouncy|mailer-daemon|postmaster|Delivery/i)
+  })
+
+  it("drops billing and failed-payment notices, and the customer's name in them appears nowhere", () => {
+    const billing = [
+      // Sent by the app from the support address: a failed charge, a renewal, a trial ending.
+      thread("p1", msg(ME, "CHLK", "Hey Payton, We weren&#39;t able to charge your card for CHLK.", NOW - 6 * HOUR, SENT)),
+      thread("p2", msg(ME, "Your Monthly Subscription to CHLK", "Hey Payton, your monthly subscription renewed.", NOW - 6 * HOUR, SENT)),
+      thread("p3", msg(ME, "CHLK", "Hey Payton, Your free trial of Monthly Subscription ends soon.", NOW - 6 * HOUR, SENT)),
+      // ...and one the customer answered: still a billing notice, dropped with the reply.
+      thread(
+        "p4",
+        msg(ME, "Payment failed", "Hey Payton, your payment failed. Update your card.", NOW - 6 * HOUR, SENT),
+        msg('"Payton Placeholder" <payton@example.com>', "Re: Payment failed", "Done, try again", NOW - 5 * HOUR)
+      ),
+      // From a billing sender.
+      thread("p5", msg('"Stripe" <notifications@stripe.com>', "Payment from Payton Placeholder failed", "A payment of $9.99 failed", NOW - 6 * HOUR)),
+      thread("p6", msg("billing@example-saas.com", "Your invoice", "Invoice for Payton Placeholder", NOW - 6 * HOUR)),
+    ]
+    for (const b of billing) expect(skipReason(b, MAILBOX)).toBe("billing")
+    const out = map([KEPT, ...billing])
+    expect(out.cases).toHaveLength(1)
+    expect(out.contacts.map((c) => c.email)).toEqual(["testy@example.org"])
+    expect(everything([KEPT, ...billing])).not.toMatch(/payton|stripe|charge|subscription|trial|invoice/i)
+  })
+
+  it("keeps a customer's own billing question, and the mailbox's human reply to it", () => {
+    const question = thread(
+      "q1",
+      msg(CUSTOMER, "Billing question", "Why was I charged twice?", NOW - 3 * HOUR),
+      msg(ME, "Re: Billing question", "Sorry! We weren't able to charge only once; I've refunded your invoice.", NOW - 2 * HOUR, SENT)
+    )
+    expect(skipReason(question, MAILBOX)).toBeNull()
+    expect(map([question]).cases.map((c) => c.subject)).toEqual(["Billing question"])
+  })
+
+  it("drops outbound-only threads (the mailbox wrote, no customer replied)", () => {
+    const outbound = [
+      thread("o1", msg(ME, "Welcome to CHLK", "Hi Olive, here's how to start", NOW - 6 * HOUR, SENT)),
+      thread(
+        "o2",
+        msg(ME, "Following up", "Hi Olive, checking in", NOW - 6 * HOUR, SENT),
+        msg(ME, "Re: Following up", "Hi Olive, one more nudge", NOW - 5 * HOUR, SENT)
+      ),
+    ]
+    for (const o of outbound) expect(skipReason(o, MAILBOX)).toBe("outbound_only")
+    // A draft is not a reply.
+    expect(skipReason(thread("o3", msg(ME, "Hello", "Hi", NOW - HOUR, SENT), msg(CUSTOMER, "Re: Hello", "draft", NOW, ["DRAFT"])), MAILBOX)).toBe(
+      "outbound_only"
+    )
+    const out = map([KEPT, ...outbound])
+    expect(out.cases.map((c) => c.subject)).toEqual(["Question about drills"])
+    expect(everything([KEPT, ...outbound])).not.toMatch(/olive/i)
+    // Once the customer answers, the thread the mailbox started is a case.
+    const answered = thread(
+      "o4",
+      msg(ME, "Welcome to CHLK", "Hi Testy, here's how to start", NOW - 6 * HOUR, SENT),
+      msg(CUSTOMER, "Re: Welcome to CHLK", "Thanks!", NOW - 5 * HOUR)
+    )
+    expect(skipReason(answered, MAILBOX)).toBeNull()
+    expect(map([answered]).cases.map((c) => c.subject)).toEqual(["Welcome to CHLK"])
+  })
+
+  it("the fixture inbox loses nothing: every thread in it is a conversation", () => {
+    for (const t of gmailFixtureThreads(NOW)) expect(skipReason(t, MAILBOX)).toBeNull()
   })
 })

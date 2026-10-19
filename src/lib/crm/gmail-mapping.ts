@@ -29,6 +29,20 @@ import { cleanSubject, transitionOnMessage } from "@/lib/crm/rules"
  * - a starred thread is `high` priority, everything else `normal`.
  *
  * Gmail's metadata has no body, so a message's text is its snippet.
+ *
+ * Not every thread is a conversation. These are dropped whole, before
+ * anything else (so they make no case, contact, triage row or message, and
+ * a name in them appears nowhere), by `skipReason`:
+ * - **bounce**: a delivery failure (mailer-daemon / postmaster, "Mail
+ *   Delivery Subsystem", "Undeliverable", "Address not found" …);
+ * - **billing**: an automated billing or failed-payment notice — from a
+ *   billing sender (Stripe, PayPal, Apple, `billing@`, `receipts@` …), or
+ *   opened by the mailbox with billing wording ("we weren't able to
+ *   charge", "your monthly subscription", "your free trial of" …). A
+ *   customer's reply to one is dropped with it: the notice's greeting
+ *   carries their name;
+ * - **outbound-only**: the mailbox wrote and no customer has replied (the
+ *   app's own notices sent from the support address, mostly).
  */
 
 /** The slice of a `threads.get?format=metadata` answer this module reads. */
@@ -116,6 +130,59 @@ export function decodeEntities(text: string) {
 const clamp = (text: string, max: number) => text.trim().slice(0, max).trim()
 const clampName = (name: string | null) => (name ? clamp(name, CRM_LIMITS.name) || null : null)
 
+/* ------------------------------------------------------------ filters */
+
+export type SkipReason = "bounce" | "billing" | "outbound_only"
+
+/** Delivery-failure senders: the local part, or the display name. */
+const BOUNCE_LOCAL = /^(mailer-daemon|postmaster|mail-daemon|bounces?)$/
+const BOUNCE_NAME = /^(mail delivery (subsystem|system|service)|mail delivery failure|delivery status notification|postmaster)$/i
+const BOUNCE_SUBJECT =
+  /^(delivery status notification|undeliverable|undelivered mail|mail delivery failed|delivery (has )?failed|delivery failure|returned mail|failure notice|address not found|message not delivered)\b/i
+
+/** Billing senders: whole domains, and billing local parts anywhere. */
+const BILLING_DOMAINS = /(^|\.)(stripe\.com|paypal\.com|apple\.com|itunes\.com|chargebee\.com|paddle\.com|recurly\.com|braintreegateway\.com)$/
+const BILLING_LOCAL = /^(billing|invoices?|receipts?|payments?|payment-noreply|payments-noreply|accounts-payable|subscriptions?)([+-].*)?$/
+/** Billing wording, read only on what the mailbox sent: a customer may write "billing" about anything. */
+const BILLING_TEXT =
+  /\b(we (were not|weren['’]t|could not|couldn['’]t) (able to )?(charge|process|collect)|payment (failed|declined|unsuccessful|was unsuccessful|is overdue|past due)|failed payment|card (was )?declined|update your (payment|card|billing)|your (monthly|annual|yearly) subscription|subscription (renewal|has been renewed|receipt|confirmation|has been cancell?ed|is ending|will renew)|your free trial (of|has|ends|ended|is ending|will end)|free trial of|your trial (has|ends|ended|is ending|will end)|receipt for your|your receipt|payment receipt|invoice (#|no\.|number)|your invoice)/i
+
+function isBounce(from: Address, subject: string) {
+  const local = from.email.split("@")[0] ?? ""
+  return BOUNCE_LOCAL.test(local) || (from.name !== null && BOUNCE_NAME.test(from.name.trim())) || BOUNCE_SUBJECT.test(subject.trim())
+}
+
+function isBillingSender(from: Address) {
+  const [local = "", domain = ""] = from.email.split("@")
+  return BILLING_DOMAINS.test(domain) || BILLING_LOCAL.test(local)
+}
+
+/**
+ * Why a thread is not a conversation, or null when it is. Reads headers
+ * and snippets only, like everything else here.
+ */
+export function skipReason(thread: GmailThreadMeta, mailbox: string): SkipReason | null {
+  const me = normalizeEmail(mailbox)
+  let inbound = false
+  let first = true
+  const messages = thread.messages
+    .filter((m) => !m.labelIds.includes("DRAFT"))
+    .sort((a, b) => Number(a.internalDate) - Number(b.internalDate))
+  for (const m of messages) {
+    const from = parseAddressList(m.headers.from)[0] ?? { email: me, name: null }
+    const subject = m.headers.subject ?? ""
+    const outbound = m.labelIds.includes("SENT") || from.email === me
+    if (!outbound && isBounce(from, subject)) return "bounce"
+    if (!outbound && isBillingSender(from)) return "billing"
+    // Only a thread the mailbox opened: a human reply ("I've resent your
+    // invoice") is a conversation, an automated notice starts one.
+    if (first && outbound && BILLING_TEXT.test(`${subject}\n${decodeEntities(m.snippet ?? "")}`)) return "billing"
+    if (!outbound) inbound = true
+    first = false
+  }
+  return inbound ? null : "outbound_only"
+}
+
 /* ------------------------------------------------------------ mapping */
 
 type Prepared = {
@@ -193,6 +260,7 @@ export function mapGmailThreads(
 ): CrmLiveData {
   const me = normalizeEmail(mailbox)
   const prepared = threads
+    .filter((t) => skipReason(t, me) === null)
     .map((t) => prepare(t, me))
     .filter((p): p is Prepared => p !== null)
     .sort((a, b) => a.firstAt - b.firstAt || (a.gmailId < b.gmailId ? -1 : a.gmailId > b.gmailId ? 1 : 0))
