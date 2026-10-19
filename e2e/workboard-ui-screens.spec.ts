@@ -29,6 +29,11 @@ import {
  *
  * Names: `workboard-<state>-<width>-<theme>.png`. WORKBOARD_SHOT_STATES=live,empty
  * limits the states.
+ *
+ * Plus the 390 tab bar (#62 r1 B2): `workboard-tabbar-<tab>-390-<theme>.png`,
+ * a clip of the tablist with Issues, Work board or Inbox active, so the edge
+ * fades and the active tab in view can be checked. The clip is the tablist's
+ * box, so a build without the fades (develop) shoots the same frame.
  */
 const CAPTURE = Boolean(process.env.SCREENSHOTS)
 const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "test-results/workboard-ui-shots")
@@ -101,5 +106,42 @@ for (const state of STATES) {
         noLiveData()
       })
     }
+  }
+}
+
+const TABBAR = [
+  { slug: "issues", tab: "Issues" },
+  { slug: "workboard", tab: "Work board" },
+  { slug: "inbox", tab: "Inbox" },
+] as const
+
+for (const { slug, tab } of TABBAR) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`workboard tabbar ${slug} 390 ${theme}`, async ({ page }) => {
+      await page.setViewportSize(WIDTHS[0])
+      const noLiveData = await vetUnmockedApi(page)
+      await page.goto(`/agent-workplace?tab=${slug}`)
+      await waitForHydration(page)
+      await setTheme(page, theme)
+      const list = page.getByRole("tablist").first()
+      const active = list.getByRole("tab", { name: tab, exact: true })
+      await expect(active).toHaveAttribute("aria-selected", "true")
+      await expect
+        .poll(async () => {
+          const [t, l] = await Promise.all([active.boundingBox(), list.boundingBox()])
+          return Boolean(t && l && t.x >= l.x - 1 && t.x + t.width <= l.x + l.width + 1)
+        })
+        .toBe(true)
+      if (CAPTURE) {
+        await page.waitForTimeout(400)
+        const box = (await list.boundingBox())!
+        fs.mkdirSync(OUT, { recursive: true })
+        await page.screenshot({
+          path: path.join(OUT, `workboard-tabbar-${slug}-390-${theme}.png`),
+          clip: { x: 0, y: Math.max(0, box.y - 8), width: WIDTHS[0].width, height: box.height + 16 },
+        })
+      }
+      noLiveData()
+    })
   }
 }
