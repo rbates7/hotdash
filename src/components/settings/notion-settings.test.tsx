@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "@/lib/settings"
 import { NOTION_CONNECTING } from "@/lib/notion-roadmap"
+import { gmailConnecting } from "@/lib/crm/gmail-summary"
+import { FIXED_NOW_MS } from "@/test/clock"
+import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
 import { liveRoadmapSummary, setNotionLoadingForTest, setNotionRoadmapForTest } from "@/test/notion"
 
 const row = (name: string) =>
@@ -53,7 +56,7 @@ describe("Settings › Connected data › Notion", () => {
     setNotionRoadmapForTest(liveRoadmapSummary("connected"))
     render(<SettingsScreen />)
     expect(screen.getByRole("region", { name: "Connected data" })).toHaveTextContent(
-      "Stripe, PostHog and Notion are wired up so far."
+      "Stripe, PostHog, Gmail and Notion are wired up so far."
     )
     const sample = screen.getByRole("region", { name: "Sample data" })
     expect(sample).toHaveTextContent("The Product Roadmap is read from Notion")
@@ -64,5 +67,47 @@ describe("Settings › Connected data › Notion", () => {
     setNotionLoadingForTest()
     render(<SettingsScreen />)
     expect(row("Notion")).toHaveTextContent("Checking…")
+  })
+})
+
+/* Gmail (#46) is a LIVE_FEEDS row like Notion: one status and one detail line. */
+describe("Settings › Connected data › Gmail, through the shared row", () => {
+  it("not connected: Not connected, no detail line", () => {
+    render(<SettingsScreen />)
+    expect(row("Gmail")).toHaveTextContent("Not connected")
+    expect(within(row("Gmail")).queryByTestId("gmail-detail")).toBeNull()
+  })
+
+  it("connecting: Connecting… and the first-sync line", () => {
+    setGmailSummaryForTest(gmailConnecting())
+    render(<SettingsScreen />)
+    expect(within(row("Gmail")).getByTestId("gmail-status")).toHaveTextContent("Connecting…")
+    expect(within(row("Gmail")).getByTestId("gmail-detail")).toHaveTextContent(
+      "Read-only access found · first sync in progress, the CRM's conversations appear when it finishes"
+    )
+  })
+
+  it("connected names the mailbox; stale says the last good threads", () => {
+    setGmailSummaryForTest(liveGmailSummary(FIXED_NOW_MS))
+    const { unmount } = render(<SettingsScreen />)
+    expect(within(row("Gmail")).getByTestId("gmail-status")).toHaveTextContent("Connected")
+    expect(within(row("Gmail")).getByTestId("gmail-detail")).toHaveTextContent(/^info@chlkapp\.com, read-only · last synced /)
+    unmount()
+    setGmailSummaryForTest({ ...liveGmailSummary(FIXED_NOW_MS), status: "stale" })
+    render(<SettingsScreen />)
+    expect(within(row("Gmail")).getByTestId("gmail-status")).toHaveTextContent(/^Last updated /)
+    expect(within(row("Gmail")).getByTestId("gmail-detail")).toHaveTextContent(
+      "Gmail could not be read just now, so the CRM shows the last good threads."
+    )
+  })
+
+  it("Gmail live and Notion connecting: the Sample data line names both, never 'every number on every screen'", () => {
+    setGmailSummaryForTest(liveGmailSummary(FIXED_NOW_MS))
+    setNotionRoadmapForTest(NOTION_CONNECTING)
+    render(<SettingsScreen />)
+    const sample = screen.getByRole("region", { name: "Sample data" })
+    expect(sample).toHaveTextContent("The CRM's Gmail conversations are live and carry no label")
+    expect(sample).toHaveTextContent("Notion is connecting (first sync in progress)")
+    expect(sample).not.toHaveTextContent(/every number on (every|the other) screens? is still sample/i)
   })
 })

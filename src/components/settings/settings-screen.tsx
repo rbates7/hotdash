@@ -36,6 +36,7 @@ import {
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import { useMounted } from "@/hooks/use-mounted"
 import { useNotionRoadmapFeed } from "@/hooks/use-notion-roadmap"
 import { usePosthogFeed } from "@/hooks/use-posthog-summary"
@@ -350,12 +351,16 @@ export function sampleDataSummary({
 }: {
   stripe: boolean
   posthog: boolean
+  /** The CRM's Gmail conversations are live (#46). */
+  gmail?: boolean
   stripeConnecting: boolean
   appStoreConnecting: boolean
   notion?: boolean
   notionConnecting?: boolean
 }): string {
-  const nothingElse = !figures.stripe && !figures.posthog && !figures.stripeConnecting
+  // Nothing besides Notion is live or connecting. (App Store connecting
+  // implies Stripe live, so `stripe` already covers it.)
+  const nothingElse = !figures.stripe && !figures.posthog && !figures.gmail && !figures.stripeConnecting
   // With Notion live or connecting, the Roadmap is not sample, so the
   // sample sentence names only the other screens (as #50 does for Stripe
   // connecting: "Every other number is still sample data").
@@ -376,15 +381,26 @@ export function sampleDataSummary({
 function figuresSummary({
   stripe,
   posthog,
+  gmail = false,
   stripeConnecting,
   appStoreConnecting,
 }: {
   stripe: boolean
   posthog: boolean
+  /** The CRM's Gmail conversations are live. */
+  gmail?: boolean
   stripeConnecting: boolean
   appStoreConnecting: boolean
 }): string {
-  const live = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  const figures = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  const live =
+    figures && gmail
+      ? `${figures} figures and the CRM's Gmail conversations are`
+      : figures
+        ? `${figures} figures are`
+        : gmail
+          ? "The CRM's Gmail conversations are"
+          : null
   if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
   if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
   const connecting = stripeConnecting
@@ -392,8 +408,8 @@ function figuresSummary({
     : appStoreConnecting
       ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
       : ""
-  if (!connecting) return `${live} figures are live and carry no label; every other number is still sample data.`
-  return `${live} figures are live and carry no label;${connecting} Every other number is still sample data.`
+  if (!connecting) return `${live} live and carry no label; every other number is still sample data.`
+  return `${live} live and carry no label;${connecting} Every other number is still sample data.`
 }
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
@@ -402,6 +418,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
   const summary = sampleDataSummary({
     stripe: stripeFeed.kind === "live",
     posthog: usePosthogFeed().kind === "live",
+    gmail: useGmailFeed().kind === "live",
     stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
     appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
     notion: notionFeed.kind === "live",
@@ -462,14 +479,15 @@ const SOURCES = [
 const STATUS_BADGE = "h-6 px-2.5"
 
 /**
- * What a live source's row needs: Stripe's, PostHog's and Notion's feeds all
- * fit (Notion says `not_connected` where the other two still say `sample`).
+ * What a live source's row needs: Stripe's, PostHog's, Gmail's and Notion's
+ * feeds all fit (Notion says `not_connected` where the others still say
+ * `sample`; both read Not connected here).
  */
 type SourceFeed =
   | { kind: "loading"; connecting?: boolean }
   | { kind: "sample" }
   | { kind: "not_connected" }
-  | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+  | { kind: "live"; stale: boolean; lastSyncedAt: Date; mailbox?: string }
 
 type LiveFeed = {
   use: () => SourceFeed
@@ -478,6 +496,8 @@ type LiveFeed = {
   connecting: string
   /** The detail line when the source could not be read and the last good copy shows. */
   stale: string
+  /** What the "read-only · last synced" line leads with; "Read-only" by default. */
+  readOnly?: (feed: Extract<SourceFeed, { kind: "live" }>) => string
 }
 
 /** Hooks per live source, so each row reads only its own. */
@@ -493,6 +513,14 @@ const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], LiveFeed>> = 
     id: "posthog",
     connecting: "Read-only key found · first sync in progress, figures appear when it finishes",
     stale: "PostHog could not be read just now, so its figures are the last good ones.",
+  },
+  Gmail: {
+    use: useGmailFeed,
+    id: "gmail",
+    connecting: "Read-only access found · first sync in progress, the CRM's conversations appear when it finishes",
+    stale: "Gmail could not be read just now, so the CRM shows the last good threads.",
+    // Names the mailbox, as #46's row did: "info@chlkapp.com, read-only · …".
+    readOnly: (feed) => (feed.mailbox ? `${feed.mailbox}, read-only` : "Read-only"),
   },
   Notion: {
     use: useNotionRoadmapFeed,
@@ -548,7 +576,7 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
 }
 
 function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
-  const { use, id, connecting, stale } = LIVE_FEEDS[name]!
+  const { use, id, connecting, stale, readOnly } = LIVE_FEEDS[name]!
   const feed = use()
   if (feed.kind === "loading" && feed.connecting) {
     return (
@@ -560,7 +588,9 @@ function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
   if (feed.kind !== "live") return null
   return (
     <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
-      {feed.stale ? stale : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+      {feed.stale
+        ? stale
+        : `${readOnly ? readOnly(feed) : "Read-only"} · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
     </p>
   )
 }
@@ -578,7 +608,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe, PostHog and Notion are wired up so far."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe, PostHog, Gmail and Notion are wired up so far."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (

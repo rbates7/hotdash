@@ -41,6 +41,13 @@ token set, the first sync shows Connecting… (never sample bets); with no
 token, the Roadmap says Not connected and shows no bets. Setup, token scope
 and the property mapping: [docs/notion-roadmap.md](docs/notion-roadmap.md).
 
+**Live Gmail (read-only)** feeds the CRM — cases, contacts and triage from
+the support inbox (info@chlkapp.com) — when the server has `GMAIL_CLIENT_ID`,
+`GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` (server only; `GMAIL_MAILBOX`
+optional). Without them the CRM shows "Gmail not connected" and its sample,
+labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
+[docs/gmail-setup.md](docs/gmail-setup.md).
+
 **Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
 open and recently merged pull requests with their CI and review state
 when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
@@ -64,7 +71,8 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token or the GitHub token (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token, the GitHub token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
+| `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |

@@ -73,7 +73,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
           </p>
           <h2 className="mt-1 flex flex-wrap items-center gap-2 truncate text-lg font-semibold tracking-tight max-md:whitespace-normal">
             {caseRow.subject}
-            {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
+            {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -120,7 +120,7 @@ export function CaseDetail({ caseId }: { caseId: string }) {
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium">
                       Internal note · {formatCrmDateTime(note.createdAt)}
-                      {isSeedNote(note.id) ? (
+                      {store.sample && isSeedNote(note.id) ? (
                         <SampleDataTag className="ml-2 align-middle" />
                       ) : null}
                     </p>

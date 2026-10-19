@@ -105,7 +105,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
           <div>
             <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
               {name}
-              {isSeedContact(contact.id) ? <SampleDataTag /> : null}
+              {store.sample && isSeedContact(contact.id) ? <SampleDataTag /> : null}
             </h2>
             <p className="text-muted-foreground text-sm">{contact.email}</p>
           </div>
@@ -167,7 +167,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                 title={caseRow.subject}
                 status={<StatusBadge status={caseRow.status} />}
                 meta={contactCaseCardMeta(caseRow, store.nowMs)}
-                sample={isSeedCase(caseRow.id)}
+                sample={store.sample && isSeedCase(caseRow.id)}
                 className={CARD}
                 onClick={() => router.push(`/crm/cases/${caseRow.id}`)}
               />
@@ -193,7 +193,7 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                       className={cn("flex items-center gap-2 truncate font-medium hover:underline", CRM_ROW_44)}
                     >
                       {caseRow.subject}
-                      {isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
+                      {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
                     </Link>
                   </TableCell>
                   <TableCell className={CELL}>

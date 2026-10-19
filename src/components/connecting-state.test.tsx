@@ -243,6 +243,15 @@ describe("page-level wording unchanged when live or not connected", () => {
     expect(sampleDataSummary({ ...base, stripe: true, appStoreConnecting: true })).toBe(
       "Stripe's figures are live and carry no label; App Store payers from Chlk\u2019s database are connecting, first read in progress. Every other number is still sample data."
     )
+    expect(sampleDataSummary({ ...base, gmail: true })).toBe(
+      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data."
+    )
+    expect(sampleDataSummary({ ...base, stripe: true, posthog: true, gmail: true })).toBe(
+      "Stripe's and PostHog's figures and the CRM's Gmail conversations are live and carry no label; every other number is still sample data."
+    )
+    expect(sampleDataSummary({ ...base, gmail: true, stripeConnecting: true })).toBe(
+      "The CRM's Gmail conversations are live and carry no label; Stripe is connecting (first sync in progress). Every other number is still sample data."
+    )
 
     // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
     expect(sampleDataSummary({ ...base, notion: true })).toBe(
@@ -259,6 +268,14 @@ describe("page-level wording unchanged when live or not connected", () => {
     expect(sampleDataSummary({ ...base, notion: true })).not.toMatch(/every number on every screen/i)
     expect(sampleDataSummary({ ...base, posthog: true, notionConnecting: true })).toBe(
       "PostHog's figures are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+    )
+
+    // Gmail live with Notion: Gmail is not "every number … sample" either (#46 × #45).
+    expect(sampleDataSummary({ ...base, notion: true, gmail: true })).toBe(
+      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data. The Product Roadmap is read from Notion."
+    )
+    expect(sampleDataSummary({ ...base, notionConnecting: true, gmail: true })).toBe(
+      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
     )
   })
 })
