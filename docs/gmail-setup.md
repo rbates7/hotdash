@@ -37,12 +37,13 @@ That's all. To switch it off later, delete the four variables in Vercel
 as info@chlkapp.com, remove **Chlk Dashboard** at
 <https://myaccount.google.com/permissions>.
 
-> **Before you do this: the dashboard has no sign-in.** Once Gmail is
-> connected, anyone with the dashboard link can see the support inbox's
-> senders, subjects and message previews (Google's ~200-character snippet;
-> never full bodies or attachments). Your Oct 13 decision kept the dashboard
-> public with real data; customer email is more sensitive than Stripe
-> totals, so consider bringing sign-in back first.
+> **The dashboard has no sign-in, and customer emails are shown publicly.**
+> Once Gmail is connected, anyone with the dashboard link can see the
+> support inbox's senders, subjects and message previews (Google's
+> ~200-character snippet; never full bodies or attachments). This is
+> Rashad's decision, Oct 16, 9:45 PM CT: "Yes, show the customer emails
+> publicly." It follows his Oct 13 decision to keep the dashboard public
+> with real data.
 
 ### If something goes wrong
 
