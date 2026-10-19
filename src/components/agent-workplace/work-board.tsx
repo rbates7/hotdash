@@ -9,6 +9,8 @@ import {
   formatWorkboardTime,
   groupByState,
   ownerName,
+  staleNoteText,
+  workboardAnnouncement,
   workboardKind,
   type WorkboardView,
 } from "@/lib/workboard-view"
@@ -111,14 +113,13 @@ function WorkCard({ item }: { item: WorkboardItem }) {
 
 function StaleNote({ fetchedAt }: { fetchedAt: string }) {
   return (
-    <p data-testid="workboard-stale" role="status" className="text-caption text-warning-text tracking-tight">
-      GitHub could not be read just now. Showing the last good copy
-      {fetchedAt ? `, from ${formatWorkboardTime(fetchedAt)}` : ""}.
+    <p data-testid="workboard-stale" className="text-caption text-warning-text tracking-tight">
+      {staleNoteText(fetchedAt)}
     </p>
   )
 }
 
-export function WorkBoardView({ view }: { view: WorkboardView }) {
+function WorkBoardBody({ view }: { view: WorkboardView }) {
   const kind = workboardKind(view)
 
   if (kind === "connecting") {
@@ -206,6 +207,23 @@ export function WorkBoardView({ view }: { view: WorkboardView }) {
           </section>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The board plus one polite live region that is always mounted (so a change
+ * of state is announced, not just a fresh mount): Connecting…, Not
+ * connected, No open pull requests, "N PRs updated <time CT>", or the stale
+ * note. Visually hidden; the visible states say the same thing.
+ */
+export function WorkBoardView({ view }: { view: WorkboardView }) {
+  return (
+    <div className="flex min-w-0 flex-col">
+      <p role="status" aria-live="polite" aria-atomic="true" data-testid="workboard-announce" className="sr-only">
+        {workboardAnnouncement(view)}
+      </p>
+      <WorkBoardBody view={view} />
     </div>
   )
 }

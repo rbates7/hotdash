@@ -142,3 +142,25 @@ export function formatWorkboardTime(iso: string): string {
     timeZoneName: "short",
   })
 }
+
+/** The stale note, shared by the visible note and the announcement. */
+export function staleNoteText(fetchedAt: string): string {
+  return `GitHub could not be read just now. Showing the last good copy${fetchedAt ? `, from ${formatWorkboardTime(fetchedAt)}` : ""}.`
+}
+
+/**
+ * What the board's polite live region says: one line per state, so a screen
+ * reader hears the board change (connecting to live, live to stale) without
+ * moving focus.
+ */
+export function workboardAnnouncement(view: WorkboardView): string {
+  const kind = workboardKind(view)
+  if (kind === "connecting" || view.phase !== "ready") return "Connecting\u2026"
+  if (kind === "not_connected") return "Not connected"
+  const { summary } = view
+  if (summary.stale) return staleNoteText(summary.fetchedAt)
+  if (kind === "empty") return "No open pull requests"
+  const n = summary.items.length
+  const updated = summary.fetchedAt ? ` updated ${formatWorkboardTime(summary.fetchedAt)}` : ""
+  return `${n} ${n === 1 ? "PR" : "PRs"}${updated}`
+}

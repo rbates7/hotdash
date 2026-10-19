@@ -112,6 +112,45 @@ describe("WorkBoardView", () => {
   })
 })
 
+describe("WorkBoardView live region", () => {
+  const region = () => screen.getByTestId("workboard-announce")
+
+  it("is one polite, atomic, visually hidden status region", () => {
+    render(<WorkBoardView view={ready("connected")} />)
+    expect(screen.getAllByRole("status")).toHaveLength(1)
+    expect(region()).toHaveAttribute("role", "status")
+    expect(region()).toHaveAttribute("aria-live", "polite")
+    expect(region()).toHaveAttribute("aria-atomic", "true")
+    expect(region()).toHaveClass("sr-only")
+  })
+
+  it.each([
+    ["loading", WORKBOARD_LOADING_VIEW, "Connecting…"],
+    ["connecting", ready("connecting"), "Connecting…"],
+    ["not connected", ready("not_connected"), "Not connected"],
+    ["empty", ready("connected", []), "No open pull requests"],
+    ["live", ready("connected"), "4 PRs updated Oct 16, 7:45 PM CDT"],
+    ["live, one PR", ready("connected", [LIVE_ITEMS[2]]), "1 PR updated Oct 16, 7:45 PM CDT"],
+    ["stale", ready("stale"), "GitHub could not be read just now. Showing the last good copy, from Oct 16, 7:45 PM CDT."],
+    ["stale and empty", ready("stale", []), "GitHub could not be read just now. Showing the last good copy, from Oct 16, 7:45 PM CDT."],
+  ] as const)("%s announces %j", (_name, view, text) => {
+    render(<WorkBoardView view={view} />)
+    expect(region()).toHaveTextContent(text)
+    expect(screen.getAllByRole("status")).toHaveLength(1)
+  })
+
+  it("stays the same node when the state changes, so the change is announced", () => {
+    const { rerender } = render(<WorkBoardView view={ready("connecting")} />)
+    const node = region()
+    rerender(<WorkBoardView view={ready("connected")} />)
+    expect(region()).toBe(node)
+    expect(node).toHaveTextContent("4 PRs updated Oct 16, 7:45 PM CDT")
+    rerender(<WorkBoardView view={ready("stale")} />)
+    expect(region()).toBe(node)
+    expect(node).toHaveTextContent(/^GitHub could not be read just now/)
+  })
+})
+
 describe("WorkBoard (store)", () => {
   it("starts not connected in tests (no server), with no cards", () => {
     render(<WorkBoard />)
