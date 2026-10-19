@@ -68,7 +68,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "New contact", exact: true }).click()
     const add = dialog(page, "New contact")
     await expect(add).toBeVisible()
-    await add.getByLabel("Email").fill("pat@katyisd.org")
+    await add.getByLabel("Email").fill("pat@example.org")
     await add.getByLabel("First name").fill("Pat")
     await shoot(page, `crm-contact-dialog-${theme}`)
     await page.keyboard.press("Escape")

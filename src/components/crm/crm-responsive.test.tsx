@@ -79,10 +79,10 @@ describe("phone (<768): Cases cards", () => {
   it("falls back to the contact's email when there is no organization", () => {
     const contacts = seedContacts(FIXED_NOW_MS)
     const orgs = seedOrganizations(FIXED_NOW_MS)
-    const tom = contacts.find((c) => c.email === "tom.alvarez@gmail.com")!
+    const tom = contacts.find((c) => c.email === "tom.alvarez@example.com")!
     const tomCase = seedCases(FIXED_NOW_MS).find((c) => c.contactId === tom.id)!
     const [first, second] = caseCardMeta(tomCase, tom, orgOf(orgs, tom.organizationId), FIXED_NOW_MS)
-    expect(first.value).toBe(`#${tomCase.caseNumber} · Tom Alvarez · tom.alvarez@gmail.com`)
+    expect(first.value).toBe(`#${tomCase.caseNumber} · Tom Alvarez · tom.alvarez@example.com`)
     expect(second.value).toMatch(/^Normal priority · /)
   })
 
@@ -213,14 +213,14 @@ describe("phone (<768): Contacts cards and sheet", () => {
     expect(within(marcus).getByTestId(CARD_PLAN_PILL)).toBeInTheDocument()
     // `plan-pill` still counts the table column's six.
     expect(screen.getAllByTestId("plan-pill")).toHaveLength(6)
-    expect(marcus).toHaveTextContent("mhale@westfieldfb.org")
+    expect(marcus).toHaveTextContent("mhale@example.org")
     expect(marcus).toHaveTextContent(/Westfield HS · \d+ open cases?/)
     expect(within(marcus).getByTestId("sample-data-tag")).toBeInTheDocument()
     expect(card("Tom Alvarez")).toHaveTextContent(/No organization · \d+ open cases?/)
   })
 
   it("says one open case in the singular", () => {
-    const tom = seedContacts(FIXED_NOW_MS).find((c) => c.email === "tom.alvarez@gmail.com")!
+    const tom = seedContacts(FIXED_NOW_MS).find((c) => c.email === "tom.alvarez@example.com")!
     expect(contactCardMeta(tom, null, 1)[1].value).toBe("No organization · 1 open case")
     expect(contactCardMeta(tom, null, 0)[1].value).toBe("No organization · 0 open cases")
   })

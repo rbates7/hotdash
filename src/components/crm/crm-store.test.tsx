@@ -81,15 +81,15 @@ describe("reducer", () => {
     const start = initialState(NOW)
     const added = reducer(start, {
       type: "add-contact",
-      input: { email: "  Pat@Katy.isd ", firstName: "Pat", lastName: "Reyes", organizationName: "Katy ISD" },
+      input: { email: "  Pat@Example.ORG ", firstName: "Pat", lastName: "Reyes", organizationName: "Katy ISD" },
       at: AT,
     })
     const created = added.contacts.find((c) => c.id === "contact-7")!
-    expect(created.email).toBe("pat@katy.isd")
+    expect(created.email).toBe("pat@example.org")
     expect(created.source).toBe("manual")
     expect(created.nameSource).toBe("manual")
     expect(added.organizations.some((o) => o.name === "Katy ISD")).toBe(true)
-    expect(reducer(added, { type: "add-contact", input: { email: "pat@katy.isd" }, at: AT })).toBe(
+    expect(reducer(added, { type: "add-contact", input: { email: "pat@example.org" }, at: AT })).toBe(
       added
     )
   })
@@ -98,7 +98,7 @@ describe("reducer", () => {
     const start = initialState(NOW)
     const next = reducer(start, { type: "promote-triage", threadId: "thread-9", at: AT })
     expect(listTriageThreads(next.messages)).toHaveLength(1)
-    const riley = next.contacts.find((c) => c.email === "riley@lakeridgeathletics.com")!
+    const riley = next.contacts.find((c) => c.email === "riley@example.com")!
     expect(contactDisplayName(riley)).toBe("Riley Nash")
     expect(riley.id).toBe("contact-7")
     const opened = next.cases.find((c) => c.contactId === riley.id)!
@@ -114,9 +114,9 @@ describe("reducer", () => {
     const start = initialState(NOW)
     const ignored = reducer(start, { type: "ignore-triage", threadId: "thread-9" })
     expect(listTriageThreads(ignored.messages)).toHaveLength(1)
-    const banned = reducer(ignored, { type: "ignore-sender", email: "alex@oakmontcoaches.net" })
+    const banned = reducer(ignored, { type: "ignore-sender", email: "alex@example.com" })
     expect(listTriageThreads(banned.messages)).toHaveLength(0)
-    expect(banned.ignoredSenders).toContain("alex@oakmontcoaches.net")
+    expect(banned.ignoredSenders).toContain("alex@example.com")
   })
 })
 

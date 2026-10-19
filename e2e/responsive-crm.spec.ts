@@ -318,7 +318,7 @@ test.describe("responsive CRM (phone 390)", () => {
     await expect(staff).toContainText("#1 · Marcus Hale · Westfield HS")
     await expect(staff).toContainText(/High priority · \d+[mhd] ago/)
     await expect(staff.getByTestId("sample-data-tag")).toBeVisible()
-    await expect(card(page, "iPad login loop after a forced update")).toContainText("Tom Alvarez · tom.alvarez@gmail.com")
+    await expect(card(page, "iPad login loop after a forced update")).toContainText("Tom Alvarez · tom.alvarez@example.com")
     expect((await staff.boundingBox())!.height).toBeGreaterThanOrEqual(64)
   })
 
@@ -328,7 +328,7 @@ test.describe("responsive CRM (phone 390)", () => {
     await expect(table(page, "Contacts")).toBeHidden()
     const marcus = card(page, "Marcus Hale")
     await expect(marcus.getByTestId("card-plan-pill")).toBeVisible()
-    await expect(marcus).toContainText("mhale@westfieldfb.org")
+    await expect(marcus).toContainText("mhale@example.org")
     await expect(marcus).toContainText(/Westfield HS · \d+ open cases?/)
     await expect(card(page, "Tom Alvarez")).toContainText(/No organization · \d+ open cases?/)
     await expectTapTarget(main(page).getByRole("button", { name: "New contact", exact: true }), "New contact")
@@ -428,7 +428,7 @@ test.describe("responsive CRM (phone 390)", () => {
     const s = sheet(page, who)
     await expect(s).toBeVisible()
     await expect(s.getByTestId("card-plan-pill")).toBeVisible()
-    await expect(s).toContainText("mhale@westfieldfb.org")
+    await expect(s).toContainText("mhale@example.org")
     await expect(sheetActions(page, who, "Contact actions")).toHaveText(["Open contact", "Edit contact", "Delete contact"])
     await settle(s)
     await expectAllTargets44(s, "390 contact sheet")
@@ -535,7 +535,7 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       const t = table(page, "Contacts")
       await expect(t.getByRole("columnheader")).toHaveText(["Name", "Organization", "Plan", "Open cases", "Actions"])
       const row = t.getByRole("row", { name: /Marcus Hale/ })
-      await expect(row.getByRole("cell").first().getByText("mhale@westfieldfb.org")).toBeVisible()
+      await expect(row.getByRole("cell").first().getByText("mhale@example.org")).toBeVisible()
       await expect(row.getByRole("cell")).toHaveCount(5)
       const more = row.getByRole("button", { name: "More actions for Marcus Hale" })
       await expectTapTarget(more, "contact …")
@@ -827,7 +827,7 @@ for (const theme of ["light", "dark"] as const) {
         await expect(edit).toBeHidden()
         await main(page).getByRole("button", { name: "New contact", exact: true }).click()
         const add = dialog(page, "New contact")
-        await add.getByLabel("Email").fill("mhale@westfieldfb.org")
+        await add.getByLabel("Email").fill("mhale@example.org")
         await add.getByRole("button", { name: "Create contact", exact: true }).click()
         await expect(add.getByRole("alert")).toBeVisible()
         await settle(add)
@@ -892,12 +892,12 @@ function withCounters(state: CrmState): CrmState {
   }
 }
 
-const LONG_EMAIL = "christopher.montgomery@westfieldchristian.org" // 45
+const LONG_EMAIL = "christopher.montgomery.head-coach@example.org" // 45
 const LONG_NAME = { firstName: "Christopher Alexander", lastName: "Montgomery-Whitfield" } // 42
 const LONG_NAME_TEXT = `${LONG_NAME.firstName} ${LONG_NAME.lastName}`
-const LONG_EMAIL_NO_ORG = "maximilian.featherstonehaugh@saintbartholomewacademy.org" // 56
+const LONG_EMAIL_NO_ORG = "maximilian.featherstonehaugh.bartholomew.fbc@example.org" // 56
 const LONG_NAME_NO_ORG = { firstName: "Maximilian Bartholomew", lastName: "Featherstonehaugh" } // 40
-const NAMELESS_EMAIL = "administrator.office.manager@saintbartholomewacademy.org" // 56
+const NAMELESS_EMAIL = "administrator.office.manager.bartholomew.fbc@example.org" // 56
 
 /**
  * The seed with long names and emails: Marcus Hale (cases 1–2, org row) and

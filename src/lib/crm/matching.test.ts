@@ -4,7 +4,7 @@ import { canOverwriteName, normalizeEmail, splitDisplayName } from "./matching"
 
 describe("normalizeEmail", () => {
   it("lowercases and trims", () => {
-    expect(normalizeEmail("  Dana@Acme.COM ")).toBe("dana@acme.com")
+    expect(normalizeEmail("  Dana@Example.COM ")).toBe("dana@example.com")
   })
 })
 
