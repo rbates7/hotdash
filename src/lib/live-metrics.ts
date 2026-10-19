@@ -4,6 +4,7 @@ import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
 import { formatCurrency, formatMetricValue, trendFor, type MetricId, type MetricSnapshot } from "@/lib/metrics"
 import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
+import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import type { StripeFeed } from "@/lib/stripe-summary"
 import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from "@/lib/subscriber-total"
 
@@ -14,7 +15,10 @@ import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from
  * - Not connected → the sample figure with its Sample label, as before.
  * - Connected     → Stripe's figure, no label.
  * - Stale         → Stripe's last figure, no label, "Last updated <time>".
- * - Loading       → a placeholder (never a sample number that then swaps).
+ * - Loading       → a placeholder (never a sample number that then swaps),
+ *                   also while the server's first sync is still connecting.
+ *                   Subscribers stays loading until App Store has connected
+ *                   too, so the total never lands without one of its groups.
  */
 
 /**
@@ -77,6 +81,7 @@ const EMPTY: Partial<Record<MetricId, string>> = {
 export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): LiveState {
   if (!STRIPE_METRIC_IDS.has(id) || feed.kind === "sample") return { kind: "sample" }
   if (feed.kind === "loading") return { kind: "loading" }
+  if (id === "subscribers" && isAppStoreConnecting(feed.appStore)) return { kind: "loading" }
   const m = feed.metrics
   const subscribers = id === "subscribers" ? liveSubscribers(feed, timeZone) : null
   const source: { value: Rate; previous: Rate; series: Rate[] } =
@@ -169,9 +174,8 @@ export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id:
     const isCash = kpi.id === "cash-this-week"
     const isMetric = STRIPE_METRIC_IDS.has(kpi.id as MetricId)
     if ((!isCash && !isMetric) || feed.kind === "sample") return kpi
-    if (feed.kind === "loading") {
-      return { ...kpi, value: "–", delta: "", direction: "flat", source: "loading" }
-    }
+    const loading = { ...kpi, value: "–", delta: "", direction: "flat" as const, source: "loading" as const }
+    if (feed.kind === "loading") return loading
     const updated = feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null
     if (isCash) {
       const { value, previous } = feed.metrics.cashThisWeek
@@ -187,6 +191,7 @@ export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id:
     }
     const snap = snapshots(kpi.id as MetricId)
     const state = liveMetric(kpi.id as MetricId, feed, timeZone)
+    if (state.kind === "loading") return loading
     if (state.kind !== "live") return kpi
     const { value, previous } = state.metric
     if (value === null) {

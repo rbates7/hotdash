@@ -397,7 +397,7 @@ const SOURCES = [
 const STATUS_BADGE = "h-6 px-2.5"
 
 /** What a live source's row needs: Stripe's and PostHog's feeds both fit. */
-type SourceFeed = { kind: "loading" } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
 
 /** Hooks per live source, so each row reads only its own. */
 const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
@@ -405,10 +405,21 @@ const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => 
   PostHog: { use: usePosthogFeed, id: "posthog" },
 }
 
-/** A live source's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
+/**
+ * A live source's row: Connected (and when it last synced), Last updated
+ * (stale), Connecting… (a key is set, its first sync is still running), or
+ * Not connected (no key).
+ */
 function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
   const { use, id } = LIVE_FEEDS[name]!
   const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <Badge variant="outline" aria-busy data-testid={`${id}-status`} className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Connecting…
+      </Badge>
+    )
+  }
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -442,6 +453,13 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
 function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
   const { use, id } = LIVE_FEEDS[name]!
   const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
+        Read-only key found · first sync in progress, figures appear when it finishes
+      </p>
+    )
+  }
   if (feed.kind !== "live") return null
   return (
     <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>

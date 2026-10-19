@@ -11,6 +11,7 @@ import {
   type TickerState,
   type TickerStore,
 } from "@/lib/subscriber-source"
+import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { liveSubscribers, type SubscriberBreakdownView } from "@/lib/live-metrics"
 import { breakdownText } from "@/lib/subscriber-total"
 import { useSettings } from "@/hooks/use-settings"
@@ -67,7 +68,8 @@ export function useSubscriberTicker(source?: SubscriberSource): {
   if (useSample) {
     return { state: sampleState, refresh: store.refresh, sample: sampleSource.sample, timeZone, breakdown: null }
   }
-  if (feed.kind === "loading") {
+  // Still connecting (Stripe, or App Store for its group): no total yet.
+  if (feed.kind === "loading" || isAppStoreConnecting(feed.appStore)) {
     return { state: LOADING_STATE, refresh: IDLE.refresh, sample: false, timeZone, breakdown: null }
   }
   const { total, breakdown } = liveSubscribers(feed, timeZone)

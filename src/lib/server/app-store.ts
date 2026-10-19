@@ -2,7 +2,7 @@ import "server-only"
 
 import postgres from "postgres"
 
-import { APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-summary"
+import { APP_STORE_CONNECTING, APP_STORE_NOT_CONNECTED, type AppStoreSummary } from "@/lib/app-store-summary"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
@@ -14,7 +14,8 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
  * module: it is not logged, not returned, and nothing here is importable
  * from a client component (`server-only`). One count per `CACHE_TTL_MS`,
  * read in the background — a request never waits for it, and gets
- * `not_connected` until the first count lands; the last good count is
+ * `connecting` until the first count lands (`not_connected` with no URL, or
+ * once a first read has failed); the last good count is
  * kept, so an outage shows it as stale rather than nothing. Anything that goes wrong — no URL, a bad URL, the database down
  * or slow, an odd answer — is `not_connected` (or `stale`), never a throw:
  * the Stripe figures beside it are never held up or broken by this.
@@ -218,7 +219,8 @@ export function createAppStoreSource({
         inflight = run
       }
     }
-    if (!lastGood) return APP_STORE_NOT_CONNECTED
+    // A URL and no read finished yet: the first one (started above) is running.
+    if (!lastGood) return config.kind === "ok" && !lastAttempt ? APP_STORE_CONNECTING : APP_STORE_NOT_CONNECTED
     const fresh = config.kind === "ok" && Boolean(lastAttempt?.ok)
     return { status: fresh ? "connected" : "stale", count: lastGood.count, asOf: new Date(lastGood.at).toISOString() }
   }

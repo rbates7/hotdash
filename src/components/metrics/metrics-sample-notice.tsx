@@ -22,7 +22,9 @@ export function MetricsSampleNotice() {
   const fromPosthog = posthog.kind === "live"
   if (!fromStripe && !fromPosthog) return <SampleDataNotice />
   const suspect = fromStripe && isSuspectAppStore(stripe.appStore)
-  const appStore = fromStripe && stripe.appStore.status !== "not_connected" && !suspect
+  // Counted only once it has answered: not while connecting, and not a suspect 0.
+  const appStore =
+    fromStripe && (stripe.appStore.status === "connected" || stripe.appStore.status === "stale") && !suspect
   const rest = fromStripe
     ? fromPosthog
       ? appStore
