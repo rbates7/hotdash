@@ -299,6 +299,7 @@ describe("MetricsTabs", () => {
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
       const items = within(picker).getAllByRole("button").map((b) => b.textContent)
       expect(items).toEqual([
+        "Active Users731",
         "CAC$142",
         "LTV$1,680",
         "ARPU$141",
@@ -330,7 +331,7 @@ describe("MetricsTabs", () => {
       expect(screen.queryByRole("dialog", { name: "Add a metric" })).not.toBeInTheDocument()
     })
 
-    it("shows an empty state when every card is removed and the picker lists all fifteen", async () => {
+    it("shows an empty state when every card is removed and the picker lists all sixteen", async () => {
       const user = userEvent.setup()
       renderTabs()
       for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
@@ -341,18 +342,18 @@ describe("MetricsTabs", () => {
 
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
-      expect(within(picker).getAllByRole("button")).toHaveLength(15)
+      expect(within(picker).getAllByRole("button")).toHaveLength(16)
     })
 
     it("tells you when everything is already on the board", { timeout: 20_000 }, async () => {
       const user = userEvent.setup()
       renderTabs()
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 8; i++) {
         await user.click(screen.getByRole("button", { name: "Add metric" }))
         const picker = await screen.findByRole("dialog", { name: "Add a metric" })
         await user.click(within(picker).getAllByRole("button")[0])
       }
-      expect(cards()).toHaveLength(15)
+      expect(cards()).toHaveLength(16)
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       expect(await screen.findByText("All metrics are on the board")).toBeInTheDocument()
     })

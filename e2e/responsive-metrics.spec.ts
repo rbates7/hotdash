@@ -543,6 +543,8 @@ test.describe("responsive Metrics (B1 tablist)", () => {
   test("the tablist stays 32px at 1440", async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.desktop)
     await fresh(page)
+    // Wait for the list to be painted: boundingBox() is a one-shot read, null before layout.
+    await expect(tablist(page)).toBeVisible()
     const box = await tablist(page).boundingBox()
     expect(box, "1440 tablist painted").toBeTruthy()
     expect(box!.height, "1440 tablist is Nova h-8").toBeGreaterThanOrEqual(31)
