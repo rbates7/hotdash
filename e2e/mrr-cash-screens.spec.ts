@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { CONNECTING } from "../src/lib/stripe-summary"
 import { MRR_CASH_CONNECTING } from "../src/lib/stripe-mrr-cash"
 import { waitForHydration } from "./support/shell"
+import { vetUnmockedApi } from "./support/shots"
 import { liveMrrCash, liveSummary, mockMrrCash, mockStripe } from "./support/stripe"
 import { setTheme } from "./support/theme"
 
@@ -52,6 +53,7 @@ for (const vp of WIDTHS) {
   for (const theme of ["light", "dark"] as const) {
     test(`metrics ${TAG} ${STATE} ${vp.width} ${theme}`, async ({ page }) => {
       await page.setViewportSize(vp)
+      const noLiveData = await vetUnmockedApi(page)
       await mock(page)
       await page.goto("/metrics")
       await waitForHydration(page)
@@ -69,6 +71,7 @@ for (const vp of WIDTHS) {
       fs.mkdirSync(OUT, { recursive: true })
       const suffix = STATE === "not-connected" ? "" : `-${STATE}`
       await page.screenshot({ path: path.join(OUT, `metrics-${vp.width}-${theme}-${TAG}${suffix}.png`), fullPage: true })
+      noLiveData()
     })
   }
 }

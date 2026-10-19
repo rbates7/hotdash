@@ -3,12 +3,18 @@
 # develop, with the Next.js dev portal left visible (the spec asserts it is
 # absent, which only a production build satisfies), into a folder named by
 # both SHAs. Needs the team's build/Playwright slot: it runs two `next build`s
-# (one at a time) and 64 Playwright shots. Nothing reaches Stripe: the
-# servers start with every key blank and the spec mocks the live states.
+# (one at a time) and 64 Playwright shots. Nothing reaches Stripe: servers
+# start with `env -i` and an allow-list (scripts/shot-server.sh), Playwright
+# refuses a server whose env holds a token, and the spec mocks the live
+# states. Shots stay on this box: never push them anywhere.
 #
 #   scripts/mrr-cash-reshoot.sh [head-ref] [base-ref] [out-root]
 #   defaults: origin/feat/stripe-mrr-cash  origin/develop  /workspace/hotdash-shots/stripe-mrr-cash-53
 set -euo pipefail
+# shellcheck source=scripts/shot-server.sh
+source "$(dirname "${BASH_SOURCE[0]}")/shot-server.sh"
+# Dry run: print the environment a server would get, then stop (no fetch, no build).
+if [ "${1:-}" = --print-server-env ]; then shot_print_server_env "${2:-3000}"; exit 0; fi
 
 HEAD_REF=${1:-origin/feat/stripe-mrr-cash}
 BASE_REF=${2:-origin/develop}
@@ -29,14 +35,14 @@ mkdir -p "$OUT/before" "$OUT/after"
 WT_HEAD=/tmp/mrrcash-head-${HEAD_SHA:0:7}
 WT_BASE=/tmp/mrrcash-base-${BASE_SHA:0:7}
 SERVER_PID=
-
-blank_keys=(STRIPE_READONLY_KEY= STRIPE_API_BASE= SUPABASE_READONLY_DB_URL= POSTHOG_READONLY_KEY= POSTHOG_HOST=
-  GITHUB_READONLY_TOKEN= github_read_only= GMAIL_CLIENT_ID= GMAIL_CLIENT_SECRET= GMAIL_REFRESH_TOKEN= GMAIL_MAILBOX=)
+SERVER_ENV=
 
 cleanup() {
   [ -n "$SERVER_PID" ] && stop_server
   git -C "$REPO" worktree remove --force "$WT_HEAD" 2>/dev/null || true
   git -C "$REPO" worktree remove --force "$WT_BASE" 2>/dev/null || true
+  [ -n "$SERVER_ENV" ] && rm -f "$SERVER_ENV"
+  return 0
 }
 trap cleanup EXIT
 
@@ -52,8 +58,13 @@ stop_server() { # the server runs in its own session: stop pnpm *and* next
 }
 
 serve() { # dir port: production build, then start in the background
-  (cd "$1" && pnpm install --frozen-lockfile --prefer-offline && env "${blank_keys[@]}" pnpm build)
-  (cd "$1" && exec setsid env "${blank_keys[@]}" pnpm start --port "$2") &
+  [ -n "$SERVER_ENV" ] && rm -f "$SERVER_ENV"
+  SERVER_ENV=$(mktemp /tmp/shot-server-env.XXXXXX)
+  shot_env_file "$2" "$SERVER_ENV"
+  (cd "$1" && pnpm install --frozen-lockfile --prefer-offline)
+  shot_run "$1" "$2" "$SERVER_ENV" -- pnpm build
+  setsid bash -c 'source "$0"; shot_run "$1" "$2" "$3" -- pnpm start --port "$2"' \
+    "$SHOT_LIB_DIR/shot-server.sh" "$1" "$2" "$SERVER_ENV" &
   SERVER_PID=$!
   for _ in $(seq 1 60); do curl -sf "http://localhost:$2/metrics" >/dev/null && return 0; sleep 2; done
   echo "server on $2 never came up" >&2; exit 1
@@ -63,7 +74,7 @@ shoot() { # tag port: every state, from the HEAD worktree's spec, against the ru
   for state in not-connected connecting connected stale; do
     # No CI=true here: CI would make Playwright start its own server; without
     # it, it reuses the production server already listening on the port.
-    (cd "$WT_HEAD" && PORT="$2" SCREENSHOTS=1 SCREENSHOT_TAG="$1" STATE="$state" SCREENSHOT_DIR="$OUT/$1" \
+    (cd "$WT_HEAD" && PORT="$2" SHOT_SERVER_ENV_FILE="$SERVER_ENV" SCREENSHOTS=1 SCREENSHOT_TAG="$1" STATE="$state" SCREENSHOT_DIR="$OUT/$1" \
       pnpm exec playwright test e2e/mrr-cash-screens.spec.ts --workers=1)
   done
 }

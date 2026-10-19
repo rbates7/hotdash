@@ -5,18 +5,22 @@ import path from "node:path"
 import { test, type Page } from "@playwright/test"
 
 import { waitForHydration } from "./support/shell"
+import { vetUnmockedApi } from "./support/shots"
 import { setTheme } from "./support/theme"
 
 /**
  * "Before" stills of Home and the Workplace Inbox tab on a base branch,
- * nothing mocked. Self-contained: it imports only long-standing support
- * files, so it can be copied into a worktree of any base, built, and run
- * there (or run from the head against a base server, as
- * scripts/inbox-reshoot.sh does). Writes SHAS.txt naming the commit served:
+ * nothing mocked: the base server is key-less, so every source is "Not
+ * connected". Run from the head against a base server, as
+ * scripts/inbox-reshoot.sh does (or with CI=true, when Playwright starts a
+ * key-less server itself). Two guards keep real data out of the stills:
+ * playwright.config.ts refuses a server whose env holds a secret, and
+ * vetUnmockedApi fails the test and blanks any /api/* answer that looks
+ * live. Writes SHAS.txt naming the commit served:
  *
  *   pnpm build && CI=true SCREENSHOTS=1 SCREENSHOT_DIR=… playwright test e2e/inbox-before-shots.spec.ts
  *
- * Production build, Next portal left visible, nothing mocked.
+ * Production build, Next portal left visible. Stills stay on the box.
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
@@ -59,6 +63,7 @@ async function shoot(page: Page, name: string) {
 for (const vp of WIDTHS) {
   test(`before at ${vp.width}`, async ({ page }) => {
     await page.setViewportSize(vp)
+    const noLiveData = await vetUnmockedApi(page)
     for (const surface of SURFACES) {
       await page.goto(surface.path)
       await waitForHydration(page)
@@ -68,5 +73,6 @@ for (const vp of WIDTHS) {
         await shoot(page, `${surface.name}-before-${vp.width}-${theme}`)
       }
     }
+    noLiveData()
   })
 }
