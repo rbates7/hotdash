@@ -79,6 +79,21 @@ describe("readPosthogConfig", () => {
     expect(readPosthogConfig(ENV)).toEqual({ kind: "ok", key: KEY, projectId: PROJECT, host: DEFAULT_POSTHOG_HOST })
   })
 
+  it("defaults POSTHOG_HOST to https://us.i.posthog.com when it is unset or blank", () => {
+    expect(DEFAULT_POSTHOG_HOST).toBe("https://us.i.posthog.com")
+    for (const POSTHOG_HOST of [undefined, "", "   "]) {
+      expect(readPosthogConfig({ POSTHOG_READONLY_KEY: KEY, NODE_ENV: "production", POSTHOG_HOST })).toEqual({
+        kind: "ok",
+        key: KEY,
+        projectId: PROJECT,
+        host: "https://us.i.posthog.com",
+      })
+    }
+    expect(readPosthogConfig({ ...ENV, NODE_ENV: "production", POSTHOG_HOST: "https://eu.posthog.com" })).toMatchObject({
+      host: "https://eu.posthog.com",
+    })
+  })
+
   it("takes PostHog Cloud hosts over https only", () => {
     const host = (POSTHOG_HOST: string, NODE_ENV = "production") => readPosthogConfig({ ...ENV, NODE_ENV, POSTHOG_HOST })
     expect(host("https://eu.posthog.com")).toMatchObject({ kind: "ok", host: "https://eu.posthog.com" })
