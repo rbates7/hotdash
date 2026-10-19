@@ -4,7 +4,7 @@ import { CONNECTING } from "../src/lib/stripe-summary"
 import { MRR_CASH_CONNECTING } from "../src/lib/stripe-mrr-cash"
 import { expectNonTextContrast, expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
-import { liveMrrCash, liveSummary, mockMrrCash, mockStripe } from "./support/stripe"
+import { LIVE_METRICS, liveMrrCash, liveSummary, mockMrrCash, mockStripe } from "./support/stripe"
 import { setTheme } from "./support/theme"
 
 /** The panel's connecting words (STRIPE_CONNECTING_PLACEHOLDER in mrr-cash-panel.tsx, same as the Metrics overview). */
@@ -48,6 +48,37 @@ const panelOf = (page: Page) => page.getByTestId("mrr-cash-panel")
 const mrrCard = (page: Page) =>
   page.getByRole("main").getByRole("region", { name: "Metric cards" }).getByRole("article", { name: /^MRR\b/ })
 
+/**
+ * Home's Cash this week card, as it reads with the same mocks: the panel's
+ * total must be this figure, so the two can never drift apart.
+ */
+async function homeCashThisWeek(page: Page) {
+  await page.goto("/home")
+  await waitForHydration(page)
+  const card = page
+    .getByRole("main")
+    .getByRole("region", { name: "KPI strip" })
+    .getByRole("article", { name: "Cash this week", exact: true })
+  await expect(card).toHaveAttribute("data-source", "stripe")
+  const value = (await card.getByTestId("kpi-value").textContent())?.trim() ?? ""
+  expect(value).toMatch(/^\$[\d,]+$/)
+  return value
+}
+
+/** The panel's cash total: Home's card figure, then last week's from the same summary, on one line. */
+async function expectCashTotal(page: Page, panel: ReturnType<Page["locator"]>, homeValue: string) {
+  const previous = `$${Math.round(LIVE_METRICS.cashThisWeek.previous).toLocaleString("en-US")}`
+  await expect(panel.getByTestId("cash-week-value")).toHaveText(homeValue)
+  await expect(panel.getByTestId("cash-week-previous")).toHaveText(previous)
+  await expect(panel.getByTestId("cash-week-total")).toHaveText(`${homeValue} / ${previous}`)
+  // One line, never split at "/" (390 too): no taller than one line box.
+  const [height, line] = await panel.getByTestId("cash-week-total").evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    return [r.height, parseFloat(getComputedStyle(el).lineHeight)]
+  })
+  expect(height, "cash total on one line").toBeLessThan(line * 1.5)
+}
+
 async function openMetrics(page: Page, theme: "light" | "dark") {
   await page.goto("/metrics")
   await waitForHydration(page)
@@ -88,6 +119,7 @@ for (const vp of PANEL_VIEWPORTS) {
       test("connected: figures agree with the cards, legend, readable, bars 3:1, no sideways scroll", async ({ page }) => {
         await mockStripe(page, liveSummary())
         await mockMrrCash(page, liveMrrCash())
+        const homeCash = await homeCashThisWeek(page)
         await openMetrics(page, theme)
         const panel = panelOf(page)
         await expect(panel).toHaveAttribute("data-state", "live")
@@ -104,8 +136,11 @@ for (const vp of PANEL_VIEWPORTS) {
           "MRR · 12 months · USD, past months at today's prices"
         )
 
-        // Cash this week: the summary's total, seven days, the future still ahead.
-        await expect(panel.getByTestId("cash-week-total")).toHaveText("$4,322 / $3,900")
+        // This month's lighter bar says "so far" under it, not by shade alone.
+        await expect(panel.getByTestId("mrr-axis-last")).toHaveText(/ so far$/)
+
+        // Cash this week: Home's card figure, seven days, the future still ahead.
+        await expectCashTotal(page, panel, homeCash)
         const days = panel.getByTestId("cash-day")
         await expect(days).toHaveCount(7)
         await expect(days.nth(0)).toContainText("$2,000, last week $1,500")
@@ -142,12 +177,13 @@ for (const vp of PANEL_VIEWPORTS) {
       test("stale: last figures with Last updated, readable, no sideways scroll", async ({ page }) => {
         await mockStripe(page, liveSummary("stale"))
         await mockMrrCash(page, liveMrrCash("stale"))
+        const homeCash = await homeCashThisWeek(page)
         await openMetrics(page, theme)
         const panel = panelOf(page)
         await expect(panel).toHaveAttribute("data-state", "live")
         const updated = panel.getByTestId("mrr-cash-updated")
         await expect(updated).toHaveText(/^Last updated /)
-        await expect(panel.getByTestId("cash-week-total")).toHaveText("$4,322 / $3,900")
+        await expectCashTotal(page, panel, homeCash)
         await expect(panel.getByTestId("mrr-bar")).toHaveCount(12)
         await expectReadable(updated, `${theme}/${vp.width} stale updated`, expect)
         await expectEachReadable(page, panel.locator("figcaption"), `${theme}/${vp.width} stale captions`)

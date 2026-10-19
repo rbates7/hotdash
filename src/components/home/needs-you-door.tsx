@@ -50,6 +50,10 @@ export function NeedsYouDoor({
   const { items, waiting, overflow } = needs
   const busy = loading || (status === "connecting" && items.length === 0)
   const state = loading ? "loading" : status
+  // With rows and a stale source, "Last updated …" takes the footer's place
+  // instead of adding a line above the rows: at 1440×900 the door (and so
+  // Home) then fits the viewport, with no small vertical scroll.
+  const showUpdated = Boolean(updated) && !busy && status !== "not_connected" && items.length > 0
 
   return (
     <Door
@@ -57,7 +61,13 @@ export function NeedsYouDoor({
       href={INBOX_HREF}
       icon={InboxIcon}
       count={!busy && status !== "not_connected" && waiting > 0 ? `${waiting} waiting` : undefined}
-      caption="Needs you lives here."
+      caption={
+        showUpdated ? (
+          <span data-testid="needs-you-updated">{updated}</span>
+        ) : (
+          "Needs you lives here."
+        )
+      }
       className={className}
     >
       <span hidden data-testid="needs-you-state" data-state={state} />
@@ -89,11 +99,6 @@ export function NeedsYouDoor({
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             Needs you
           </span>
-          {updated ? (
-            <span data-testid="needs-you-updated" className="text-caption text-muted-foreground tracking-tight">
-              {updated}
-            </span>
-          ) : null}
           <ul aria-label="Needs you" className="border-surface-border -mx-2 flex flex-col">
             {items.map((item) => (
               <li key={item.id}>

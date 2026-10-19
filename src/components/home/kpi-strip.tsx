@@ -80,6 +80,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
         {loading && kpi.connecting && <ConnectingBadge className="h-5 px-2" />}
       </div>
       <p
+        data-testid="kpi-value"
         className={cn(
           "mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
           (loading || notConnected) && "text-muted-foreground"

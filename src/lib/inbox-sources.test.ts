@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  INBOX_CONNECTING_POLL_MS,
-  INBOX_POLL_MS,
+  combineStaleNotes,
   fromSentry,
   fromWorkboard,
+  INBOX_CONNECTING_POLL_MS,
+  INBOX_POLL_MS,
   inboxPollMs,
+  type InboxResponse,
   mergeInbox,
   needsYouItems,
   onInboxFailure,
   parseInboxResponse,
-  sourceNotes,
-  type InboxResponse,
   type SentryIssue,
+  sourceNotes,
 } from "@/lib/inbox-sources"
 import type { WorkboardItem } from "@/lib/workboard"
 
@@ -172,5 +173,18 @@ describe("in the browser", () => {
     if (empty.phase !== "ready") throw new Error("ready")
     expect(empty.inbox.items).toEqual([])
     expect(Object.values(empty.inbox.sources).every((s) => s.status === "not_connected")).toBe(true)
+  })
+})
+
+describe("combineStaleNotes", () => {
+  it("says one time once for several sources, and keeps different times apart, in order", () => {
+    const at = "Last updated Tue, Oct 13 · 9:41 AM CDT"
+    expect(combineStaleNotes([`GitHub: ${at}`, `Sentry: ${at}`])).toEqual([`GitHub and Sentry: ${at}`])
+    expect(combineStaleNotes([`GitHub: ${at}`, "Sentry: Last updated Tue, Oct 13 · 9:12 AM CDT"])).toEqual([
+      `GitHub: ${at}`,
+      "Sentry: Last updated Tue, Oct 13 · 9:12 AM CDT",
+    ])
+    expect(combineStaleNotes([`Sentry: ${at}`])).toEqual([`Sentry: ${at}`])
+    expect(combineStaleNotes([])).toEqual([])
   })
 })

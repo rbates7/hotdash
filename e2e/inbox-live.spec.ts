@@ -37,7 +37,8 @@ async function expectHome(page: Page, state: InboxStateName) {
     await expect(d.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
     await expect(d.getByText(/needs a fix|Ongoing/)).toHaveCount(0)
     if (state === "stale")
-      await expect(d.getByTestId("needs-you-updated")).toHaveText(/^GitHub: Last updated .* · Sentry: Last updated /)
+      // Same time for both, said once (combineStaleNotes), in the door's footer.
+      await expect(d.getByTestId("needs-you-updated")).toHaveText(/^GitHub and Sentry: Last updated \w{3}, /)
     if (state === "mixed") await expect(d.getByTestId("needs-you-updated")).toHaveText(/^Sentry: Last updated \w{3}, /)
     if (state === "connected") await expect(d.getByTestId("needs-you-updated")).toHaveCount(0)
   } else {
@@ -64,7 +65,11 @@ async function expectPanel(page: Page, state: InboxStateName) {
     if (state === "mixed") await expect(p.getByTestId("inbox-updated")).toHaveText(/^Sentry: Last updated \w{3}, /)
   } else {
     await expect(rows).toHaveCount(0)
-    if (state === "connecting") await expect(p.getByText("Connecting to GitHub and Sentry…")).toBeVisible()
+    if (state === "connecting") {
+      await expect(p.getByText("Connecting to GitHub and Sentry…")).toBeVisible()
+      // Once, not also "GitHub: Connecting… · Sentry: Connecting…" in the header.
+      await expect(p.getByTestId("inbox-source-note").filter({ hasText: "Connecting" })).toHaveCount(0)
+    }
     if (state === "empty") await expect(p.getByTestId("inbox-empty")).toHaveText("Nothing in the Inbox.")
     if (state === "not_connected") await expect(p.getByTestId("inbox-not-connected")).toContainText("Not connected")
   }
@@ -127,6 +132,27 @@ for (const vp of [
     }
   })
 }
+
+/*
+ * #54 review: the live door made Home a little taller than a 1440×900
+ * viewport (906 / 930 / 946 px). The stale note now sits in the door's
+ * footer, said once for both sources, and rows are tighter at xl.
+ */
+test.describe("Home fits 1440×900 with the live Inbox door", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  for (const state of ["connected", "mixed", "stale"] as const) {
+    test(`${state}: no vertical scroll`, async ({ page }) => {
+      await mockInbox(page, INBOX_STATES[state](Date.now()))
+      await open(page, "/home")
+      await expectHome(page, state)
+      for (const theme of ["light", "dark"] as const) {
+        await setTheme(page, theme)
+        const extra = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)
+        expect(extra, `Home ${state} 1440×900 ${theme}: vertical overflow`).toBeLessThanOrEqual(1)
+      }
+    })
+  }
+})
 
 test("connecting turns into the rows on the next poll", async ({ page }) => {
   let served = 0

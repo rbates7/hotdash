@@ -175,7 +175,13 @@ currencies are skipped, not converted.
   (App Store from a mocked provider) on a synthetic fixture.
 - **Cash this week** — gross amount of succeeded, captured charges since
   Monday 00:00 in the Settings zone. Refunds and fees are not netted out.
-  Compared with last week from Monday to the same point in the week.
+  Compared with last week from Monday to the same point in the week. "The
+  same point" is the same elapsed time since Monday 00:00 (hours, not wall
+  clock), so in the week after a DST change the window is an hour off on the
+  wall clock: on Sun Nov 8 2026 at 11:30 PM CST, last week's figure stops at
+  10:30 PM CST on the 25-hour Sun Nov 1, and a charge at 11 PM that night
+  is not counted. Each day's own comparison runs from that day's start in
+  the zone. Pinned in `src/lib/stripe-mrr-cash.test.ts` (both TZ steps).
 - **MRR** — over the **Stripe paying set (1) only** (not free accounts,
   not App Store), USD only: for each
   paying subscription, Σ unit amount × quantity per item,

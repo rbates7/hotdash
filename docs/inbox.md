@@ -47,10 +47,16 @@ fails on its own:
 - A **failure after a good sync** is `stale`: the last good rows stay, with when they were fetched.
 
 On screen, the overall status is connected if any source is connected, else
-stale, else connecting, else not connected. Each stale source always gets
-its own dated line, even next to a live one (e.g. "Sentry: Last updated Sun,
-Oct 18 · 2:13 PM CDT"), using the shared `lastUpdatedLabel`. The connecting
-copy names only the sources that are actually connecting. If the browser
+stale, else connecting, else not connected. Each stale source gets a dated
+line, even next to a live one (e.g. "Sentry: Last updated Sun, Oct 18 ·
+2:13 PM CDT"), using the shared `lastUpdatedLabel`. On Home's Inbox door
+those lines sit in the door's footer, and stale sources with the same time
+are said once (`combineStaleNotes`: "GitHub and Sentry: Last updated …"), so
+the door stays one line and Home fits 1440×900; sources with different
+times keep their own lines. "Connecting" is said once: the Inbox tab's
+body names only the sources that are actually connecting ("Connecting to
+GitHub and Sentry…"), and the header doesn't repeat a per-source
+"Connecting…" (other notes, like "Gmail: Not connected", stay). If the browser
 can't reach `/api/inbox`, rows already shown stay with their live sources
 marked stale; with nothing loaded yet, every source reads Not connected.
 
@@ -73,4 +79,4 @@ marked stale; with nothing loaded yet, every source reads Not connected.
 ## Tests
 
 - Unit: `src/lib/inbox-sources.test.ts`, `src/lib/inbox-screen.test.ts`, `src/lib/server/{inbox,sentry}.test.ts`, `src/hooks/use-inbox.test.ts`, `src/app/api/inbox-routes.test.ts`, plus the Inbox panel and Home component tests.
-- e2e: `e2e/inbox-live.spec.ts` checks the real server with no tokens and every state (mixed staleness included) at 390/820/1180/1440 in light and dark, with `expectReadable` and a no-sideways-scroll check. Review stills: `e2e/inbox-screens.spec.ts` (and `e2e/inbox-before-shots.spec.ts` for a base branch), both opt-in with `SCREENSHOTS=1`.
+- e2e: `e2e/inbox-live.spec.ts` checks the real server with no tokens and every state (mixed staleness included) at 390/820/1180/1440 in light and dark, with `expectReadable` and a no-sideways-scroll check. Review stills: `e2e/inbox-screens.spec.ts` (and `e2e/inbox-before-shots.spec.ts` for a base branch), both opt-in with `SCREENSHOTS=1`, run by `scripts/inbox-reshoot.sh`. Stills never show live data: servers start with `env -i` and an allow-list (`scripts/shot-server.sh`, `scripts/shot-env.mjs`), `playwright.config.ts` refuses a screenshot run against a server whose env holds a secret, and `vetUnmockedApi` blanks and fails any unmocked `/api/*` answer that looks live (`src/test/shot-env.test.ts` runs in CI with fake tokens set). Stills stay on the box; they are never pushed.

@@ -108,11 +108,14 @@ function MrrBars({ points }: { points: MrrPoint[] }) {
   const last = points[points.length - 1]
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="flex items-baseline justify-between">
-        <span data-testid="mrr-chart-caption" className="text-caption text-muted-foreground">
+      <figcaption className="flex items-baseline justify-between gap-2">
+        <span data-testid="mrr-chart-caption" className="text-caption text-muted-foreground min-w-0">
           MRR · {points.length} months · USD, past months at today&apos;s prices
         </span>
-        <span data-testid="mrr-chart-latest" className="text-body text-foreground font-medium tabular-nums">
+        <span
+          data-testid="mrr-chart-latest"
+          className="text-body text-foreground shrink-0 font-medium whitespace-nowrap tabular-nums"
+        >
           {formatCurrency(last.value)}
         </span>
       </figcaption>
@@ -139,7 +142,11 @@ function MrrBars({ points }: { points: MrrPoint[] }) {
       </ol>
       <div aria-hidden className="text-caption text-muted-foreground flex justify-between">
         <span>{monthLabel(first.month)}</span>
-        <span>{monthLabel(last.month)}</span>
+        {/* The lighter last bar is this month so far: said under it, not by shade alone. */}
+        <span data-testid="mrr-axis-last">
+          {monthLabel(last.month)}
+          {last.partial ? " so far" : ""}
+        </span>
       </div>
     </figure>
   )
@@ -149,11 +156,18 @@ function CashDays({ value, previous, days }: { value: number; previous: number; 
   const max = Math.max(1, ...days.flatMap((d) => [d.value ?? 0, d.previous ?? 0]))
   return (
     <figure className="flex flex-col gap-2">
-      <figcaption className="flex items-baseline justify-between">
-        <span className="text-caption text-muted-foreground">Cash this week · vs same time last week</span>
-        <span data-testid="cash-week-total" className="text-body text-foreground font-medium tabular-nums">
-          {formatCurrency(value)}
-          <span className="text-caption text-muted-foreground"> / {formatCurrency(previous)}</span>
+      {/* The total is one unit ("$4,322 / $3,900"): it never wraps; the caption wraps beside it at 390. */}
+      <figcaption className="flex items-baseline justify-between gap-2">
+        <span className="text-caption text-muted-foreground min-w-0">Cash this week · vs same time last week</span>
+        <span
+          data-testid="cash-week-total"
+          className="text-body text-foreground shrink-0 font-medium whitespace-nowrap tabular-nums"
+        >
+          <span data-testid="cash-week-value">{formatCurrency(value)}</span>
+          <span className="text-caption text-muted-foreground">
+            {" / "}
+            <span data-testid="cash-week-previous">{formatCurrency(previous)}</span>
+          </span>
         </span>
       </figcaption>
       <ol aria-label="Cash in by day, Monday to Sunday" className="flex items-end gap-2" style={{ height: BAR_H }}>
