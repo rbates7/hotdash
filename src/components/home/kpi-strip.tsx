@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 import { HOME_KPI_HEAD } from "@/components/home/responsive"
-import { NotConnectedBadge } from "@/components/home/not-connected"
+import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 
 const TONE_CLASS: Record<KpiTone, string> = {
   good: "bg-success/10 text-success-text",
@@ -77,6 +77,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
         {sample && <SampleDataTag />}
         {notConnected && <NotConnectedBadge className="h-5 px-2" />}
+        {loading && kpi.connecting && <ConnectingBadge className="h-5 px-2" />}
       </div>
       <p
         className={cn(

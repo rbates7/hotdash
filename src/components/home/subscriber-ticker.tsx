@@ -26,13 +26,15 @@ import {
   type Glyph,
   type TickerVariant,
 } from "@/lib/subscriber-ticker"
+import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { formatWallClock } from "@/lib/clock"
 import { staleLabel, type SubscriberSource, type TickerState } from "@/lib/subscriber-source"
 import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
 import { SampleDataTag } from "@/components/sample-data"
-import { NotConnectedBadge } from "@/components/home/not-connected"
+import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 
@@ -427,6 +429,14 @@ export function SubscriberTicker({
   source?: SubscriberSource
 }) {
   const { state, refresh, sample, timeZone, breakdown } = useSubscriberTicker(source)
+  // #50: a key is set and the first sync (Stripe, or App Store's group) is
+  // running. The row stays the loading placeholder and says Connecting….
+  const feed = useStripeFeed()
+  const connecting =
+    !source &&
+    state.status === "loading" &&
+    ((feed.kind === "loading" && Boolean(feed.connecting)) ||
+      (feed.kind === "live" && isAppStoreConnecting(feed.appStore)))
   const describedBy = `${React.useId()}-breakdown`
   const reduced = useReducedMotion()
   const row = rowFor(state, MAX_TILES[variant])
@@ -482,6 +492,8 @@ export function SubscriberTicker({
           right-anchored, so growth to 1,000 moves nothing. */}
       <span aria-hidden className="flex-none" style={{ width: reserveGap(row.glyphs, variant) }} />
       {sample && <SampleDataTag compact={!header} className={cn(header && "h-6 px-2")} />}
+      {/* Header only: the phone bar has no room beside the tiles. */}
+      {connecting && header && <ConnectingBadge />}
       <Tooltip disabled={!breakdown}>
         {/* The link is named outright: Chromium does not name a link from
             text inside a live region, and the region's copy may lag. */}

@@ -13,6 +13,19 @@ export function NotConnectedBadge({ className }: { className?: string }) {
   )
 }
 
+/**
+ * #50's connecting state, as Settings shows it ("Connecting…", muted, busy):
+ * a key is set and the first sync is still running. The figure stays a
+ * placeholder (`data-source="loading"`) — never sample, never Not connected.
+ */
+export function ConnectingBadge({ className }: { className?: string }) {
+  return (
+    <Badge variant="outline" aria-busy data-testid="connecting" className={cn("text-muted-foreground! h-6 px-2.5", className)}>
+      Connecting…
+    </Badge>
+  )
+}
+
 /** Door body for a source that is not connected: no sample rows, one line on what will feed it. */
 export function DoorNotConnected({ hint }: { hint: string }) {
   return (

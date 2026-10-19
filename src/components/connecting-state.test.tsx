@@ -67,6 +67,20 @@ describe("Stripe connecting", () => {
     expect(within(strip()).queryByTestId("kpi-sample-label")).toBeNull()
   })
 
+  it("Home: the Stripe-fed cards, ticker and MRR door say Connecting…, never Not connected", () => {
+    renderHome()
+    for (const name of ["Subscribers", "Cash this week"]) {
+      expect(within(kpi(name)).getByTestId("connecting")).toHaveTextContent("Connecting…")
+      expect(within(kpi(name)).queryByTestId("not-connected")).toBeNull()
+    }
+    expect(within(ticker()).getByTestId("connecting")).toHaveTextContent("Connecting…")
+    const door = screen.getByRole("region", { name: "Metrics" })
+    expect(within(door).getByTestId("connecting")).toBeInTheDocument()
+    expect(within(door).getByText("First sync in progress; MRR appears when it finishes.")).toBeInTheDocument()
+    expect(within(door).queryByTestId("not-connected")).toBeNull()
+    expect(within(door).queryByRole("img")).toBeNull()
+  })
+
   it("Metrics: the Stripe cards are placeholders, not sample", () => {
     navigation.params = new URLSearchParams()
     render(
@@ -106,8 +120,11 @@ describe("Stripe live, App Store still connecting", () => {
   it("the headline and ticker wait for the App Store group; Cash this week is live", () => {
     renderHome()
     expect(kpi("Subscribers")).toHaveAttribute("data-source", "loading")
+    expect(within(kpi("Subscribers")).getByTestId("connecting")).toBeInTheDocument()
     expect(ticker()).toHaveAttribute("data-state", "loading")
+    expect(within(ticker()).getByTestId("connecting")).toBeInTheDocument()
     expect(within(kpi("Cash this week")).getByText("$4,322")).toBeInTheDocument()
+    expect(within(kpi("Cash this week")).queryByTestId("connecting")).toBeNull()
   })
 
   it("the Metrics notice does not claim App Store payers are counted", () => {

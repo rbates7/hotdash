@@ -4,7 +4,7 @@ import { formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { compactDollars, sparklinePoints } from "@/lib/home"
 import { Door } from "@/components/home/door"
 import { SampleDataTag } from "@/components/sample-data"
-import { NotConnectedBadge } from "@/components/home/not-connected"
+import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 
 const W = 240
 const H = 56
@@ -14,6 +14,7 @@ const CAPTION = {
   live: "From Stripe — the same MRR card as /metrics.",
   loading: "The same MRR card as /metrics.",
   not_connected: "MRR comes from Stripe once it is connected.",
+  connecting: "MRR comes from Stripe; its first sync is in progress.",
 } as const
 
 /**
@@ -29,7 +30,7 @@ export function MetricsDoor({
 }: {
   trend: number[]
   today: IsoDay
-  state?: "sample" | "live" | "loading" | "not_connected"
+  state?: "sample" | "live" | "loading" | "connecting" | "not_connected"
   /** "Last updated …" when Stripe's figures are stale. */
   updated?: string | null
 }) {
@@ -41,13 +42,14 @@ export function MetricsDoor({
 
   return (
     <Door name="Metrics" href="/metrics" icon={ChartColumnIcon} caption={CAPTION[state]}>
-      <div className="flex flex-1 flex-col" data-source={state} aria-busy={state === "loading" || undefined}>
+      <div className="flex flex-1 flex-col" data-source={state} aria-busy={state === "loading" || state === "connecting" || undefined}>
         <div className="flex items-center justify-between gap-2">
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
-            {state === "not_connected" ? "MRR" : `MRR · ${trend.length} × 28 days`}
+            {state === "not_connected" || state === "connecting" ? "MRR" : `MRR · ${trend.length} × 28 days`}
           </span>
           {state === "sample" && <SampleDataTag />}
           {state === "not_connected" && <NotConnectedBadge />}
+          {state === "connecting" && <ConnectingBadge />}
         </div>
         {updated && <span className="text-caption text-muted-foreground mt-1.5 tracking-tight">{updated}</span>}
         {hasTrend && (
@@ -82,7 +84,13 @@ export function MetricsDoor({
           </svg>
         ) : (
           <p className="text-caption text-muted-foreground mt-3">
-            {state === "loading" ? "Loading…" : state === "not_connected" ? "No figures until Stripe is connected." : "No readings yet."}
+            {state === "loading"
+              ? "Loading…"
+              : state === "connecting"
+                ? "First sync in progress; MRR appears when it finishes."
+                : state === "not_connected"
+                  ? "No figures until Stripe is connected."
+                  : "No readings yet."}
           </p>
         )}
       </div>
