@@ -70,7 +70,8 @@ test.describe("Bugs", () => {
 
     // Sentry is not connected: the crash card has no figure and no Sample label.
     await expect(crashCard(page)).toHaveAttribute("data-source", "not_connected")
-    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("\u2014")
+    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("\u2014No figure")
+    await expect(crashCard(page).getByTestId("crash-count").getByText("No figure", { exact: true })).toHaveClass(/\bsr-only\b/)
     await expect(crashCard(page).getByTestId("not-connected")).toHaveText("Not connected")
     await expect(crashCard(page).getByText(/no figure until Sentry is connected/)).toBeVisible()
     await expect(crashCard(page).getByText(/vs previous 7 days/)).toHaveCount(0)

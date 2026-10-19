@@ -14,6 +14,8 @@ import {
   setStripeSummaryForTest,
 } from "@/test/stripe"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "@/lib/settings"
+import { NOT_CONNECTED } from "@/lib/stripe-summary"
+import { connectingSummary } from "@/test/stripe-fixture"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
@@ -223,6 +225,24 @@ describe("Metrics with Stripe connected", () => {
     expect(headerTag()).toBeNull()
     expect(within(card(/^ARR\b/)).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(card(/^ARR\b/)).getByText("Not connected")).toBeInTheDocument()
+  })
+})
+
+describe("MRR's USD note follows the figure", () => {
+  it("shows with Stripe's figure, and is gone when Not connected or Connecting\u2026", () => {
+    setStripeSummaryForTest(liveSummary("connected"))
+    const { unmount } = renderMetrics()
+    expect(within(card(/^MRR\b/)).getByTestId("metric-mrr-note")).toHaveTextContent(/USD only/)
+    unmount()
+
+    setStripeSummaryForTest(NOT_CONNECTED)
+    const second = renderMetrics()
+    expect(within(card(/^MRR\b/)).queryByTestId("metric-mrr-note")).toBeNull()
+    second.unmount()
+
+    setStripeSummaryForTest(connectingSummary())
+    renderMetrics()
+    expect(within(card(/^MRR\b/)).queryByTestId("metric-mrr-note")).toBeNull()
   })
 })
 

@@ -22,7 +22,8 @@ export function CrashCountCard() {
         data-testid="crash-count"
         className="text-muted-foreground mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums"
       >
-        <span aria-label="No figure">{"\u2014"}</span>
+        <span aria-hidden>{"\u2014"}</span>
+        <span className="sr-only">No figure</span>
       </p>
       <p className="text-caption text-muted-foreground mt-1.5 tracking-tight">
         Last 7 days · no figure until Sentry is connected.

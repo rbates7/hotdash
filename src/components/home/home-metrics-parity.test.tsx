@@ -10,7 +10,7 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { kpiSets } from "@/lib/home-fixture"
-import { notConnectedKpis } from "@/lib/home"
+import { notConnectedKpi } from "@/lib/live-metrics"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 
@@ -77,9 +77,9 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     metrics.unmount()
 
     // The growth set is not the active strip, so render its cards directly,
-    // the way Home does: through notConnectedKpis, never the fixture figures.
+    // the way liveKpis does with no key: notConnectedKpi, never the fixture figures.
     const growth = kpiSets(today).growth
-    render(<KpiStrip kpis={notConnectedKpis(growth)} title="KPIs" />)
+    render(<KpiStrip kpis={growth.map(notConnectedKpi)} title="KPIs" />)
     for (const kpi of growth) {
       const card = screen.getByRole("article", { name: kpi.label })
       expect(card).toHaveAttribute("data-source", "not_connected")

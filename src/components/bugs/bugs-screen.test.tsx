@@ -174,7 +174,11 @@ describe("Bugs screen", () => {
     renderBugs()
     const card = screen.getByRole("article", { name: "Crashes: not connected" })
     expect(card).toHaveAttribute("data-source", "not_connected")
-    expect(within(card).getByTestId("crash-count")).toHaveTextContent("\u2014")
+    const count = within(card).getByTestId("crash-count")
+    // The dash is decoration; screen readers hear "No figure" (sr-only text, not an aria-label on a span).
+    expect(count).toHaveTextContent("\u2014No figure")
+    expect(within(count).getByText("\u2014")).toHaveAttribute("aria-hidden")
+    expect(within(count).getByText("No figure")).toHaveClass("sr-only")
     expect(within(card).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(card).getByText("Not connected")).toBeInTheDocument()
     expect(within(card).getByText(/no figure until Sentry is connected/)).toBeInTheDocument()

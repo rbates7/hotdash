@@ -204,7 +204,8 @@ export function MetricCard({
               {snapshot.note}
             </p>
           )}
-          {snapshot.id === "mrr" && (
+          {/* Fine print on Stripe's figure: only with one on the card (not Not connected or Connecting…). */}
+          {snapshot.id === "mrr" && figure && (
             <p data-testid="metric-mrr-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
               {MRR_NOTE}
             </p>

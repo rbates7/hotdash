@@ -16,4 +16,15 @@ describe("money fine print", () => {
     expect(MRR_NOTE).toMatch(/USD only/)
     expect(MRR_NOTE).toMatch(/past points use today/)
   })
+  it("MRR's note is hidden with no figure: Not connected or Connecting…", () => {
+    for (const source of ["not_connected", "loading"] as const) {
+      const { unmount } = render(
+        <KpiCard kpi={{ id: "mrr", label: "MRR", value: "\u2014", delta: "", direction: "flat", source, connecting: source === "loading" }} />
+      )
+      const note = screen.getByTestId("kpi-note")
+      expect(note).toHaveAttribute("aria-hidden", "true")
+      expect(note).toHaveClass("invisible")
+      unmount()
+    }
+  })
 })
