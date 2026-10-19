@@ -6,10 +6,10 @@ import { appStoreSource } from "@/lib/server/app-store"
 export const dynamic = "force-dynamic"
 
 /**
- * `{"appStore":"ok"|"suspect_zero"|"stale"|"not_connected"}` and nothing
+ * `{"appStore":"ok"|"suspect_zero"|"stale"|"connecting"|"not_connected"}` and nothing
  * else — no count, no database URL, no error text — so it is safe to leave
  * public. `suspect_zero` is a read that answered 0 (likely RLS blocking the
- * read-only role). Reads through the same cache as the summary, so polling
+ * read-only role); `connecting` is a URL whose first count is still running. Reads through the same cache as the summary, so polling
  * it cannot hammer the database.
  */
 export async function GET() {

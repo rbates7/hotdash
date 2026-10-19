@@ -38,7 +38,7 @@ export type SubscriberTotal = CountSeries & {
 export function subscriberTotal(metrics: Pick<StripeMetrics, "subscribers" | "freeAccounts">, appStore: AppStoreSummary): SubscriberTotal {
   const paying = metrics.subscribers
   const free = metrics.freeAccounts
-  const app = appStore.status === "not_connected" || isSuspectAppStore(appStore) ? null : appStore.count
+  const app = appStore.status === "not_connected" || appStore.status === "connecting" || isSuspectAppStore(appStore) ? null : appStore.count
   const held = app ?? 0
   return {
     value: paying.value + free.value + held,
@@ -61,8 +61,11 @@ export const BREAKDOWN_LABELS = {
 } as const
 
 export const APP_STORE_NOT_CONNECTED_TEXT = "Not connected"
+export const APP_STORE_CONNECTING_TEXT = "Connecting\u2026"
 /** Said wherever the total is shown without the App Store group. */
 export const EXCLUDES_APP_STORE = "Total excludes App Store (not connected)"
+/** Screens show the total as loading while App Store connects; this is for anything that does not. */
+export const EXCLUDES_APP_STORE_CONNECTING = "Total excludes App Store (still connecting)"
 
 export type BreakdownRow = {
   key: keyof typeof BREAKDOWN_LABELS
@@ -83,7 +86,12 @@ export function breakdownRows(total: SubscriberTotal): BreakdownRow[] {
       : {
           key: "appStore",
           label: BREAKDOWN_LABELS.appStore,
-          value: total.appStore === null ? APP_STORE_NOT_CONNECTED_TEXT : GROUPED.format(total.appStore),
+          value:
+            total.appStore !== null
+              ? GROUPED.format(total.appStore)
+              : total.appStoreSource.status === "connecting"
+                ? APP_STORE_CONNECTING_TEXT
+                : APP_STORE_NOT_CONNECTED_TEXT,
         },
     { key: "freeAccounts", label: BREAKDOWN_LABELS.freeAccounts, value: GROUPED.format(total.freeAccounts) },
   ]
@@ -96,6 +104,7 @@ export function breakdownRows(total: SubscriberTotal): BreakdownRow[] {
 export function breakdownNote(total: SubscriberTotal, timeZone: string): string | null {
   const s = total.appStoreSource
   if (s.status === "not_connected") return EXCLUDES_APP_STORE
+  if (s.status === "connecting") return EXCLUDES_APP_STORE_CONNECTING
   if (isSuspectAppStore(s)) return APP_STORE_SUSPECT_NOTE
   if (s.status === "stale") return `App Store as of ${formatWallClock(new Date(s.asOf), timeZone)}`
   return null
