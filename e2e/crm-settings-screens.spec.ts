@@ -3,12 +3,15 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { gmailConnecting } from "../src/lib/crm/gmail-summary"
+
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 
 /**
  * Review stills for #46: CRM and Settings at four widths, both themes.
  * SHOTS=crm,settings picks pages; GMAIL=connected answers /api/crm/gmail
- * from the fixture inbox (never real mail). The develop "before" set was
+ * from the fixture inbox (never real mail), GMAIL=connecting with the
+ * first-sync answer (no rows). The develop "before" set was
  * shot with the same spec minus the Gmail import. Production build,
  * no credentials in the server env.
  */
@@ -49,6 +52,8 @@ for (const name of PAGES) {
         await page.setViewportSize(vp)
         if (GMAIL === "connected") {
           await mockGmail(page, liveGmailSummary(Date.now()))
+        } else if (GMAIL === "connecting") {
+          await mockGmail(page, gmailConnecting())
         }
         await page.goto(`/${name}`)
         await forceTheme(page, theme)
@@ -57,10 +62,11 @@ for (const name of PAGES) {
           // Let the Connected data badges leave "Checking…".
           await expect(page.getByText("Checking…")).toHaveCount(0, { timeout: 15_000 })
           if (GMAIL === "connected") await expect(page.getByTestId("gmail-status")).toHaveText("Connected")
+          if (GMAIL === "connecting") await expect(page.getByTestId("gmail-status")).toHaveText("Connecting…")
         } else {
           await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
         }
-        const suffix = GMAIL === "connected" ? "-gmail-connected" : ""
+        const suffix = GMAIL === "not-connected" ? "" : `-gmail-${GMAIL}`
         await shoot(page, `${name}-${vp.width}-${theme}-${TAG}${suffix}`)
       })
     }
