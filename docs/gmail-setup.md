@@ -31,7 +31,8 @@ create a Google Cloud project, the info@chlkapp.com password, and Vercel.
    the production deployment. Preview deployments pick the variables up on
    their next deploy.
 7. **Check it.** Open `/api/health/gmail` on the site, wait a minute, reload:
-   it says `{"gmail":"ok"}`. The CRM header now says **Live from Gmail**.
+   it says `{"gmail":"ok"}` (`"connecting"` while the first sync runs). The
+   CRM header now says **Live from Gmail**.
 
 That's all. To switch it off later, delete the four variables in Vercel
 (the CRM goes back to "Gmail not connected" and its sample) and, signed in
@@ -67,7 +68,8 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 | Env vars | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` — **server only**, never `NEXT_PUBLIC_`. `GMAIL_MAILBOX` (not secret, shown in the CRM) defaults to `info@chlkapp.com`. None set: not connected. Some set, or any malformed (client ID must end `.apps.googleusercontent.com`; no whitespace): not connected, and nothing is sent. |
 | Scope | `https://www.googleapis.com/auth/gmail.readonly` only. |
 | Calls | Plain `fetch`, no SDK (`src/lib/server/gmail.ts`, `server-only`): `POST oauth2.googleapis.com/token` (refresh-token grant) → `GET gmail.googleapis.com/gmail/v1/users/{GMAIL_MAILBOX}/threads?maxResults=100&q=newer_than:90d -category:promotions -category:social` → per thread `GET …/threads/{id}?format=metadata&metadataHeaders=From,To,Subject` (5 at a time). Headers, labels and snippets only — never a body or attachment. Gmail refuses a `{mailbox}` that is not the account that granted the token, so the mailbox cannot be swapped for another. |
-| Cache | Same as Stripe: one sync per server process every 5 minutes, always **in the background** — a request never waits. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start it gets `not_connected` at once and the next poll (60 s) picks up the sync. The routes hand the running sync to `after()`. A sync over 240 s is aborted (the signal reaches every `fetch`) and counts as a failure; a failed sync retries 1 minute after it failed. The last good copy is kept indefinitely. |
+| Cache | Same as Stripe: one sync per server process every 5 minutes, always **in the background** — a request never waits. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with credentials it gets `connecting` at once (the CRM says Connecting… over its skeletons, never the sample) and polls every 5 s until the sync lands. This is the Stripe rule (#50): a failed or timed-out first sync is `not_connected`, every retry after it is too until one lands, and with no credentials it is always `not_connected`. The routes hand the running sync to `after()`. A sync over 240 s is aborted (the signal reaches every `fetch`) and counts as a failure; a failed sync retries 1 minute after it failed. The last good copy is kept indefinitely. |
+| Filters | `skipReason` in `src/lib/crm/gmail-mapping.ts` drops whole threads before mapping, so they make no case, contact, triage row or message: **bounces** (mailer-daemon, postmaster, "Mail Delivery Subsystem", "Undeliverable", "Address not found" …), **billing and failed-payment notices** (from a billing sender such as Stripe or `billing@`, or opened by the mailbox with billing wording such as "we weren't able to charge" or "your free trial of", together with any customer reply to one, because the notice's greeting carries the customer's name), and **outbound-only threads** (the mailbox wrote and no customer replied). |
 | Logs | `[gmail] sync failed: <kind>` — a fixed word (`GmailAuth`, `GmailApi`, `GmailRateLimited`, `InvalidData`, `SyncTimeout`, `Aborted`, `UnknownError`), never Google's text, never a credential. |
 | Bundle check | `pnpm check:bundle` fails if any `GMAIL_*` secret's value, or any `GMAIL_*` env var name, is in client output. CI builds with dummy values. |
 
@@ -75,19 +77,23 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 
 - `GET /api/crm/gmail` → `{ status, lastSyncedAt, mailbox, data }`. `status`
   is `connected`, `stale` (Gmail failed; the last good rows and their
-  `lastSyncedAt`) or `not_connected` (`data: null`). `data` is
+  `lastSyncedAt`), `connecting` (credentials set, first sync running;
+  `data: null`) or `not_connected` (`data: null`). `data` is
   `{ organizations, contacts, cases, messages }` in the CRM's own shapes
   (`src/lib/crm/crm.ts`), checked with the CRM's guards before a copy is
   kept. Never an error body.
-- `GET /api/health/gmail` → `{"gmail":"ok"|"error"|"not_configured"}` and
-  nothing else. `error` covers a failed sync and the moment before the first
-  one lands. Same cache, safe to leave public.
+- `GET /api/health/gmail` → `{"gmail":"ok"|"connecting"|"error"|"not_configured"}` and
+  nothing else. `connecting` is the moment before the first sync lands;
+  `error` is a failed sync. Same cache, safe to leave public.
 
 ### How threads become CRM rows
 
 `mapGmailThreads` (`src/lib/crm/gmail-mapping.ts`, pure, unit-tested):
 
-- **Case**: a thread the inbox has replied in (or started), and any thread
+- **Dropped first** (`skipReason`): bounces, billing and failed-payment
+  notices, and outbound-only threads; see Filters above.
+- **Case**: a thread the inbox has replied in (or started and a customer
+  answered), and any thread
   from a sender it has replied to. One case per thread. Status replays the
   CRM's `transitionOnMessage` over the messages (new → waiting after a reply
   → open on the next inbound); archived after the customer wrote is
@@ -107,11 +113,12 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 | State | Rows | Header |
 | --- | --- | --- |
 | Loading (first paint) | Skeletons | — |
+| Connecting (first sync on the server) | Skeletons, never the sample | **Connecting…** |
 | Not connected | The sample, saved in this browser, every row labelled | **Gmail not connected** + **Sample data** |
 | Connected | The support inbox | **Live from Gmail**, "Read-only · edits here aren't saved" |
 | Stale | The last good copy | **Last updated <time>** |
 
-Settings › Connected data shows Gmail as Connected / Last updated / Not
+Settings › Connected data shows Gmail as Connected / Last updated / Connecting… / Not
 connected. With Gmail live, the CRM's controls still work on the inbox's
 rows in memory (Gmail is read-only and nothing is written back); the next
 synced copy replaces them. The sample's saved edits stay untouched in this

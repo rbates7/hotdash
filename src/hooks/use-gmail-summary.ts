@@ -12,6 +12,7 @@ import {
   type GmailView,
 } from "@/lib/crm/gmail-summary"
 import { retryDelay, type Timers } from "@/lib/subscriber-source"
+import { CONNECTING_POLL_MS } from "@/hooks/use-stripe-summary"
 
 /**
  * The browser's copy of `/api/crm/gmail`, shared by every CRM screen and
@@ -19,6 +20,9 @@ import { retryDelay, type Timers } from "@/lib/subscriber-source"
  *
  * - **Loading** until the first answer (the server render too): the CRM
  *   shows its skeletons, never sample rows that then swap for real ones.
+ * - **Connecting** (the server has credentials, its first sync is running)
+ *   is loading too, polled every `CONNECTING_POLL_MS` (#50's, shared with
+ *   Stripe) until the threads land.
  * - **Polls** every `GMAIL_POLL_MS` while anything listens (the server
  *   caches Gmail for 5 minutes, so this is cheap), backing off on failure.
  * - **Our own endpoint unreachable** keeps the last threads and marks them
@@ -46,7 +50,15 @@ export function gmailReducer(view: GmailView, event: GmailEvent): GmailView {
   if (view.phase === "ready" && view.summary.data) {
     return { phase: "ready", summary: { ...view.summary, status: "stale" } }
   }
-  return view.phase === "ready" ? view : { phase: "ready", summary: GMAIL_NOT_CONNECTED }
+  // Connecting was the server's word; with the server unreachable it is no
+  // longer known to be on its way, so it reads as not connected (as #50).
+  if (view.phase === "ready" && view.summary.status !== "connecting") return view
+  return { phase: "ready", summary: GMAIL_NOT_CONNECTED }
+}
+
+/** The next poll: sooner while the server is still connecting. */
+export function gmailNextPollMs(view: GmailView) {
+  return view.phase === "ready" && view.summary.status === "connecting" ? CONNECTING_POLL_MS : GMAIL_POLL_MS
 }
 
 export type GmailStore = {
@@ -96,7 +108,7 @@ export function createGmailStore({
       state = next
       for (const l of listeners) l()
     }
-    schedule(failures > 0 ? retryDelay(failures) : GMAIL_POLL_MS)
+    schedule(failures > 0 ? retryDelay(failures) : gmailNextPollMs(state))
   }
 
   return {

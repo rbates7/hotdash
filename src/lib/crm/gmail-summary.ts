@@ -20,10 +20,16 @@ import { dedupe } from "@/lib/persistence"
  * - `stale`         — Gmail could not be read (down, access revoked or
  *                     removed); these are the last good threads, as of
  *                     `lastSyncedAt`.
- * - `not_connected` — no credentials, or Gmail has never answered: no data,
- *                     and the CRM keeps its labelled sample.
+ * - `connecting`    — credentials are set and the first sync is still
+ *                     running (a fresh server, just after a deploy): no
+ *                     data yet, and never the sample in its place. The
+ *                     same rule as Stripe's (`@/lib/server/stripe`).
+ * - `not_connected` — no credentials, or no sync has ever succeeded (a
+ *                     failed first sync, and every retry after it, is not
+ *                     connecting again): no data, and the CRM keeps its
+ *                     labelled sample.
  */
-export type GmailStatus = "connected" | "stale" | "not_connected"
+export type GmailStatus = "connected" | "stale" | "connecting" | "not_connected"
 
 /** The CRM's rows built from Gmail threads. No notes: Gmail has none. */
 export type CrmLiveData = {
@@ -35,7 +41,7 @@ export type CrmLiveData = {
 
 export type GmailSummary = { mailbox: string } & (
   | { status: "connected" | "stale"; lastSyncedAt: string; data: CrmLiveData }
-  | { status: "not_connected"; lastSyncedAt: null; data: null }
+  | { status: "connecting" | "not_connected"; lastSyncedAt: null; data: null }
 )
 
 /** A summary with rows: connected, or the last good copy (stale). */
@@ -50,8 +56,12 @@ export function gmailNotConnected(mailbox: string = DEFAULT_MAILBOX): GmailSumma
 
 export const GMAIL_NOT_CONNECTED: GmailSummary = gmailNotConnected()
 
+export function gmailConnecting(mailbox: string = DEFAULT_MAILBOX): GmailSummary {
+  return { status: "connecting", lastSyncedAt: null, data: null, mailbox }
+}
+
 /** `/api/health/gmail`: a status word, nothing else. */
-export type GmailHealth = "ok" | "error" | "not_configured"
+export type GmailHealth = "ok" | "connecting" | "error" | "not_configured"
 
 export const GMAIL_SUMMARY_PATH = "/api/crm/gmail"
 export const GMAIL_HEALTH_PATH = "/api/health/gmail"
@@ -93,6 +103,7 @@ export function parseGmailSummary(value: unknown): GmailSummary | null {
   const v = value as Record<string, unknown>
   const mailbox = typeof v.mailbox === "string" && MAILBOX.test(v.mailbox) ? v.mailbox : DEFAULT_MAILBOX
   if (v.status === "not_connected") return gmailNotConnected(mailbox)
+  if (v.status === "connecting") return gmailConnecting(mailbox)
   if (v.status !== "connected" && v.status !== "stale") return null
   if (typeof v.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(v.lastSyncedAt))) return null
   if (!isCrmLiveData(v.data)) return null
@@ -108,17 +119,20 @@ export type GmailView = { phase: "loading" } | { phase: "ready"; summary: GmailS
 /**
  * What the CRM shows:
  * - `loading` — skeletons (never sample rows that then swap for real ones);
+ *               `connecting` while the server's first sync runs, as in
+ *               `StripeFeed` (Settings and the CRM header say so);
  * - `sample`  — Gmail is not connected: the sample CRM, labelled;
  * - `live`    — the support inbox; `stale` adds "Last updated …".
  */
 export type GmailFeed =
-  | { kind: "loading" }
+  | { kind: "loading"; connecting?: boolean }
   | { kind: "sample"; mailbox: string }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; mailbox: string; data: CrmLiveData }
 
 export function gmailFeedOf(view: GmailView): GmailFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
+  if (summary.status === "connecting") return { kind: "loading", connecting: true }
   if (summary.status === "not_connected") return { kind: "sample", mailbox: summary.mailbox }
   return {
     kind: "live",

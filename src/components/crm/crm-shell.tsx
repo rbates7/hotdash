@@ -59,7 +59,10 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
             <PersistenceNote store={store} className="max-md:order-3" resetClassName={CRM_RESET} />
           )}
           <CrmSourceBadge feed={gmail} className="max-md:order-4 max-md:self-center" />
-          {store.sample ? <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" /> : null}
+          {/* Connecting: the rows are skeletons, not the sample. */}
+          {store.sample && !(gmail.kind === "loading" && gmail.connecting) ? (
+            <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" />
+          ) : null}
           <Button
             size="sm"
             variant="outline"

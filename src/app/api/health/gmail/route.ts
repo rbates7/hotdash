@@ -6,7 +6,7 @@ import { gmailService } from "@/lib/server/gmail"
 export const dynamic = "force-dynamic"
 
 /**
- * `{"gmail":"ok"|"error"|"not_configured"}` and nothing else — no
+ * `{"gmail":"ok"|"connecting"|"error"|"not_configured"}` and nothing else — no
  * mail, no client ID, no token, no error text — so it is safe to leave
  * public. Reads through the same cache as the CRM route, so polling it
  * cannot hammer Gmail.

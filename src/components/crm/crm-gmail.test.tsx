@@ -3,14 +3,19 @@ import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
+import { GMAIL_NOT_CONNECTED, gmailConnecting } from "@/lib/crm/gmail-summary"
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailLoadingForTest, setGmailSummaryForTest } from "@/test/gmail"
 import { STORAGE_KEY, CrmProvider } from "@/components/crm/crm-store"
 import { CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
-import { GMAIL_LIVE_LABEL, GMAIL_NOT_CONNECTED_LABEL, GMAIL_READ_ONLY_NOTE } from "@/components/crm/crm-source-badge"
+import {
+  GMAIL_CONNECTING_LABEL,
+  GMAIL_LIVE_LABEL,
+  GMAIL_NOT_CONNECTED_LABEL,
+  GMAIL_READ_ONLY_NOTE,
+} from "@/components/crm/crm-source-badge"
 import { CasesScreen } from "@/components/crm/cases-screen"
 import { OverviewScreen } from "@/components/crm/overview-screen"
 import { TriageScreen } from "@/components/crm/triage-screen"
@@ -57,6 +62,20 @@ describe("CRM while Gmail is loading", () => {
     expect(screen.getByRole("status", { name: "Loading saved CRM" })).toBeInTheDocument()
     expect(screen.queryByText(/6 contacts/)).not.toBeInTheDocument()
     expect(screen.queryByTestId("crm-source")).not.toBeInTheDocument()
+  })
+})
+
+describe("CRM while Gmail is connecting (first sync on the server)", () => {
+  it("says Connecting…, keeps the skeletons, and shows neither the sample nor its label", () => {
+    setGmailSummaryForTest(gmailConnecting())
+    renderCrm(<OverviewScreen />)
+    const source = within(header()).getByTestId("crm-source")
+    expect(source).toHaveTextContent(GMAIL_CONNECTING_LABEL)
+    expect(source).toHaveAttribute("data-source", "connecting")
+    expect(source).toHaveAttribute("aria-busy", "true")
+    expect(screen.getByRole("status", { name: "Loading saved CRM" })).toBeInTheDocument()
+    expect(screen.queryByText(/6 contacts/)).not.toBeInTheDocument()
+    expect(within(header()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 })
 

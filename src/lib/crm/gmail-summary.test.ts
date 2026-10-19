@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   GMAIL_NOT_CONNECTED,
+  gmailConnecting,
   gmailFeedOf,
   gmailNotConnected,
   parseGmailSummary,
 } from "@/lib/crm/gmail-summary"
-import { gmailReducer } from "@/hooks/use-gmail-summary"
+import { GMAIL_POLL_MS, gmailNextPollMs, gmailReducer } from "@/hooks/use-gmail-summary"
+import { CONNECTING_POLL_MS } from "@/hooks/use-stripe-summary"
 import { liveGmailSummary } from "@/test/gmail-fixture"
 
 const NOW = Date.parse("2026-10-14T17:00:00.000Z")
@@ -17,6 +19,7 @@ describe("parseGmailSummary", () => {
     expect(parseGmailSummary(JSON.parse(JSON.stringify(LIVE)))).toEqual(LIVE)
     expect(parseGmailSummary({ ...LIVE, status: "stale" })).toEqual({ ...LIVE, status: "stale" })
     expect(parseGmailSummary(GMAIL_NOT_CONNECTED)).toEqual(GMAIL_NOT_CONNECTED)
+    expect(parseGmailSummary(gmailConnecting())).toEqual(gmailConnecting())
   })
 
   it("rejects anything incomplete or inconsistent", () => {
@@ -42,6 +45,8 @@ describe("gmailFeedOf", () => {
   it("loading, sample when not connected, live (stale or not) otherwise", () => {
     expect(gmailFeedOf({ phase: "loading" })).toEqual({ kind: "loading" })
     expect(gmailFeedOf({ phase: "ready", summary: GMAIL_NOT_CONNECTED })).toEqual({ kind: "sample", mailbox: "info@chlkapp.com" })
+    // Connecting is loading, as in StripeFeed: never the sample.
+    expect(gmailFeedOf({ phase: "ready", summary: gmailConnecting() })).toEqual({ kind: "loading", connecting: true })
     expect(gmailFeedOf({ phase: "ready", summary: { ...LIVE, status: "stale" } })).toMatchObject({
       kind: "live",
       stale: true,
@@ -59,6 +64,26 @@ describe("gmailReducer (the browser's copy)", () => {
       summary: { ...LIVE, status: "stale" },
     })
     expect(gmailReducer({ phase: "ready", summary: LIVE }, { type: "summary", summary: GMAIL_NOT_CONNECTED })).toEqual({
+      phase: "ready",
+      summary: GMAIL_NOT_CONNECTED,
+    })
+  })
+})
+
+describe("connecting in the browser (#50's pattern)", () => {
+  it("polls at CONNECTING_POLL_MS while connecting, GMAIL_POLL_MS otherwise", () => {
+    expect(gmailNextPollMs({ phase: "ready", summary: gmailConnecting() })).toBe(CONNECTING_POLL_MS)
+    expect(gmailNextPollMs({ phase: "ready", summary: LIVE })).toBe(GMAIL_POLL_MS)
+    expect(gmailNextPollMs({ phase: "ready", summary: GMAIL_NOT_CONNECTED })).toBe(GMAIL_POLL_MS)
+    expect(gmailNextPollMs({ phase: "loading" })).toBe(GMAIL_POLL_MS)
+  })
+
+  it("our endpoint unreachable while connecting reads as not connected, never connecting forever", () => {
+    expect(gmailReducer({ phase: "ready", summary: gmailConnecting() }, { type: "failure" })).toEqual({
+      phase: "ready",
+      summary: GMAIL_NOT_CONNECTED,
+    })
+    expect(gmailReducer({ phase: "ready", summary: GMAIL_NOT_CONNECTED }, { type: "failure" })).toEqual({
       phase: "ready",
       summary: GMAIL_NOT_CONNECTED,
     })

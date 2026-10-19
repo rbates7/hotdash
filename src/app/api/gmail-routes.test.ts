@@ -53,7 +53,7 @@ describe("GET /api/crm/gmail", () => {
 })
 
 describe("GET /api/health/gmail", () => {
-  it.each(["ok", "error", "not_configured"] as const)("returns only {gmail: %s}", async (status) => {
+  it.each(["ok", "connecting", "error", "not_configured"] as const)("returns only {gmail: %s}", async (status) => {
     service.health.mockResolvedValue(status)
     const res = await health()
     expect(await res.text()).toBe(JSON.stringify({ gmail: status }))

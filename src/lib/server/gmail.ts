@@ -9,6 +9,7 @@ import {
 } from "@/lib/crm/gmail-mapping"
 import {
   DEFAULT_MAILBOX,
+  gmailConnecting,
   gmailNotConnected,
   isCrmLiveData,
   type CrmLiveData,
@@ -292,9 +293,9 @@ export function createGmailService({
    * Whether the copy is current, starting a sync in the background when
    * one is due and none is running. Never waits for it; never throws.
    */
-  function read(): { fresh: boolean; configured: boolean; mailbox: string } {
+  function read(): { fresh: boolean; configured: boolean; connecting: boolean; mailbox: string } {
     const config = readGmailConfig(env())
-    if (config.kind !== "ok") return { fresh: false, configured: false, mailbox: config.mailbox }
+    if (config.kind !== "ok") return { fresh: false, configured: false, connecting: false, mailbox: config.mailbox }
     const age = lastAttempt ? clock() - lastAttempt.at : Infinity
     const due = !lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)
     if (due && !inflight) {
@@ -303,14 +304,21 @@ export function createGmailService({
       })
       inflight = run
     }
-    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true, mailbox: config.mailbox }
+    // No sync has finished yet: the first one (started above) is running.
+    // The rule `@/lib/server/stripe` uses; a failed first sync ends it.
+    return {
+      fresh: Boolean(lastAttempt?.ok && lastGood),
+      configured: true,
+      connecting: !lastAttempt && !lastGood,
+      mailbox: config.mailbox,
+    }
   }
 
   return {
     async summary() {
-      const { fresh, mailbox } = read()
+      const { fresh, connecting, mailbox } = read()
       const snapshot = lastGood
-      if (!snapshot) return gmailNotConnected(mailbox)
+      if (!snapshot) return connecting ? gmailConnecting(mailbox) : gmailNotConnected(mailbox)
       return {
         status: fresh ? "connected" : "stale",
         lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
@@ -319,8 +327,9 @@ export function createGmailService({
       }
     },
     async health() {
-      const { fresh, configured } = read()
+      const { fresh, configured, connecting } = read()
       if (!configured) return "not_configured"
+      if (connecting) return "connecting"
       return fresh ? "ok" : "error"
     },
     async settled() {

@@ -87,12 +87,12 @@ describe("readGmailConfig", () => {
 /* ------------------------------------------------------- never waits */
 
 describe("never waits for a sync", () => {
-  it("cold start: answers not_connected at once while a sync runs, then connected once it lands", async () => {
+  it("cold start: answers connecting at once while a sync runs, then connected once it lands", async () => {
     const load = vi.fn<Loader>(() => new Promise((r) => setTimeout(() => r(THREADS), 30_000)))
     const { svc } = service(load)
 
-    expect(await svc.summary()).toEqual(NOT_CONNECTED)
-    expect(await svc.health()).toBe("error")
+    expect(await svc.summary()).toEqual({ ...NOT_CONNECTED, status: "connecting" })
+    expect(await svc.health()).toBe("connecting")
     expect(load).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(30_000)
@@ -164,11 +164,56 @@ describe("cache", () => {
     svc.reset()
     release(THREADS)
     await Promise.resolve()
-    expect(await svc.summary()).toEqual(NOT_CONNECTED)
+    // The old sync's threads never land; after reset() it is a cold start again (connecting, no data).
+    expect(await svc.summary()).toEqual({ ...NOT_CONNECTED, status: "connecting" })
   })
 })
 
 /* -------------------------------------------------------------- fallback */
+
+describe("connecting (the Stripe rule, src/lib/server/stripe.ts)", () => {
+  it("a failed first sync is not_connected, and the retry is never connecting again", async () => {
+    const load = vi.fn<Loader>(async () => {
+      throw Object.assign(new Error("401"), { type: "GmailAuth" })
+    })
+    const { svc } = service(load)
+    expect((await svc.summary()).status).toBe("connecting")
+    await svc.settled()
+    expect(await svc.summary()).toEqual(NOT_CONNECTED)
+    expect(await svc.health()).toBe("error")
+
+    // The retry is running and still reads not_connected, then lands.
+    let land!: (threads: typeof THREADS) => void
+    load.mockImplementation(() => new Promise((r) => (land = r)))
+    vi.advanceTimersByTime(RETRY_AFTER_MS)
+    expect((await svc.summary()).status).toBe("not_connected")
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(await svc.health()).toBe("error")
+    land(THREADS)
+    await svc.settled()
+    expect((await svc.summary()).status).toBe("connected")
+  })
+
+  it("a first sync over the time limit goes from connecting to not_connected", async () => {
+    const { svc, log } = service(() => new Promise(() => {}))
+    expect((await svc.summary()).status).toBe("connecting")
+    await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
+    expect(log).toHaveBeenCalledWith("SyncTimeout")
+    expect((await svc.summary()).status).toBe("not_connected")
+  })
+
+  it("no credentials, or invalid ones, is not_connected and never connecting", async () => {
+    const load = vi.fn<Loader>(async () => THREADS)
+    for (const env of [{}, { ...ENV, GMAIL_CLIENT_ID: "nope" }, { GMAIL_CLIENT_ID: ENV.GMAIL_CLIENT_ID }]) {
+      const { svc } = service(load, env)
+      expect((await svc.summary()).status).toBe("not_connected")
+      expect(await svc.health()).toBe("not_configured")
+      vi.advanceTimersByTime(RETRY_AFTER_MS)
+      expect((await svc.summary()).status).toBe("not_connected")
+    }
+    expect(load).not.toHaveBeenCalled()
+  })
+})
 
 describe("fallback", () => {
   it("never synced and Gmail fails → not_connected, logged by kind only", async () => {
