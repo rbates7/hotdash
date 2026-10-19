@@ -14,7 +14,7 @@ import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 import { configureInbox } from "@/hooks/use-inbox"
-import { emptyInbox, liveInbox, mixedInbox, notConnectedInbox } from "@/test/inbox-fixture"
+import { emptyInbox, liveInbox, mixedInbox, notConnectedInbox, staleInbox } from "@/test/inbox-fixture"
 
 function renderHome() {
   return render(
@@ -117,6 +117,19 @@ describe("HomeScreen", () => {
     renderHome()
     const door = screen.getByRole("region", { name: "Inbox" })
     expect(await within(door).findByTestId("needs-you-updated")).toHaveTextContent(/^Sentry: Last updated /)
+    // In the footer's place (no extra line above the rows), so Home fits 1440×900.
+    expect(within(door).queryByText("Needs you lives here.")).not.toBeInTheDocument()
+    const list = within(door).getByRole("list", { name: "Needs you" })
+    expect(list.compareDocumentPosition(within(door).getByTestId("needs-you-updated")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    configureInbox({})
+  })
+
+  it("stale with one time for both sources says it once", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(staleInbox(Date.now())) })
+    renderHome()
+    const door = screen.getByRole("region", { name: "Inbox" })
+    expect(await within(door).findByTestId("needs-you-updated")).toHaveTextContent(/^GitHub and Sentry: Last updated /)
+    expect(within(door).getByTestId("needs-you-updated")).not.toHaveTextContent(/·\s*Sentry:/)
     configureInbox({})
   })
 

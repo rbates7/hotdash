@@ -46,4 +46,4 @@ export const HOME_KPI_HEAD =
 export const HOME_TOUCH = "max-xl:h-11!"
 
 /** Needs-you rows grow to 44px without forcing a fixed height. */
-export const HOME_NEED_ROW = "min-h-11"
+export const HOME_NEED_ROW = "min-h-11 xl:py-1.5"

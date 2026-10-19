@@ -6,7 +6,7 @@ import { needsYou, notConnectedKpis, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis } from "@/lib/home-fixture"
 import { snapshotFor } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
-import { inboxScreen, sourceList } from "@/lib/inbox-sources"
+import { combineStaleNotes, inboxScreen, sourceList } from "@/lib/inbox-sources"
 import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
@@ -113,7 +113,7 @@ export function HomeScreen() {
             now={now}
             loading={inbox.status === "loading"}
             status={inbox.status === "loading" ? "connecting" : inbox.status}
-            updated={inbox.stale.length > 0 ? inbox.stale.join(" · ") : null}
+            updated={inbox.stale.length > 0 ? combineStaleNotes(inbox.stale).join(" · ") : null}
             connectingTo={sourceList(inbox.connecting)}
           />
         </div>
