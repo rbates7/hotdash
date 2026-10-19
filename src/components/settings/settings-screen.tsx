@@ -36,6 +36,7 @@ import {
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import { useMounted } from "@/hooks/use-mounted"
 import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
@@ -342,15 +343,26 @@ function SwitchRow({
 export function sampleDataSummary({
   stripe,
   posthog,
+  gmail = false,
   stripeConnecting,
   appStoreConnecting,
 }: {
   stripe: boolean
   posthog: boolean
+  /** The CRM's Gmail conversations are live. */
+  gmail?: boolean
   stripeConnecting: boolean
   appStoreConnecting: boolean
 }): string {
-  const live = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  const figures = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  const live =
+    figures && gmail
+      ? `${figures} figures and the CRM's Gmail conversations are`
+      : figures
+        ? `${figures} figures are`
+        : gmail
+          ? "The CRM's Gmail conversations are"
+          : null
   if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
   if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
   const connecting = stripeConnecting
@@ -358,8 +370,8 @@ export function sampleDataSummary({
     : appStoreConnecting
       ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
       : ""
-  if (!connecting) return `${live} figures are live and carry no label; every other number is still sample data.`
-  return `${live} figures are live and carry no label;${connecting} Every other number is still sample data.`
+  if (!connecting) return `${live} live and carry no label; every other number is still sample data.`
+  return `${live} live and carry no label;${connecting} Every other number is still sample data.`
 }
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
@@ -367,6 +379,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
   const summary = sampleDataSummary({
     stripe: stripeFeed.kind === "live",
     posthog: usePosthogFeed().kind === "live",
+    gmail: useGmailFeed().kind === "live",
     stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
     appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
   })
@@ -423,13 +436,14 @@ const SOURCES = [
 
 const STATUS_BADGE = "h-6 px-2.5"
 
-/** What a live source's row needs: Stripe's and PostHog's feeds both fit. */
+/** What a live source's row needs: Stripe's, PostHog's and Gmail's feeds all fit. */
 type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
 
 /** Hooks per live source, so each row reads only its own. */
 const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
   Stripe: { use: useStripeFeed, id: "stripe" },
   PostHog: { use: usePosthogFeed, id: "posthog" },
+  Gmail: { use: useGmailFeed, id: "gmail" },
 }
 
 /**
@@ -491,6 +505,19 @@ function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
   )
 }
 
+/** Gmail's detail line names the mailbox; its status badge is `SourceStatus`. */
+function GmailDetail({ timeZone }: { timeZone: string }) {
+  const feed = useGmailFeed()
+  if (feed.kind !== "live") return null
+  return (
+    <p className="text-caption text-muted-foreground" data-testid="gmail-detail">
+      {feed.stale
+        ? "Gmail could not be read just now, so the CRM shows the last good threads."
+        : `${feed.mailbox}, read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+    </p>
+  )
+}
+
 function NotConnected() {
   return (
     <Badge variant="outline" className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -514,7 +541,11 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
-                {LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />}
+                {source.name === "Gmail" ? (
+                  <GmailDetail timeZone={timeZone} />
+                ) : (
+                  LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />
+                )}
               </div>
               {LIVE_FEEDS[source.name] ? <SourceStatus name={source.name} timeZone={timeZone} /> : <NotConnected />}
             </div>
