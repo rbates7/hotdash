@@ -30,17 +30,19 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // e2e never talks to Stripe, PostHog or Chlk's database: the server it
-    // starts has no keys and no database URL (so all are "not connected"),
-    // and specs mock /api/stripe/* and /api/posthog/* in the browser for
-    // the connected and stale states. This holds even on a machine whose
-    // shell has any of them.
+    // e2e never talks to Stripe, PostHog, Chlk's database or GitHub: the
+    // server it starts has no keys, token or database URL (so all are "not
+    // connected"), and specs mock /api/stripe/* and /api/posthog/* in the
+    // browser for the connected and stale states. This holds even on a
+    // machine whose shell has any of them.
     env: {
       STRIPE_READONLY_KEY: "",
       STRIPE_API_BASE: "",
       SUPABASE_READONLY_DB_URL: "",
       POSTHOG_READONLY_KEY: "",
       POSTHOG_HOST: "",
+      GITHUB_READONLY_TOKEN: "",
+      github_read_only: "",
     },
   },
 })
