@@ -40,7 +40,8 @@ const SURFACES = [
 const ONLY = process.env.INBOX_SHOT_STATES?.split(",").filter(Boolean) as InboxStateName[] | undefined
 const STATES: InboxStateName[] = ONLY ?? (Object.keys(INBOX_STATES) as InboxStateName[])
 
-test.beforeAll(() => writeShotShas(OUT, "inbox stills (after)"))
+// SHOT_LABEL names the set when this spec shoots a base (e.g. "before, develop in the mocked states").
+test.beforeAll(() => writeShotShas(OUT, `inbox stills (${process.env.SHOT_LABEL ?? "after"})`))
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(300)
