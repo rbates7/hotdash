@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { expectReadable } from "./support/contrast"
 import { waitForHydration } from "./support/shell"
 import { expectTapTarget } from "./support/tap-target"
+import { setTheme } from "./support/theme"
 import { LIVE_ITEMS, WORKBOARD_URL, mockWorkboard, workboardSummary } from "./support/workboard"
 
 /**
@@ -63,6 +65,27 @@ test("live rows sit in their columns with 44px links on tablet", async ({ page }
   await expectTapTarget(board(page).getByRole("link", { name: "Proof" }), "Proof")
   await expect(board(page).getByTestId("workboard-stale")).toHaveCount(0)
 })
+
+for (const theme of ["light", "dark"] as const) {
+  test(`CI and review badges carry their tone and clear 4.5:1 (${theme})`, async ({ page }) => {
+    await mockWorkboard(page, workboardSummary("connected"))
+    await open(page)
+    await setTheme(page, theme)
+    const color = (text: string) => board(page).getByText(text, { exact: true }).evaluate((el) => getComputedStyle(el).color)
+    const title = await board(page).getByText("Connecting state", { exact: true }).evaluate((el) => getComputedStyle(el).color)
+    const failing = await color("CI failing")
+    const pending = await color("CI pending")
+    // Not the neutral outline colour: red and amber, and not the same.
+    expect(failing).not.toBe(title)
+    expect(pending).not.toBe(title)
+    expect(failing).not.toBe(pending)
+    expect(await color("Changes requested")).toBe(failing)
+    for (const id of ["work-ci", "work-review"]) {
+      const badges = board(page).getByTestId(id)
+      for (let i = 0; i < (await badges.count()); i++) await expectReadable(badges.nth(i), `${id} ${i} ${theme}`, expect)
+    }
+  })
+}
 
 test("stale: last good rows under the stale note", async ({ page }) => {
   await mockWorkboard(page, workboardSummary("stale"))
