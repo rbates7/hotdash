@@ -139,6 +139,19 @@ describe("the browser's store while connecting", () => {
     stop()
   })
 
+  it("our endpoint failing while figures show: stale, and a connecting App Store becomes not connected", () => {
+    const view = summaryReducer(
+      { phase: "ready", summary: liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING) },
+      { type: "failure" }
+    )
+    expect(view).toEqual({ phase: "ready", summary: liveSummary("stale", LIVE_METRICS, APP_STORE_OFF) })
+    // An App Store that had answered keeps its count.
+    expect(summaryReducer({ phase: "ready", summary: liveSummary("connected") }, { type: "failure" })).toEqual({
+      phase: "ready",
+      summary: liveSummary("stale"),
+    })
+  })
+
   it("our own endpoint failing while connecting reads as not connected, not connecting forever", () => {
     expect(summaryReducer({ phase: "ready", summary: CONNECTING }, { type: "failure" })).toEqual({
       phase: "ready",

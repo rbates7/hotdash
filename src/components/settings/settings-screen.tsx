@@ -337,19 +337,45 @@ function SwitchRow({
   )
 }
 
-function SampleDataSection({ sampleData }: { sampleData: boolean }) {
-  const stripe = useStripeFeed().kind === "live"
-  const posthog = usePosthogFeed().kind === "live"
+/** The Sample data section's first sentence: what is live, what is connecting, and that the rest is sample. */
+export function sampleDataSummary({
+  stripe,
+  posthog,
+  stripeConnecting,
+  appStoreConnecting,
+}: {
+  stripe: boolean
+  posthog: boolean
+  stripeConnecting: boolean
+  appStoreConnecting: boolean
+}): string {
   const live = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
+  if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+  const connecting = stripeConnecting
+    ? " Stripe is connecting (first sync in progress)."
+    : appStoreConnecting
+      ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
+      : ""
+  if (!connecting) return `${live} figures are live and carry no label; every other number is still sample data.`
+  return `${live} figures are live and carry no label;${connecting} Every other number is still sample data.`
+}
+
+function SampleDataSection({ sampleData }: { sampleData: boolean }) {
+  const stripeFeed = useStripeFeed()
+  const summary = sampleDataSummary({
+    stripe: stripeFeed.kind === "live",
+    posthog: usePosthogFeed().kind === "live",
+    stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
+    appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
+  })
   return (
     <Section
       id="sample-data"
       title="Sample data"
       description={
         <>
-          {live
-            ? `${live} figures are live and carry no label; every other number is still sample data.`
-            : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
+          {summary}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
           placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
           no label to hide.

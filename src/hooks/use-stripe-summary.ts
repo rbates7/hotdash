@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import { retryDelay, type Timers } from "@/lib/subscriber-source"
 import {
   NOT_CONNECTED,
@@ -54,7 +55,10 @@ export type SummaryEvent = { type: "summary"; summary: StripeSummary } | { type:
 export function summaryReducer(view: StripeView, event: SummaryEvent): StripeView {
   if (event.type === "summary") return { phase: "ready", summary: event.summary }
   if (view.phase === "ready" && view.summary.metrics) {
-    return { phase: "ready", summary: { ...view.summary, status: "stale" } }
+    // The figures stay (stale); an App Store count still connecting is no
+    // longer known to be on its way, so it reads as not connected.
+    const appStore = view.summary.appStore?.status === "connecting" ? APP_STORE_NOT_CONNECTED : view.summary.appStore
+    return { phase: "ready", summary: { ...view.summary, status: "stale", ...(appStore && { appStore }) } }
   }
   // Connecting was the server's word; with the server unreachable it is no
   // longer known to be on its way, so it reads as not connected.

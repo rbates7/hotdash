@@ -3,7 +3,9 @@ import { expect, test, type Page } from "@playwright/test"
 import { APP_STORE_CONNECTING, LIVE_METRICS, connectingSummary, liveSummary } from "../src/test/stripe-fixture"
 import type { StripeSummary } from "../src/lib/stripe-summary"
 import { waitForHydration } from "./support/shell"
+import { expectReadable } from "./support/contrast"
 import { mockStripe } from "./support/stripe"
+import { setTheme } from "./support/theme"
 
 /**
  * "Connecting": the server has a key and its first sync is still running
@@ -58,6 +60,9 @@ test.describe("Stripe connecting (1440)", () => {
     for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers"]) {
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
+    const notice = main(page).getByTestId("sample-data-notice")
+    await expect(notice).toContainText("Stripe’s first sync is in progress")
+    await expect(notice).not.toContainText(/nothing is connected/i)
   })
 
   test("Settings: Stripe says Connecting…, not Not connected", async ({ page }) => {
@@ -66,6 +71,9 @@ test.describe("Stripe connecting (1440)", () => {
     await expect(stripeRow(page).getByTestId("stripe-status")).toHaveText("Connecting…")
     await expect(stripeRow(page).getByTestId("stripe-detail")).toContainText("first sync in progress")
     await expect(stripeRow(page)).not.toContainText("Not connected")
+    const sample = main(page).getByRole("region", { name: "Sample data" })
+    await expect(sample).toContainText("Stripe is connecting (first sync in progress)")
+    await expect(sample).not.toContainText(/nothing is connected/i)
   })
 
   test("the figures land on the next poll once the first sync finishes", async ({ page }) => {
@@ -95,5 +103,74 @@ test.describe("no key at all (the real server)", () => {
     await expect(stripeRow(page)).toContainText("Not connected")
     await open(page, "/home")
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "sample")
+  })
+})
+
+/* --------------------------------------------- connecting copy, readable */
+
+const NOTICE_COPY =
+  "Connecting. Stripe’s first sync is in progress; MRR, Churn Rate, Trial Conversions and Subscribers will appear when it finishes. Every other number on this page is illustrative"
+const SETTINGS_COPY = "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+
+for (const width of [390, 820, 1440] as const) {
+  for (const theme of ["light", "dark"] as const) {
+    test.describe(`connecting copy at ${width} ${theme}`, () => {
+      test.use({ viewport: { width, height: width === 390 ? 844 : 900 } })
+
+      test("Metrics notice says Connecting, readable; the header chip is hidden", async ({ page }) => {
+        await mockStripe(page, connectingSummary())
+        await open(page, "/metrics")
+        await setTheme(page, theme)
+        const notice = main(page).getByTestId("sample-data-notice")
+        await expect(notice).toContainText(NOTICE_COPY)
+        await expect(notice).not.toContainText(/nothing is connected/i)
+        await expectReadable(notice, `metrics connecting notice ${width} ${theme}`, expect)
+        await expect(main(page).locator("header").first().getByTestId("sample-data-tag")).toHaveCount(0)
+      })
+
+      test("Settings › Sample data says Stripe is connecting, readable", async ({ page }) => {
+        await mockStripe(page, connectingSummary())
+        await open(page, "/settings")
+        await setTheme(page, theme)
+        const section = main(page).getByRole("region", { name: "Sample data" })
+        await expect(section).toContainText(SETTINGS_COPY)
+        await expectReadable(section, `settings connecting copy ${width} ${theme}`, expect)
+        await expect(stripeRow(page).getByTestId("stripe-status")).toHaveText("Connecting…")
+      })
+    })
+  }
+}
+
+/* ------------------------------------- our endpoint fails while connecting */
+
+/** `first` once, then a 500 for every later poll. */
+async function connectingThenError(page: Page, first: StripeSummary) {
+  let served = 0
+  await page.route("**/api/stripe/summary**", async (route) => {
+    served += 1
+    if (served === 1) await route.fulfill({ json: first, headers: { "Cache-Control": "no-store" } })
+    else await route.fulfill({ status: 500, body: "" })
+  })
+}
+
+test.describe("our endpoint fails after connecting (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("Stripe connecting, then 500: Not connected, not Connecting… forever", async ({ page }) => {
+    await connectingThenError(page, connectingSummary())
+    await open(page, "/settings")
+    await expect(stripeRow(page).getByTestId("stripe-status")).toHaveText("Connecting…")
+    // The next poll (~5 s while connecting) fails.
+    await expect(stripeRow(page)).toContainText("Not connected", { timeout: 15_000 })
+  })
+
+  test("Stripe live, App Store connecting, then 500: stale figures, App Store Not connected", async ({ page }) => {
+    await connectingThenError(page, liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING))
+    await open(page, "/home")
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
+    // App Store no longer on its way: the total shows without it, and says so.
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe", { timeout: 15_000 })
+    await expect(kpi(page, "Subscribers")).toContainText("1,284")
+    await expect(kpi(page, "Subscribers")).toContainText("Total excludes App Store (not connected)")
   })
 })
