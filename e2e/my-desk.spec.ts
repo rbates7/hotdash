@@ -1,10 +1,31 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { EMPTY_COPY, FINISHED_EARLIER_COPY, SCRATCH_SAVE_MS } from "../src/components/my-desk/my-desk-screen"
-import { carryFromLabel, carryFromSpoken, formatDeskDate, SEED_SCRATCH, TODO_LIMITS } from "../src/lib/my-desk"
+import {
+  EMPTY_COPY,
+  FINISHED_EARLIER_COPY,
+  LEDE,
+  SCRATCH_PLACEHOLDER,
+  SCRATCH_SAVE_MS,
+} from "../src/components/my-desk/my-desk-screen"
+import {
+  carryFromLabel,
+  carryFromSpoken,
+  formatDeskDate,
+  SEED_SCRATCH,
+  seedTodos,
+  TODO_LIMITS,
+} from "../src/lib/my-desk"
 import { addDays, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import {
+  CLEAR_CONFIRM_NAME,
+  NOTE,
+  clearMyEntries,
+  countWrites,
+  expectWritesSettled,
+  persistenceNote,
+  writesTo,
+} from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.my-desk.v2"
@@ -13,15 +34,29 @@ const LEGACY_KEY = "hotdash.my-desk.v1"
 const today = () => todayIn(now())
 
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
-const header = (page: Page) => page.getByRole("main").locator("header").first()
+const main = (page: Page) => page.getByRole("main")
+const header = (page: Page) => main(page).locator("header").first()
 const todayList = (page: Page) => page.getByRole("region", { name: "Today list", exact: true })
 const notes = (page: Page) => page.getByRole("region", { name: "Notes", exact: true })
+const scratchBox = (page: Page) => notes(page).getByLabel("Scratch")
+const empty = (page: Page) => page.getByRole("status", { name: "No to-dos", exact: true })
 const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
-const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add to-do", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const todoBox = (page: Page, title: string) => todayList(page).getByRole("checkbox", { name: title, exact: true })
 const todoRow = (page: Page, title: string) => todoBox(page, title).locator("xpath=ancestor::li[1]")
+const stored = (page: Page) => page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
+
+/** Nothing saved: the empty list, the empty note, and Clear my entries off. */
+async function expectEmptyDesk(page: Page) {
+  await expect(todayList(page).locator("[data-todo]")).toHaveCount(0)
+  await expect(empty(page)).toContainText("Nothing on the list")
+  await expect(empty(page)).toContainText(EMPTY_COPY)
+  await expect(page.getByTestId("open-count")).toHaveText("0")
+  await expect(scratchBox(page)).toHaveValue("")
+  await expect(scratchBox(page)).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
+}
 
 async function freshDesk(page: Page) {
   await page.goto("/my-desk")
@@ -34,8 +69,27 @@ async function freshDesk(page: Page) {
   )
   await page.reload()
   await expect(note(page)).toHaveText(NOTE.unsaved)
-  await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
-  await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
+  await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+  await expectEmptyDesk(page)
+}
+
+/** Add a to-do through the header's Add dialog, as the founder would. */
+async function addTodo(page: Page, title: string, noteText = "") {
+  await addButton(page).click()
+  const add = dialog(page, "Add to-do")
+  await expect(add.getByLabel("Title")).toBeFocused()
+  await add.getByLabel("Title").fill(title)
+  if (noteText) await add.getByLabel("Note").fill(noteText)
+  await add.getByRole("button", { name: "Add to-do", exact: true }).click()
+  await expect(add).toBeHidden()
+  await expect(todoBox(page, title)).toBeVisible()
+}
+
+async function deleteTodo(page: Page, title: string) {
+  await todayList(page).getByRole("button", { name: `Delete ${title}`, exact: true }).click()
+  await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
+  await expect(dialog(page, "Delete this to-do?")).toBeHidden()
+  await expect(todoBox(page, title)).toHaveCount(0)
 }
 
 test.describe("My Desk", () => {
@@ -141,72 +195,98 @@ test.describe("My Desk", () => {
       [STORAGE_KEY, yesterday] as const
     )
     await page.reload()
-    const empty = page.getByRole("status", { name: "No to-dos", exact: true })
-    await expect(empty).toBeVisible()
-    await expect(empty).toContainText(FINISHED_EARLIER_COPY)
-    await expect(empty).not.toContainText("removed")
-    await expect(empty).not.toContainText(EMPTY_COPY)
+    await expect(empty(page)).toBeVisible()
+    await expect(empty(page)).toContainText(FINISHED_EARLIER_COPY)
+    await expect(empty(page)).not.toContainText("removed")
+    await expect(empty(page)).not.toContainText("Reset")
+    await expect(empty(page)).not.toContainText(EMPTY_COPY)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(empty, `${theme}/finished earlier`, expect)
+      await expectReadable(empty(page), `${theme}/finished earlier`, expect)
     }
     await setTheme(page, "light")
   })
 
-  test("is reachable from the sidebar and shows the mock's two cards", async ({ page }) => {
+  test("is reachable from the sidebar and opens on an empty desk: no sample rows, no sample note", async ({
+    page,
+  }) => {
     await page.goto("/home")
     await rail(page).getByRole("link", { name: "My Desk", exact: true }).click()
     await expect(page).toHaveURL(/\/my-desk$/)
     await expect(header(page).getByRole("heading", { level: 1, name: "My Desk" })).toBeVisible()
-    await expect(header(page).getByText("Personal — not the agent board")).toBeVisible()
+    await expect(header(page).getByText(LEDE)).toBeVisible()
     await expect(rail(page).getByRole("link", { name: "My Desk", exact: true })).toHaveAttribute("data-active")
 
     await expect(todayList(page)).toBeVisible()
     await expect(notes(page)).toBeVisible()
     await expect(page.getByTestId("today-date")).toHaveText(formatDeskDate(today()))
-    await expect(page.getByTestId("open-count")).toHaveText("5")
-    await expect(todoBox(page, "Call Aledo")).toHaveAttribute("aria-checked", "false")
-    await expect(todoBox(page, "Text May — Dallas night")).toHaveAttribute("aria-checked", "true")
-    await expect(todoRow(page, "Text May — Dallas night")).toHaveAttribute("data-done", "true")
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue(SEED_SCRATCH)
+    await expect(note(page)).toHaveText(NOTE.unsaved)
+    await expectEmptyDesk(page)
+    for (const seed of seedTodos()) {
+      await expect(main(page).getByText(seed.title, { exact: true })).toHaveCount(0)
+    }
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(main(page).getByText("Sample data")).toHaveCount(0)
+    await expect(header(page).getByRole("button", { name: "Reset", exact: true })).toHaveCount(0)
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAccessibleDescription(/nothing to clear/)
+    await expect(empty(page).getByRole("button", { name: "Add to-do", exact: true })).toBeVisible()
     await expect(todayList(page)).toContainText("Personal list. Not Issues. Not agent work.")
     await expect(notes(page)).toContainText("One note. Scratchpad — not a docs product.")
+    expect(await stored(page)).toBeNull()
   })
 
   test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
     await freshDesk(page)
-    await expectProbeCatchesSabotage(header(page).getByTestId("sample-data-tag"), "header tag", expect)
-    await expectProbeCatchesSabotage(todoRow(page, "Call Aledo").getByTestId("sample-data-tag"), "row tag", expect)
+    await expectProbeCatchesSabotage(header(page).getByText(LEDE), "lede", expect)
+    await expectProbeCatchesSabotage(empty(page), "empty state", expect)
+    await addTodo(page, "Walk the dog", "after clinic")
+    await todoBox(page, "Walk the dog").click()
+    await expect(todoRow(page, "Walk the dog")).toHaveAttribute("data-done", "true")
     await setTheme(page, "dark")
-    await expectProbeCatchesSabotage(todoRow(page, "Confirm Austin flight"), "done row (dark)", expect)
+    await expectProbeCatchesSabotage(todoRow(page, "Walk the dog"), "done row (dark)", expect)
     await setTheme(page, "light")
   })
 
-  test("labels every seed row as sample data, readable at ≥ 4.5:1 on every text node, light and dark", async ({ page }) => {
+  test("the empty desk and the founder's own rows read at ≥ 4.5:1 on every text node, light and dark", async ({
+    page,
+  }) => {
     await freshDesk(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
       await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/title`, expect)
-      await expectReadable(header(page).getByText("Personal — not the agent board"), `${theme}/lede`, expect)
-      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
+      await expectReadable(header(page).getByText(LEDE), `${theme}/lede`, expect)
       await expectReadable(header(page).getByTestId("persistence-note"), `${theme}/persistence note`, expect)
+      await expectReadable(empty(page), `${theme}/empty`, expect)
+      await expectReadable(notes(page), `${theme}/notes (empty)`, expect)
+    }
+    await setTheme(page, "light")
+
+    await addTodo(page, "Walk the dog", "after clinic")
+    await addTodo(page, "Order cones", "two dozen")
+    await todoBox(page, "Order cones").click()
+    await expect(todoRow(page, "Order cones")).toHaveAttribute("data-done", "true")
+    await scratchBox(page).fill("Packet before Friday.")
+    await scratchBox(page).blur()
+    await expect(page.getByTestId("scratch-status")).toContainText("Saved")
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectReadable(header(page).getByTestId("persistence-note"), `${theme}/persistence note (saved)`, expect)
+      await expectReadable(clearButton(page), `${theme}/enabled Clear my entries`, expect)
       await expectReadable(todayList(page), `${theme}/today`, expect)
       await expectReadable(notes(page), `${theme}/notes`, expect)
-      await expectReadable(todoRow(page, "Text May — Dallas night"), `${theme}/done row`, expect)
-      await expectReadable(todoRow(page, "Confirm Austin flight"), `${theme}/done row 2`, expect)
-      const tags = todayList(page).getByTestId("sample-data-tag")
-      await expect(tags).toHaveCount(7)
-      for (const tag of await tags.all()) {
-        await expect(tag).toHaveText("Sample data")
-        await expectReadable(tag, `${theme}/row tag`, expect)
-      }
+      await expectReadable(todoRow(page, "Walk the dog"), `${theme}/open row`, expect)
+      await expectReadable(todoRow(page, "Order cones"), `${theme}/done row`, expect)
     }
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await setTheme(page, "light")
   })
 
-  test("happy path: add → check off → edit → delete → type in Scratch → persists → Reset via confirm", async ({ page }) => {
+  test("happy path: add → check off → edit → delete → type in Scratch → persists → Clear my entries via confirm", async ({
+    page,
+  }) => {
     await freshDesk(page)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+    expect(await stored(page)).toBeNull()
 
     await addButton(page).click()
     const add = dialog(page, "Add to-do")
@@ -220,14 +300,15 @@ test.describe("My Desk", () => {
     const added = todoBox(page, "Walk the dog")
     await expect(added).toBeVisible()
     await expect(todoRow(page, "Walk the dog")).toContainText("after clinic")
-    await expect(todoRow(page, "Walk the dog").getByTestId("sample-data-tag")).toHaveCount(0)
-    await expect(page.getByTestId("open-count")).toHaveText("6")
+    await expect(todoRow(page, "Walk the dog")).toHaveAttribute("data-todo", "todo-8")
+    await expect(empty(page)).toHaveCount(0)
+    await expect(page.getByTestId("open-count")).toHaveText("1")
     await expect(note(page)).toHaveText(NOTE.saved)
-    await expect(resetButton(page)).toBeEnabled()
+    await expect(clearButton(page)).toBeEnabled()
 
     await added.click()
     await expect(added).toHaveAttribute("aria-checked", "true")
-    await expect(page.getByTestId("open-count")).toHaveText("5")
+    await expect(page.getByTestId("open-count")).toHaveText("0")
 
     await todayList(page).getByRole("button", { name: "Edit Walk the dog", exact: true }).click()
     const edit = dialog(page, "Edit to-do")
@@ -237,84 +318,86 @@ test.describe("My Desk", () => {
     await expect(edit).toBeHidden()
     await expect(todoBox(page, "Walk the puppy")).toBeVisible()
 
-    await todayList(page).getByRole("button", { name: "Delete Look at Metrics", exact: true }).click()
+    await addTodo(page, "Order cones")
+    await expect(todoRow(page, "Order cones")).toHaveAttribute("data-todo", "todo-9")
+    await todayList(page).getByRole("button", { name: "Delete Order cones", exact: true }).click()
     const confirm = dialog(page, "Delete this to-do?")
-    await expect(confirm).toContainText("Look at Metrics")
+    await expect(confirm).toContainText("Order cones")
     await confirm.getByRole("button", { name: "Keep it", exact: true }).click()
     await expect(confirm).toBeHidden()
-    await expect(todoBox(page, "Look at Metrics")).toBeVisible()
+    await expect(todoBox(page, "Order cones")).toBeVisible()
+    await deleteTodo(page, "Order cones")
 
-    await todayList(page).getByRole("button", { name: "Delete Look at Metrics", exact: true }).click()
-    await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(todoBox(page, "Look at Metrics")).toHaveCount(0)
-
-    const scratch = notes(page).getByLabel("Scratch")
-    await scratch.fill("A personal thought that should persist.")
-    await scratch.blur()
+    await expect(scratchBox(page)).toHaveValue("")
+    await scratchBox(page).fill("A personal thought that should persist.")
+    await scratchBox(page).blur()
     await expect(page.getByTestId("scratch-status")).toContainText("Saved")
-    await expect(notes(page).getByTestId("sample-data-tag")).toHaveCount(0)
 
     await page.reload()
     await expect(note(page)).toHaveText(NOTE.saved)
     await expect(todoBox(page, "Walk the puppy")).toHaveAttribute("aria-checked", "true")
-    await expect(todoBox(page, "Look at Metrics")).toHaveCount(0)
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue("A personal thought that should persist.")
-    const saved = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
+    await expect(todoBox(page, "Order cones")).toHaveCount(0)
+    await expect(todayList(page).locator("[data-todo]")).toHaveCount(1)
+    await expect(scratchBox(page)).toHaveValue("A personal thought that should persist.")
+    const saved = await stored(page)
     expect(saved).toContain('"Walk the puppy"')
     expect(saved).not.toContain('"now"')
 
-    await resetButton(page).click()
-    const reset = dialog(page, "Reset demo data?")
-    await reset.getByRole("button", { name: "Keep my edits", exact: true }).click()
-    await expect(reset).toBeHidden()
+    await clearButton(page).click()
+    const clear = dialog(page, CLEAR_CONFIRM_NAME)
+    await expect(clear).toContainText("There is no server copy to recover from.")
+    await clear.getByRole("button", { name: "Keep my edits", exact: true }).click()
+    await expect(clear).toBeHidden()
     await expect(todoBox(page, "Walk the puppy")).toBeVisible()
+    expect(await stored(page)).toBe(saved)
 
-    await resetDemoData(page, header(page))
-    await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
-    await expect(todoBox(page, "Walk the puppy")).toHaveCount(0)
-    await expect(todoBox(page, "Look at Metrics")).toBeVisible()
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue(SEED_SCRATCH)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+    await clearMyEntries(page, header(page))
+    await expectEmptyDesk(page)
+    expect(await stored(page)).toBeNull()
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+
+    await page.reload()
+    await expect(note(page)).toHaveText(NOTE.unsaved)
+    await expectEmptyDesk(page)
   })
 
-  test("emptying the list shows one empty state; scratch can be emptied too", async ({ page }) => {
+  test("emptying the list shows the one empty state; ids are never reused; scratch can be emptied too", async ({
+    page,
+  }) => {
     await freshDesk(page)
-    const titles = [
-      "Call Aledo",
-      "Clinic follow-up",
-      "Look at Metrics",
-      "Reply to Dan",
-      "Text May — Dallas night",
-      "Confirm Austin flight",
-      "Sketch Aledo install notes",
-    ]
-    expect(titles).toHaveLength(7)
-    for (const title of titles) {
-      await todayList(page).getByRole("button", { name: `Delete ${title}`, exact: true }).click()
-      await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
-      await expect(dialog(page, "Delete this to-do?")).toBeHidden()
-    }
-    const empty = page.getByRole("status", { name: "No to-dos", exact: true })
-    await expect(empty).toContainText("Nothing on the list")
-    await expect(empty).toContainText(EMPTY_COPY)
-    await expect(empty).not.toContainText("carry over")
+
+    await empty(page).getByRole("button", { name: "Add to-do", exact: true }).click()
+    const add = dialog(page, "Add to-do")
+    await add.getByLabel("Title").fill("First one")
+    await add.getByRole("button", { name: "Add to-do", exact: true }).click()
+    await expect(add).toBeHidden()
+    await expect(todoRow(page, "First one")).toHaveAttribute("data-todo", "todo-8")
+    await expect(empty(page)).toHaveCount(0)
+
+    await deleteTodo(page, "First one")
+    await expect(empty(page)).toContainText("Nothing on the list")
+    await expect(empty(page)).toContainText(EMPTY_COPY)
+    await expect(empty(page)).not.toContainText("carry over")
+    await expect(empty(page)).not.toContainText("Reset")
     await expect(page.getByTestId("open-count")).toHaveText("0")
 
-    await notes(page).getByLabel("Scratch").fill("")
-    await notes(page).getByLabel("Scratch").blur()
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue("")
+    await scratchBox(page).fill("short-lived")
+    await scratchBox(page).blur()
+    await expect(page.getByTestId("scratch-status")).toContainText("Saved")
+    await scratchBox(page).fill("")
+    await scratchBox(page).blur()
+    await expect(scratchBox(page)).toHaveValue("")
+    await expect(scratchBox(page)).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
 
-    await empty.getByRole("button", { name: "Add to-do", exact: true }).click()
-    const add = dialog(page, "Add to-do")
-    await add.getByLabel("Title").fill("First one back")
+    await empty(page).getByRole("button", { name: "Add to-do", exact: true }).click()
+    await add.getByLabel("Title").fill("Second one")
     await add.getByRole("button", { name: "Add to-do", exact: true }).click()
-    await expect(todoBox(page, "First one back")).toBeVisible()
-    await expect(todoRow(page, "First one back")).toHaveAttribute("data-todo", "todo-8")
+    await expect(todoBox(page, "Second one")).toBeVisible()
+    await expect(todoRow(page, "Second one")).toHaveAttribute("data-todo", "todo-9")
 
-    await resetDemoData(page, header(page))
-    await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
+    await clearMyEntries(page, header(page))
+    await expectEmptyDesk(page)
   })
 
   test("the whole screen works from the keyboard: Add via Tab/Enter, check, delete", async ({ page }) => {
@@ -332,8 +415,8 @@ test.describe("My Desk", () => {
       if (label === "button:Add to-do") break
     }
     expect(seen.at(-1), seen.join(" | ")).toBe("button:Add to-do")
-    expect(seen, seen.join(" | ")).toEqual(["button:Reset", "button:Add to-do"])
-    await expect(resetButton(page)).toHaveAccessibleDescription(/nothing to reset/)
+    expect(seen, seen.join(" | ")).toEqual(["button:Clear my entries", "button:Add to-do"])
+    await expect(clearButton(page)).toHaveAccessibleDescription(/nothing to clear/)
 
     await page.keyboard.press("Enter")
     const add = dialog(page, "Add to-do")
@@ -355,21 +438,31 @@ test.describe("My Desk", () => {
     await page.keyboard.press("Enter")
     await expect(confirm).toBeHidden()
     await expect(todoBox(page, "Keyboard to-do")).toHaveCount(0)
+    await expect(empty(page)).toContainText(EMPTY_COPY)
 
-    await resetDemoData(page, header(page))
+    await clearButton(page).focus()
+    await page.keyboard.press("Enter")
+    const clear = dialog(page, CLEAR_CONFIRM_NAME)
+    await expect(clear).toBeVisible()
+    await clear.getByRole("button", { name: "Clear", exact: true }).focus()
+    await page.keyboard.press("Enter")
+    await expect(clear).toBeHidden()
+    expect(await stored(page)).toBeNull()
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
   })
 
   test("Tab from a checkbox reaches Edit then Delete; Enter opens Add and Edit; Escape returns focus", async ({
     page,
   }) => {
     await freshDesk(page)
+    await addTodo(page, "Call the AD", "Friday walk-through")
 
-    await todoBox(page, "Call Aledo").focus()
-    await expect(todoBox(page, "Call Aledo")).toBeFocused()
+    await todoBox(page, "Call the AD").focus()
+    await expect(todoBox(page, "Call the AD")).toBeFocused()
     await page.keyboard.press("Tab")
-    await expect(todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })).toBeFocused()
+    await expect(todayList(page).getByRole("button", { name: "Edit Call the AD", exact: true })).toBeFocused()
     await page.keyboard.press("Tab")
-    await expect(todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })).toBeFocused()
+    await expect(todayList(page).getByRole("button", { name: "Delete Call the AD", exact: true })).toBeFocused()
 
     await addButton(page).focus()
     await page.keyboard.press("Enter")
@@ -380,7 +473,7 @@ test.describe("My Desk", () => {
     await expect(add).toBeHidden()
     await expect(addButton(page)).toBeFocused()
 
-    const editButton = todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })
+    const editButton = todayList(page).getByRole("button", { name: "Edit Call the AD", exact: true })
     await editButton.focus()
     await page.keyboard.press("Enter")
     const edit = dialog(page, "Edit to-do")
@@ -390,7 +483,7 @@ test.describe("My Desk", () => {
     await expect(edit).toBeHidden()
     await expect(editButton).toBeFocused()
 
-    const deleteButton = todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })
+    const deleteButton = todayList(page).getByRole("button", { name: "Delete Call the AD", exact: true })
     await deleteButton.focus()
     await page.keyboard.press("Enter")
     const confirm = dialog(page, "Delete this to-do?")
@@ -400,7 +493,7 @@ test.describe("My Desk", () => {
     await expect(deleteButton).toBeFocused()
   })
 
-  test("add, edit, delete, reset, empty+undo, and error copy is readable in light and dark", async ({
+  test("add, edit, delete, clear, empty+undo, and error copy is readable in light and dark", async ({
     page,
   }) => {
     const themes = ["light", "dark"] as const
@@ -416,16 +509,18 @@ test.describe("My Desk", () => {
       await page.keyboard.press("Escape")
       await expect(add).toBeHidden()
 
-      await todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true }).click()
+      await addTodo(page, "Call the AD", "Friday walk-through")
+
+      await todayList(page).getByRole("button", { name: "Edit Call the AD", exact: true }).click()
       const edit = dialog(page, "Edit to-do")
       await expectReadable(edit, `${theme}/edit`, expect)
       await page.keyboard.press("Escape")
       await expect(edit).toBeHidden()
 
-      await todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true }).click()
+      await todayList(page).getByRole("button", { name: "Delete Call the AD", exact: true }).click()
       const remove = dialog(page, "Delete this to-do?")
       // Destructive tokens are shared and sit under 4.5:1; probe the copy
-      // and the keep action, same as the header vs disabled Reset.
+      // and the keep action, same as the header vs disabled Clear.
       const deleteCopy = [
         remove.getByRole("heading"),
         remove.locator("[data-slot=dialog-description]"),
@@ -438,41 +533,26 @@ test.describe("My Desk", () => {
       await page.keyboard.press("Escape")
       await expect(remove).toBeHidden()
 
-      await todoBox(page, "Call Aledo").click()
-      await resetButton(page).click()
-      const reset = dialog(page, "Reset demo data?")
-      const resetCopy = [
-        reset.getByRole("heading"),
-        reset.locator("[data-slot=dialog-description]"),
-        reset.getByRole("button", { name: "Keep my edits", exact: true }),
+      await todoBox(page, "Call the AD").click()
+      await clearButton(page).click()
+      const clear = dialog(page, CLEAR_CONFIRM_NAME)
+      const clearCopy = [
+        clear.getByRole("heading"),
+        clear.locator("[data-slot=dialog-description]"),
+        clear.getByRole("button", { name: "Keep my edits", exact: true }),
       ]
-      expect(resetCopy).toHaveLength(3)
-      for (const [i, part] of resetCopy.entries()) {
-        await expectReadable(part, `${theme}/reset/${i}`, expect)
+      expect(clearCopy).toHaveLength(3)
+      for (const [i, part] of clearCopy.entries()) {
+        await expectReadable(part, `${theme}/clear/${i}`, expect)
       }
-      await reset.getByRole("button", { name: "Keep my edits", exact: true }).click()
-      await expect(reset).toBeHidden()
+      await clear.getByRole("button", { name: "Keep my edits", exact: true }).click()
+      await expect(clear).toBeHidden()
 
-      const titles = [
-        "Call Aledo",
-        "Clinic follow-up",
-        "Look at Metrics",
-        "Reply to Dan",
-        "Text May — Dallas night",
-        "Confirm Austin flight",
-        "Sketch Aledo install notes",
-      ]
-      expect(titles).toHaveLength(7)
-      for (const title of titles) {
-        await todayList(page).getByRole("button", { name: `Delete ${title}`, exact: true }).click()
-        await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
-        await expect(dialog(page, "Delete this to-do?")).toBeHidden()
-      }
-      const empty = page.getByRole("status", { name: "No to-dos", exact: true })
+      await deleteTodo(page, "Call the AD")
       const undo = page.getByRole("status", { name: "To-do removed", exact: true })
-      await expect(empty).toBeVisible()
+      await expect(empty(page)).toBeVisible()
       await expect(undo).toBeVisible()
-      await expectReadable(empty, `${theme}/empty`, expect)
+      await expectReadable(empty(page), `${theme}/empty`, expect)
       await expectReadable(undo, `${theme}/undo`, expect)
 
       await page.goto("/my-desk?shot=error")
@@ -481,6 +561,8 @@ test.describe("My Desk", () => {
         .getByRole("heading", { name: "My Desk couldn’t render" })
         .locator("xpath=ancestor::*[@role='alert'][1]")
       await expect(error).toBeVisible()
+      await expect(error).toContainText("clearing discards the saved copy and starts an empty desk")
+      await expect(error).not.toContainText("sample")
       const errorCopy = [
         error.getByRole("heading"),
         error.getByText(/Something in this browser/),
@@ -496,31 +578,31 @@ test.describe("My Desk", () => {
 
   test("Scratch typed with no blur is still there after an immediate reload", async ({ page }) => {
     await freshDesk(page)
-    await notes(page).getByLabel("Scratch").fill("typed-no-blur-reload")
+    await scratchBox(page).fill("typed-no-blur-reload")
     await page.reload()
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-no-blur-reload")
+    await expect(scratchBox(page)).toHaveValue("typed-no-blur-reload")
   })
 
   test("Scratch typed with no blur is still there after waiting past the timer and reloading", async ({
     page,
   }) => {
     await freshDesk(page)
-    await notes(page).getByLabel("Scratch").fill("typed-wait-then-reload")
+    await scratchBox(page).fill("typed-wait-then-reload")
     await expect(page.getByTestId("scratch-status")).toContainText("Saved", {
       timeout: SCRATCH_SAVE_MS + 2_000,
     })
     await page.reload()
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-wait-then-reload")
+    await expect(scratchBox(page)).toHaveValue("typed-wait-then-reload")
   })
 
   test("Scratch typed with no blur is still there after a sidebar trip and back", async ({ page }) => {
     await freshDesk(page)
-    await notes(page).getByLabel("Scratch").fill("typed-sidebar-and-back")
+    await scratchBox(page).fill("typed-sidebar-and-back")
     await rail(page).getByRole("link", { name: "Home", exact: true }).click()
     await expect(page).toHaveURL(/\/home$/)
     await rail(page).getByRole("link", { name: "My Desk", exact: true }).click()
     await expect(page).toHaveURL(/\/my-desk$/)
-    await expect(notes(page).getByLabel("Scratch")).toHaveValue("typed-sidebar-and-back")
+    await expect(scratchBox(page)).toHaveValue("typed-sidebar-and-back")
   })
 
   test("an unbroken title and URL wrap; Edit and Delete stay in view and the delete dialog does not overflow", async ({
@@ -582,7 +664,7 @@ test.describe("My Desk", () => {
     expect(dialogPageOverflow).toBeLessThanOrEqual(1)
   })
 
-  test("a save that fails is announced, never claimed, and Reset stays disabled", async ({ browser }) => {
+  test("a save that fails is announced, never claimed, and Clear my entries stays disabled", async ({ browser }) => {
     const context = await browser.newContext()
     await context.addInitScript((k) => {
       const original = Storage.prototype.setItem
@@ -594,13 +676,19 @@ test.describe("My Desk", () => {
     const page = await context.newPage()
     await page.goto("/my-desk")
     await expect(note(page)).toHaveText(NOTE.unsaved)
+    await expectEmptyDesk(page)
 
-    await todoBox(page, "Call Aledo").click()
-    await expect(todoBox(page, "Call Aledo")).toHaveAttribute("aria-checked", "true")
+    await addTodo(page, "Walk the dog")
     await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(note(page, { failed: true })).not.toContainText("Saved")
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+    expect(await stored(page)).toBeNull()
+
+    await todoBox(page, "Walk the dog").click()
+    await expect(todoBox(page, "Walk the dog")).toHaveAttribute("aria-checked", "true")
+    await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+    expect(await stored(page)).toBeNull()
     await context.close()
   })
 
@@ -615,33 +703,42 @@ test.describe("My Desk", () => {
     await b.goto("/my-desk")
     await expect(note(a)).toHaveText(NOTE.unsaved)
     await expect(note(b)).toHaveText(NOTE.unsaved)
+    await expectEmptyDesk(b)
     const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
     await settled(a, 0)
     await settled(b, 0)
 
-    await todoBox(a, "Call Aledo").click()
-    await expect(todoBox(b, "Call Aledo")).toHaveAttribute("aria-checked", "true")
+    await addTodo(a, "Walk the dog")
+    await expect(todoBox(b, "Walk the dog")).toHaveAttribute("aria-checked", "false")
     await expect(note(b)).toHaveText(NOTE.saved)
     await settled(a, 1)
     await settled(b, 0)
 
-    await todayList(b).getByRole("button", { name: "Delete Clinic follow-up", exact: true }).click()
-    await dialog(b, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(todoBox(a, "Clinic follow-up")).toHaveCount(0)
+    await todoBox(b, "Walk the dog").click()
+    await expect(todoBox(a, "Walk the dog")).toHaveAttribute("aria-checked", "true")
     await settled(a, 1)
     await settled(b, 1)
 
-    await resetDemoData(a, header(a))
-    await expect(todayList(b).locator("[data-todo]")).toHaveCount(7)
-    await expect(todoBox(b, "Call Aledo")).toHaveAttribute("aria-checked", "false")
+    await addTodo(b, "Order cones")
+    await expect(todoBox(a, "Order cones")).toBeVisible()
+    await deleteTodo(a, "Order cones")
+    await expect(todoBox(b, "Order cones")).toHaveCount(0)
+    await settled(a, 2)
+    await settled(b, 2)
+
+    await clearMyEntries(a, header(a))
+    await expectEmptyDesk(b)
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await settled(a, 1)
-    await settled(b, 1)
-    expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+    await expect(clearButton(b)).toHaveAttribute("aria-disabled", "true")
+    await settled(a, 2)
+    await settled(b, 2)
+    expect(await stored(a)).toBeNull()
     await context.close()
   })
 
-  test("a corrupt saved copy renders the seed without being touched; the first real save parks it", async ({ browser }) => {
+  test("a corrupt saved copy renders an empty desk without being touched; the first real save parks it", async ({
+    browser,
+  }) => {
     const context = await browser.newContext()
     await countWrites(context, STORAGE_KEY)
     const page = await context.newPage()
@@ -649,13 +746,13 @@ test.describe("My Desk", () => {
     await page.goto("/my-desk")
     await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [STORAGE_KEY, junk] as const)
     await page.reload()
-    await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBe(junk)
+    await expectEmptyDesk(page)
+    expect(await stored(page)).toBe(junk)
     expect(await writesTo(page, STORAGE_KEY)).toBe(0)
     expect(await page.evaluate((key) => localStorage.getItem(`${key}.rejected`), STORAGE_KEY)).toBeNull()
 
-    await todoBox(page, "Call Aledo").click()
+    await addTodo(page, "Walk the dog")
     await expect(note(page)).toHaveText(NOTE.saved)
     const parked = await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(`${key}.rejected`) ?? "[]") as { raw: string; why: string }[],
@@ -664,6 +761,83 @@ test.describe("My Desk", () => {
     expect(parked).toHaveLength(1)
     expect(parked[0].why).toBe("failed validation")
     expect(parked[0].raw).toBe(junk)
+    await context.close()
+  })
+
+  test("an old saved copy loads without its untouched seed rows or seed note; edited and ticked seed rows stay", async ({
+    browser,
+  }) => {
+    const day = today()
+    const seed = seedTodos(day)
+    expect(seed.map((t) => t.id)).toEqual(["todo-1", "todo-2", "todo-3", "todo-4", "todo-5", "todo-6", "todo-7"])
+    // As an old build saved it: all seven seed rows dated today, the seed
+    // note word for word, and two rows the founder touched — todo-1
+    // retitled, todo-3 ticked.
+    const old = {
+      todos: seed.map((t) =>
+        t.id === "todo-1"
+          ? { ...t, title: "Call Aledo AD back" }
+          : t.id === "todo-3"
+            ? { ...t, done: true, doneOn: day }
+            : t
+      ),
+      nextId: 8,
+      scratch: SEED_SCRATCH,
+      scratchUpdatedAt: new Date().toISOString(),
+    }
+    const dropped = seed.filter((t) => t.id !== "todo-1" && t.id !== "todo-3").map((t) => t.title)
+    expect(dropped).toHaveLength(5)
+
+    const context = await browser.newContext()
+    // Written before any page script runs, once per tab (sessionStorage
+    // survives the reload below), so the app's first read is the old copy.
+    // Registered before `countWrites` so this write is not counted.
+    await context.addInitScript(
+      ([key, raw]) => {
+        if (sessionStorage.getItem("e2e.old-desk-written")) return
+        sessionStorage.setItem("e2e.old-desk-written", "1")
+        localStorage.setItem(key, raw)
+      },
+      [STORAGE_KEY, JSON.stringify(old)] as const
+    )
+    await countWrites(context, STORAGE_KEY)
+    const page = await context.newPage()
+    await page.goto("/my-desk")
+    await expect(note(page)).toHaveText(NOTE.saved)
+
+    await expect(todayList(page).locator("[data-todo]")).toHaveCount(2)
+    await expect(todoBox(page, "Call Aledo AD back")).toHaveAttribute("aria-checked", "false")
+    await expect(todoRow(page, "Call Aledo AD back")).toHaveAttribute("data-todo", "todo-1")
+    await expect(todoBox(page, "Look at Metrics")).toHaveAttribute("aria-checked", "true")
+    await expect(todoRow(page, "Look at Metrics")).toHaveAttribute("data-todo", "todo-3")
+    for (const title of dropped) {
+      await expect(todoBox(page, title)).toHaveCount(0)
+    }
+    await expect(page.getByTestId("open-count")).toHaveText("1")
+    await expect(scratchBox(page)).toHaveValue("")
+    await expect(scratchBox(page)).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(clearButton(page)).toBeEnabled()
+
+    // Loading cleans in memory only; the copy is rewritten on the next real edit.
+    await expectWritesSettled(page, STORAGE_KEY, 0)
+    expect(await stored(page)).toContain('"Clinic follow-up"')
+
+    await addTodo(page, "Walk the dog")
+    await expect(todoRow(page, "Walk the dog")).toHaveAttribute("data-todo", "todo-8")
+    await expectWritesSettled(page, STORAGE_KEY, 1)
+    const saved = JSON.parse((await stored(page)) ?? "null") as typeof old
+    expect(saved.todos.map((t) => t.id)).toEqual(["todo-1", "todo-3", "todo-8"])
+    expect(saved.scratch).toBe("")
+    expect(JSON.stringify(saved)).not.toContain("Clinic follow-up")
+
+    await page.reload()
+    await expect(note(page)).toHaveText(NOTE.saved)
+    await expect(todayList(page).locator("[data-todo]")).toHaveCount(3)
+    await expect(todoBox(page, "Call Aledo AD back")).toBeVisible()
+    await expect(todoBox(page, "Look at Metrics")).toBeVisible()
+    await expect(todoBox(page, "Walk the dog")).toBeVisible()
+    await expect(scratchBox(page)).toHaveValue("")
     await context.close()
   })
 })

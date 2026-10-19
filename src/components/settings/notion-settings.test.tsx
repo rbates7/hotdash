@@ -47,7 +47,7 @@ describe("Settings › Connected data › Notion", () => {
     )
     const sample = screen.getByRole("region", { name: "Sample data" })
     expect(sample).toHaveTextContent(
-      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Home and Metrics show no invented figures"
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Home, Metrics, Bugs, CRM and My Desk show nothing invented"
     )
     expect(sample).not.toHaveTextContent(/every number on every screen/i)
   })

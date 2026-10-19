@@ -6,19 +6,17 @@ import {
   CRASH_LABEL,
   bugSource,
   bugs,
-  crashCount,
-  crashKpi,
-  dailyCrashes,
   groupBugs,
-  hasSeedBugs,
   isBug,
   openBugs,
+  sentryBugs,
   toggleLabel,
+  userBugs,
 } from "@/lib/bugs"
-import { addDays, todayIn } from "@/lib/clock"
 import { STATUS_ORDER } from "@/lib/issues"
 import { SEED_ISSUE_KEYS, YOYO, actors, buildIssues } from "@/lib/issues-fixture"
-import { FIXED_NOW, LATE_EVENING_CT } from "@/test/clock"
+import { FIXED_NOW } from "@/test/clock"
+import { connectingInbox, emptyInbox, liveInbox, mixedInbox, notConnectedInbox } from "@/test/inbox-fixture"
 
 const seed = () => buildIssues(FIXED_NOW)
 
@@ -51,17 +49,16 @@ describe("bug filter", () => {
     expect(open.every((i) => i.status !== "done")).toBe(true)
   })
 
-  it("the sample-data notice's gate is any listed seed bug", () => {
-    expect(hasSeedBugs(seed())).toBe(true)
+  it("Bugs lists only the founder's own bug tickets, never the Workplace seed", () => {
     expect(SEED_ISSUE_KEYS.has("CHLK-419")).toBe(true)
-    const untagged = seed().map((i) =>
-      i.labels.includes(BUG_LABEL) ? { ...i, labels: i.labels.filter((l) => l !== BUG_LABEL) } : i
-    )
-    const fresh = { ...seed()[0], key: "CHLK-999", labels: [BUG_LABEL] }
+    expect(userBugs(seed())).toEqual([])
+    const mine = { ...seed()[0], key: "CHLK-999", labels: [BUG_LABEL] }
+    const untaggedMine = { ...seed()[0], key: "CHLK-1000", labels: ["editor"] }
     expect(SEED_ISSUE_KEYS.has("CHLK-999")).toBe(false)
-    expect(hasSeedBugs(untagged)).toBe(false)
-    expect(hasSeedBugs([...untagged, fresh])).toBe(false)
-    expect(bugs([...untagged, fresh]).map((i) => i.key)).toEqual(["CHLK-999"])
+    expect(userBugs([...seed(), mine, untaggedMine]).map((i) => i.key)).toEqual(["CHLK-999"])
+    // A seed ticket the founder tags bug is still the board's seed, not theirs.
+    const taggedSeed = seed().map((i) => (i.key === "CHLK-401" ? { ...i, labels: [...i.labels, BUG_LABEL] } : i))
+    expect(userBugs(taggedSeed)).toEqual([])
   })
 
   it("CHLK-419 does not invent a crash-report count that contradicts the card", () => {
@@ -109,43 +106,26 @@ describe("toggleLabel", () => {
   })
 })
 
-describe("crash count (sample)", () => {
-  it("sums the trailing seven days against the seven before, today inclusive", () => {
-    const today = todayIn(FIXED_NOW)
-    const rows = dailyCrashes(today)
-    expect(rows).toHaveLength(14)
-    expect(rows[13].date).toBe(today)
-    expect(rows[0].date).toBe(addDays(today, -13))
-    const c = crashCount(today)
-    expect(c.thisWeek).toEqual({ start: addDays(today, -6), end: today })
-    expect(c.lastWeek).toEqual({ start: addDays(today, -13), end: addDays(today, -7) })
-    expect(c.value).toBe(rows.slice(7).reduce((n, r) => n + r.count, 0))
-    expect(c.previous).toBe(rows.slice(0, 7).reduce((n, r) => n + r.count, 0))
-    expect(c.value).toBe(8)
-    expect(c.previous).toBe(15)
+describe("Sentry rows for the crash list", () => {
+  const NOW = FIXED_NOW.getTime()
+
+  it("is loading until /api/inbox first answers", () => {
+    expect(sentryBugs({ phase: "loading" })).toEqual({ status: "loading", rows: [] })
   })
 
-  it("is the same whatever day it is laid over", () => {
-    expect(crashCount("2026-10-07").value).toBe(crashCount("2027-02-28").value)
-    expect(crashCount("2026-10-07").previous).toBe(crashCount("2027-02-28").previous)
+  it("follows Sentry's own status, never GitHub's", () => {
+    expect(sentryBugs({ phase: "ready", inbox: notConnectedInbox(NOW) })).toEqual({ status: "not_connected", rows: [] })
+    expect(sentryBugs({ phase: "ready", inbox: connectingInbox(NOW) })).toEqual({ status: "connecting", rows: [] })
+    expect(sentryBugs({ phase: "ready", inbox: emptyInbox(NOW) })).toEqual({ status: "connected", rows: [] })
   })
 
-  it("ends the week on the Central calendar day, so 23:30 CT is still the 7th", () => {
-    // Both zones in CI: a machine-zone reading would say the 8th under UTC.
-    const c = crashCount(LATE_EVENING_CT)
-    expect(c.thisWeek.end).toBe("2026-10-07")
-    expect(c.thisWeek.start).toBe("2026-10-01")
-    expect(c.lastWeek).toEqual({ start: "2026-09-24", end: "2026-09-30" })
-  })
-
-  it("reads as a KPI where fewer crashes is the good direction", () => {
-    const kpi = crashKpi(FIXED_NOW)
-    expect(kpi).toMatchObject({
-      label: "Crashes",
-      value: "8",
-      delta: "−7 vs previous 7 days",
-      direction: "down",
-      lowerIsBetter: true,
-    })
+  it("connected or stale: only the Sentry rows, in the Inbox's order", () => {
+    const live = sentryBugs({ phase: "ready", inbox: liveInbox(NOW) })
+    expect(live.status).toBe("connected")
+    expect(live.rows.map((r) => r.id)).toEqual(["sentry-7001", "sentry-7002", "sentry-7003"])
+    expect(live.rows.every((r) => r.source === "sentry")).toBe(true)
+    const stale = sentryBugs({ phase: "ready", inbox: mixedInbox(NOW) })
+    expect(stale.status).toBe("stale")
+    expect(stale.rows).toHaveLength(3)
   })
 })

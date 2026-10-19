@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { listTriageThreads } from "@/lib/crm/crm"
+import { domainFromEmail, listTriageThreads } from "@/lib/crm/crm"
 import {
   createIdRegistry,
   decodeEntities,
@@ -20,11 +20,11 @@ const map = (threads: GmailThreadMeta[] = gmailFixtureThreads(NOW)) => mapGmailT
 
 describe("parseAddressList", () => {
   it("reads names, quotes and bare addresses, lower-cases, and drops anything malformed", () => {
-    expect(parseAddressList('"Ortiz, Dana" <DOrtiz@Lakeview.org>, sam@x.io, not an address, <bad@>')).toEqual([
-      { email: "dortiz@lakeview.org", name: "Ortiz, Dana" },
-      { email: "sam@x.io", name: null },
+    expect(parseAddressList('"Ortiz, Dana" <DOrtiz@Example.org>, sam.x@example.org, not an address, <bad@>')).toEqual([
+      { email: "dortiz@example.org", name: "Ortiz, Dana" },
+      { email: "sam.x@example.org", name: null },
     ])
-    expect(parseAddressList("jo@x.io <jo@x.io>")).toEqual([{ email: "jo@x.io", name: null }])
+    expect(parseAddressList("jo@example.com <jo@example.com>")).toEqual([{ email: "jo@example.com", name: null }])
     expect(parseAddressList(null)).toEqual([])
   })
 })
@@ -57,7 +57,7 @@ describe("mapGmailThreads", () => {
       lastOutboundAt: new Date(NOW - 2 * HOUR).toISOString(),
       createdAt: new Date(NOW - 3 * HOUR).toISOString(),
     })
-    const dana = contacts.find((c) => c.email === "dortiz@lakeviewfootball.org")!
+    const dana = contacts.find((c) => c.email === "dortiz@example.org")!
     expect(byNumber[6]!.contactId).toBe(dana.id)
     expect(byNumber[7]!.contactId).toBe(dana.id)
   })
@@ -65,24 +65,27 @@ describe("mapGmailThreads", () => {
   it("contacts come from Gmail, with an organization by domain (none for a free-mail address)", () => {
     const { contacts, organizations } = map()
     expect(contacts.map((c) => c.email)).toEqual([
-      "ben.carter@gmail.com",
-      "knguyen@summitprep.edu",
-      "dortiz@lakeviewfootball.org",
+      "ben.carter@example.com",
+      "knguyen@example.com",
+      "dortiz@example.org",
     ])
-    expect(contacts[0]).toMatchObject({ firstName: "Ben", lastName: "Carter", nameSource: "gmail", source: "gmail", organizationId: null, plan: null })
-    expect(organizations).toEqual([
-      { id: "org-1", name: "summitprep.edu", domain: "summitprep.edu" },
-      { id: "org-2", name: "lakeviewfootball.org", domain: "lakeviewfootball.org" },
-    ])
-    expect(contacts[1]!.organizationId).toBe("org-1")
+    expect(contacts[0]).toMatchObject({ firstName: "Ben", lastName: "Carter", nameSource: "gmail", source: "gmail", plan: null })
+    // The fixture's senders are all on RFC 2606 domains: one organization per domain.
+    expect(organizations.map((o) => o.domain).sort()).toEqual(["example.com", "example.org"])
+    const orgOf = (email: string) => organizations.find((o) => o.id === contacts.find((c) => c.email === email)!.organizationId)!.domain
+    expect(orgOf("ben.carter@example.com")).toBe("example.com")
+    expect(orgOf("knguyen@example.com")).toBe("example.com")
+    expect(orgOf("dortiz@example.org")).toBe("example.org")
+    // A free-mail address gets no organization (the domain is not the sender's school).
+    for (const free of ["anyone@gmail.com", "anyone@yahoo.com", "anyone@outlook.com"]) expect(domainFromEmail(free)).toBeNull()
   })
 
   it("unknown senders are triage: pending in the inbox, ignored once archived", () => {
     const { messages } = map()
     const triage = listTriageThreads(messages)
     expect(triage.map((t) => [t.senderEmail, t.messageCount])).toEqual([
-      ["sam@ridgecrestathletics.com", 1],
-      ["jlee@northfieldhs.org", 2],
+      ["sam@example.com", 1],
+      ["jlee@example.org", 2],
     ])
     const vendor = messages.filter((m) => m.fromEmail === "news@vendor.example")
     expect(vendor.map((m) => [m.caseId, m.triageState])).toEqual([[null, "ignored"]])
@@ -96,7 +99,7 @@ describe("mapGmailThreads", () => {
     expect(reply).toMatchObject({
       direction: "outbound",
       fromEmail: MAILBOX,
-      toEmails: ["dortiz@lakeviewfootball.org"],
+      toEmails: ["dortiz@example.org"],
       bodyText: "Thanks Dana — can you send the file? We'll look today.",
       bodyHtml: null,
       attachments: [],
@@ -119,7 +122,7 @@ describe("mapGmailThreads", () => {
             labelIds: ["INBOX"],
             internalDate: String(NOW),
             snippet: "One more thing",
-            headers: { from: "knguyen@summitprep.edu", to: MAILBOX, subject: "W-9 please" },
+            headers: { from: "knguyen@example.com", to: MAILBOX, subject: "W-9 please" },
           },
         ],
       },
@@ -128,8 +131,8 @@ describe("mapGmailThreads", () => {
     const subjectOf = (data: typeof first, n: number) => data.cases.find((c) => c.caseNumber === n)?.subject
     for (const n of [3, 6, 7]) expect(subjectOf(second, n)).toBe(subjectOf(first, n))
     expect(subjectOf(second, 8)).toBe("W-9 please")
-    expect(second.contacts.find((c) => c.email === "dortiz@lakeviewfootball.org")!.id).toBe(
-      first.contacts.find((c) => c.email === "dortiz@lakeviewfootball.org")!.id
+    expect(second.contacts.find((c) => c.email === "dortiz@example.org")!.id).toBe(
+      first.contacts.find((c) => c.email === "dortiz@example.org")!.id
     )
   })
 
@@ -212,7 +215,7 @@ describe("filters: not every thread is a conversation", () => {
       ),
       // From a billing sender.
       thread("p5", msg('"Stripe" <notifications@stripe.com>', "Payment from Payton Placeholder failed", "A payment of $9.99 failed", NOW - 6 * HOUR)),
-      thread("p6", msg("billing@example-saas.com", "Your invoice", "Invoice for Payton Placeholder", NOW - 6 * HOUR)),
+      thread("p6", msg("billing@example.com", "Your invoice", "Invoice for Payton Placeholder", NOW - 6 * HOUR)),
     ]
     for (const b of billing) expect(skipReason(b, MAILBOX)).toBe("billing")
     const out = map([KEPT, ...billing])

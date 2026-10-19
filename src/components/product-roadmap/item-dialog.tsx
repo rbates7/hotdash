@@ -45,7 +45,6 @@ import {
   ROADMAP_TITLE,
   ROADMAP_TOUCH,
 } from "@/components/product-roadmap/responsive"
-import { SampleDataTag } from "@/components/sample-data"
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 
 export type BetCloseReason = "dismiss" | "delete" | "move"
@@ -486,7 +485,6 @@ function EditBetBody({
       <DialogTitle className="sr-only">Bet: {item.title}</DialogTitle>
       <Crumbs>
         <span className="text-caption font-medium">{COLUMN_CONFIG[item.column].label}</span>
-        {item.sample && <SampleDataTag className="ml-1" />}
         {compact ? null : <CloseButton onClick={() => onClose("dismiss")} />}
       </Crumbs>
       <DialogDescription className="sr-only">

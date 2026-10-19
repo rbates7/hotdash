@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { EMPTY_BUGS, EMPTY_BUGS_HINT, SENTRY_TITLE, freshBugs, seededBugs } from "./support/bugs"
 import { expectReadable } from "./support/contrast"
+import { liveInbox, mockInbox } from "./support/inbox"
 import { NOTE, persistenceNote } from "./support/persistence"
 import { expectNoOverflowX, pageOverflowX, waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
@@ -10,10 +12,12 @@ import { setTheme } from "./support/theme"
  * 7:47). Phone stacks each bug as a card link (tag + age, title, meta,
  * chevron); tablet keeps the desktop row; desktop (≥1280) is unchanged. A
  * card still opens the Workplace's TicketView via `?issue=`.
+ *
+ * Bugs lists only the founder's own tickets (never the Workplace seed's),
+ * so most tests save some first (`seededBugs`: CHLK-904, -919, -920, -921)
+ * to have rows to measure. The e2e server has no Sentry token, so Sentry is
+ * its Not connected panel unless a test mocks /api/inbox.
  */
-
-/** Bugs has no key of its own: it reads and writes the Workplace's. */
-const STORAGE_KEY = "hotdash.agent-workplace.v2"
 
 const VIEWPORTS = {
   phone: { width: 390, height: 844 },
@@ -27,16 +31,25 @@ const pageHeader = (page: Page) => page.locator("main header").first()
 const list = (page: Page) => page.getByRole("region", { name: "Bug list", exact: true })
 const bug = (page: Page, key: string) => list(page).getByRole("link", { name: new RegExp(`\\b${key}\\b`) })
 const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes: not connected", exact: true })
+const sentryOff = (page: Page) => page.getByRole("region", { name: `${SENTRY_TITLE}: not connected`, exact: true })
+const sentry = (page: Page) => page.getByTestId("sentry-crashes")
 const props = (page: Page) => page.getByRole("complementary", { name: "Ticket properties" })
 const emptyStatus = (page: Page) => list(page).getByRole("status", { name: "Empty bug list" })
-const TITLE_419 = "Crash opening a shared playbook on iPad"
+/** The founder's copy of the seed's CHLK-419: same title, a key of their own. */
+const TITLE_919 = "Crash opening a shared playbook on iPad"
 
+/** /bugs with the founder's own four bug tickets saved, hydrated. */
 async function fresh(page: Page) {
-  await page.goto("/bugs")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
+  await seededBugs(page)
   await waitForHydration(page)
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+}
+
+/** /bugs with nothing saved: Sentry Not connected and the empty list with its hint. */
+async function nothingOfTheirOwn(page: Page) {
+  await freshBugs(page)
+  await waitForHydration(page)
+  await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+  await expect(list(page).getByRole("link")).toHaveCount(0)
 }
 
 /**
@@ -48,9 +61,9 @@ async function emptyBugs(page: Page, viewport: { width: number; height: number }
   await page.setViewportSize(VIEWPORTS.desktop)
   await fresh(page)
   for (const [key, from] of [
-    ["CHLK-419", "To Do"],
-    ["CHLK-404", "In Progress"],
-    ["CHLK-420", "In Review"],
+    ["CHLK-919", "To Do"],
+    ["CHLK-904", "In Progress"],
+    ["CHLK-920", "In Review"],
   ] as const) {
     await page.goto(`/bugs?issue=${key}`)
     await props(page).getByRole("button", { name: from, exact: true }).click()
@@ -61,7 +74,7 @@ async function emptyBugs(page: Page, viewport: { width: number; height: number }
   await page.setViewportSize(viewport)
   await page.goto("/bugs")
   await waitForHydration(page)
-  await expect(emptyStatus(page)).toHaveText("No open bugs")
+  await expect(emptyStatus(page)).toHaveText(EMPTY_BUGS)
   await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 }
 
@@ -147,34 +160,56 @@ test.describe("responsive Bugs (phone 390)", () => {
   test("stacks each bug as a card link and does not scroll sideways", async ({ page }) => {
     await fresh(page)
     await expect(list(page).getByRole("link")).toHaveCount(4)
-    await expectStackedCard(page, "CHLK-419", TITLE_419)
-    await expectStackedCard(page, "CHLK-404", "Undo stack for iPad canvas")
-    await expect(bug(page, "CHLK-419")).toContainText("CHLK-419")
-    await expect(bug(page, "CHLK-419")).toContainText("Urgent")
-    await expect(bug(page, "CHLK-419")).toContainText("Yo-Yo")
-    await expect(bug(page, "CHLK-419").getByTestId("bug-age")).toHaveText("5h ago")
+    await expectStackedCard(page, "CHLK-919", TITLE_919)
+    await expectStackedCard(page, "CHLK-904", "Undo stack for iPad canvas")
+    await expect(bug(page, "CHLK-919")).toContainText("CHLK-919")
+    await expect(bug(page, "CHLK-919")).toContainText("Urgent")
+    await expect(bug(page, "CHLK-919")).toContainText("Yo-Yo")
+    await expect(bug(page, "CHLK-919").getByTestId("bug-age")).toHaveText("5h ago")
 
-    // Header stacks: title + lede, then the note, then the badge.
+    // Header stacks: title + lede, then the note. No design-mock badge any more.
     const lede = await box(pageHeader(page).getByText("Yo-Yo's page. Coach-reported and crashes."))
     const note = await box(persistenceNote(page))
-    const badge = await box(pageHeader(page).getByText("Dummy / design mock"))
     expect(note.y).toBeGreaterThanOrEqual(lede.y + lede.height)
-    expect(badge.y).toBeGreaterThanOrEqual(note.y + note.height)
+    await expect(pageHeader(page).getByText("Dummy / design mock")).toHaveCount(0)
 
-    // Crash card full width.
+    // Crash card and Sentry's Not connected panel full width.
     const crash = await box(crashCard(page))
+    const panel = await box(sentryOff(page))
     const listBox = await box(list(page))
     expect(Math.abs(crash.width - listBox.width)).toBeLessThanOrEqual(1)
+    expect(Math.abs(panel.width - listBox.width)).toBeLessThanOrEqual(1)
 
     await expectNoOverflow(page)
     await expectAllTargets44(main(page), "390 list")
   })
 
+  test("Sentry connected: its rows are full-width 44px links and nothing scrolls sideways", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
+    await fresh(page)
+    await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+    await expect(sentry(page).getByRole("link")).toHaveCount(3)
+    const rows = await box(sentry(page).getByRole("list"))
+    const listBox = await box(list(page))
+    expect(Math.abs(rows.width - listBox.width)).toBeLessThanOrEqual(1)
+    await expectNoOverflow(page)
+    await expectAllTargets44(sentry(page), "390 sentry rows")
+    await expectAllTargets44(main(page), "390 list with sentry")
+  })
+
+  test("nothing of the founder's own: the empty list's hint, no overflow, every control 44×44", async ({ page }) => {
+    await nothingOfTheirOwn(page)
+    await expect(sentryOff(page)).toBeVisible()
+    await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
+    await expectNoOverflow(page)
+    await expectAllTargets44(main(page), "390 nothing of their own")
+  })
+
   test("a card opens the ticket and Back to Bugs returns to the list", async ({ page }) => {
     await fresh(page)
-    await bug(page, "CHLK-419").click()
-    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-419$/)
-    await expect(page.getByRole("heading", { level: 1, name: TITLE_419 })).toBeVisible()
+    await bug(page, "CHLK-919").click()
+    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-919$/)
+    await expect(page.getByRole("heading", { level: 1, name: TITLE_919 })).toBeVisible()
     // The Bugs page chrome around the ticket stays inside the viewport.
     await expect(pageHeader(page).getByRole("heading", { level: 1, name: "Bugs" })).toBeVisible()
     const header = await box(pageHeader(page))
@@ -183,17 +218,17 @@ test.describe("responsive Bugs (phone 390)", () => {
 
     await page.getByRole("button", { name: "Back to Bugs", exact: true }).click()
     await expect(page).toHaveURL(/\/bugs$/)
-    await expectStackedCard(page, "CHLK-419", TITLE_419)
+    await expectStackedCard(page, "CHLK-919", TITLE_919)
   })
 
   test("B1: a lower card opens its ticket at the top, and Back returns to the same scroll spot without a new history entry", async ({ page }) => {
     await fresh(page)
-    const card = bug(page, "CHLK-421")
+    const card = bug(page, "CHLK-921")
     const back = page.getByRole("button", { name: "Back to Bugs", exact: true })
     const scrollY = () => page.evaluate(() => window.scrollY)
     const historyLength = () => page.evaluate(() => history.length)
 
-    // Scroll to the bottom of the list, where CHLK-421 sits.
+    // Scroll to the bottom of the list, where CHLK-921 sits.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
     await expect.poll(scrollY).toBeGreaterThan(100)
     const listY = await scrollY()
@@ -202,7 +237,7 @@ test.describe("responsive Bugs (phone 390)", () => {
 
     for (const round of [1, 2]) {
       await card.click()
-      await expect(page).toHaveURL(/\/bugs\?issue=CHLK-421$/)
+      await expect(page).toHaveURL(/\/bugs\?issue=CHLK-921$/)
       await expect(page.getByRole("heading", { level: 1, name: "Crash exporting a book to PDF" })).toBeVisible()
       // Back is in view, below the sticky top bar, not hidden under it.
       await expect.poll(scrollY, `round ${round}: ticket starts at its top`).toBe(0)
@@ -215,7 +250,7 @@ test.describe("responsive Bugs (phone 390)", () => {
       await expect(page).toHaveURL(/\/bugs$/)
       await expect.poll(scrollY, `round ${round}: list scroll restored`).toBeGreaterThanOrEqual(listY - 2)
       expect(Math.abs((await scrollY()) - listY), `round ${round}: scrollY ±2`).toBeLessThanOrEqual(2)
-      expect(Math.abs((await box(card)).y - cardTop), `round ${round}: CHLK-421 top ±2`).toBeLessThanOrEqual(2)
+      expect(Math.abs((await box(card)).y - cardTop), `round ${round}: CHLK-921 top ±2`).toBeLessThanOrEqual(2)
       // Back is a history step: only the open added an entry, and each
       // round trip reuses it.
       expect(await historyLength(), `round ${round}: no entry from Back`).toBe(before + 1)
@@ -224,19 +259,19 @@ test.describe("responsive Bugs (phone 390)", () => {
 
   test("B1: a deep-linked ticket's Back goes to the Bugs list", async ({ page }) => {
     await fresh(page)
-    await page.goto("/bugs?issue=CHLK-419")
+    await page.goto("/bugs?issue=CHLK-919")
     await waitForHydration(page)
-    await expect(page.getByRole("heading", { level: 1, name: TITLE_419 })).toBeVisible()
+    await expect(page.getByRole("heading", { level: 1, name: TITLE_919 })).toBeVisible()
     await page.getByRole("button", { name: "Back to Bugs", exact: true }).click()
     await expect(page).toHaveURL(/\/bugs$/)
-    await expectStackedCard(page, "CHLK-419", TITLE_419)
+    await expectStackedCard(page, "CHLK-919", TITLE_919)
   })
 
   test("B2: card links announce title, status and key; the assignee is said once", async ({ page }) => {
     await fresh(page)
     for (const [key, title, status] of [
-      ["CHLK-419", TITLE_419, "To Do"],
-      ["CHLK-421", "Crash exporting a book to PDF", "Done"],
+      ["CHLK-919", TITLE_919, "To Do"],
+      ["CHLK-921", "Crash exporting a book to PDF", "Done"],
     ] as const) {
       const card = list(page).getByRole("link", { name: new RegExp(`${title}\\s*, status ${status}\\s*${key}(?!\\d)`) })
       await expect(card, key).toHaveCount(1)
@@ -252,7 +287,7 @@ test.describe("responsive Bugs (phone 390)", () => {
   test("empty state: no overflow, every control 44×44", async ({ page }) => {
     await emptyBugs(page, VIEWPORTS.phone)
     await expect(list(page).getByText("0 open · 4 fixed")).toBeVisible()
-    await expectStackedCard(page, "CHLK-419", TITLE_419)
+    await expectStackedCard(page, "CHLK-919", TITLE_919)
     await expectNoOverflow(page)
     await expectAllTargets44(main(page), "390 empty")
   })
@@ -267,25 +302,44 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
 
     test("keeps the desktop row layout, opens the ticket, every control 44×44", async ({ page }) => {
       await fresh(page)
-      await expectDesktopRow(page, "CHLK-419", TITLE_419)
-      await expectDesktopRow(page, "CHLK-420", "Route arrows vanish after undo")
+      await expectDesktopRow(page, "CHLK-919", TITLE_919)
+      await expectDesktopRow(page, "CHLK-920", "Route arrows vanish after undo")
       expect(Math.round((await box(crashCard(page))).width)).toBe(320)
       await expectNoOverflow(page)
       await expectAllTargets44(main(page), `${viewport.width} list`)
 
-      await bug(page, "CHLK-419").click()
-      await expect(page).toHaveURL(/\/bugs\?issue=CHLK-419$/)
-      await expect(page.getByRole("heading", { level: 1, name: TITLE_419 })).toBeVisible()
+      await bug(page, "CHLK-919").click()
+      await expect(page).toHaveURL(/\/bugs\?issue=CHLK-919$/)
+      await expect(page.getByRole("heading", { level: 1, name: TITLE_919 })).toBeVisible()
       await expectNoOverflowX(page)
       await page.getByRole("button", { name: "Back to Bugs", exact: true }).click()
       await expect(page).toHaveURL(/\/bugs$/)
-      await expect(bug(page, "CHLK-419")).toBeVisible()
+      await expect(bug(page, "CHLK-919")).toBeVisible()
+    })
+
+    test("Sentry connected: rows full width, no overflow, every control 44×44", async ({ page }) => {
+      await mockInbox(page, liveInbox(Date.now()))
+      await fresh(page)
+      await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+      await expect(sentry(page).getByRole("link")).toHaveCount(3)
+      const rows = await box(sentry(page).getByRole("list"))
+      const listBox = await box(list(page))
+      expect(Math.abs(rows.width - listBox.width)).toBeLessThanOrEqual(1)
+      await expectNoOverflow(page)
+      await expectAllTargets44(sentry(page), `${viewport.width} sentry rows`)
+      await expectAllTargets44(main(page), `${viewport.width} list with sentry`)
     })
 
     test("empty state: no overflow, every control 44×44", async ({ page }) => {
       await emptyBugs(page, viewport)
       await expectNoOverflow(page)
       await expectAllTargets44(main(page), `${viewport.width} empty`)
+    })
+
+    test("nothing of the founder's own: no overflow, every control 44×44", async ({ page }) => {
+      await nothingOfTheirOwn(page)
+      await expectNoOverflow(page)
+      await expectAllTargets44(main(page), `${viewport.width} nothing of their own`)
     })
   })
 }
@@ -297,13 +351,15 @@ test.describe("responsive Bugs (desktop 1440)", () => {
 
   test("is unchanged: desktop rows, no chevrons, crash card max-w-xs, header on one line", async ({ page }) => {
     await fresh(page)
-    await expectDesktopRow(page, "CHLK-419", TITLE_419)
+    await expectDesktopRow(page, "CHLK-919", TITLE_919)
     await expect(list(page).getByTestId("bug-chevron").first()).toBeHidden()
     expect(Math.round((await box(crashCard(page))).width)).toBe(320)
+    // Header on one line: the note sits right of the title block, beside it.
     const title = await box(pageHeader(page).getByRole("heading", { level: 1, name: "Bugs" }))
-    const badge = await box(pageHeader(page).getByText("Dummy / design mock"))
-    expect(badge.x).toBeGreaterThan(title.x + title.width)
-    expect(badge.y).toBeLessThan(title.y + title.height)
+    const lede = await box(pageHeader(page).getByText("Yo-Yo's page. Coach-reported and crashes."))
+    const note = await box(persistenceNote(page))
+    expect(note.x).toBeGreaterThan(Math.max(title.x + title.width, lede.x + lede.width))
+    expect(note.y).toBeLessThan(lede.y + lede.height)
     // Reset keeps its desktop size: the 44px override stops below xl.
     const reset = await box(pageHeader(page).getByRole("button", { name: "Reset", exact: true }))
     expect(reset.height).toBeLessThan(44)
@@ -312,6 +368,11 @@ test.describe("responsive Bugs (desktop 1440)", () => {
 
   test("empty state has no overflow", async ({ page }) => {
     await emptyBugs(page, VIEWPORTS.desktop)
+    await expectNoOverflow(page)
+  })
+
+  test("nothing of the founder's own has no overflow", async ({ page }) => {
+    await nothingOfTheirOwn(page)
     await expectNoOverflow(page)
   })
 })
@@ -362,13 +423,13 @@ async function iconContrast(locator: Locator) {
  * and opens a ticket, so a render inside the /bugs segment throws.
  */
 async function forceErrorState(page: Page) {
-  await expect(bug(page, "CHLK-419")).toBeVisible()
+  await expect(bug(page, "CHLK-919")).toBeVisible()
   // Patch and click in one task so no clock tick re-renders (and throws) first.
   await page.evaluate(() => {
     Date.parse = () => {
       throw new Error("e2e: forced Bugs render error")
     }
-    document.querySelector<HTMLAnchorElement>("a[href*='issue=CHLK-419']")!.click()
+    document.querySelector<HTMLAnchorElement>("a[href*='issue=CHLK-919']")!.click()
   })
   const alert = page
     .getByRole("heading", { name: "Bugs couldn’t render" })
@@ -392,8 +453,8 @@ async function expectBugsReadable(page: Page, label: string) {
   await expectReadable(header.getByRole("heading", { level: 1 }), `${label}/title`, expect)
   await expectReadable(header.locator("p").first(), `${label}/subtitle`, expect)
   await expectReadable(persistenceNote(page), `${label}/note`, expect)
-  await expectReadable(header.getByText("Dummy / design mock"), `${label}/badge`, expect)
   await expectReadable(crashCard(page), `${label}/crash card`, expect)
+  await expectReadable(sentryOff(page), `${label}/sentry not connected`, expect)
   await expectReadable(list(page), `${label}/list`, expect)
 }
 
@@ -412,6 +473,22 @@ for (const theme of ["light", "dark"] as const) {
         await emptyBugs(page, viewport)
         await setTheme(page, theme)
         await expectBugsReadable(page, `${theme}/${size}/empty`)
+      })
+
+      test(`nothing-of-their-own text clears 4.5:1 in ${theme}`, async ({ page }) => {
+        await nothingOfTheirOwn(page)
+        await setTheme(page, theme)
+        await expectBugsReadable(page, `${theme}/${size}/nothing of their own`)
+        const hint = await expectReadable(list(page).getByTestId("empty-bugs-hint"), `${theme}/${size}/hint`, expect)
+        expect(hint.map((n) => n.text)).toEqual([EMPTY_BUGS_HINT])
+      })
+
+      test(`Sentry rows clear 4.5:1 in ${theme}`, async ({ page }) => {
+        await mockInbox(page, liveInbox(Date.now()))
+        await fresh(page)
+        await setTheme(page, theme)
+        await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+        await expectReadable(sentry(page), `${theme}/${size}/sentry rows`, expect)
       })
 
       test(`error state: readable and every action 44×44 in ${theme}`, async ({ page }) => {
@@ -493,8 +570,8 @@ for (const [size, viewport] of [
 
     test(`B3: a Tab-focused card shows its ring inside the card at ${size}`, async ({ page }) => {
       await fresh(page)
-      const prev = bug(page, "CHLK-419")
-      const card = bug(page, "CHLK-404")
+      const prev = bug(page, "CHLK-919")
+      const card = bug(page, "CHLK-904")
       await card.scrollIntoViewIfNeeded()
       // Pointer off the list so no hover fill muddies the comparison.
       await page.mouse.move(viewport.width - 1, viewport.height - 1)

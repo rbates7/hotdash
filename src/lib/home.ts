@@ -33,7 +33,7 @@ export type Kpi = {
    * Where the figure comes from: absent or `sample` is the dummy fixture
    * (labelled), `stripe` is live, `loading` is waiting for Stripe, `not_connected` has no source (no figure).
    */
-  source?: "sample" | "stripe" | "loading" | "not_connected"
+  source?: "stripe" | "loading" | "not_connected"
   /** A `loading` card whose source is connecting (#50: first sync running). */
   connecting?: boolean
   /** "Last updated …" on a stale Stripe figure. */

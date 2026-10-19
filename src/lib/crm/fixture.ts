@@ -7,6 +7,14 @@ import type {
   Note,
   Organization,
 } from "@/lib/crm/crm"
+import {
+  SEED_CASE_IDS,
+  SEED_CONTACT_IDS,
+  SEED_MESSAGE_IDS,
+  SEED_NOTE_IDS,
+  SEED_ORGANIZATION_IDS,
+  SEED_THREAD_IDS,
+} from "@/lib/crm/seed-ids"
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -14,16 +22,17 @@ const DAY = 24 * HOUR
 const at = (nowMs: number, offsetMs: number) => new Date(nowMs - offsetMs).toISOString()
 
 /**
- * Seed dated from the request instant so "2h ago" and "5 days ago" stay
- * true no matter when the page is opened. Football coaches and schools on
- * Monthly / Annual / Staff — the help-desk sample Rashad confirmed.
+ * The old help-desk sample (football coaches and schools on Monthly /
+ * Annual / Staff). The CRM no longer starts from it: it is kept for unit
+ * tests and so a copy saved before it was removed can be cleaned on load
+ * by id (`SEED_*_IDS`, `dropSeed` in the store). Dated from `nowMs`.
  */
 export function seedOrganizations(nowMs: number): Organization[] {
   void nowMs
   return [
-    { id: "org-1", name: "Westfield HS", domain: "westfieldfb.org" },
-    { id: "org-2", name: "Riverbend High", domain: "riverbendhs.org" },
-    { id: "org-3", name: "Highland Athletics", domain: "highlandathletics.com" },
+    { id: "org-1", name: "Westfield HS", domain: "westfield.example.org" },
+    { id: "org-2", name: "Riverbend High", domain: "riverbend.example.org" },
+    { id: "org-3", name: "Highland Athletics", domain: "highland.example.com" },
   ]
 }
 
@@ -31,7 +40,7 @@ export function seedContacts(nowMs: number): Contact[] {
   return [
     {
       id: "contact-1",
-      email: "mhale@westfieldfb.org",
+      email: "mhale@example.org",
       firstName: "Marcus",
       lastName: "Hale",
       nameSource: "supabase",
@@ -43,7 +52,7 @@ export function seedContacts(nowMs: number): Contact[] {
     },
     {
       id: "contact-2",
-      email: "jreeves@westfieldfb.org",
+      email: "jreeves@example.org",
       firstName: "Jamal",
       lastName: "Reeves",
       nameSource: "supabase",
@@ -55,7 +64,7 @@ export function seedContacts(nowMs: number): Contact[] {
     },
     {
       id: "contact-3",
-      email: "priya.shah@riverbendhs.org",
+      email: "priya.shah@example.org",
       firstName: "Priya",
       lastName: "Shah",
       nameSource: "supabase",
@@ -67,7 +76,7 @@ export function seedContacts(nowMs: number): Contact[] {
     },
     {
       id: "contact-4",
-      email: "cbrooks@highlandathletics.com",
+      email: "cbrooks@example.com",
       firstName: "Colin",
       lastName: "Brooks",
       nameSource: "stripe",
@@ -79,7 +88,7 @@ export function seedContacts(nowMs: number): Contact[] {
     },
     {
       id: "contact-5",
-      email: "elena.v@highlandathletics.com",
+      email: "elena.v@example.com",
       firstName: "Elena",
       lastName: "Vasquez",
       nameSource: "supabase",
@@ -91,7 +100,7 @@ export function seedContacts(nowMs: number): Contact[] {
     },
     {
       id: "contact-6",
-      email: "tom.alvarez@gmail.com",
+      email: "tom.alvarez@example.com",
       firstName: "Tom",
       lastName: "Alvarez",
       nameSource: "gmail",
@@ -255,7 +264,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-1",
     thread: "thread-1",
     dir: "inbound",
-    from: "mhale@westfieldfb.org",
+    from: "mhale@example.org",
     fromName: "Marcus Hale",
     subject: "Staff seats invite fails on the iPad",
     text: "Hey — when I try to invite two assistant coaches to Staff seats from the iPad, the invite button spins forever and nothing sends. We need them in before Friday's install. Can you take a look?",
@@ -268,7 +277,7 @@ const MSG_SEEDS: MsgSeed[] = [
     dir: "outbound",
     from: FOUNDER,
     subject: "Re: Staff seats invite fails on the iPad",
-    text: "Hi Marcus, sorry about that. Quick question so I can dig in: are the assistants on westfieldfb.org, or personal addresses? Also — were you on the iPad app or Safari? I'll check the logs.",
+    text: "Hi Marcus, sorry about that. Quick question so I can dig in: are the assistants on westfield.example.org, or personal addresses? Also — were you on the iPad app or Safari? I'll check the logs.",
     sent: 5 * HOUR,
   },
   {
@@ -276,10 +285,10 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-1",
     thread: "thread-1",
     dir: "inbound",
-    from: "mhale@westfieldfb.org",
+    from: "mhale@example.org",
     fromName: "Marcus Hale",
     subject: "Re: Staff seats invite fails on the iPad",
-    text: "Both are on westfieldfb.org. Last try was on the iPad app about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
+    text: "Both are on westfield.example.org. Last try was on the iPad app about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
     sent: 2 * HOUR,
     attachments: [{ filename: "invite-spinner.png", mimeType: "image/png", size: 482133 }],
   },
@@ -288,7 +297,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-2",
     thread: "thread-2",
     dir: "inbound",
-    from: "mhale@westfieldfb.org",
+    from: "mhale@example.org",
     fromName: "Marcus Hale",
     subject: "Billing question about Annual seats",
     text: "If we add two more Staff seats mid-cycle on Annual, do we get charged prorated or the full year?",
@@ -309,7 +318,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-3",
     thread: "thread-3",
     dir: "inbound",
-    from: "jreeves@westfieldfb.org",
+    from: "jreeves@example.org",
     fromName: "Jamal Reeves",
     subject: "Playbook sync times out on a full install",
     text: "Pushing a full install to the staff iPads just hangs and eventually errors with a timeout. Syncing a single game's plays works fine.",
@@ -330,7 +339,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-4",
     thread: "thread-4",
     dir: "inbound",
-    from: "priya.shah@riverbendhs.org",
+    from: "priya.shah@example.org",
     fromName: "Priya Shah",
     subject: "Install / plays checklist stuck at step 3",
     text: "The 'load this week's plays' step never completes even though the playbook test passes. The install checklist stays at step 3 of 5.",
@@ -342,7 +351,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-5",
     thread: "thread-5",
     dir: "inbound",
-    from: "cbrooks@highlandathletics.com",
+    from: "cbrooks@example.com",
     fromName: "Colin Brooks",
     subject: "Apple Pencil skips strokes in the play editor",
     text: "On the staff iPads the Apple Pencil skips strokes when we draw a route in the play editor. Finger drawing is fine. Happens on every iPad we tried.",
@@ -363,7 +372,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-5",
     thread: "thread-5",
     dir: "inbound",
-    from: "cbrooks@highlandathletics.com",
+    from: "cbrooks@example.com",
     fromName: "Colin Brooks",
     subject: "Re: Apple Pencil skips strokes in the play editor",
     text: "Clip's attached in the next email from our film guy. It's one long route at the start of install — about 8 seconds of skipped strokes.",
@@ -374,7 +383,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-6",
     thread: "thread-6",
     dir: "inbound",
-    from: "elena.v@highlandathletics.com",
+    from: "elena.v@example.com",
     fromName: "Elena Vasquez",
     subject: "Cancel Annual and export the playbook",
     text: "We're consolidating tools — please cancel our Annual at the end of the cycle. Also, how do I export the playbook and install history first?",
@@ -385,7 +394,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-7",
     thread: "thread-7",
     dir: "inbound",
-    from: "tom.alvarez@gmail.com",
+    from: "tom.alvarez@example.com",
     fromName: "Tom Alvarez",
     subject: "iPad login loop after a forced update",
     text: "After last night's forced update I sign in on the iPad, see the playbook for a second, then bounce back to the login screen. The staff MacBooks are fine.",
@@ -396,7 +405,7 @@ const MSG_SEEDS: MsgSeed[] = [
     caseId: "case-8",
     thread: "thread-8",
     dir: "inbound",
-    from: "priya.shah@riverbendhs.org",
+    from: "priya.shah@example.org",
     fromName: "Priya Shah",
     subject: "Weekly install recap for the staff",
     text: "Would love a Monday-morning recap of last week's install — which plays the staff actually ran — so I don't have to open the iPad for the basics.",
@@ -418,7 +427,7 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-9",
     dir: "inbound",
-    from: "riley@lakeridgeathletics.com",
+    from: "riley@example.com",
     fromName: "Riley Nash",
     subject: "Playbook sync after Friday's install",
     text: "Hi Rashad — I'm the OC at Lakeridge. After Friday's install the playbook never finished syncing to the staff iPads. Is there a known fix, or should I send a screenshot?",
@@ -430,7 +439,7 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-10",
     dir: "inbound",
-    from: "alex@oakmontcoaches.net",
+    from: "alex@example.com",
     fromName: "Alex Kim",
     subject: "Staff seats for the Oakmont coaches",
     text: "Hey — we need six Staff seats for Oakmont's coaches before next week's install. Is there a partner path, or do I just add them on Monthly?",
@@ -442,7 +451,7 @@ const MSG_SEEDS: MsgSeed[] = [
     triage: "pending",
     thread: "thread-10",
     dir: "inbound",
-    from: "alex@oakmontcoaches.net",
+    from: "alex@example.com",
     fromName: "Alex Kim",
     subject: "Re: Staff seats for the Oakmont coaches",
     text: "Following up on the below — happy to jump on a call if billing for Staff vs Annual is the hold-up.",
@@ -513,11 +522,16 @@ export function seedNotes(nowMs: number): Note[] {
   ]
 }
 
-export const SEED_CONTACT_IDS: ReadonlySet<string> = new Set(seedContacts(0).map((c) => c.id))
-export const SEED_CASE_IDS: ReadonlySet<string> = new Set(seedCases(0).map((c) => c.id))
-export const SEED_NOTE_IDS: ReadonlySet<string> = new Set(seedNotes(0).map((n) => n.id))
-export const SEED_MESSAGE_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.id))
-export const SEED_THREAD_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.threadId))
+// The id sets live in `seed-ids.ts` as literals (the store imports them
+// without this file); `seed-ids.test.ts` checks they match the rows above.
+export {
+  SEED_CASE_IDS,
+  SEED_CONTACT_IDS,
+  SEED_MESSAGE_IDS,
+  SEED_NOTE_IDS,
+  SEED_ORGANIZATION_IDS,
+  SEED_THREAD_IDS,
+}
 
 export function isSeedContact(id: string) {
   return SEED_CONTACT_IDS.has(id)

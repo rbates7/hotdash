@@ -288,14 +288,14 @@ export const SEED_EXPENSE_IDS: ReadonlySet<string> = new Set(seedExpenses(MOCK_D
 export function seedNewSubscribers(today: IsoDay | Date): NewSubscriber[] {
   const d = (offset: number) => addDays(today, offset)
   return [
-    { id: "ns-1", name: "Alisha Patel", email: "apatel@canyonridgesports.com", plan: "Monthly", signupDate: d(-3) },
-    { id: "ns-2", name: "Jamal Reeves", email: "jreeves@oakmontcoaches.net", plan: "Staff", signupDate: d(-10) },
-    { id: "ns-3", name: "Priya Shah", email: "priya.shah@riverbendhs.org", plan: "Annual", signupDate: d(-15) },
-    { id: "ns-4", name: "Marcus Hale", email: "mhale@westfieldfb.org", plan: "Annual", signupDate: d(-18) },
-    { id: "ns-5", name: "Colin Brooks", email: "cbrooks@highlandathletics.com", plan: "Monthly", signupDate: d(-21) },
-    { id: "ns-6", name: "Denise Okonkwo", email: "denise.o@lakeridgeathletics.com", plan: "Monthly", signupDate: d(-24) },
-    { id: "ns-7", name: "Elena Vasquez", email: "elena.v@southforkfb.net", plan: "Annual", signupDate: d(-26) },
-    { id: "ns-8", name: "Troy Nguyen", email: "troy.nguyen@northsideprep.edu", plan: "Annual", signupDate: d(-27) },
+    { id: "ns-1", name: "Alisha Patel", email: "apatel@example.com", plan: "Monthly", signupDate: d(-3) },
+    { id: "ns-2", name: "Jamal Reeves", email: "jreeves@example.com", plan: "Staff", signupDate: d(-10) },
+    { id: "ns-3", name: "Priya Shah", email: "priya.shah@example.org", plan: "Annual", signupDate: d(-15) },
+    { id: "ns-4", name: "Marcus Hale", email: "mhale@example.org", plan: "Annual", signupDate: d(-18) },
+    { id: "ns-5", name: "Colin Brooks", email: "cbrooks@example.com", plan: "Monthly", signupDate: d(-21) },
+    { id: "ns-6", name: "Denise Okonkwo", email: "denise.o@example.com", plan: "Monthly", signupDate: d(-24) },
+    { id: "ns-7", name: "Elena Vasquez", email: "elena.v@example.org", plan: "Annual", signupDate: d(-26) },
+    { id: "ns-8", name: "Troy Nguyen", email: "troy.nguyen@example.org", plan: "Annual", signupDate: d(-27) },
   ]
 }
 
@@ -303,20 +303,11 @@ export function seedNewSubscribers(today: IsoDay | Date): NewSubscriber[] {
 export function seedChurnedSubscribers(today: IsoDay | Date): ChurnedSubscriber[] {
   const d = (offset: number) => addDays(today, offset)
   return [
-    { id: "cs-1", name: "Brett Holloway", email: "b.holloway@meadowpark.edu", signupDate: d(-221), churnDate: d(-13), lifetimeValue: 199 },
-    { id: "cs-2", name: "Nina Cho", email: "nina.cho@coastalprep.org", signupDate: d(-351), churnDate: d(-19), lifetimeValue: 398 },
-    { id: "cs-3", name: "Derek Fontaine", email: "dfontaine@ironwoodfb.com", signupDate: d(-155), churnDate: d(-23), lifetimeValue: 79 },
-    { id: "cs-4", name: "Tamara Ellis", email: "tellis@prairieviewathletics.net", signupDate: d(-287), churnDate: d(-25), lifetimeValue: 199 },
-    { id: "cs-5", name: "Omar Siddiqui", email: "omar.s@ridgecresths.org", signupDate: d(-200), churnDate: d(-27), lifetimeValue: 398 },
-  ]
-}
-
-/** Every dated event the seed shows for `today`'s period, for reconciliation tests. */
-export function seedEventDates(today: IsoDay | Date): IsoDay[] {
-  return [
-    ...seedExpenses(today).map((e) => e.date),
-    ...seedNewSubscribers(today).map((s) => s.signupDate),
-    ...seedChurnedSubscribers(today).map((s) => s.churnDate),
+    { id: "cs-1", name: "Brett Holloway", email: "b.holloway@example.org", signupDate: d(-221), churnDate: d(-13), lifetimeValue: 199 },
+    { id: "cs-2", name: "Nina Cho", email: "nina.cho@example.org", signupDate: d(-351), churnDate: d(-19), lifetimeValue: 398 },
+    { id: "cs-3", name: "Derek Fontaine", email: "dfontaine@example.com", signupDate: d(-155), churnDate: d(-23), lifetimeValue: 79 },
+    { id: "cs-4", name: "Tamara Ellis", email: "tellis@example.com", signupDate: d(-287), churnDate: d(-25), lifetimeValue: 199 },
+    { id: "cs-5", name: "Omar Siddiqui", email: "omar.s@example.org", signupDate: d(-200), churnDate: d(-27), lifetimeValue: 398 },
   ]
 }
 

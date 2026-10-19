@@ -22,9 +22,8 @@ function Child() {
   if (crash) throw new Error("could not render")
   return (
     <div>
-      <span data-testid="cases">{store.cases.length}</span>
-      <span data-testid="priority">{store.cases.find((c) => c.id === "case-1")?.priority}</span>
-      <button type="button" onClick={() => store.setPriority("case-1", "low")}>
+      <span data-testid="contacts">{store.contacts.map((c) => c.email).join("|")}</span>
+      <button type="button" onClick={() => store.addContact({ email: "tom@example.com", firstName: "Tom" })}>
         edit
       </button>
       <button type="button" onClick={() => setCrash(true)}>
@@ -35,11 +34,15 @@ function Child() {
 }
 
 describe("CRM client error boundary", () => {
-  it("shows the CRM alert for a throwing child; Reset re-seeds and leaves the key empty", async () => {
+  it("shows the CRM alert for a throwing child; Reset clears the founder's entries and leaves the key empty", async () => {
     const user = userEvent.setup()
     const spy = vi.spyOn(console, "error").mockImplementation(() => {})
-    const edited = reducer(initialState(NOW), { type: "set-priority", id: "case-1", priority: "low" })
-    saveState(window.localStorage, edited)
+    const mine = reducer(initialState(NOW), {
+      type: "add-contact",
+      input: { email: "pat@example.org", firstName: "Pat" },
+      at: new Date(NOW).toISOString(),
+    })
+    saveState(window.localStorage, mine)
 
     render(
       <CrmProvider nowMs={NOW}>
@@ -49,17 +52,18 @@ describe("CRM client error boundary", () => {
       </CrmProvider>
     )
 
-    expect(screen.getByTestId("priority")).toHaveTextContent("low")
+    expect(screen.getByTestId("contacts")).toHaveTextContent("pat@example.org")
     await user.click(screen.getByRole("button", { name: "edit" }))
-    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"low"')
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"tom@example.com"')
 
     await user.click(screen.getByRole("button", { name: "crash" }))
     expect(screen.getByRole("alert")).toHaveTextContent("CRM couldn’t render")
-    expect(screen.queryByTestId("cases")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("starts the CRM empty")
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/sample/i)
+    expect(screen.queryByTestId("contacts")).not.toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: "Reset and clear saved copy" }))
-    expect(screen.getByTestId("cases")).toHaveTextContent("8")
-    expect(screen.getByTestId("priority")).toHaveTextContent("high")
+    expect(screen.getByTestId("contacts")).toBeEmptyDOMElement()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     spy.mockRestore()
   })

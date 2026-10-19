@@ -21,7 +21,7 @@ export const DESK_HEADER_TITLE = "min-w-0 max-md:pr-[132px]"
 export const DESK_HEADER_ACTIONS =
   "mt-1 flex shrink-0 flex-wrap items-center gap-2.5 max-md:mt-0"
 
-/** Passed to PersistenceNote so Reset is 44px below 1280. */
+/** Passed to PersistenceNote so Clear my entries is 44px below 1280. */
 export const DESK_RESET = "max-xl:h-11! max-xl:min-w-11!"
 
 /** Add to-do: develop's h-9 at xl+; 44px below 1280. Phone pins it to the title. */

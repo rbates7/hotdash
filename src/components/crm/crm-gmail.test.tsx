@@ -8,8 +8,11 @@ import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailLoadingForTest, setGmailSummaryForTest } from "@/test/gmail"
-import { STORAGE_KEY, CrmProvider } from "@/components/crm/crm-store"
+import { CLEAR_COPY } from "@/components/persistence-note"
+import { STORAGE_KEY, CrmProvider, initialState, reducer, saveState } from "@/components/crm/crm-store"
 import { CONNECTING_LEDE, CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
+import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
+import { ContactsScreen } from "@/components/crm/contacts-screen"
 import {
   GMAIL_CONNECTING_LABEL,
   GMAIL_LIVE_LABEL,
@@ -43,15 +46,26 @@ beforeEach(() => {
 })
 
 describe("CRM with Gmail not connected", () => {
-  it("shows the sample, labelled, with 'Gmail not connected' beside it", () => {
+  it("says 'Gmail not connected' and shows the Not connected panel, never sample rows", () => {
     renderCrm(<OverviewScreen />)
     expect(screen.getByText(LEDE)).toBeInTheDocument()
-    expect(within(header()).getByTestId("crm-source")).toHaveTextContent(GMAIL_NOT_CONNECTED_LABEL)
-    expect(within(header()).getByTestId("crm-source")).toHaveAttribute("data-source", "sample")
-    expect(within(header()).getByTestId("sample-data-tag")).toBeInTheDocument()
-    expect(screen.getByText(/6 contacts/)).toBeInTheDocument()
-    // Seed rows keep their own tags.
-    expect(screen.getAllByTestId("sample-data-tag").length).toBeGreaterThan(1)
+    const source = within(header()).getByTestId("crm-source")
+    expect(source).toHaveTextContent(GMAIL_NOT_CONNECTED_LABEL)
+    expect(source).toHaveAttribute("data-source", "not_connected")
+    expect(screen.getByTestId("crm-not-connected")).toHaveTextContent(GMAIL_PANEL_TITLES.overview)
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
+    expect(screen.queryByText(/\d+ contacts ·/)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeInTheDocument()
+  })
+
+  it.each([
+    ["Cases", <CasesScreen key="cases" />, GMAIL_PANEL_TITLES.cases],
+    ["Contacts", <ContactsScreen key="contacts" />, GMAIL_PANEL_TITLES.contacts],
+    ["Triage", <TriageScreen key="triage" />, GMAIL_PANEL_TITLES.triage],
+  ])("%s shows its own panel title", (_name, ui, title) => {
+    renderCrm(ui)
+    expect(screen.getByTestId("crm-not-connected")).toHaveTextContent(title)
+    expect(screen.getByTestId("crm-not-connected")).toHaveTextContent(GMAIL_HINT)
   })
 })
 
@@ -66,7 +80,7 @@ describe("CRM while Gmail is loading", () => {
 })
 
 describe("CRM while Gmail is connecting (first sync on the server)", () => {
-  it("says Connecting…, keeps the skeletons, and shows neither the sample nor its label", () => {
+  it("says Connecting…, keeps the skeletons, and shows no panel, rows or Sample tag", () => {
     setGmailSummaryForTest(gmailConnecting())
     renderCrm(<OverviewScreen />)
     const source = within(header()).getByTestId("crm-source")
@@ -74,15 +88,35 @@ describe("CRM while Gmail is connecting (first sync on the server)", () => {
     expect(source).toHaveAttribute("data-source", "connecting")
     expect(source).toHaveAttribute("aria-busy", "true")
     expect(screen.getByRole("status", { name: "Loading saved CRM" })).toBeInTheDocument()
-    expect(screen.queryByText(/6 contacts/)).not.toBeInTheDocument()
-    expect(within(header()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
+    expect(screen.queryByText(/\d+ contacts/)).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
   })
 
-  it("hides everything the sample brings: no triage count, no sample lede, no saved-edits note or Reset", () => {
-    // The not-connected sample has pending triage, so the count would show there.
+  it("Connecting… on every screen: skeletons, never the Not connected panel, even with the founder's contacts saved", () => {
+    saveState(
+      window.localStorage,
+      reducer(initialState(NOW), {
+        type: "add-contact",
+        input: { email: "pat@example.org", firstName: "Pat", lastName: "Reyes" },
+        at: new Date(NOW).toISOString(),
+      })
+    )
+    setGmailSummaryForTest(gmailConnecting())
+    for (const ui of [<CasesScreen key="c" />, <ContactsScreen key="p" />, <TriageScreen key="t" />]) {
+      const { unmount } = renderCrm(ui)
+      expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
+      expect(screen.queryByText("Pat Reyes")).not.toBeInTheDocument()
+      expect(within(header()).getByTestId("crm-source")).toHaveAttribute("data-source", "connecting")
+      unmount()
+    }
+  })
+
+  it("hides the saved-edits note, Clear my entries, the not-connected lede and any triage count", () => {
     setGmailSummaryForTest(GMAIL_NOT_CONNECTED)
     const { unmount } = renderCrm(<OverviewScreen />)
-    expect(screen.getByRole("link", { name: /^Triage\s*\d+$/ })).toBeInTheDocument()
+    expect(screen.getByTestId("persistence-note")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeInTheDocument()
     unmount()
 
     setGmailSummaryForTest(gmailConnecting())
@@ -91,6 +125,7 @@ describe("CRM while Gmail is connecting (first sync on the server)", () => {
     expect(screen.queryByText(LEDE)).not.toBeInTheDocument()
     expect(within(header()).getByText(CONNECTING_LEDE)).toBeInTheDocument()
     expect(screen.queryByTestId("persistence-note")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: CLEAR_COPY.button })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Reset/ })).not.toBeInTheDocument()
   })
 })
@@ -134,7 +169,7 @@ describe("CRM live from Gmail", () => {
     expect(screen.getByText(/3 contacts/)).toBeInTheDocument()
   })
 
-  it("an edit applies to the inbox copy in memory and is never written over the sample's saved copy", async () => {
+  it("an edit applies to the inbox copy in memory and is never written over the founder's saved copy", async () => {
     window.localStorage.setItem(STORAGE_KEY, "untouched")
     setGmailSummaryForTest(LIVE)
     renderCrm(<TriageScreen />)
@@ -159,7 +194,7 @@ describe("CRM live from Gmail", () => {
     expect(screen.getAllByRole("button", { name: "Promote to case" })).toHaveLength(2)
   })
 
-  it("Gmail disconnected later: back to the labelled sample", async () => {
+  it("Gmail disconnected later: the inbox's rows go, the panel shows, and no sample takes their place", async () => {
     let answer!: (summary: typeof GMAIL_NOT_CONNECTED) => void
     configureGmailSummary({
       initial: { phase: "ready", summary: LIVE },
@@ -168,7 +203,9 @@ describe("CRM live from Gmail", () => {
     renderCrm(<OverviewScreen />)
     expect(screen.getByText(/3 contacts/)).toBeInTheDocument()
     await act(async () => answer(GMAIL_NOT_CONNECTED))
-    expect(screen.getByText(/6 contacts/)).toBeInTheDocument()
-    expect(within(header()).getByTestId("crm-source")).toHaveAttribute("data-source", "sample")
+    expect(screen.queryByText(/3 contacts/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("crm-not-connected")).toHaveTextContent(GMAIL_PANEL_TITLES.overview)
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
+    expect(within(header()).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
   })
 })

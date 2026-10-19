@@ -13,7 +13,6 @@ import {
   type Contact,
   type Organization,
 } from "@/lib/crm/crm"
-import { isSeedContact } from "@/lib/crm/fixture"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
@@ -26,13 +25,11 @@ import {
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactEditDialog, ContactNewDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import {
-  CARD,
   CARD_LIST,
   RecordSheet,
   RowMenu,
@@ -44,6 +41,7 @@ import {
 import { clearListReturn, rememberListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
+import { GmailNotConnected } from "@/components/crm/gmail-not-connected"
 import { CRM_44 } from "@/components/crm/crm-touch"
 
 /**
@@ -253,11 +251,12 @@ export function ContactsScreen() {
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
             {rows.length} {rows.length === 1 ? "person" : "people"}
-            {q.trim() ? " matching search" : store.sample ? " — sample rows, plus anyone you add" : ""}
+            {q.trim() ? " matching search" : store.gmail.kind === "not_connected" ? " you added" : ""}
           </p>
         </div>
         <ContactNewDialog />
       </div>
+      {store.gmail.kind === "not_connected" ? <GmailNotConnected screen="contacts" /> : null}
       <div className="relative w-56 max-md:w-full">
         <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
         <Input
@@ -278,8 +277,8 @@ export function ContactsScreen() {
           <UsersIcon className="text-faint-foreground size-6" aria-hidden />
           <p className="text-body text-foreground font-medium">No contacts</p>
           <p className="text-caption">
-            {store.sample
-              ? "Every contact has been removed. Add one, or Reset to bring the sample people back."
+            {store.gmail.kind === "not_connected"
+              ? "No contacts yet. Add someone by hand; they stay in this browser."
               : "Nobody the inbox has replied to yet. Add someone by hand, or promote a triage thread."}
           </p>
         </div>
@@ -292,7 +291,7 @@ export function ContactsScreen() {
           No contacts match this search.
         </p>
       ) : (
-        <TableCard note="Seed people dated from today. Contacts you add or promote are yours.">
+        <TableCard>
           <ResponsiveTable
             layout="stack"
             className={CARD_LIST}
@@ -314,8 +313,6 @@ export function ContactsScreen() {
                   orgOf(store.organizations, contact.organizationId),
                   openCaseCount(store.cases, contact.id)
                 )}
-                sample={store.sample && isSeedContact(contact.id)}
-                className={CARD}
                 onClick={() => {
                   setSheetId(contact.id)
                   setSheetOpen(true)
@@ -357,7 +354,6 @@ export function ContactsScreen() {
                         <span className="truncate md:max-xl:max-w-[calc(100%-2rem)] md:max-xl:min-w-0 md:max-xl:whitespace-normal md:max-xl:[overflow-wrap:anywhere]">
                           {name}
                         </span>
-                        {store.sample && isSeedContact(contact.id) ? <SampleDataTag /> : null}
                       </Link>
                       {/* Tablet: Email folds under Name. */}
                       <span className="text-caption text-muted-foreground hidden pl-8 md:max-xl:block md:max-xl:[overflow-wrap:anywhere]">

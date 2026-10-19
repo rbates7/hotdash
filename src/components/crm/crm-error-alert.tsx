@@ -31,7 +31,7 @@ export function CrmErrorAlert({
       </div>
       <p className="text-body text-muted-foreground">
         Something in this browser’s saved copy of the CRM could not be read. Nothing is stored on a
-        server; resetting discards the saved copy and shows the sample conversations again.
+        server; resetting discards the saved copy and starts the CRM empty.
       </p>
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>

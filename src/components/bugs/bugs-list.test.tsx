@@ -4,28 +4,29 @@ import { describe, expect, it } from "vitest"
 import { bugs } from "@/lib/bugs"
 import { formatRelative } from "@/lib/clock"
 import { STATUS_CONFIG, actorById } from "@/lib/issues"
-import { actors, buildIssues } from "@/lib/issues-fixture"
+import { actors } from "@/lib/issues-fixture"
+import { boardWithUserBugs, userBugIssues } from "@/test/bugs"
 import { FIXED_NOW } from "@/test/clock"
 import { BugsList, bugHref } from "@/components/bugs/bugs-list"
 
 function renderList() {
-  return render(<BugsList issues={buildIssues(FIXED_NOW)} actors={actors} now={FIXED_NOW} />)
+  return render(<BugsList issues={boardWithUserBugs(FIXED_NOW)} actors={actors} now={FIXED_NOW} />)
 }
 
 describe("BugsList row (phone card)", () => {
   it("is a link to the ticket carrying tag, title, key · priority · assignee, age and a chevron", () => {
     renderList()
     const card = screen.getByRole("link", { name: /Crash opening a shared playbook on iPad/ })
-    expect(card).toHaveAttribute("href", bugHref("CHLK-419"))
-    expect(card).toHaveAttribute("href", "/bugs?issue=CHLK-419")
+    expect(card).toHaveAttribute("href", bugHref("CHLK-919"))
+    expect(card).toHaveAttribute("href", "/bugs?issue=CHLK-919")
 
     expect(within(card).getByTestId("bug-tag")).toHaveTextContent("Bug · Crash")
     expect(within(card).getByText("Crash opening a shared playbook on iPad")).toBeInTheDocument()
-    expect(within(card).getByText("CHLK-419")).toBeInTheDocument()
+    expect(within(card).getByText("CHLK-919")).toBeInTheDocument()
     expect(within(card).getByText("Urgent")).toBeInTheDocument()
     expect(within(card).getAllByText("Yo-Yo").length).toBeGreaterThan(0)
 
-    const seed = buildIssues(FIXED_NOW).find((i) => i.key === "CHLK-419")!
+    const seed = userBugIssues(FIXED_NOW).find((i) => i.key === "CHLK-919")!
     expect(within(card).getByTestId("bug-age")).toHaveTextContent(
       formatRelative(Date.parse(seed.createdAt), FIXED_NOW.getTime())
     )
@@ -51,9 +52,9 @@ describe("BugsList row (phone card)", () => {
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 describe("BugsList row accessible name", () => {
-  it("B2: every seed card's link name carries its title, then its status, then its key", () => {
+  it("B2: every card's link name carries its title, then its status, then its key", () => {
     renderList()
-    const seed = bugs(buildIssues(FIXED_NOW))
+    const seed = bugs(userBugIssues(FIXED_NOW))
     expect(seed.length).toBeGreaterThanOrEqual(4)
     for (const issue of seed) {
       const status = STATUS_CONFIG[issue.status].label
@@ -66,7 +67,7 @@ describe("BugsList row accessible name", () => {
 
   it("F6: says the assignee once, keeping the agent marker for agents", () => {
     renderList()
-    for (const issue of bugs(buildIssues(FIXED_NOW))) {
+    for (const issue of bugs(userBugIssues(FIXED_NOW))) {
       const assignee = actorById(actors, issue.assigneeId)
       const card = screen.getByRole("link", { name: new RegExp(`${escape(issue.key)}(?!\\d)`) })
       if (!assignee) continue

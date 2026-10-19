@@ -35,7 +35,8 @@ create a Google Cloud project, the info@chlkapp.com password, and Vercel.
    CRM header now says **Live from Gmail**.
 
 That's all. To switch it off later, delete the four variables in Vercel
-(the CRM goes back to "Gmail not connected" and its sample) and, signed in
+(the CRM goes back to "Gmail not connected": a Not connected panel, and only
+the founder's own contacts) and, signed in
 as info@chlkapp.com, remove **Chlk Dashboard** at
 <https://myaccount.google.com/permissions>.
 
@@ -68,7 +69,7 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 | Env vars | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` — **server only**, never `NEXT_PUBLIC_`. `GMAIL_MAILBOX` (not secret, shown in the CRM) defaults to `info@chlkapp.com`. None set: not connected. Some set, or any malformed (client ID must end `.apps.googleusercontent.com`; no whitespace): not connected, and nothing is sent. |
 | Scope | `https://www.googleapis.com/auth/gmail.readonly` only. |
 | Calls | Plain `fetch`, no SDK (`src/lib/server/gmail.ts`, `server-only`): `POST oauth2.googleapis.com/token` (refresh-token grant) → `GET gmail.googleapis.com/gmail/v1/users/{GMAIL_MAILBOX}/threads?maxResults=100&q=newer_than:90d -category:promotions -category:social` → per thread `GET …/threads/{id}?format=metadata&metadataHeaders=From,To,Subject` (5 at a time). Headers, labels and snippets only — never a body or attachment. Gmail refuses a `{mailbox}` that is not the account that granted the token, so the mailbox cannot be swapped for another. |
-| Cache | Same as Stripe: one sync per server process every 5 minutes, always **in the background** — a request never waits. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with credentials it gets `connecting` at once (the CRM says Connecting… over its skeletons, never the sample) and polls every 5 s until the sync lands. This is the Stripe rule (#50): a failed or timed-out first sync is `not_connected`, every retry after it is too until one lands, and with no credentials it is always `not_connected`. The routes hand the running sync to `after()`. A sync over 240 s is aborted (the signal reaches every `fetch`) and counts as a failure; a failed sync retries 1 minute after it failed. The last good copy is kept indefinitely. |
+| Cache | Same as Stripe: one sync per server process every 5 minutes, always **in the background** — a request never waits. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with credentials it gets `connecting` at once (the CRM says Connecting… over its skeletons, never invented rows) and polls every 5 s until the sync lands. This is the Stripe rule (#50): a failed or timed-out first sync is `not_connected`, every retry after it is too until one lands, and with no credentials it is always `not_connected`. The routes hand the running sync to `after()`. A sync over 240 s is aborted (the signal reaches every `fetch`) and counts as a failure; a failed sync retries 1 minute after it failed. The last good copy is kept indefinitely. |
 | Filters | `skipReason` in `src/lib/crm/gmail-mapping.ts` drops whole threads before mapping, so they make no case, contact, triage row or message: **bounces** (mailer-daemon, postmaster, "Mail Delivery Subsystem", "Undeliverable", "Address not found" …), **billing and failed-payment notices** (from a billing sender such as Stripe or `billing@`, or opened by the mailbox with billing wording such as "we weren't able to charge" or "your free trial of", together with any customer reply to one, because the notice's greeting carries the customer's name), and **outbound-only threads** (the mailbox wrote and no customer replied). |
 | Access token | One per server instance, shared by every request (`createTokenCache` in `src/lib/server/gmail.ts`): reused until 1 minute before Google's `expires_in`, at most one refresh in flight (callers that arrive meanwhile wait for it), dropped when Gmail answers 401, never reused for other credentials, and never cached when Google sends no `expires_in`. A failed refresh is not cached. Each Vercel instance still refreshes on its own; see "Sharing the access token across instances" below. |
 | Logs | `[gmail] sync failed: <kind>` — a fixed word (`GmailAuth`, `GmailApi`, `GmailRateLimited`, `InvalidData`, `SyncTimeout`, `Aborted`, `UnknownError`) — and, when Google answered with an error, its **code fields only** in brackets: which call (`token` or `api`), the HTTP `status`, the OAuth `error` (e.g. `invalid_grant`, `unauthorized_client`), and the Gmail API `apiStatus` / `reason` (e.g. `PERMISSION_DENIED`, `userRateLimitExceeded`, `insufficientPermissions`). Values are kept only if they look like a code (letters and underscores) and contain no configured credential; `error_description`, `message`, bodies and headers are never read into the log. The bracket starts with **invalid token or grant** (`GmailAuth`), **rate limited** (`GmailRateLimited`) or **Gmail API error** (`GmailApi`), e.g. `[gmail] sync failed: GmailAuth (invalid token or grant: token status=400 error=invalid_grant)` or `[gmail] sync failed: GmailRateLimited (rate limited: api status=403 reason=userRateLimitExceeded)`. A 403 with a quota reason (`rateLimitExceeded`, `userRateLimitExceeded`, `quotaExceeded`, `dailyLimitExceeded`) or `RESOURCE_EXHAUSTED`, and any 429, is `GmailRateLimited`; other 401/403s are `GmailAuth`. |
@@ -127,16 +128,16 @@ would be new infrastructure and is a separate decision.
 | State | Rows | Header |
 | --- | --- | --- |
 | Loading (first paint) | Skeletons | — |
-| Connecting (first sync on the server) | Skeletons, never the sample | **Connecting…** |
-| Not connected | The sample, saved in this browser, every row labelled | **Gmail not connected** + **Sample data** |
+| Connecting (first sync on the server) | Skeletons, never invented rows | **Connecting…** |
+| Not connected | A Not connected panel on Overview, Cases and Triage; Contacts shows it above the contacts the founder added (saved in this browser) | **Gmail not connected** |
 | Connected | The support inbox | **Live from Gmail**, "Read-only · edits here aren't saved" |
 | Stale | The last good copy | **Last updated <time>** |
 
 Settings › Connected data shows Gmail as Connected / Last updated / Connecting… / Not
 connected. With Gmail live, the CRM's controls still work on the inbox's
 rows in memory (Gmail is read-only and nothing is written back); the next
-synced copy replaces them. The sample's saved edits stay untouched in this
-browser for when Gmail is not connected.
+synced copy replaces them. Contacts the founder added while Gmail was not
+connected stay untouched in this browser for when it is not connected again.
 
 ### Tests
 

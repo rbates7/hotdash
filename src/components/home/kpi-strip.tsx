@@ -3,7 +3,6 @@ import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
 import { cn } from "@/lib/utils"
-import { SampleDataTag } from "@/components/sample-data"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 import { HOME_KPI_HEAD } from "@/components/home/responsive"
 import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
@@ -40,42 +39,29 @@ export function DeltaPill({ kpi }: { kpi: Kpi }) {
   )
 }
 
-const SAMPLE_LABEL_ID = "kpi-sample-data"
-
 /**
- * Strip-level note: says plainly that the figures are invented.
- * `reserve` is an empty box the label's size instead (no words, so nothing
- * claims "sample" before Stripe answers), so the strip is the same height —
- * wrapping on a phone included — whether Stripe is loading, live or not
- * connected. Keep its width in step with the label's (281px).
+ * The strip head's right-hand box: empty, the size the old Sample data
+ * label had, so the head keeps develop's height (wrapping on a phone
+ * included). No card on Home is ever sample: each is Stripe's figure, a
+ * loading placeholder or Not connected (`liveKpis`).
  */
-export function SampleDataLabel({ reserve = false }: { reserve?: boolean }) {
-  if (reserve) return <span aria-hidden data-testid="kpi-sample-reserve" className="h-6 w-[282px] max-w-full" />
-  return (
-    <p id={SAMPLE_LABEL_ID} role="note" data-testid="kpi-sample-label" className="inline-flex">
-      <SampleDataTag className="text-caption h-6 px-2">· figures are invented, not live</SampleDataTag>
-    </p>
-  )
+function HeadReserve() {
+  return <span aria-hidden data-testid="kpi-sample-reserve" className="h-6 w-[282px] max-w-full" />
 }
 
-const isSample = (kpi: Kpi) => !kpi.source || kpi.source === "sample"
-
 export function KpiCard({ kpi }: { kpi: Kpi }) {
-  const sample = isSample(kpi)
   const loading = kpi.source === "loading"
   const notConnected = kpi.source === "not_connected"
   return (
     <article
       aria-label={kpi.label}
-      aria-describedby={sample ? SAMPLE_LABEL_ID : undefined}
       aria-busy={loading || undefined}
-      data-source={kpi.source ?? "sample"}
+      data-source={kpi.source}
       className="bg-surface border-surface-border flex min-h-[124px] flex-col rounded-xl border px-[18px] pt-[18px] pb-4"
     >
-      {/* min-h-5: the Sample tag's height, held when there is no tag. */}
+      {/* min-h-5: a badge's height, held when there is none. */}
       <div className="flex min-h-5 items-start justify-between gap-2">
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
-        {sample && <SampleDataTag />}
         {notConnected && <NotConnectedBadge className="h-5 px-2" />}
         {loading && kpi.connecting && <ConnectingBadge className="h-5 px-2" />}
       </div>
@@ -116,7 +102,7 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
           {kpi.updated}
         </p>
       )}
-      {/* The total's three groups; a sample or loading card keeps their room. */}
+      {/* The total's three groups; a loading or Not connected card keeps their room. */}
       {kpi.id === "subscribers" && (
         <SubscriberBreakdown breakdown={kpi.breakdown} reserve={!kpi.breakdown} className="mt-2.5" />
       )}
@@ -142,7 +128,7 @@ export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
         <h2 className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
           {title}
         </h2>
-        <SampleDataLabel reserve={!kpis.some(isSample)} />
+        <HeadReserve />
       </div>
       <div
         className={cn(

@@ -117,7 +117,6 @@ describe("sample source", () => {
     it("initial is always the page-open figure, however long the module has been loaded", async () => {
       const source = createSampleSource({ startMs: start - 3_600_000 })
       expect(source.initial({ timeZone: zone })).toMatchObject({ total: sampleBase(AT), today: 0 })
-      expect(source.sample).toBe(true)
     })
 
     it("pushes on every simulated sign-up while subscribed", async () => {
@@ -157,7 +156,6 @@ describe("createTickerStore", () => {
       return next
     })
     const source: SubscriberSource = {
-      sample: false,
       initial: () => initial,
       read,
       subscribe: (fn) => {
@@ -258,7 +256,6 @@ describe("createTickerStore", () => {
   it("ignores a read that lands after the last listener left", async () => {
     let resolve: (r: SubscriberReading) => void = () => {}
     const source: SubscriberSource = {
-      sample: false,
       initial: () => null,
       read: () => new Promise((r) => (resolve = r)),
     }

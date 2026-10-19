@@ -12,13 +12,12 @@ import {
   recentActivity,
   urgentOpenCount,
 } from "@/lib/crm/crm"
-import { isSeedCase, isSeedMessage, isSeedNote } from "@/lib/crm/fixture"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { SampleDataTag } from "@/components/sample-data"
 import { StatusBadge } from "@/components/crm/case-badges"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
+import { GmailNotConnected } from "@/components/crm/gmail-not-connected"
 
 /**
  * A list row that opens a case: 44 tall below 1280. On a phone the subject
@@ -73,6 +72,22 @@ export function OverviewScreen() {
   const activity = recentActivity(messages, notes)
   const openConversations = counts.new + counts.open + counts.waiting
 
+  if (store.gmail.kind === "not_connected") {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <GmailNotConnected screen="overview" />
+        {contacts.length > 0 ? (
+          <p className="text-muted-foreground text-sm">
+            <Link href="/crm/contacts" className="text-foreground font-medium underline-offset-4 hover:underline max-xl:inline-flex max-xl:min-h-11 max-xl:items-center">
+              {contacts.length} {contacts.length === 1 ? "contact" : "contacts"} you added
+            </Link>{" "}
+            in this browser.
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+
   if (cases.length === 0 && contacts.length === 0 && triageCount === 0) {
     return (
       <div
@@ -82,9 +97,7 @@ export function OverviewScreen() {
       >
         <p className="text-body text-foreground font-medium">CRM is empty</p>
         <p className="text-caption">
-          {store.sample
-            ? "Every sample row has been removed. Add a contact, or Reset to bring the sample data back."
-            : `No conversations in ${store.gmail.kind === "live" ? store.gmail.mailbox : "the support inbox"} in the last 90 days.`}
+          {`No conversations in ${store.gmail.kind === "live" ? store.gmail.mailbox : "the support inbox"} in the last 90 days.`}
         </p>
       </div>
     )
@@ -150,7 +163,6 @@ export function OverviewScreen() {
                   <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:basis-[calc(100%-3rem)]">
                     {caseRow.subject}
                   </span>
-                  {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
                   <StatusBadge status={caseRow.status} />
                   <span className="text-muted-foreground shrink-0 text-xs">
                     {formatCrmRelative(caseRow.lastActivityAt, nowMs)}
@@ -186,7 +198,6 @@ export function OverviewScreen() {
                         <span className="text-muted-foreground">Note on</span> #{caseRow?.caseNumber}{" "}
                         — {note.body}
                       </span>
-                      {store.sample && isSeedNote(note.id) ? <SampleDataTag /> : null}
                       <span className="text-muted-foreground shrink-0 text-xs">
                         {formatCrmRelative(note.createdAt, nowMs)}
                       </span>
@@ -216,7 +227,6 @@ export function OverviewScreen() {
                       </span>{" "}
                       {message.snippet}
                     </span>
-                    {store.sample && isSeedMessage(message.id) ? <SampleDataTag /> : null}
                     <span className="text-muted-foreground shrink-0 text-xs">
                       {formatCrmRelative(message.sentAt, nowMs)}
                     </span>

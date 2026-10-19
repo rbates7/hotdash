@@ -160,17 +160,17 @@ describe("board", () => {
     expect(titlesIn("Now")).toEqual(["iPad forced updates", "Play share links", "Flag Football 2026"])
     expect(note()).toHaveTextContent(PERSISTENCE_COPY.saved)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("iPad forced updates")
-    // Moving is not rewriting: still sample data.
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
+    // No bet ever wears a Sample data tag (the old seed's flag is never shown).
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
   })
 
-  it("moves a bet between columns; it lands at the bottom and keeps its tag", async () => {
+  it("moves a bet between columns; it lands at the bottom", async () => {
     const user = userEvent.setup()
     render(<Screen />)
     await user.click(within(card("Staff seats")).getByRole("button", { name: "Move to Now" }))
     expect(titlesIn("Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates", "Staff seats"])
     expect(titlesIn("Next")).toEqual(["Web import from a link", "CSV web import"])
-    expect(within(card("Staff seats")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card("Staff seats")).queryByTestId("sample-data-tag")).toBeNull()
     await user.click(within(card("Staff seats")).getByRole("button", { name: "Move to Next" }))
     await user.click(within(card("Staff seats")).getByRole("button", { name: "Move to Later" }))
     expect(titlesIn("Later")).toEqual(["Auto-scout from film", "Parent recap emails", "Staff seats"])
@@ -207,7 +207,7 @@ describe("board", () => {
     expect(added).toHaveTextContent("Q1 2027")
     expect(within(added).getByTitle(TICKETS_TITLE)).toHaveTextContent("No tickets")
     expect(within(added).queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Practice plan templates")
   })
 
@@ -226,7 +226,7 @@ describe("board", () => {
     expect(edit).not.toHaveFocus()
   })
 
-  it("edits a bet; rewriting drops the sample tag; a no-op edit cannot be saved", async () => {
+  it("edits a bet; a no-op edit cannot be saved; no bet wears a sample tag", async () => {
     vi.useFakeTimers({ now: NOW, toFake: ["Date"] })
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<Screen />)
@@ -235,7 +235,7 @@ describe("board", () => {
     // Shared formatRelative long: weekday-date for anything older than yesterday; full date in the title.
     expect(dialog).toHaveTextContent("Signed Mon, Sep 28 · from Feature Request")
     expect(within(dialog).getByText("Mon, Sep 28")).toHaveAttribute("title", "28 Sep 2026")
-    expect(within(dialog).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(dialog).queryByTestId("sample-data-tag")).toBeNull()
     expect(dialog).toHaveTextContent("1 ticket linked · sample count, display only")
 
     const save = within(dialog).getByRole("button", { name: /Save/ })
@@ -257,18 +257,18 @@ describe("board", () => {
     const edited = card("Import a play from a HUDL link")
     expect(edited).toHaveTextContent("Dec 2026")
     expect(within(edited).queryByTestId("sample-data-tag")).toBeNull()
-    expect(within(edited).getByTitle(TICKETS_TITLE)).toHaveTextContent("No tickets")
-    expect(within(edited).queryByTitle(SOURCE_CHIP_TITLE)).toBeNull()
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(7)
+    expect(within(edited).getByTitle(TICKETS_TITLE)).toHaveTextContent("1 ticket")
+    // Editing the words no longer resets the ticket count or the source chip (that ran only on sample bets).
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
     expect(titlesIn("Next")[0]).toBe("Import a play from a HUDL link") // same place in the sequence
 
     await user.click(within(edited).getByRole("button", { name: "Edit" }))
     const after = await screen.findByRole("dialog", { name: "Bet: Import a play from a HUDL link" })
-    expect(after).toHaveTextContent("Signed just now")
-    expect(after).not.toHaveTextContent("from Feature Request")
+    // The signed date and source stay as they were: a rewrite re-dated only sample bets.
+    expect(after).toHaveTextContent("from Feature Request")
   })
 
-  it("re-owning from the dialog keeps the sample tag", async () => {
+  it("re-owns from the dialog", async () => {
     const user = userEvent.setup()
     render(<Screen />)
     await user.click(within(card("Staff seats")).getByRole("button", { name: "Edit" }))
@@ -278,7 +278,7 @@ describe("board", () => {
     await user.click(within(owners).getByRole("button", { name: "Mace" }))
     await user.click(within(dialog).getByRole("button", { name: /Save/ }))
     expect(card("Staff seats")).toHaveTextContent("Mace")
-    expect(within(card("Staff seats")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card("Staff seats")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("offers Spawn ticket as a disabled, explained affordance and never touches the issues store", async () => {
@@ -361,7 +361,7 @@ describe("board", () => {
     await user.click(within(await screen.findByRole("dialog", { name: "Reset demo data?" })).getByRole("button", { name: "Reset" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(titlesIn("Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates"])
-    expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(8)
+    expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
     expect(note()).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")

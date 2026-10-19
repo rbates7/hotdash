@@ -19,10 +19,10 @@ const BADGE = "h-6 px-2"
 
 /**
  * Where the CRM's rows come from, beside the page title — the same words
- * Settings › Connected data uses: not connected (the sample, labelled
- * beside it), live from the support inbox, or the last good copy when
- * Gmail could not be read. Connecting… while the server's first sync runs
- * (the rows stay skeletons, never the sample). Nothing while the first
+ * Settings › Connected data uses: not connected (the screens show Not
+ * connected panels), live from the support inbox, or the last good copy
+ * when Gmail could not be read. Connecting… while the server's first sync
+ * runs (the rows stay skeletons). Nothing while the first
  * answer is on its way.
  */
 export function CrmSourceBadge({ feed, className }: { feed: GmailFeed; className?: string }) {
@@ -48,8 +48,8 @@ export function CrmSourceBadge({ feed, className }: { feed: GmailFeed; className
       <Badge
         variant="outline"
         data-testid="crm-source"
-        data-source="sample"
-        title={`${feed.mailbox} is not connected, so the CRM shows sample conversations.`}
+        data-source="not_connected"
+        title={`${feed.mailbox} is not connected, so the CRM has no conversations yet.`}
         className={cn("text-muted-foreground!", BADGE, className)}
       >
         <MailXIcon aria-hidden />

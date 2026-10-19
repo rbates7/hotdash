@@ -371,8 +371,8 @@ export function buildIssues(now: Date): Issue[] {
 
 /**
  * Keys of the demo seed. Dates are relative to `now`, but the keys are not:
- * any instant produces the same set. Bugs shows the sample-data notice
- * while any listed bug is one of these.
+ * any instant produces the same set. Bugs never lists these: it shows
+ * only bug tickets the founder created (`userBugs` in `@/lib/bugs`).
  */
 export const SEED_ISSUE_KEYS: ReadonlySet<string> = new Set(
   buildIssues(new Date(0)).map((i) => i.key)
