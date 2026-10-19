@@ -22,13 +22,6 @@ async function stripeSettled(page: Page) {
   await expect(page.locator('main [data-source="loading"]')).toHaveCount(0)
 }
 
-function boxesOverlap(
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number }
-) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
-}
-
 for (const vp of VIEWPORTS) {
   test.describe(`responsive Home (${vp.name})`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } })
