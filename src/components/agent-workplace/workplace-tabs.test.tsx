@@ -31,6 +31,7 @@ describe("WorkplaceTabs", () => {
     expect(tabs).toEqual([
       "Issues",
       "Backlog",
+      "Work board",
       "Agents",
       "Chat",
       "Autopilots",
@@ -145,3 +146,18 @@ describe("WorkplaceTabs", () => {
     expect(screen.getByText("Weekly bug audit")).toBeInTheDocument()
   })
 })
+
+describe("TabBarScroller", () => {
+  it("wraps the tablist with two decorative edge fades that never take pointer or reader focus", () => {
+    renderTabs()
+    const bar = screen.getByTestId("workplace-tab-bar")
+    expect(bar).toContainElement(screen.getByRole("tablist"))
+    for (const id of ["tab-fade-start", "tab-fade-end"]) {
+      const fade = screen.getByTestId(id)
+      expect(fade).toHaveAttribute("aria-hidden")
+      expect(fade.className).toMatch(/\bpointer-events-none\b/)
+      expect(fade.className).toMatch(/\bopacity-0\b/)
+    }
+  })
+})
+

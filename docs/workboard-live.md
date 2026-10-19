@@ -2,9 +2,12 @@
 
 `GET /api/workboard` reads rbates7/hotdash's pull requests from GitHub:
 the open ones and the ones merged in the last 14 days, each with its CI,
-review and board state. This is the **data layer only**. No screen reads
-it yet: Agent Workplace is unchanged and is still the design mock. The
-board UI is wired in a separate PR.
+review and board state. Agent Workplace's **Work board** tab reads it
+(`src/components/agent-workplace/work-board.tsx`, through
+`src/hooks/use-workboard.ts`): Connecting… before the first answer or while
+the first sync runs, Not connected with no token, "No open pull requests"
+when the board is empty, the rows in four columns, and a stale note over
+the last good rows after a failed sync. It never shows sample rows.
 
 ## Setup
 

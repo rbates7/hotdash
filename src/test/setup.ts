@@ -9,11 +9,13 @@ import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { configureWorkboard } from "@/hooks/use-workboard"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
 import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
+import { WORKBOARD_NOT_CONNECTED } from "@/lib/workboard-view"
 
 // Stripe, PostHog and Gmail start not connected in every test (no fetch to
 // a server that is not there): screens show their sample figures, labelled.
@@ -41,6 +43,11 @@ beforeEach(() => {
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },
     fetcher: async () => GMAIL_NOT_CONNECTED,
+  })
+  // The workboard too (src/test/workboard.ts for live rows, connecting, stale).
+  configureWorkboard({
+    initial: { phase: "ready", summary: WORKBOARD_NOT_CONNECTED },
+    fetcher: async () => WORKBOARD_NOT_CONNECTED,
   })
 })
 
