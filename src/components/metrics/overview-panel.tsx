@@ -5,8 +5,9 @@ import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
-import { liveMetric, liveValueText } from "@/lib/live-metrics"
+import { liveCard, liveValueText } from "@/lib/live-metrics"
 import { useSettings } from "@/hooks/use-settings"
+import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,7 @@ function PickerChoices({
 }) {
   const { today, visible, expenses } = useMetrics()
   const feed = useStripeFeed()
+  const posthog = usePosthogFeed()
   const { timeZone } = useSettings()
   const choices = pickerIds(visible)
 
@@ -65,7 +67,7 @@ function PickerChoices({
         <ul className="flex flex-col">
           {choices.map((id) => {
             const snap = snapshotFor(id, { today, expenses })
-            const live = liveMetric(id, feed, timeZone)
+            const live = liveCard(id, feed, posthog, timeZone)
             const figure =
               live.kind === "live"
                 ? liveValueText(live.metric, snap.unit)
@@ -97,6 +99,13 @@ function AddMetric() {
   const phone = useIsMobile()
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
+  // Stripe or PostHog live: some choices carry real figures, so the sheet
+  // cannot call them all sample.
+  const stripeFeed = useStripeFeed()
+  const stripeLive = stripeFeed.kind === "live"
+  const stripeConnecting = stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting)
+  const posthogLive = usePosthogFeed().kind === "live"
+  const anyLive = stripeLive || posthogLive
   useMetricsSheetTabTrap(phone && open)
 
   function pick(id: MetricId) {
@@ -130,7 +139,12 @@ function AddMetric() {
             <SheetHeader className={METRICS_SHEET_HEADER}>
               <SheetTitle>Add a metric</SheetTitle>
               <SheetDescription>
-                Extra metrics and any card you have removed. Sample figures.
+                Extra metrics and any card you have removed.{" "}
+                {anyLive
+                  ? "Live where connected; the rest are sample figures."
+                  : stripeConnecting
+                    ? "Stripe is connecting (first sync in progress); the rest are sample figures."
+                    : "Sample figures."}
               </SheetDescription>
             </SheetHeader>
             <PickerChoices onPick={pick} chrome={false} />
@@ -166,6 +180,7 @@ function AddMetric() {
 export function OverviewPanel() {
   const { today, visible, charts, expenses, setChart, removeMetric } = useMetrics()
   const feed = useStripeFeed()
+  const posthog = usePosthogFeed()
   const { timeZone } = useSettings()
 
   return (
@@ -195,7 +210,7 @@ export function OverviewPanel() {
                 chart={charts[id] ?? METRIC_DEFS[id].defaultChart}
                 onChartChange={(chart) => setChart(id, chart)}
                 onRemove={() => removeMetric(id)}
-                live={liveMetric(id, feed, timeZone)}
+                live={liveCard(id, feed, posthog, timeZone)}
               />
             )
           })}

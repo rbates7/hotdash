@@ -6,7 +6,7 @@ import type { StripeHealth } from "@/lib/stripe-summary"
 export const dynamic = "force-dynamic"
 
 /**
- * `{"stripe":"ok"|"unavailable"|"not_configured"}` and nothing else — no
+ * `{"stripe":"ok"|"connecting"|"unavailable"|"not_configured"}` and nothing else — no
  * figures, no key, no error text — so it is safe to leave public. Reads
  * through the same cache as the summary, so polling it cannot hammer Stripe.
  */

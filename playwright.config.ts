@@ -12,7 +12,9 @@ export default defineConfig({
   // `test:e2e:ci`), so a pass-on-retry still fails the run. A retry can
   // explain a flake; it can never hide one.
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  // CI also writes the HTML report (never opened), so the "Upload Playwright
+  // report" step has a report to upload on every run, green or red.
+  reporter: process.env.CI ? [["github"], ["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
     trace: "retain-on-failure",
@@ -28,15 +30,18 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // e2e never talks to Stripe, Chlk's database or Notion: the server it
-    // starts has no key, no database URL and no Notion token or page (so all
-    // are "not connected"), and specs mock /api/stripe/* and
-    // /api/notion/roadmap in the browser for the connected and stale
-    // states. This holds even on a machine whose shell has any of them.
+    // e2e never talks to Stripe, PostHog, Notion or Chlk's database: the
+    // server it starts has no keys, no database URL and no Notion token or
+    // page (so all are "not connected"), and specs mock /api/stripe/*,
+    // /api/posthog/* and /api/notion/roadmap in the browser for the
+    // connected and stale states. This holds even on a machine whose shell
+    // has any of them.
     env: {
       STRIPE_READONLY_KEY: "",
       STRIPE_API_BASE: "",
       SUPABASE_READONLY_DB_URL: "",
+      POSTHOG_READONLY_KEY: "",
+      POSTHOG_HOST: "",
       NOTION_READONLY_TOKEN: "",
       NOTION_ROADMAP_PAGE_ID: "",
       NOTION_API_BASE: "",

@@ -41,6 +41,7 @@
     "screens:responsive-crm": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-crm-screens.spec.ts",
     "screens:responsive-my-desk": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-my-desk-screens.spec.ts",
     "screens:stripe-live": "CI=true SCREENSHOTS=1 playwright test e2e/stripe-live-screens.spec.ts",
+    "screens:posthog-live": "CI=true SCREENSHOTS=1 playwright test e2e/posthog-live-screens.spec.ts",
     "screens:notion-roadmap": "CI=true SCREENSHOTS=1 playwright test e2e/notion-roadmap-screens.spec.ts"
   },
   "dependencies": {

@@ -47,6 +47,7 @@ export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   subscribers: { id: "subscribers", label: "Subscribers", unit: "count", trendKind: "abs", defaultChart: "bar" },
   trials: { id: "trials", label: "Trial Conversions", unit: "percent", trendKind: "pts", defaultChart: "line" },
   expenses: { id: "expenses", label: "Expenses", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },
+  active: { id: "active", label: "Active Users", unit: "count", trendKind: "percent", defaultChart: "bar" },
   cac: { id: "cac", label: "CAC", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },
   ltv: { id: "ltv", label: "LTV", unit: "currency", trendKind: "percent", defaultChart: "bar" },
   arpu: { id: "arpu", label: "ARPU", unit: "currency", trendKind: "percent", defaultChart: "bar" },
@@ -81,6 +82,7 @@ const SERIES: Record<MetricId, number[]> = {
   // The second-to-last point is the prior period's total; the last is
   // summed live from the table.
   expenses: [7_800, 7_900, 7_960, 8_000, 8_050, 0],
+  active: [540, 575, 610, 648, 690, 731],
   cac: [168, 162, 160, 158, 155, 142],
   ltv: [1_520, 1_560, 1_590, 1_600, 1_620, 1_680],
   arpu: [132, 134, 136, 137, 138, 141],

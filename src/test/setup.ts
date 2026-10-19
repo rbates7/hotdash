@@ -4,18 +4,24 @@ import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
+import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
 import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
+import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
-// Stripe starts not connected in every test (no fetch to a server that is
-// not there): screens show their sample figures, labelled. A test that
-// wants live figures calls `configureStripeSummary` itself
-// (see src/test/stripe.ts).
+// Stripe and PostHog start not connected in every test (no fetch to a
+// server that is not there): screens show their sample figures, labelled.
+// A test that wants live figures configures them itself (see
+// src/test/stripe.ts and src/test/posthog.ts).
 beforeEach(() => {
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
     fetcher: async () => NOT_CONNECTED,
+  })
+  configurePosthogSummary({
+    initial: { phase: "ready", summary: POSTHOG_NOT_CONNECTED },
+    fetcher: async () => POSTHOG_NOT_CONNECTED,
   })
   // Notion likewise: the Roadmap shows its local board (sample + edits).
   // See src/test/notion.ts for live rows.

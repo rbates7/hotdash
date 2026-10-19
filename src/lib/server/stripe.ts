@@ -9,7 +9,7 @@ import {
   type StripeData,
   type StripeMetrics,
 } from "@/lib/stripe-metrics"
-import { NOT_CONNECTED, type StripeHealth, type StripeSummary } from "@/lib/stripe-summary"
+import { CONNECTING, NOT_CONNECTED, type StripeHealth, type StripeSummary } from "@/lib/stripe-summary"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
@@ -24,7 +24,8 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
  * request, in the caller's time zone.
  *
  * A request never waits for a sync (a full one takes minutes): it gets the
- * copy there is now — or `not_connected` before the first sync lands — and
+ * copy there is now — or `connecting` before the first sync lands (with a
+ * key; `not_connected` without one, or after a first sync failed) — and
  * a due sync starts in the background, one at a time, cut off after
  * `SYNC_TIMEOUT_MS`.
  */
@@ -293,9 +294,9 @@ export function createStripeService({
    * Whether the copy is current, starting a sync in the background when
    * one is due and none is running. Never waits for it; never throws.
    */
-  function read(): { fresh: boolean; configured: boolean } {
+  function read(): { fresh: boolean; configured: boolean; connecting: boolean } {
     const config = readStripeConfig(env())
-    if (config.kind !== "ok") return { fresh: false, configured: false }
+    if (config.kind !== "ok") return { fresh: false, configured: false, connecting: false }
     const age = lastAttempt ? clock() - lastAttempt.at : Infinity
     const due = !lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)
     if (due && !inflight) {
@@ -306,7 +307,8 @@ export function createStripeService({
     }
     // A refresh running behind a good copy leaves it current; only a
     // failed sync makes it stale.
-    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true }
+    // No sync has finished yet: the first one (started above) is running.
+    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true, connecting: !lastAttempt && !lastGood }
   }
 
   function metricsFor(snapshot: Snapshot, timeZone: string) {
@@ -320,9 +322,9 @@ export function createStripeService({
 
   return {
     async summary(timeZone) {
-      const { fresh } = read()
+      const { fresh, connecting } = read()
       const snapshot = lastGood
-      if (!snapshot) return NOT_CONNECTED
+      if (!snapshot) return connecting ? CONNECTING : NOT_CONNECTED
       return {
         status: fresh ? "connected" : "stale",
         lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
@@ -330,8 +332,9 @@ export function createStripeService({
       }
     },
     async health() {
-      const { fresh, configured } = read()
+      const { fresh, configured, connecting } = read()
       if (!configured) return "not_configured"
+      if (connecting) return "connecting"
       return fresh ? "ok" : "unavailable"
     },
     async settled() {
