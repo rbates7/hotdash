@@ -1,4 +1,3 @@
-import Link from "next/link"
 import {
   CircleCheckIcon,
   CircleDashedIcon,
@@ -11,7 +10,6 @@ import {
 import { formatDate } from "@/lib/clock"
 import {
   DEFAULT_SCENARIO,
-  PREVIEW_PARAM,
   SENTRY_HREF,
   STATUS_LABEL,
   buildPastIncident,
@@ -36,8 +34,6 @@ import {
   STATUS_HEADER_CHIP,
   STATUS_HEADER_META,
   STATUS_INCIDENT,
-  STATUS_PREVIEW,
-  STATUS_PREVIEW_OPTION,
   STATUS_ROW,
   STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
@@ -108,48 +104,6 @@ function OutLink({ href, children, className }: { href: string; children: React.
   )
 }
 
-/* ---------------------------------------------------------------- preview */
-
-/**
- * The dev switch between the real (unpolled) page and the two seeded
- * previews. Links, not a stored setting: the page re-renders on the server
- * with the chosen scenario, the URL says which one is showing, and the next
- * visit is the real page again — a health page should not remember a
- * preview.
- */
-function PreviewToggle({ scenario }: { scenario: Scenario }) {
-  const options: { value: Scenario; label: string; href: string }[] = [
-    { value: "empty", label: "Live", href: "/system-status" },
-    { value: "green", label: "Green", href: `/system-status?${PREVIEW_PARAM}=green` },
-    { value: "not-green", label: "Not green", href: `/system-status?${PREVIEW_PARAM}=not-green` },
-  ]
-  return (
-    <div role="group" aria-label="Preview" className={STATUS_PREVIEW}>
-      <span className="text-micro text-muted-foreground px-2 font-semibold tracking-[0.06em] uppercase select-none">
-        Preview
-      </span>
-      {options.map((o) => {
-        const active = o.value === scenario
-        return (
-          <Link
-            key={o.value}
-            href={o.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              STATUS_PREVIEW_OPTION,
-              active
-                ? "bg-surface text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {o.label}
-          </Link>
-        )
-      })}
-    </div>
-  )
-}
-
 /* ----------------------------------------------------------------- pieces */
 
 /** Neutral — not green, not degraded. Used when there are no checks at all. */
@@ -183,7 +137,7 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-title-lg font-semibold tracking-tight">{verdict.title}</h2>
-            {/* Only the seeded previews have checks; the real page has none to label. */}
+            {/* Only the seeded views have checks; the real page has none to label. */}
             {!verdict.empty && <SampleDataTag />}
           </div>
           <p className="text-label text-muted-foreground mt-1 tracking-tight">{verdict.detail}</p>
@@ -238,8 +192,13 @@ function ServiceRow({ service, nowMs }: { service: Service; nowMs: number }) {
 
 /**
  * The whole System Status page below the shell. Pure: everything it shows
- * is derived from `nowMs` and the chosen scenario, so the server render is
- * the final render — no store, no hydration, nothing saved.
+ * is derived from `nowMs` and the scenario, so the server render is the
+ * final render — no store, no hydration, nothing saved.
+ *
+ * The app always renders the real page (`empty`: no checks, Not connected).
+ * The seeded `green` / `not-green` scenarios are reachable only by passing
+ * `scenario` here, which only the unit tests do: there is no preview control
+ * and no `?preview=` route (Coulson, relayed by Simmons, Oct 19).
  */
 export function StatusScreen({
   nowMs,
@@ -247,14 +206,15 @@ export function StatusScreen({
 }: {
   /** The request's instant, read once in page.tsx. Every "ago" is measured from it. */
   nowMs: number
+  /** Unit tests only: the seeded views. The page never passes it. */
   scenario?: Scenario
 }) {
   const services = buildServices(nowMs, scenario)
   const verdict = verdictFor(services)
   const incident = buildPastIncident(nowMs)
-  // The seeded previews are sample and say so; the real page has no checks
+  // The seeded views are sample and say so; the real page has no checks
   // and no incident history to show, so it carries no sample at all.
-  const preview = scenario !== "empty"
+  const seeded = scenario !== "empty"
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -266,8 +226,7 @@ export function StatusScreen({
           </p>
         </div>
         <div className={STATUS_HEADER_META}>
-          <PreviewToggle scenario={scenario} />
-          {preview ? (
+          {seeded ? (
             <SampleDataTag className={STATUS_HEADER_CHIP} />
           ) : (
             <NotConnectedBadge className={STATUS_HEADER_CHIP} />
@@ -275,9 +234,9 @@ export function StatusScreen({
         </div>
       </header>
 
-      {preview && (
+      {seeded && (
         <SampleDataNotice>
-          This is a preview. Nothing here is polled yet; Sentry and chlkapp.com are not connected, so these
+          Seeded view. Nothing here is polled yet; Sentry and chlkapp.com are not connected, so these
           checks are seeded from the moment you opened the page.
         </SampleDataNotice>
       )}
@@ -289,7 +248,7 @@ export function StatusScreen({
           <div className="flex min-h-6 items-center justify-between gap-2 px-0.5">
             <div className="flex items-center gap-2">
               <h2 className="text-label font-semibold tracking-tight">Components</h2>
-              {preview && <SampleDataTag />}
+              {seeded && <SampleDataTag />}
             </div>
             <span className="text-caption text-muted-foreground font-medium tracking-tight">
               {verdict.empty ? "No checks" : formatDownCount(verdict.counts)}
@@ -310,7 +269,7 @@ export function StatusScreen({
           </Card>
         </section>
 
-        {preview && (
+        {seeded && (
         <Card role="region" aria-label="Past incident" className="gap-2 px-5 py-4">
           <div className="flex items-center gap-2">
             <p className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">

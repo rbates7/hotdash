@@ -1,177 +1,86 @@
 import { expect, test, type Page } from "@playwright/test"
 
-import { formatRelative } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { setTheme } from "./support/theme"
 
 /**
- * System Status: one verdict, seven seeded rows, one past incident. Nothing
- * is persisted and nothing is polled; the not-green view is a URL preview.
+ * System Status: the real page only. Nothing is polled yet (Sentry and
+ * chlkapp.com are not connected), so there are no checks and the header
+ * says Not connected. There is no preview control and no `?preview=` route
+ * (Coulson, relayed by Simmons, Oct 19); the seeded green / not-green views
+ * are covered by the unit tests (status-screen.test.tsx, system-status.test.ts).
  *
  * Every lookup is anchored to a named region (`Current status`,
- * `Components`, `Past incident`, the `Preview` group) inside `main`, or to
- * the sidebar's named `nav` landmark ("Founder dashboard").
+ * `Components`) inside `main`, or to the sidebar's named `nav` landmark.
  */
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard", exact: true })
 const main = (page: Page) => page.getByRole("main")
+const header = (page: Page) => main(page).locator("header").first()
 const banner = (page: Page) => main(page).getByRole("region", { name: "Current status", exact: true })
 const components = (page: Page) => main(page).getByRole("region", { name: "Components", exact: true })
-const incident = (page: Page) => main(page).getByRole("region", { name: "Past incident", exact: true })
-const preview = (page: Page) => main(page).getByRole("group", { name: "Preview", exact: true })
-const row = (page: Page, name: string) => components(page).getByRole("listitem", { name, exact: true })
-const sampleNote = (page: Page) => main(page).getByRole("note", { name: "Sample data" })
-const headerTag = (page: Page) => main(page).locator("header").getByTestId("sample-data-tag")
-const bannerTag = (page: Page) => banner(page).getByTestId("sample-data-tag")
-const componentsTag = (page: Page) => components(page).getByTestId("sample-data-tag")
-const incidentTag = (page: Page) => incident(page).getByTestId("sample-data-tag")
 
-/** Exactly one SampleDataTag in each of the three named regions. */
-async function expectSampleTags(page: Page) {
-  await expect(bannerTag(page)).toHaveCount(1)
-  await expect(componentsTag(page)).toHaveCount(1)
-  await expect(incidentTag(page)).toHaveCount(1)
-}
-
-/**
- * The page asks the shared formatter for its verbose style explicitly, so
- * the expectation is built the same way rather than from a literal. Under
- * an hour the wording is pure arithmetic, so any base instant works.
- */
-const ago = (minutes: number) => formatRelative(-minutes * 60_000, 0, { style: "long" })
-
-const ROWS = ["iPad app API", "Sync", "Auth", "Billing", "chlkapp.com", "Export", "Sentry errors (24h)"]
-
-/** Every row shows its state as icon + word, never a colour alone. */
-async function expectStatus(page: Page, name: string, status: "operational" | "degraded" | "down") {
-  const label = row(page, name).getByTestId("status-label")
-  await expect(label).toHaveAttribute("data-status", status)
-  await expect(label).toHaveText({ operational: "Operational", degraded: "Degraded", down: "Down" }[status])
-  await expect(label.locator("svg[data-status-icon]")).toHaveCount(1)
-  await expect(row(page, name).locator("time")).toHaveText(new RegExp(`^Checked (${[0, 2, 3, 4, 5, 6].map(ago).join("|")}) · \\d{1,2}:\\d{2} (AM|PM) CT$`))
+/** The real page: no checks, Not connected, nothing sample, no preview control. */
+async function expectRealPage(page: Page) {
+  await expect(main(page).getByRole("heading", { level: 1, name: "System Status" })).toBeVisible()
+  await expect(banner(page)).toHaveAttribute("data-verdict", "empty")
+  await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
+  await expect(banner(page)).toContainText("Nothing is connected. There are no checks to report.")
+  await expect(header(page).getByTestId("not-connected")).toHaveText("Not connected")
+  await expect(components(page)).toContainText("No checks")
+  await expect(components(page).getByRole("listitem")).toHaveCount(0)
+  await expect(main(page).getByRole("region", { name: "Past incident", exact: true })).toHaveCount(0)
+  await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
+  await expect(main(page).getByRole("note", { name: "Sample data" })).toHaveCount(0)
+  await expect(main(page).getByRole("group", { name: "Preview", exact: true })).toHaveCount(0)
+  await expect(main(page).locator('a[href*="preview="]')).toHaveCount(0)
 }
 
 test.describe("System Status", () => {
-  test("is reachable from the sidebar: no checks (Not connected), and the green preview behind ?preview=green", async ({ page }) => {
+  test("is reachable from the sidebar and shows the real page: no checks, Not connected, no preview control", async ({ page }) => {
     await page.goto("/home")
     await rail(page).getByRole("link", { name: "System Status", exact: true }).click()
     await expect(page).toHaveURL(/\/system-status$/)
-    await expect(main(page).getByRole("heading", { level: 1, name: "System Status" })).toBeVisible()
     await expect(rail(page).getByRole("link", { name: "System Status", exact: true })).toHaveAttribute("data-active")
     await expect(rail(page).getByRole("link", { name: "Home", exact: true })).not.toHaveAttribute("data-active")
+    await expectRealPage(page)
 
-    // The real page: nothing is polled, so no checks and no sample at all.
-    await expect(banner(page)).toHaveAttribute("data-verdict", "empty")
-    await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
-    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
-    await expect(sampleNote(page)).toHaveCount(0)
-    await expect(incident(page)).toHaveCount(0)
-    await expect(main(page).locator("header").getByTestId("not-connected")).toBeVisible()
-
-    // The seeded green preview.
-    await preview(page).getByRole("link", { name: "Green", exact: true }).click()
-    await expect(page).toHaveURL(/\/system-status\?preview=green$/)
-
-    // One verdict.
-    await expect(banner(page)).toHaveAttribute("data-verdict", "green")
-    await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
-    await expect(banner(page)).toContainText("Every check passed. Nothing needs you.")
-    // Seeded two minutes before the request, so the real clock reads it back as such.
-    await expect(banner(page).locator("time")).toHaveText(`Updated ${ago(2)}`)
-    await expect(banner(page)).toContainText("7 operational")
-    await expect(banner(page).locator("svg[data-status-icon]")).toHaveCount(1)
-    await expectSampleTags(page)
-
-    // Seven rows from the mock (+ Sentry), every one operational with a reason.
-    await expect(components(page).getByRole("listitem")).toHaveCount(7)
-    for (const name of ROWS) await expectStatus(page, name, "operational")
-    await expect(components(page)).toContainText("None down")
-    await expect(row(page, "chlkapp.com")).toContainText("Site up · 200 from Dallas")
-    await expect(row(page, "chlkapp.com").locator("time")).toHaveText(new RegExp(`^Checked ${ago(2)}`))
-    await expect(row(page, "Export").locator("time")).toHaveText(new RegExp(`^Checked ${ago(6)}`))
-
-    // Plain external links to Sentry and the site; no bug list anywhere.
-    const sentry = main(page).locator("header").getByRole("link", { name: "Sentry", exact: true })
+    // The plain external link to Sentry stays; no bug list anywhere.
+    const sentry = header(page).getByRole("link", { name: "Sentry", exact: true })
     await expect(sentry).toHaveAttribute("href", "https://chlk.sentry.io")
     await expect(sentry).toHaveAttribute("target", "_blank")
-    await expect(row(page, "chlkapp.com").getByRole("link", { name: "chlkapp.com", exact: true })).toHaveAttribute("href", "https://chlkapp.com")
     await expect(main(page).getByRole("table")).toHaveCount(0)
-    await expect(incident(page)).toContainText("Resolved · Sync delay after the iPad 1.4 push. Cleared in 41 min. No open incident.")
-    await expect(incident(page).locator("time")).toHaveText(/^\d{1,2} \w{3} \d{4}$/)
-  })
-
-  test("switches to the not-green preview and back; the preview lives in the URL, not the browser", async ({ page }) => {
-    await page.goto("/system-status")
-    await expect(preview(page).getByRole("link", { name: "Live", exact: true })).toHaveAttribute("aria-current", "page")
-    await expect(preview(page).getByRole("link", { name: "Green", exact: true })).not.toHaveAttribute("aria-current")
-    await expect(preview(page).getByRole("link", { name: "Not green", exact: true })).not.toHaveAttribute("aria-current")
-
-    await preview(page).getByRole("link", { name: "Not green", exact: true }).click()
-    await expect(page).toHaveURL(/\/system-status\?preview=not-green$/)
-    await expect(preview(page).getByRole("link", { name: "Not green", exact: true })).toHaveAttribute("aria-current", "page")
-
-    // One degraded row makes the whole page not green; it is named, with its reason.
-    await expect(banner(page)).toHaveAttribute("data-verdict", "not-green")
-    await expect(banner(page).getByRole("heading", { level: 2, name: "Not green" })).toBeVisible()
-    await expect(banner(page)).toContainText("Billing is degraded · Stripe webhook delay. Other systems operational.")
-    await expect(banner(page)).toContainText("6 operational · 1 degraded")
-    await expectStatus(page, "Billing", "degraded")
-    await expect(row(page, "Billing")).toContainText("Stripe webhook delay")
-    for (const name of ROWS.filter((n) => n !== "Billing")) await expectStatus(page, name, "operational")
-    await expect(components(page)).toContainText("None down")
-
-    // Back is a plain navigation; nothing was stored for this screen.
-    await page.goBack()
-    await expect(page).toHaveURL(/\/system-status$/)
-    await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
     expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("hotdash.system-status")))).toEqual([])
-
-    // An unknown preview falls back to the real (no checks) page rather than erroring.
-    await page.goto("/system-status?preview=purple")
-    await expect(banner(page)).toHaveAttribute("data-verdict", "empty")
   })
 
-  test("every text node reads at ≥ 4.5:1 in both themes and both states, including the solid amber Sample data labels", async ({ page }) => {
-    for (const theme of ["light", "dark"] as const) {
-      for (const path of ["/system-status?preview=green", "/system-status?preview=not-green"] as const) {
-        await page.goto(path)
-        await setTheme(page, theme)
-        const label = `${theme}/${path.endsWith("not-green") ? "not-green" : "green"}`
-
-        // Solid amber chips: the header tag, the Components tag and the notice.
-        await expect(headerTag(page)).toHaveText("Sample data")
-        await expect(componentsTag(page)).toHaveText("Sample data")
-        await expectSampleTags(page)
-        await expectReadable(headerTag(page), `${label}/header tag`, expect)
-        await expectReadable(componentsTag(page), `${label}/components tag`, expect)
-        await expectReadable(sampleNote(page), `${label}/notice`, expect)
-
-        // The page header: h1, lede, and the underlined Sentry link.
-        await expectReadable(main(page).locator("header"), `${label}/header`, expect)
-
-        // The verdict banner (tinted), every row (status words included), the incident.
-        const bannerNodes = await expectReadable(banner(page), `${label}/banner`, expect)
-        expect(bannerNodes.map((n) => n.text)).toContain(path.endsWith("not-green") ? "Not green" : "All systems green")
-        const rowNodes = await expectReadable(components(page), `${label}/components`, expect)
-        expect(rowNodes.filter((n) => n.text === "Operational").length).toBeGreaterThanOrEqual(6)
-        if (path.endsWith("not-green")) expect(rowNodes.map((n) => n.text)).toContain("Degraded")
-        await expectReadable(incident(page), `${label}/incident`, expect)
-        await expectReadable(preview(page), `${label}/preview toggle`, expect)
-      }
+  test("?preview= is ignored: green, not-green and anything else all show the real page", async ({ page }) => {
+    for (const value of ["green", "not-green", "empty", "purple"]) {
+      await page.goto(`/system-status?preview=${value}`)
+      await expectRealPage(page)
     }
+  })
+
+  test("every text node on the real page reads at ≥ 4.5:1 in both themes, solid, no opacity", async ({ page }) => {
     await page.goto("/system-status")
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await expectRealPage(page)
+      await expectReadable(header(page), `${theme}/header`, expect)
+      const bannerNodes = await expectReadable(banner(page), `${theme}/banner`, expect)
+      expect(bannerNodes.map((n) => n.text)).toContain("No checks yet")
+      await expectReadable(components(page), `${theme}/components`, expect)
+    }
     await setTheme(page, "light")
   })
 
   test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
-    await page.goto("/system-status?preview=not-green")
+    await page.goto("/system-status")
     await setTheme(page, "light")
     // One shared probe for every screen; if it stopped seeing unreadable
     // text, every contrast assertion above would pass vacuously.
-    await expectProbeCatchesSabotage(headerTag(page), "header tag", expect)
-    await expectProbeCatchesSabotage(banner(page), "banner (not green)", expect)
+    await expectProbeCatchesSabotage(header(page).getByTestId("not-connected"), "Not connected badge", expect)
+    await expectProbeCatchesSabotage(banner(page), "banner (no checks)", expect)
     await setTheme(page, "dark")
-    await expectProbeCatchesSabotage(componentsTag(page), "components tag (dark)", expect)
-    await expectProbeCatchesSabotage(row(page, "Billing"), "degraded row (dark)", expect)
+    await expectProbeCatchesSabotage(components(page), "components (dark)", expect)
     await setTheme(page, "light")
   })
 })

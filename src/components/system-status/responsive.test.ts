@@ -6,8 +6,6 @@ import {
   STATUS_HEADER,
   STATUS_HEADER_META,
   STATUS_INCIDENT,
-  STATUS_PREVIEW,
-  STATUS_PREVIEW_OPTION,
   STATUS_ROW,
   STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
@@ -19,15 +17,7 @@ describe("System Status responsive layout", () => {
     expect(STATUS_HEADER).toContain("md:justify-between")
   })
 
-  it("makes the preview full-width and 44px below xl, and h-8 on desktop", () => {
-    expect(STATUS_PREVIEW).toContain("max-md:w-full")
-    expect(STATUS_PREVIEW).toContain("xl:h-8")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-h-11")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-w-11")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-md:flex-1")
-    expect(STATUS_PREVIEW_OPTION).toContain("max-md:justify-center")
-    expect(STATUS_PREVIEW_OPTION).toContain("whitespace-nowrap")
-    expect(STATUS_PREVIEW_OPTION).not.toContain("max-xl:flex-1")
+  it("stacks the header meta on phone and keeps the row links 44px there", () => {
     expect(STATUS_HEADER_META).toContain("max-md:items-start")
     expect(STATUS_BANNER_META).toContain("max-md:pl-10")
     expect(STATUS_BANNER_META).not.toContain("pl-11")
