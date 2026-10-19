@@ -4,8 +4,10 @@ import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
+import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
+import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
 // Stripe and PostHog start not connected in every test (no fetch to a
@@ -21,6 +23,7 @@ beforeEach(() => {
     initial: { phase: "ready", summary: POSTHOG_NOT_CONNECTED },
     fetcher: async () => POSTHOG_NOT_CONNECTED,
   })
+  configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
 })
 
 afterEach(() => {
