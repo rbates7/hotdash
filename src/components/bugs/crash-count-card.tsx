@@ -4,7 +4,8 @@ import { NotConnectedBadge } from "@/components/home/not-connected"
 /**
  * Crashes in the trailing seven Central calendar days. Sentry is the source
  * and it is not connected, so the card says so: an em dash, no delta, never
- * the invented spread (`crashKpi` stays for tests until Sentry is wired).
+ * an invented figure. Sentry's crash and error issues are listed below the
+ * card (`SentryCrashes`); a weekly crash *count* has no source yet.
  * Same frame and height as before, so the page does not shift when it is.
  */
 export function CrashCountCard() {
