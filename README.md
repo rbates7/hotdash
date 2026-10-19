@@ -41,6 +41,14 @@ optional). Without them the CRM shows "Gmail not connected" and its sample,
 labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
 [docs/gmail-setup.md](docs/gmail-setup.md).
 
+**Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
+open and recently merged pull requests with their CI and review state
+when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
+name the token has in Vercel). The token is fine-grained and read-only,
+for this repo only, and server only. It is a data endpoint only for now:
+no screen reads it yet, and Agent Workplace is still the design mock.
+States, cache and checks: [docs/workboard-live.md](docs/workboard-live.md).
+
 ## Getting started
 
 ```bash
@@ -56,7 +64,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, database URL or Gmail credentials (or their env var names) are in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the GitHub token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
 | `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |

@@ -3,10 +3,11 @@
  * Fails the build if a server secret could reach a browser: the Stripe key
  * (`STRIPE_READONLY_KEY`), Chlk's read-only database URL
  * (`SUPABASE_READONLY_DB_URL`, which carries a password), the PostHog
- * personal API key (`POSTHOG_READONLY_KEY`), or the Gmail OAuth client and
- * refresh token (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
- * `GMAIL_REFRESH_TOKEN`). `GMAIL_MAILBOX` is not a secret — the CRM shows
- * the inbox's address — so only its name is checked.
+ * personal API key (`POSTHOG_READONLY_KEY`), the GitHub token
+ * (`GITHUB_READONLY_TOKEN`, or `github_read_only` as named in Vercel), or
+ * the Gmail OAuth client and refresh token (`GMAIL_CLIENT_ID`,
+ * `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`). `GMAIL_MAILBOX` is not a
+ * secret — the CRM shows the inbox's address — so only its name is checked.
  *
  * Scans everything Next serves to clients — `.next/static` (every JS/CSS
  * chunk) and the prerendered pages and RSC payloads under
@@ -27,6 +28,8 @@ const ENV_NAMES = [
   "STRIPE_READONLY_KEY",
   "SUPABASE_READONLY_DB_URL",
   "POSTHOG_READONLY_KEY",
+  "GITHUB_READONLY_TOKEN",
+  "github_read_only",
   "GMAIL_CLIENT_ID",
   "GMAIL_CLIENT_SECRET",
   "GMAIL_REFRESH_TOKEN",

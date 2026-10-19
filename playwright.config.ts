@@ -30,8 +30,8 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // e2e never talks to Stripe, PostHog, Chlk's database or Gmail: the
-    // server it starts has no keys, no database URL and no Gmail
+    // e2e never talks to Stripe, PostHog, Chlk's database, GitHub or Gmail:
+    // the server it starts has no keys, token, database URL or Gmail
     // credentials (so all are "not connected"), and specs mock
     // /api/stripe/*, /api/posthog/* and /api/crm/gmail in the browser for
     // the connected and stale states. This holds even on a machine whose
@@ -42,6 +42,8 @@ export default defineConfig({
       SUPABASE_READONLY_DB_URL: "",
       POSTHOG_READONLY_KEY: "",
       POSTHOG_HOST: "",
+      GITHUB_READONLY_TOKEN: "",
+      github_read_only: "",
       GMAIL_CLIENT_ID: "",
       GMAIL_CLIENT_SECRET: "",
       GMAIL_REFRESH_TOKEN: "",
