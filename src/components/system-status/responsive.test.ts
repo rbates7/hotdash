@@ -23,6 +23,7 @@ describe("System Status responsive layout", () => {
     expect(STATUS_PREVIEW).toContain("max-md:w-full")
     expect(STATUS_PREVIEW).toContain("xl:h-8")
     expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-h-11")
+    expect(STATUS_PREVIEW_OPTION).toContain("max-xl:min-w-11")
     expect(STATUS_PREVIEW_OPTION).toContain("max-md:flex-1")
     expect(STATUS_PREVIEW_OPTION).toContain("max-md:justify-center")
     expect(STATUS_PREVIEW_OPTION).toContain("whitespace-nowrap")
