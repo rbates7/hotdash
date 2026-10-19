@@ -10,10 +10,13 @@ import { MAX_TITLE, MAX_WHY, MAX_WINDOW, isColumn, type BoardItem } from "@/lib/
  * - `stale`         — Notion could not be read (down, token revoked, page
  *                     unshared); these are the last good rows, as of
  *                     `lastSyncedAt`.
- * - `not_connected` — no token or page id, or Notion has never answered:
- *                     no rows. The Roadmap shows its labelled sample.
+ * - `connecting`    — a token is set and the first sync is still running (a
+ *                     fresh server, just after a deploy): no rows yet, and
+ *                     never sample ones in their place (#50's rule).
+ * - `not_connected` — no token, or Notion has never answered: no rows. The
+ *                     Roadmap says Not connected and shows no bets.
  */
-export type NotionRoadmapStatus = "connected" | "stale" | "not_connected"
+export type NotionRoadmapStatus = "connected" | "stale" | "connecting" | "not_connected"
 
 /** Longest owner name a card shows (Notion people and select names). */
 export const MAX_OWNER = 40
@@ -42,6 +45,7 @@ export type LiveRoadmap = {
 
 export type NotionRoadmapSummary =
   | { status: "connected" | "stale"; lastSyncedAt: string; roadmap: LiveRoadmap }
+  | { status: "connecting"; lastSyncedAt: null; roadmap: null }
   | { status: "not_connected"; lastSyncedAt: null; roadmap: null }
 
 export const NOTION_NOT_CONNECTED: NotionRoadmapSummary = {
@@ -50,8 +54,14 @@ export const NOTION_NOT_CONNECTED: NotionRoadmapSummary = {
   roadmap: null,
 }
 
+export const NOTION_CONNECTING: NotionRoadmapSummary = {
+  status: "connecting",
+  lastSyncedAt: null,
+  roadmap: null,
+}
+
 /** `/api/health/notion`: a status word, nothing else. */
-export type NotionHealth = "ok" | "unavailable" | "not_configured"
+export type NotionHealth = "ok" | "connecting" | "unavailable" | "not_configured"
 
 export const NOTION_ROADMAP_PATH = "/api/notion/roadmap"
 export const NOTION_HEALTH_PATH = "/api/health/notion"
@@ -93,6 +103,7 @@ export function parseNotionRoadmapSummary(value: unknown): NotionRoadmapSummary 
   if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
   if (v.status === "not_connected") return NOTION_NOT_CONNECTED
+  if (v.status === "connecting") return NOTION_CONNECTING
   if (v.status !== "connected" && v.status !== "stale") return null
   if (typeof v.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(v.lastSyncedAt))) return null
   const r = v.roadmap as Record<string, unknown> | null
@@ -116,21 +127,23 @@ export type NotionRoadmapView = { phase: "loading" } | { phase: "ready"; summary
 
 /**
  * What the Roadmap shows:
- * - `loading` — the board skeleton;
- * - `sample`  — Notion is not connected: the local board (labelled sample
- *               bets plus this browser's edits), exactly as before;
- * - `live`    — Notion's rows, read-only, no Sample label; `stale` adds
- *               "Last updated …".
+ * - `loading`       — the board skeleton; `connecting` while the server has a
+ *                     token and its first sync is running (Connecting…);
+ * - `not_connected` — no token: Not connected, no bets (never the sample
+ *                     board; fixtures are for tests only);
+ * - `live`          — Notion's rows, read-only, no Sample label; `stale`
+ *                     adds "Last updated …".
  */
 export type NotionRoadmapFeed =
-  | { kind: "loading" }
-  | { kind: "sample" }
+  | { kind: "loading"; connecting?: boolean }
+  | { kind: "not_connected" }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; roadmap: LiveRoadmap }
 
 export function notionFeedOf(view: NotionRoadmapView): NotionRoadmapFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.status === "not_connected") return { kind: "sample" }
+  if (summary.status === "connecting") return { kind: "loading", connecting: true }
+  if (summary.status === "not_connected") return { kind: "not_connected" }
   return {
     kind: "live",
     stale: summary.status === "stale",

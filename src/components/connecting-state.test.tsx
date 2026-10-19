@@ -243,5 +243,19 @@ describe("page-level wording unchanged when live or not connected", () => {
     expect(sampleDataSummary({ ...base, stripe: true, appStoreConnecting: true })).toBe(
       "Stripe's figures are live and carry no label; App Store payers from Chlk\u2019s database are connecting, first read in progress. Every other number is still sample data."
     )
+
+    // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
+    expect(sampleDataSummary({ ...base, notion: true })).toBe(
+      "The Product Roadmap is read from Notion; every number on every screen is still sample data."
+    )
+    expect(sampleDataSummary({ ...base, stripe: true, notion: true })).toBe(
+      "Stripe's figures are live and carry no label; every other number is still sample data. The Product Roadmap is read from Notion."
+    )
+    expect(sampleDataSummary({ ...base, notionConnecting: true })).toBe(
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on every screen is still sample data."
+    )
+    expect(sampleDataSummary({ ...base, posthog: true, notionConnecting: true })).toBe(
+      "PostHog's figures are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+    )
   })
 })

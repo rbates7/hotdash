@@ -338,8 +338,37 @@ function SwitchRow({
   )
 }
 
-/** The Sample data section's first sentence: what is live, what is connecting, and that the rest is sample. */
+/**
+ * The Sample data section's first sentence: what is live, what is
+ * connecting, and that the rest is sample. Notion feeds the Product Roadmap
+ * (bets, not numbers), so it gets its own sentence after the figures'.
+ */
 export function sampleDataSummary({
+  notion = false,
+  notionConnecting = false,
+  ...figures
+}: {
+  stripe: boolean
+  posthog: boolean
+  stripeConnecting: boolean
+  appStoreConnecting: boolean
+  notion?: boolean
+  notionConnecting?: boolean
+}): string {
+  const nothingElse = !figures.stripe && !figures.posthog && !figures.stripeConnecting
+  if (notion) {
+    return nothingElse
+      ? "The Product Roadmap is read from Notion; every number on every screen is still sample data."
+      : `${figuresSummary(figures)} The Product Roadmap is read from Notion.`
+  }
+  if (notionConnecting) {
+    const roadmap = "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+    return nothingElse ? `${roadmap} Every number on every screen is still sample data.` : `${figuresSummary(figures)} ${roadmap}`
+  }
+  return figuresSummary(figures)
+}
+
+function figuresSummary({
   stripe,
   posthog,
   stripeConnecting,
@@ -364,11 +393,14 @@ export function sampleDataSummary({
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
   const stripeFeed = useStripeFeed()
+  const notionFeed = useNotionRoadmapFeed()
   const summary = sampleDataSummary({
     stripe: stripeFeed.kind === "live",
     posthog: usePosthogFeed().kind === "live",
     stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
     appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
+    notion: notionFeed.kind === "live",
+    notionConnecting: notionFeed.kind === "loading" && Boolean(notionFeed.connecting),
   })
   return (
     <Section
@@ -378,7 +410,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
         <>
           {summary}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
-          placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
+          placeholder figures stay, and some screens (Agent Workplace, CRM rows) have
           no label to hide.
         </>
       }
@@ -424,13 +456,45 @@ const SOURCES = [
 
 const STATUS_BADGE = "h-6 px-2.5"
 
-/** What a live source's row needs: Stripe's and PostHog's feeds both fit. */
-type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+/**
+ * What a live source's row needs: Stripe's, PostHog's and Notion's feeds all
+ * fit (Notion says `not_connected` where the other two still say `sample`).
+ */
+type SourceFeed =
+  | { kind: "loading"; connecting?: boolean }
+  | { kind: "sample" }
+  | { kind: "not_connected" }
+  | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+
+type LiveFeed = {
+  use: () => SourceFeed
+  id: string
+  /** The detail line while a first sync runs. */
+  connecting: string
+  /** The detail line when the source could not be read and the last good copy shows. */
+  stale: string
+}
 
 /** Hooks per live source, so each row reads only its own. */
-const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
-  Stripe: { use: useStripeFeed, id: "stripe" },
-  PostHog: { use: usePosthogFeed, id: "posthog" },
+const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], LiveFeed>> = {
+  Stripe: {
+    use: useStripeFeed,
+    id: "stripe",
+    connecting: "Read-only key found · first sync in progress, figures appear when it finishes",
+    stale: "Stripe could not be read just now, so its figures are the last good ones.",
+  },
+  PostHog: {
+    use: usePosthogFeed,
+    id: "posthog",
+    connecting: "Read-only key found · first sync in progress, figures appear when it finishes",
+    stale: "PostHog could not be read just now, so its figures are the last good ones.",
+  },
+  Notion: {
+    use: useNotionRoadmapFeed,
+    id: "notion",
+    connecting: "Read-only token found · first sync in progress, the Roadmap appears when it finishes",
+    stale: "Notion could not be read just now, so the Roadmap shows the last good copy.",
+  },
 }
 
 /**
@@ -455,7 +519,7 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
       </Badge>
     )
   }
-  if (feed.kind === "sample") return <NotConnected />
+  if (feed.kind === "sample" || feed.kind === "not_connected") return <NotConnected />
   const when = formatWallClock(feed.lastSyncedAt, timeZone)
   if (feed.stale) {
     return (
@@ -479,65 +543,19 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
 }
 
 function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
-  const { use, id } = LIVE_FEEDS[name]!
+  const { use, id, connecting, stale } = LIVE_FEEDS[name]!
   const feed = use()
   if (feed.kind === "loading" && feed.connecting) {
     return (
       <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
-        Read-only key found · first sync in progress, figures appear when it finishes
+        {connecting}
       </p>
     )
   }
   if (feed.kind !== "live") return null
   return (
     <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
-      {feed.stale
-        ? `${name} could not be read just now, so its figures are the last good ones.`
-        : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
-    </p>
-  )
-}
-
-/** Notion's row: the same three states as Stripe's, from the Roadmap's feed. */
-function NotionStatus({ timeZone }: { timeZone: string }) {
-  const feed = useNotionRoadmapFeed()
-  if (feed.kind === "loading") {
-    return (
-      <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
-        Checking…
-      </Badge>
-    )
-  }
-  if (feed.kind === "sample") return <NotConnected />
-  if (feed.stale) {
-    return (
-      <Badge variant="outline" data-testid="notion-status" className={STATUS_BADGE}>
-        <AlertTriangleIcon aria-hidden className="text-danger-text" />
-        {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
-      </Badge>
-    )
-  }
-  return (
-    <Badge
-      variant="outline"
-      data-testid="notion-status"
-      title={`Last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
-      className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
-    >
-      <CheckIcon aria-hidden />
-      Connected
-    </Badge>
-  )
-}
-
-function NotionDetail({ timeZone }: { timeZone: string }) {
-  const feed = useNotionRoadmapFeed()
-  if (feed.kind !== "live") return null
-  return (
-    <p className="text-caption text-muted-foreground" data-testid="notion-detail">
-      {feed.stale
-        ? "Notion could not be read just now, so the Roadmap shows the last good copy."
-        : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+      {feed.stale ? stale : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
     </p>
   )
 }
@@ -555,7 +573,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe and PostHog are wired up so far."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe, PostHog and Notion are wired up so far."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
@@ -566,12 +584,9 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
                 {LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />}
-                {source.name === "Notion" && <NotionDetail timeZone={timeZone} />}
               </div>
               {LIVE_FEEDS[source.name] ? (
                 <SourceStatus name={source.name} timeZone={timeZone} />
-              ) : source.name === "Notion" ? (
-                <NotionStatus timeZone={timeZone} />
               ) : (
                 <NotConnected />
               )}

@@ -19,16 +19,23 @@ import {
  * the Stripe summary hook (`use-stripe-summary`):
  *
  * - **Loading** until the first answer (the server render too): the board
- *   shows its skeleton, never the sample that then swaps for Notion's rows.
+ *   shows its skeleton, never sample bets. A server that answers
+ *   `connecting` (token set, first sync running) keeps it loading, with
+ *   "Connecting to Notion…", polled every `CONNECTING_POLL_MS`.
  * - **Polls** every `ROADMAP_POLL_MS` while anything listens (the server
  *   caches Notion for 5 minutes, so this is cheap), backing off on failure.
  * - **Our own endpoint unreachable** keeps the last rows and marks them
- *   stale; with none yet, it reads as not connected (the local board).
+ *   stale; with none yet, it reads as not connected (no bets).
  */
 
 export const NOTION_LOADING_VIEW: NotionRoadmapView = { phase: "loading" }
 
 export const ROADMAP_POLL_MS = 60_000
+
+/** While the server is connecting: soon enough that the rows appear about when the first sync lands. */
+export const CONNECTING_POLL_MS = 5_000
+
+const isConnecting = (view: NotionRoadmapView) => view.phase === "ready" && view.summary.status === "connecting"
 
 export type RoadmapFetcher = () => Promise<NotionRoadmapSummary>
 
@@ -47,7 +54,10 @@ export function roadmapReducer(view: NotionRoadmapView, event: RoadmapEvent): No
   if (view.phase === "ready" && view.summary.roadmap) {
     return { phase: "ready", summary: { ...view.summary, status: "stale" } }
   }
-  return view.phase === "ready" ? view : { phase: "ready", summary: NOTION_NOT_CONNECTED }
+  // Connecting was the server's word; with the server unreachable it is no
+  // longer known to be on its way, so it reads as not connected.
+  if (view.phase === "ready" && view.summary.status !== "connecting") return view
+  return { phase: "ready", summary: NOTION_NOT_CONNECTED }
 }
 
 export type RoadmapStore = {
@@ -97,7 +107,7 @@ export function createRoadmapStore({
       state = next
       for (const l of listeners) l()
     }
-    schedule(failures > 0 ? retryDelay(failures) : ROADMAP_POLL_MS)
+    schedule(failures > 0 ? retryDelay(failures) : isConnecting(state) ? CONNECTING_POLL_MS : ROADMAP_POLL_MS)
   }
 
   return {

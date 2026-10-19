@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseNotionRoadmapSummary, NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
+import { parseNotionRoadmapSummary, NOTION_CONNECTING, NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { clip, mapNotionRows, readColumn, windowFromDate } from "@/lib/roadmap/notion-map"
 import { MAX_TITLE, MAX_WHY, inColumn } from "@/lib/roadmap/roadmap"
 import { LIVE_ROADMAP, liveRoadmapSummary, notionRow } from "@/test/notion-fixture"
@@ -147,8 +147,9 @@ describe("mapNotionRows", () => {
 })
 
 describe("parseNotionRoadmapSummary", () => {
-  it("reads not_connected, connected and stale; drops unknown keys", () => {
+  it("reads not_connected, connecting, connected and stale; drops unknown keys", () => {
     expect(parseNotionRoadmapSummary({ status: "not_connected", extra: 1 })).toEqual(NOTION_NOT_CONNECTED)
+    expect(parseNotionRoadmapSummary({ status: "connecting", roadmap: { items: [], unplaced: 0 } })).toEqual(NOTION_CONNECTING)
     expect(parseNotionRoadmapSummary(liveRoadmapSummary("stale"))).toEqual(liveRoadmapSummary("stale"))
     const withExtra = { ...liveRoadmapSummary(), roadmap: { ...LIVE_ROADMAP, items: [{ ...LIVE_ROADMAP.items[0], url: "x" }] } }
     expect(parseNotionRoadmapSummary(withExtra)?.roadmap?.items[0]).not.toHaveProperty("url")

@@ -3,14 +3,15 @@ import { expect, test, type Page } from "@playwright/test"
 import { expectReadable } from "./support/contrast"
 import { LIVE_ROADMAP, liveRoadmapSummary, mockNotion } from "./support/notion"
 import { NOTE, persistenceNote } from "./support/persistence"
+import { CONNECTING_COPY, NOT_CONNECTED_COPY } from "./support/roadmap"
 import { pageOverflowX, waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
 /**
- * The Roadmap from Notion, three states, on the Roadmap and Settings. e2e
+ * The Roadmap from Notion, four states, on the Roadmap and Settings. e2e
  * never has a Notion token: "not connected" is the real server without
- * one; "connected" and "stale" mock /api/notion/roadmap in the browser.
- * Nothing here reaches Notion.
+ * one; "connecting", "connected" and "stale" mock /api/notion/roadmap in
+ * the browser. Nothing here reaches Notion.
  */
 
 const main = (page: Page) => page.getByRole("main")
@@ -22,6 +23,8 @@ const titlesIn = (page: Page, name: string) =>
     .getByRole("article")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")))
 const sourceNote = (page: Page) => header(page).getByRole("status", { name: "Where the roadmap comes from" })
+const notConnected = (page: Page) => main(page).getByRole("note", { name: "Notion not connected", exact: true })
+const CONNECTING = { status: "connecting", lastSyncedAt: null, roadmap: null } as const
 const notionRow = (page: Page) =>
   main(page).getByRole("region", { name: "Connected data" }).getByRole("listitem", { name: "Notion" })
 
@@ -53,12 +56,17 @@ test.describe("server endpoints with no Notion token", () => {
 test.describe("Notion not connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Roadmap: the local board, sample labelled and editable, as before", async ({ page }) => {
+  test("Roadmap: says Not connected and shows no bets (no sample board); this browser's board stays editable", async ({ page }) => {
     await open(page, "/product-roadmap")
+    await page.evaluate(() => localStorage.removeItem("hotdash.product-roadmap.v1"))
+    await page.reload()
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-    await expect(main(page).getByRole("note", { name: "Sample data", exact: true })).toBeVisible()
-    await expect(header(page).getByTestId("sample-data-badge")).toBeVisible()
-    expect(await titlesIn(page, "Now")).toEqual(["Flag Football 2026", "Play share links", "iPad forced updates"])
+    await expect(notConnected(page)).toHaveText(`Not connected. ${NOT_CONNECTED_COPY}`)
+    await expect(main(page).getByRole("article")).toHaveCount(0)
+    await expect(main(page).getByText("Flag Football 2026")).toHaveCount(0)
+    await expect(main(page).getByRole("note", { name: "Sample data", exact: true })).toHaveCount(0)
+    await expect(header(page).getByTestId("sample-data-badge")).toHaveCount(0)
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(sourceNote(page)).toHaveCount(0)
     await expect(header(page).getByRole("button", { name: "New bet", exact: true })).toBeEnabled()
   })
@@ -67,6 +75,44 @@ test.describe("Notion not connected (1440)", () => {
     await open(page, "/settings")
     await expect(notionRow(page)).toContainText("Product Roadmap")
     await expect(notionRow(page)).toContainText("Not connected")
+  })
+})
+
+/* ----------------------------------------------------------- connecting */
+
+test.describe("Notion connecting (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test("Roadmap: skeleton and Connecting to Notion…, never sample bets or Not connected; New bet off", async ({ page }) => {
+    await mockNotion(page, CONNECTING)
+    await open(page, "/product-roadmap")
+    await expect(main(page).getByTestId("notion-connecting")).toHaveText(CONNECTING_COPY)
+    await expect(main(page).getByRole("status", { name: "Loading saved bets" })).toBeVisible()
+    await expect(main(page).getByRole("article")).toHaveCount(0)
+    await expect(notConnected(page)).toHaveCount(0)
+    await expect(main(page).getByTestId("sample-data-notice")).toHaveCount(0)
+    await expect(persistenceNote(page)).toHaveCount(0)
+    await expect(header(page).getByRole("button", { name: "New bet", exact: true })).toBeDisabled()
+  })
+
+  test("Roadmap: Notion's rows replace the skeleton once the first sync lands", async ({ page }) => {
+    let summary: typeof CONNECTING | ReturnType<typeof liveRoadmapSummary> = CONNECTING
+    await mockNotion(page, () => summary)
+    await open(page, "/product-roadmap")
+    await expect(main(page).getByTestId("notion-connecting")).toBeVisible()
+    summary = liveRoadmapSummary("connected")
+    // Polled every 5 s while connecting.
+    await expect(card(page, "Coach onboarding v2")).toBeVisible({ timeout: 15_000 })
+    await expect(main(page).getByTestId("notion-connecting")).toHaveCount(0)
+  })
+
+  test("Settings: Notion says Connecting…", async ({ page }) => {
+    await mockNotion(page, CONNECTING)
+    await open(page, "/settings")
+    await expect(notionRow(page).getByTestId("notion-status")).toHaveText("Connecting…")
+    await expect(notionRow(page).getByTestId("notion-detail")).toHaveText(
+      "Read-only token found · first sync in progress, the Roadmap appears when it finishes"
+    )
   })
 })
 
@@ -135,11 +181,12 @@ test.describe("Notion stale (1440)", () => {
     await expect(notionRow(page).getByTestId("notion-status")).toHaveText("Last updated Wed, Oct 14 · 9:41 AM CDT")
   })
 
-  test("our endpoint failing before any rows is the local board — never an error or an empty board", async ({ page }) => {
+  test("our endpoint failing before any rows reads as Not connected — never an error or sample bets", async ({ page }) => {
     await mockNotion(page, () => null)
     await open(page, "/product-roadmap")
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-    await expect(card(page, "Flag Football 2026")).toBeVisible()
+    await expect(notConnected(page)).toBeVisible()
+    await expect(main(page).getByText("Flag Football 2026")).toHaveCount(0)
     await expect(main(page).getByText(/error/i)).toHaveCount(0)
   })
 })

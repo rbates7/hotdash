@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  CONNECTING_POLL_MS,
   NOTION_LOADING_VIEW,
   ROADMAP_POLL_MS,
   createRoadmapStore,
@@ -8,7 +9,7 @@ import {
   roadmapReducer,
   type RoadmapFetcher,
 } from "@/hooks/use-notion-roadmap"
-import { NOTION_NOT_CONNECTED, notionFeedOf } from "@/lib/notion-roadmap"
+import { NOTION_CONNECTING, NOTION_NOT_CONNECTED, notionFeedOf, type NotionRoadmapSummary } from "@/lib/notion-roadmap"
 import { RETRY_MS } from "@/lib/subscriber-source"
 import { LIVE_ROADMAP, liveRoadmapSummary } from "@/test/notion"
 
@@ -25,15 +26,23 @@ describe("roadmapReducer", () => {
     expect(view).toEqual({ phase: "ready", summary: liveRoadmapSummary("stale") })
   })
 
-  it("failing before any rows reads as not connected (the local board), never an empty roadmap", () => {
+  it("failing before any rows reads as not connected, never an empty roadmap", () => {
     expect(roadmapReducer(NOTION_LOADING_VIEW, { type: "failure" })).toEqual({ phase: "ready", summary: NOTION_NOT_CONNECTED })
+  })
+
+  it("connecting was the server's word: our endpoint failing then reads as not connected", () => {
+    expect(roadmapReducer({ phase: "ready", summary: NOTION_CONNECTING }, { type: "failure" })).toEqual({
+      phase: "ready",
+      summary: NOTION_NOT_CONNECTED,
+    })
   })
 })
 
 describe("notionFeedOf", () => {
-  it("loading, sample, live and stale", () => {
+  it("loading, connecting, not connected, live and stale", () => {
     expect(notionFeedOf(NOTION_LOADING_VIEW)).toEqual({ kind: "loading" })
-    expect(notionFeedOf({ phase: "ready", summary: NOTION_NOT_CONNECTED })).toEqual({ kind: "sample" })
+    expect(notionFeedOf({ phase: "ready", summary: NOTION_CONNECTING })).toEqual({ kind: "loading", connecting: true })
+    expect(notionFeedOf({ phase: "ready", summary: NOTION_NOT_CONNECTED })).toEqual({ kind: "not_connected" })
     expect(notionFeedOf({ phase: "ready", summary: liveRoadmapSummary("stale") })).toMatchObject({
       kind: "live",
       stale: true,
@@ -58,6 +67,25 @@ describe("createRoadmapStore", () => {
     stop()
     await vi.advanceTimersByTimeAsync(ROADMAP_POLL_MS * 5)
     expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it("polls every CONNECTING_POLL_MS while the server is connecting, then every minute", async () => {
+    let answer: NotionRoadmapSummary = NOTION_CONNECTING
+    const fetcher = vi.fn<RoadmapFetcher>(async () => answer)
+    const store = createRoadmapStore({ fetcher })
+    store.subscribe(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.getState()).toEqual({ phase: "ready", summary: NOTION_CONNECTING })
+    await vi.advanceTimersByTimeAsync(CONNECTING_POLL_MS)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    answer = liveRoadmapSummary()
+    await vi.advanceTimersByTimeAsync(CONNECTING_POLL_MS)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(store.getState()).toEqual({ phase: "ready", summary: liveRoadmapSummary() })
+    await vi.advanceTimersByTimeAsync(ROADMAP_POLL_MS - 1)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetcher).toHaveBeenCalledTimes(4)
   })
 
   it("backs off after failures, and recovers", async () => {

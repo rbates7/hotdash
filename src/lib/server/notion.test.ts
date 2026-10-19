@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net"
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { NOTION_NOT_CONNECTED, type LiveRoadmap } from "@/lib/notion-roadmap"
+import { NOTION_CONNECTING, NOTION_NOT_CONNECTED, type LiveRoadmap } from "@/lib/notion-roadmap"
 import {
   CACHE_TTL_MS,
   MAX_ROWS,
@@ -142,13 +142,13 @@ describe("readNotionConfig", () => {
 /* ------------------------------------------------------ never waits, cache */
 
 describe("never waits for a sync", () => {
-  it("cold start: answers not_connected at once while a 200 s sync runs, then connected once it lands", async () => {
+  it("cold start: answers connecting at once while a 200 s sync runs (never not_connected), then connected once it lands", async () => {
     const load = vi.fn<Loader>(() => new Promise((r) => setTimeout(() => r(LIVE_ROADMAP), 200_000)))
     const { svc } = service(load)
 
     const started = wallClock()
-    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
-    expect(await svc.health()).toBe("unavailable")
+    expect(await svc.roadmap()).toEqual(NOTION_CONNECTING)
+    expect(await svc.health()).toBe("connecting")
     expect(wallClock() - started).toBeLessThan(1_000)
     expect(load).toHaveBeenCalledTimes(1)
 
@@ -211,9 +211,9 @@ describe("never waits for a sync", () => {
     expect(SYNC_TIMEOUT_MS).toBeLessThan(300_000)
   })
 
-  it("a cold-start sync that times out leaves not_connected", async () => {
+  it("a cold-start sync that times out leaves not_connected (connecting until then)", async () => {
     const { svc, log } = service(() => new Promise(() => {}))
-    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
+    expect(await svc.roadmap()).toEqual(NOTION_CONNECTING)
     await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
     expect(log).toHaveBeenCalledWith("SyncTimeoutError")
     expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
@@ -252,11 +252,28 @@ describe("cache", () => {
     svc.reset()
     release(LIVE_ROADMAP)
     await Promise.resolve()
-    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
+    // Nothing written: a fresh first sync, so connecting again, never the old rows.
+    expect(await svc.roadmap()).toEqual(NOTION_CONNECTING)
   })
 })
 
 describe("fallback", () => {
+  it("a 401 on the first sync → not_connected; the retry a minute later is never connecting", async () => {
+    const load = vi.fn<Loader>(async () => {
+      throw new NotionUnauthorizedError(401)
+    })
+    const { svc } = service(load)
+    expect(await svc.roadmap()).toEqual(NOTION_CONNECTING)
+    await svc.settled()
+    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
+    expect(await svc.health()).toBe("unavailable")
+    vi.advanceTimersByTime(RETRY_AFTER_MS)
+    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
+    expect(load).toHaveBeenCalledTimes(2)
+    await svc.settled()
+    expect(await svc.roadmap()).toEqual(NOTION_NOT_CONNECTED)
+  })
+
   it("never synced and Notion fails → not_connected, logged by class name only", async () => {
     const { svc, log } = service(async () => {
       throw new NotionUnauthorizedError(401)

@@ -10,6 +10,7 @@ import {
   sheetOverlay,
   waitForHydration,
 } from "./support/shell"
+import { ownBets } from "./support/roadmap"
 import { setTheme } from "./support/theme"
 
 /**
@@ -55,12 +56,17 @@ async function deferredFocusSettled(page: Page) {
   )
 }
 
+/**
+ * No Notion token in e2e, so the Roadmap is this browser's board under Not
+ * connected, empty to start (#45). These layout specs need cards, so they
+ * save the fixture's eight bets as this browser's own first (tests only).
+ */
 async function fresh(page: Page) {
   await page.goto("/product-roadmap")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, JSON.stringify(ownBets())])
   await page.reload()
   await waitForHydration(page)
-  await expect(persistence(page)).toHaveText(NOTE.unsaved)
+  await expect(persistence(page)).toHaveText(NOTE.saved)
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -219,7 +225,8 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await expect(column(page, "Later")).toHaveCount(0)
 
     await expect(card(page, "Flag Football 2026")).toContainText("biggest wave of new coaches")
-    await expect(card(page, "Flag Football 2026").getByTestId("sample-data-tag")).toBeVisible()
+    await expect(card(page, "Flag Football 2026").getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(main(page).getByRole("note", { name: "Notion not connected", exact: true })).toBeVisible()
     await expect(card(page, "Flag Football 2026").getByRole("button", { name: "Edit" })).toBeVisible()
     await expect(card(page, "Flag Football 2026").getByRole("button", { name: "Move down" })).toBeVisible()
 
@@ -603,7 +610,12 @@ for (const theme of ["light", "dark"] as const) {
         )
         await expectReadable(header(page).locator("p").first(), `${label}/subtitle`, expect)
         await expectReadable(persistence(page), `${label}/note`, expect)
-        await expectReadable(header(page).getByTestId("sample-data-badge"), `${label}/header badge`, expect)
+        await expect(header(page).getByTestId("sample-data-badge")).toHaveCount(0)
+        await expectReadable(
+          main(page).getByRole("note", { name: "Notion not connected", exact: true }),
+          `${label}/not connected`,
+          expect
+        )
         await expectReadable(board(page), `${label}/board`, expect)
         const newBet = (size === "390" ? header(page) : actions(page)).getByRole("button", {
           name: "New bet",

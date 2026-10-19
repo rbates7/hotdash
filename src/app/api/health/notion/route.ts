@@ -6,7 +6,7 @@ import { notionService } from "@/lib/server/notion"
 export const dynamic = "force-dynamic"
 
 /**
- * `{"notion":"ok"|"unavailable"|"not_configured"}` and nothing else — no
+ * `{"notion":"ok"|"connecting"|"unavailable"|"not_configured"}` and nothing else — no
  * rows, no token, no page id, no error text — so it is safe to leave
  * public. Reads through the same cache as the roadmap, so polling it cannot
  * hammer Notion.

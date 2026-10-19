@@ -1,6 +1,7 @@
 import "server-only"
 
 import {
+  NOTION_CONNECTING,
   NOTION_NOT_CONNECTED,
   type LiveRoadmap,
   type NotionHealth,
@@ -104,7 +105,8 @@ function mockBase(raw: string): string | null {
 
 /**
  * Read the token and roadmap id (and an optional mock base) from the
- * environment. Both are required. `NOTION_API_BASE` may only point at this
+ * environment. The token is required; the id defaults to CHLK's Product
+ * Roadmap database (`DEFAULT_ROADMAP_DATABASE_ID`). `NOTION_API_BASE` may only point at this
  * machine, and only outside a production build unless
  * `NOTION_ALLOW_MOCK_BASE=1` says so; a base that breaks either rule makes
  * the whole config invalid, so the token is never sent to the wrong place.
@@ -408,9 +410,9 @@ export function createNotionService({
   }
 
   /** Whether the copy is current, starting a due sync in the background. Never waits; never throws. */
-  function read(): { fresh: boolean; configured: boolean } {
+  function read(): { fresh: boolean; configured: boolean; connecting: boolean } {
     const config = readNotionConfig(env())
-    if (config.kind !== "ok") return { fresh: false, configured: false }
+    if (config.kind !== "ok") return { fresh: false, configured: false, connecting: false }
     const age = lastAttempt ? clock() - lastAttempt.at : Infinity
     const due = !lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)
     if (due && !inflight) {
@@ -419,14 +421,16 @@ export function createNotionService({
       })
       inflight = run
     }
-    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true }
+    // No sync has finished yet: the first one (started above) is running.
+    // The #50 rule, as in stripe.ts: connecting, never not_connected.
+    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true, connecting: !lastAttempt && !lastGood }
   }
 
   return {
     async roadmap() {
-      const { fresh, configured } = read()
+      const { fresh, configured, connecting } = read()
       const snapshot = lastGood
-      if (!snapshot) return NOTION_NOT_CONNECTED
+      if (!snapshot) return connecting ? NOTION_CONNECTING : NOTION_NOT_CONNECTED
       return {
         // Token or id removed after a good sync: the last copy, as stale.
         status: fresh && configured ? "connected" : "stale",
@@ -435,8 +439,9 @@ export function createNotionService({
       }
     },
     async health() {
-      const { fresh, configured } = read()
+      const { fresh, configured, connecting } = read()
       if (!configured) return "not_configured"
+      if (connecting) return "connecting"
       return fresh ? "ok" : "unavailable"
     },
     async settled() {

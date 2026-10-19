@@ -4,13 +4,21 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
-import { HeaderActions, NEW_BET_READ_ONLY_TITLE } from "@/components/product-roadmap/header-actions"
-import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
+import {
+  HeaderActions,
+  NEW_BET_CONNECTING_TITLE,
+  NEW_BET_READ_ONLY_TITLE,
+} from "@/components/product-roadmap/header-actions"
+import {
+  NOTION_CONNECTING_COPY,
+  NOTION_NOT_CONNECTED_COPY,
+  RoadmapBoard,
+} from "@/components/product-roadmap/roadmap-board"
 import { READ_ONLY_TITLE } from "@/components/product-roadmap/roadmap-card"
 import { NOTION_SOURCE_COPY, NOTION_SOURCE_NOTE_NAME } from "@/components/product-roadmap/roadmap-persistence-note"
 import { RoadmapProvider, STORAGE_KEY } from "@/components/product-roadmap/roadmap-store"
-import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
-import type { NotionRoadmapSummary } from "@/lib/notion-roadmap"
+import { CONNECTING_POLL_MS, configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
+import { NOTION_CONNECTING, type NotionRoadmapSummary } from "@/lib/notion-roadmap"
 import { LIVE_ROADMAP, liveRoadmapSummary, setNotionLoadingForTest, setNotionRoadmapForTest } from "@/test/notion"
 
 const NOW = Date.parse("2026-10-14T15:00:00.000Z")
@@ -50,25 +58,71 @@ const titlesIn = (name: string) =>
 const card = (title: string) => screen.getByRole("article", { name: title })
 
 describe("Roadmap, Notion not connected", () => {
-  it("is the local board exactly as before: sample bets, labelled, editable", () => {
+  it("says Not connected and shows no bets: no sample board, no Sample label; this browser's board stays editable", () => {
     render(<Screen />)
-    expect(titlesIn("Now")).toContain("Flag Football 2026")
-    expect(screen.getByTestId("sample-data-notice")).toBeInTheDocument()
-    expect(screen.getByTestId("sample-data-badge")).toBeInTheDocument()
+    expect(screen.getByTestId("notion-not-connected")).toHaveTextContent(`Not connected. ${NOTION_NOT_CONNECTED_COPY}`)
+    expect(screen.queryAllByRole("article")).toHaveLength(0)
+    expect(screen.queryByText("Flag Football 2026")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-notice")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-badge")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     expect(screen.getByRole("status", { name: PERSISTENCE_NOTE_NAME })).toBeInTheDocument()
     expect(screen.queryByTestId("notion-source-note")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "New bet" })).toBeEnabled()
-    expect(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" })).toBeEnabled()
+  })
+
+  it("shows a founder's own saved bets, editable, but never the sample bets an old saved copy still holds", () => {
+    const at = "2026-10-01T15:00:00.000Z"
+    const mine = { id: "rm-9", title: "Mine", why: "", owner: "Rashad", window: "Q1 2027", column: "now", order: 0, linkedTickets: 0, signedAt: at, updatedAt: at }
+    const old = { ...mine, id: "rm-1", title: "Flag Football 2026", order: 1, linkedTickets: 4, sample: true }
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: [mine, old], nextId: 10 }))
+    render(<Screen />)
+    expect(titlesIn("Now")).toEqual(["Mine"])
+    expect(screen.queryByText("Flag Football 2026")).not.toBeInTheDocument()
+    expect(within(card("Mine")).getByRole("button", { name: "Edit" })).toBeEnabled()
+    expect(screen.getByTestId("notion-not-connected")).toBeInTheDocument()
   })
 })
 
 describe("Roadmap, loading Notion", () => {
-  it("shows the skeleton, never the sample that would then swap", () => {
+  it("shows the skeleton, never sample bets that would then swap", () => {
     setNotionLoadingForTest()
     render(<Screen />)
     expect(screen.getByRole("status", { name: "Loading saved bets" })).toBeInTheDocument()
     expect(screen.queryByRole("article")).not.toBeInTheDocument()
     expect(screen.queryByTestId("sample-data-notice")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("notion-not-connected")).not.toBeInTheDocument()
+  })
+})
+
+describe("Roadmap, Notion connecting (token set, first sync running)", () => {
+  beforeEach(() => setNotionRoadmapForTest(NOTION_CONNECTING))
+
+  it("shows the skeleton and Connecting to Notion…, never sample bets, never Not connected, not editable", () => {
+    render(<Screen />)
+    expect(screen.getByTestId("notion-connecting")).toHaveTextContent(NOTION_CONNECTING_COPY)
+    expect(screen.getByRole("status", { name: "Loading saved bets" })).toBeInTheDocument()
+    expect(screen.queryByRole("article")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-notice")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("notion-not-connected")).not.toBeInTheDocument()
+    expect(screen.queryByRole("status", { name: PERSISTENCE_NOTE_NAME })).not.toBeInTheDocument()
+    const newBet = screen.getByRole("button", { name: "New bet" })
+    expect(newBet).toBeDisabled()
+    expect(newBet).toHaveAttribute("title", NEW_BET_CONNECTING_TITLE)
+  })
+
+  it("swaps to Notion's rows when the first sync lands", async () => {
+    vi.useFakeTimers()
+    let answer: NotionRoadmapSummary = NOTION_CONNECTING
+    configureNotionRoadmap({ initial: { phase: "ready", summary: NOTION_CONNECTING }, fetcher: async () => answer })
+    render(<Screen />)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(screen.getByTestId("notion-connecting")).toBeInTheDocument()
+    answer = liveRoadmapSummary()
+    await act(() => vi.advanceTimersByTimeAsync(CONNECTING_POLL_MS))
+    expect(titlesIn("Now")).toEqual(["Coach onboarding v2", "Shared playbooks"])
+    expect(screen.queryByTestId("notion-connecting")).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 })
 

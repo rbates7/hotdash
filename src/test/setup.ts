@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
@@ -23,8 +24,10 @@ beforeEach(() => {
     initial: { phase: "ready", summary: POSTHOG_NOT_CONNECTED },
     fetcher: async () => POSTHOG_NOT_CONNECTED,
   })
-  // Notion likewise: the Roadmap shows its local board (sample + edits).
-  // See src/test/notion.ts for live rows.
+  // Notion likewise: the Roadmap shows its local board under Not connected,
+  // empty to start (a test that needs bets to edit hands it the fixture
+  // with configureRoadmapBoard). See src/test/notion.ts for live rows.
+  configureRoadmapBoard(null)
   configureNotionRoadmap({
     initial: { phase: "ready", summary: NOTION_NOT_CONNECTED },
     fetcher: async () => NOTION_NOT_CONNECTED,

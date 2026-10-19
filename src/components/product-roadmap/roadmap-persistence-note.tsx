@@ -14,6 +14,10 @@ import { useSettings } from "@/hooks/use-settings"
 export const NOTION_SOURCE_NOTE_NAME = "Where the roadmap comes from"
 export const NOTION_SOURCE_COPY = "Read-only · from Notion"
 
+/** Reset on this browser's board (Notion not connected) empties it: there are no sample bets to bring back. */
+export const ROADMAP_RESET_DESCRIPTION =
+  "This discards every bet saved in this browser and leaves the board empty. There is no server copy to recover from."
+
 /**
  * The shared note, bound to the Roadmap store (pages are server
  * components). While Notion is the source it says so instead — read-only,
@@ -23,8 +27,12 @@ export const NOTION_SOURCE_COPY = "Read-only · from Notion"
 export function RoadmapPersistenceNote() {
   const store = useRoadmap()
   const { timeZone } = useSettings()
-  const { live } = store
-  if (!live) return <PersistenceNote store={store} resetClassName={ROADMAP_RESET} />
+  const { live, source } = store
+  // Connecting: the board says so; nothing of this browser's is on screen.
+  if (source === "connecting") return null
+  if (!live) {
+    return <PersistenceNote store={store} resetClassName={ROADMAP_RESET} resetDescription={ROADMAP_RESET_DESCRIPTION} />
+  }
   return (
     <span
       className="text-micro text-muted-foreground inline-flex min-h-6 items-center gap-1.5"
