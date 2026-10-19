@@ -642,6 +642,9 @@ for (const [size, viewport] of [
       await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
       const sheet = dialog(page, "Add expense")
       await expect(sheet).toBeVisible()
+      // The sheet slides/zooms in; measuring mid-animation read the 44px
+      // label as 43.07 (CI flake on 4228822). Let it finish first.
+      await settleAnimations(page)
       const sw = sheet.getByRole("switch", { name: "Recurring" })
       const box = await sw.boundingBox()
       expect(box, `${size} switch painted`).toBeTruthy()
@@ -652,8 +655,9 @@ for (const [size, viewport] of [
       expect(box!.height, `${size} switch ~18 tall`).toBeLessThanOrEqual(22)
 
       const wrap = sw.locator("xpath=ancestor::label[1]")
-      const wrapBox = await wrap.boundingBox()
-      expect(wrapBox!.height, `${size} Recurring label`).toBeGreaterThanOrEqual(43.5)
+      await expect
+        .poll(async () => (await wrap.boundingBox())?.height ?? 0, { message: `${size} Recurring label` })
+        .toBeGreaterThanOrEqual(43.5)
       const minH = await wrap.evaluate((el) => parseFloat(getComputedStyle(el).minHeight))
       expect(minH, `${size} Recurring label min-height`).toBeGreaterThanOrEqual(44)
 
