@@ -152,6 +152,12 @@ export const RETRY_AFTER_MS = 60_000
 export type WorkboardService = {
   /** Answers at once from the copy there is; never waits for a sync. */
   read(): Promise<WorkboardResponse>
+  /**
+   * True while a usable token is set and the first sync has not finished:
+   * `read()` says `connected: false`, but the board is on its way. A failed
+   * first sync is not connecting (no "connecting forever").
+   */
+  connecting(): boolean
   /** Settles when the background sync running now (if any) is done. */
   settled(): Promise<void>
   /** Tests only: forget everything. */
@@ -219,6 +225,9 @@ export function createWorkboardService({
         stale: !lastAttempt?.ok,
         items: snapshot.items,
       }
+    },
+    connecting() {
+      return readWorkboardConfig(env()).kind === "ok" && lastGood === null && lastAttempt === null
     },
     async settled() {
       await inflight

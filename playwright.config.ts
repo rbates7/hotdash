@@ -32,6 +32,6 @@ export default defineConfig({
     // has no key and no database URL (so both are "not connected"), and
     // specs mock /api/stripe/* in the browser for the connected and stale
     // states. This holds even on a machine whose shell has either.
-    env: { STRIPE_READONLY_KEY: "", STRIPE_API_BASE: "", SUPABASE_READONLY_DB_URL: "", GITHUB_READONLY_TOKEN: "", github_read_only: "" },
+    env: { STRIPE_READONLY_KEY: "", STRIPE_API_BASE: "", SUPABASE_READONLY_DB_URL: "", GITHUB_READONLY_TOKEN: "", github_read_only: "", SENTRY_READONLY_TOKEN: "" },
   },
 })

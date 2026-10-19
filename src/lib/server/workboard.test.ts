@@ -210,3 +210,24 @@ describe("loadFromGitHub (mocked fetch)", () => {
     await expect(load(TOKEN, NOW)).rejects.toMatchObject({ type: "GitHubHttpError" })
   })
 })
+
+describe("workboardService.connecting", () => {
+  it("is true only with a token while the first sync has not finished", async () => {
+    let resolve!: (items: WorkboardItem[]) => void
+    const { svc } = service(() => new Promise((r) => (resolve = r)))
+    expect(svc.connecting()).toBe(true)
+    await svc.read()
+    expect(svc.connecting()).toBe(true)
+    resolve([ITEM])
+    await svc.settled()
+    expect(svc.connecting()).toBe(false)
+    expect(service(vi.fn(), {}).svc.connecting()).toBe(false)
+  })
+
+  it("is false once the first sync has failed", async () => {
+    const { svc } = service(() => Promise.reject(new Error("down")))
+    await svc.read()
+    await svc.settled()
+    expect(svc.connecting()).toBe(false)
+  })
+})

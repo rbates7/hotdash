@@ -73,6 +73,7 @@ jobs:
           SUPABASE_READONLY_DB_URL: ""
           GITHUB_READONLY_TOKEN: ""
           github_read_only: ""
+          SENTRY_READONLY_TOKEN: ""
 
       - name: Upload Playwright report
         if: failure()
