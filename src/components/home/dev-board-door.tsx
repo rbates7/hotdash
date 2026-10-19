@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import { DoorNotConnected } from "@/components/home/not-connected"
 import {
   HOME_BOARD_COLUMNS,
   HOME_BOARD_TILE,
@@ -20,8 +21,11 @@ import {
 export function DevBoardDoor({
   preview,
   loading = false,
+  notConnected = false,
 }: {
   preview: BoardPreview | null
+  /** No live board source yet: no counts, no sprint, just Not connected. */
+  notConnected?: boolean
   /** True until the browser's saved board has been read; shows placeholders. */
   loading?: boolean
 }) {
@@ -31,19 +35,21 @@ export function DevBoardDoor({
       href="/agent-workplace"
       icon={BotIcon}
       count={
-        !loading && preview && preview.working > 0
+        !notConnected && !loading && preview && preview.working > 0
           ? `${preview.working} ${preview.working === 1 ? "agent" : "agents"} working`
           : undefined
       }
       caption={
-        loading
+        loading || notConnected
           ? undefined
           : preview
             ? `${preview.sprint.name} · ${describeDays(preview.daysLeft)}`
             : "Sprints are planned from the Backlog tab."
       }
     >
-      {loading ? (
+      {notConnected ? (
+        <DoorNotConnected hint="Branches, PRs and CI will show here once the work board is connected." />
+      ) : loading ? (
         <div aria-busy="true" aria-label="Loading the board" className="flex flex-col gap-4">
           <Skeleton className="h-3 w-28" />
           <div className={HOME_BOARD_COLUMNS}>

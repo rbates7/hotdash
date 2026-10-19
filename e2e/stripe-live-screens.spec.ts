@@ -93,7 +93,7 @@ test(`not connected 1440 ${theme} (no key: Home + Settings)`, async ({ page }) =
   await page.goto("/home")
   await waitForHydration(page)
   await setTheme(page, theme)
-  await expect(page.getByRole("article", { name: "Subscribers", exact: true })).toHaveAttribute("data-source", "sample")
+  await expect(page.getByRole("article", { name: "Subscribers", exact: true })).toHaveAttribute("data-source", "not_connected")
   const home = await capture(page)
   await page.goto("/settings")
   await waitForHydration(page)
