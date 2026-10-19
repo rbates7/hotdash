@@ -41,7 +41,8 @@ export type CrmLiveData = {
 
 export type GmailSummary = { mailbox: string } & (
   | { status: "connected" | "stale"; lastSyncedAt: string; data: CrmLiveData }
-  | { status: "connecting" | "not_connected"; lastSyncedAt: null; data: null }
+  | { status: "connecting"; lastSyncedAt: null; data: null }
+  | { status: "not_connected"; lastSyncedAt: null; data: null }
 )
 
 /** A summary with rows: connected, or the last good copy (stale). */
@@ -132,9 +133,8 @@ export type GmailFeed =
 export function gmailFeedOf(view: GmailView): GmailFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.status === "connecting" || summary.status === "not_connected") {
-    return summary.status === "connecting" ? { kind: "loading", connecting: true } : { kind: "sample", mailbox: summary.mailbox }
-  }
+  if (summary.status === "connecting") return { kind: "loading", connecting: true }
+  if (summary.status === "not_connected") return { kind: "sample", mailbox: summary.mailbox }
   return {
     kind: "live",
     stale: summary.status === "stale",
