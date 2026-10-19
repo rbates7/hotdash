@@ -7,10 +7,12 @@ import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-stor
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
+import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
+import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
 // Stripe, PostHog and Gmail start not connected in every test (no fetch to
@@ -34,6 +36,7 @@ beforeEach(() => {
     initial: { phase: "ready", summary: NOTION_NOT_CONNECTED },
     fetcher: async () => NOTION_NOT_CONNECTED,
   })
+  configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
   // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },

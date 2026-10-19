@@ -26,8 +26,10 @@ The other 11 routes are intentional stubs; each gets its own build phase.
 **Live Stripe (read-only)** feeds Home's ticker, Subscribers and Cash this
 week, and Metrics' MRR, Churn Rate, Trial Conversions and Subscribers when
 the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
-no key those tiles show their sample figures, labelled. Definitions, states
-and checks: [docs/stripe-live.md](docs/stripe-live.md).
+no key those tiles show their sample figures, labelled. Metrics › Overview
+also has an MRR (12 months) and Cash this week panel from the same cache
+(`GET /api/stripe/mrr-cash`), with no sample state. Definitions, states,
+endpoints and checks: [docs/stripe-live.md](docs/stripe-live.md).
 
 **Live PostHog (read-only)** feeds Metrics' Retention and Active Users
 (iOS app events only, from June 2026) when the server has
