@@ -27,8 +27,7 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 type Env = Record<string, string | undefined>
 
-/** US Cloud, used when `POSTHOG_HOST` is unset or blank (prod sets only the key). */
-export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com"
+export const DEFAULT_POSTHOG_HOST = "https://us.posthog.com"
 
 export type PosthogConfig =
   | { kind: "missing" }

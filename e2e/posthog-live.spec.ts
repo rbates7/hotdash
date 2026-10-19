@@ -4,7 +4,7 @@ import { expectReadable } from "./support/contrast"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 import { livePosthogSummary, mockPosthog } from "./support/posthog"
-import { liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_ZERO, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 
 /**
  * Live PostHog, three states, on Metrics and Settings. e2e never has a
@@ -197,4 +197,34 @@ for (const vp of [
       })
     })
   }
+}
+
+/* ------------- combined: Stripe live, App Store read 0, PostHog live */
+
+/**
+ * The Metrics notice where #44 (PostHog) meets #48 (App Store suspect 0):
+ * both lines show together, and stay readable, on a phone and a desktop.
+ */
+for (const vp of [
+  { width: 390, height: 844 },
+  { width: 1440, height: 900 },
+] as const) {
+  test.describe(`combined notice (${vp.width})`, () => {
+    test.use({ viewport: vp })
+    for (const theme of ["light", "dark"] as const) {
+      test(`${theme}: Partly live names PostHog's cards and the App Store suspect 0 together`, async ({ page }) => {
+        await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO))
+        await mockPosthog(page, livePosthogSummary("connected"))
+        await open(page, "/metrics")
+        await setTheme(page, theme)
+        const notice = main(page).getByRole("note", { name: "Partly live" })
+        await expect(notice).toContainText("Retention and Active Users are live from PostHog (read-only, iOS app events only)")
+        await expect(notice).toContainText(
+          "Subscribers leaves out App Store payers until Chlk’s database read is checked (it read 0)"
+        )
+        await expect(notice).not.toContainText("Subscribers also counts App Store payers")
+        await expectReadable(notice, `${vp.width} ${theme} combined notice`, expect)
+      })
+    }
+  })
 }
