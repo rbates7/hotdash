@@ -31,6 +31,8 @@ const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
   subscribers: ["186", "+3", true],
   trials: ["28%", "+3.1 pts", true],
   expenses: ["$8,240", "+2.4%", false],
+  // Not in the mock: the sample behind the PostHog-fed Active Users card.
+  active: ["731", "+5.9%", true],
   cac: ["$142", "−8.4%", true],
   ltv: ["$1,680", "+3.7%", true],
   arpu: ["$141", "+2.2%", true],

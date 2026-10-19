@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
+import { APP_STORE_CONNECTING, APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import {
   APP_STORE_PAYERS_SQL,
   CACHE_TTL_MS,
@@ -183,11 +183,24 @@ describe("createAppStoreSource", () => {
     let release!: (n: number) => void
     const query = vi.fn(() => new Promise<number>((r) => (release = r)))
     const { src } = source(query)
-    expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_NOT_CONNECTED, APP_STORE_NOT_CONNECTED])
+    expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_CONNECTING, APP_STORE_CONNECTING])
     release(53)
     await src.settled()
     expect((await src.read()).status).toBe("connected")
     expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it("a first count that fails goes from connecting to not connected, and stays so on the retry", async () => {
+    const query = vi.fn(async (): Promise<number> => {
+      throw new TypeError("refused")
+    })
+    const { src, tick } = source(query)
+    expect(await src.read()).toEqual(APP_STORE_CONNECTING)
+    await src.settled()
+    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    tick(RETRY_AFTER_MS)
+    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    expect(query).toHaveBeenCalledTimes(2)
   })
 
   it("a provider error with no good count is not connected — never a 0, never a throw", async () => {
@@ -248,11 +261,11 @@ describe("createAppStoreSource never waits for the database", () => {
     vi.useRealTimers()
   })
 
-  it("a slow first count: not connected at once, connected once it lands", async () => {
+  it("a slow first count: connecting at once, connected once it lands", async () => {
     vi.useFakeTimers({ now: T0 })
     const src = createAppStoreSource({ env: () => ENV, query: () => new Promise((r) => setTimeout(() => r(53), 200_000)) })
     const started = wallClock()
-    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    expect(await src.read()).toEqual(APP_STORE_CONNECTING)
     expect(wallClock() - started).toBeLessThan(1_000)
     await vi.advanceTimersByTimeAsync(200_000)
     expect(await src.read()).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })

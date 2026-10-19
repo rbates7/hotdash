@@ -13,11 +13,14 @@ import {
 import { useSettings } from "@/hooks/use-settings"
 import { useMrrCashView } from "@/hooks/use-stripe-mrr-cash"
 
+/** The same words as the Metrics overview while Stripe's first sync runs. */
+export const STRIPE_CONNECTING_PLACEHOLDER = "Stripe is connecting (first sync in progress)"
+
 /**
  * The MRR chart (one bar per month, this month partial) and Cash this week
  * by day beside last week, from Stripe through `/api/stripe/mrr-cash`.
  * There is no sample state: before the first sync it is a placeholder that
- * says Connecting…, and with no key it says Not connected.
+ * says Stripe is connecting, and with no key it says Not connected.
  */
 export function MrrCashPanel() {
   const { timeZone } = useSettings()
@@ -28,9 +31,9 @@ export function MrrCashPanelView({ state, timeZone }: { state: MrrCashPanelState
   return (
     <section
       aria-label="MRR and cash this week"
-      aria-busy={state.kind === "loading" || state.kind === "connecting"}
+      aria-busy={state.kind === "loading"}
       data-testid="mrr-cash-panel"
-      data-state={state.kind}
+      data-state={state.kind === "loading" && state.connecting ? "connecting" : state.kind}
       className="border-surface-border bg-card flex w-full flex-col gap-4 rounded-xl border p-4"
     >
       <header className="flex flex-wrap items-baseline justify-between gap-2">
@@ -47,15 +50,15 @@ export function MrrCashPanelView({ state, timeZone }: { state: MrrCashPanelState
           <CashDays value={state.cash.value} previous={state.cash.previous} days={state.cash.days} />
         </div>
       ) : (
-        <Placeholder kind={state.kind} />
+        <Placeholder state={state} />
       )}
     </section>
   )
 }
 
-function Placeholder({ kind }: { kind: "loading" | "connecting" | "not_connected" }) {
+function Placeholder({ state }: { state: Exclude<MrrCashPanelState, { kind: "live" }> }) {
   const text =
-    kind === "not_connected" ? "Stripe not connected" : kind === "connecting" ? "Connecting… first sync in progress" : null
+    state.kind === "not_connected" ? "Stripe not connected" : state.connecting ? STRIPE_CONNECTING_PLACEHOLDER : null
   return (
     <div
       role="status"

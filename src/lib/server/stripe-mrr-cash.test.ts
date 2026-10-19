@@ -60,8 +60,9 @@ describe("stripeService.mrrCash", () => {
 
     expect(await svc.mrrCash("America/Chicago")).toEqual(MRR_CASH_CONNECTING)
     expect(await svc.mrrCash("America/Chicago")).toEqual(MRR_CASH_CONNECTING)
-    // The summary and the chart share one sync.
-    await svc.summary("America/Chicago")
+    // The summary and the chart share one sync and one connecting rule.
+    expect((await svc.summary("America/Chicago")).status).toBe("connecting")
+    expect(await svc.health()).toBe("connecting")
     expect(load).toHaveBeenCalledTimes(1)
 
     first.resolve(DATA)
@@ -84,6 +85,7 @@ describe("stripeService.mrrCash", () => {
     expect(await svc.mrrCash("America/Chicago")).toEqual(MRR_CASH_CONNECTING)
     await svc.settled()
     expect(await svc.mrrCash("America/Chicago")).toEqual(MRR_CASH_NOT_CONNECTED)
+    expect((await svc.summary("America/Chicago")).status).toBe("not_connected")
     expect(log).toHaveBeenCalledWith("StripeAuthenticationError")
     // Even once the retry is running.
     vi.advanceTimersByTime(RETRY_AFTER_MS)

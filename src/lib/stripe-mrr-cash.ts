@@ -1,5 +1,6 @@
 import { addDays, startOfDay, startOfWeek, todayIn, type IsoDay } from "@/lib/clock"
 import { grossChargesCents, mrrAt, type StripeData } from "@/lib/stripe-metrics"
+import type { StripeStatus } from "@/lib/stripe-summary"
 
 /**
  * The MRR chart and the Cash this week breakdown, from the same Stripe
@@ -114,18 +115,17 @@ export function computeMrrCash(data: StripeData, { now, timeZone }: { now: Date;
 /* -------------------------------------------------------------- response */
 
 /**
- * What `GET /api/stripe/mrr-cash` returns. No key, no error text.
- *
- * - `connecting`    — a key is set and the first sync is still running:
- *                     no figures yet, and never sample ones.
- * - `connected`     — the last sync succeeded within the cache window.
- * - `stale`         — the last sync failed; the last good figures.
- * - `not_connected` — no (usable) key, or the first sync failed.
+ * What `GET /api/stripe/mrr-cash` returns. No key, no error text. Its
+ * status is Stripe's own (`StripeStatus`, see `stripe-summary`), decided by
+ * the same rule on the server, so the panel and the Stripe cards are
+ * connecting, stale or not connected together.
  */
-export type MrrCashStatus = "connecting" | "connected" | "stale" | "not_connected"
+export type MrrCashStatus = StripeStatus
 
-export type LiveMrrCashSummary = { status: "connected" | "stale"; lastSyncedAt: string } & MrrCash
-export type MrrCashSummary = LiveMrrCashSummary | { status: "connecting" | "not_connected"; lastSyncedAt: null }
+export type LiveMrrCashSummary = { status: Extract<StripeStatus, "connected" | "stale">; lastSyncedAt: string } & MrrCash
+export type MrrCashSummary =
+  | LiveMrrCashSummary
+  | { status: Exclude<StripeStatus, "connected" | "stale">; lastSyncedAt: null }
 
 export function isLiveMrrCash(summary: MrrCashSummary): summary is LiveMrrCashSummary {
   return summary.status === "connected" || summary.status === "stale"
@@ -181,18 +181,18 @@ export type MrrCashView = { phase: "loading" } | { phase: "ready"; summary: MrrC
 
 /**
  * What the panel shows. There is no sample state: before figures exist it
- * is a placeholder (`loading`, `connecting`) or says so (`not_connected`).
+ * is a placeholder (`loading`, with `connecting` while Stripe's first sync
+ * runs, as in `StripeFeed`) or says so (`not_connected`).
  */
 export type MrrCashPanelState =
-  | { kind: "loading" }
-  | { kind: "connecting" }
+  | { kind: "loading"; connecting?: boolean }
   | { kind: "not_connected" }
   | ({ kind: "live"; stale: boolean; lastSyncedAt: Date } & MrrCash)
 
 export function panelStateOf(view: MrrCashView): MrrCashPanelState {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (!isLiveMrrCash(summary)) return { kind: summary.status }
+  if (!isLiveMrrCash(summary)) return summary.status === "connecting" ? { kind: "loading", connecting: true } : { kind: "not_connected" }
   return {
     kind: "live",
     stale: summary.status === "stale",
@@ -200,14 +200,6 @@ export function panelStateOf(view: MrrCashView): MrrCashPanelState {
     mrr: summary.mrr,
     cash: summary.cash,
   }
-}
-
-/** Polls quickly while the first sync runs, then at the summary's pace. */
-export const MRR_CASH_CONNECTING_POLL_MS = 5_000
-export const MRR_CASH_POLL_MS = 60_000
-
-export function nextPollMs(view: MrrCashView) {
-  return view.phase === "ready" && view.summary.status === "connecting" ? MRR_CASH_CONNECTING_POLL_MS : MRR_CASH_POLL_MS
 }
 
 /**

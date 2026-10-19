@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createMrrCashStore, type MrrCashFetcher } from "@/hooks/use-stripe-mrr-cash"
+import { createMrrCashStore, nextPollMs, type MrrCashFetcher } from "@/hooks/use-stripe-mrr-cash"
+import { CONNECTING_POLL_MS, SUMMARY_POLL_MS } from "@/hooks/use-stripe-summary"
 import type { Timers } from "@/lib/subscriber-source"
 import {
   MRR_CASH_CONNECTING,
-  MRR_CASH_CONNECTING_POLL_MS,
   MRR_CASH_NOT_CONNECTED,
-  MRR_CASH_POLL_MS,
   type MrrCashSummary,
 } from "@/lib/stripe-mrr-cash"
 
@@ -51,16 +50,16 @@ describe("createMrrCashStore", () => {
     const unsubscribe = store.subscribe(() => {})
     await flush()
     expect(store.getState()).toEqual({ phase: "ready", summary: MRR_CASH_CONNECTING })
-    expect(pending.map((p) => p.ms)).toEqual([MRR_CASH_CONNECTING_POLL_MS])
+    expect(pending.map((p) => p.ms)).toEqual([CONNECTING_POLL_MS])
 
     pending.shift()!.fn()
     await flush()
-    expect(pending.map((p) => p.ms)).toEqual([MRR_CASH_CONNECTING_POLL_MS])
+    expect(pending.map((p) => p.ms)).toEqual([CONNECTING_POLL_MS])
 
     pending.shift()!.fn()
     await flush()
     expect(store.getState()).toEqual({ phase: "ready", summary: LIVE })
-    expect(pending.map((p) => p.ms)).toEqual([MRR_CASH_POLL_MS])
+    expect(pending.map((p) => p.ms)).toEqual([SUMMARY_POLL_MS])
 
     unsubscribe()
     expect(pending).toHaveLength(0)
@@ -87,5 +86,12 @@ describe("createMrrCashStore", () => {
     pending.shift()!.fn()
     await flush()
     expect(store.getState()).toEqual({ phase: "ready", summary: { ...LIVE, status: "stale" } })
+  })
+
+  it("paces like the Stripe summary: CONNECTING_POLL_MS while connecting, SUMMARY_POLL_MS otherwise", () => {
+    expect(nextPollMs({ phase: "ready", summary: MRR_CASH_CONNECTING })).toBe(CONNECTING_POLL_MS)
+    expect(nextPollMs({ phase: "ready", summary: LIVE })).toBe(SUMMARY_POLL_MS)
+    expect(nextPollMs({ phase: "ready", summary: MRR_CASH_NOT_CONNECTED })).toBe(SUMMARY_POLL_MS)
+    expect(nextPollMs({ phase: "loading" })).toBe(SUMMARY_POLL_MS)
   })
 })

@@ -3,15 +3,12 @@ import { describe, expect, it } from "vitest"
 import { computeStripeMetrics, type StripeCharge, type StripeData, type StripeSubscription } from "@/lib/stripe-metrics"
 import {
   MRR_CASH_CONNECTING,
-  MRR_CASH_CONNECTING_POLL_MS,
   MRR_CASH_NOT_CONNECTED,
-  MRR_CASH_POLL_MS,
   cashWeek,
   computeMrrCash,
   monthLabel,
   monthsEnding,
   mrrChart,
-  nextPollMs,
   onFetchFailure,
   panelStateOf,
   parseMrrCashSummary,
@@ -182,16 +179,10 @@ describe("in the browser", () => {
 
   it("never has a sample state", () => {
     expect(panelStateOf({ phase: "loading" })).toEqual({ kind: "loading" })
-    expect(panelStateOf({ phase: "ready", summary: MRR_CASH_CONNECTING })).toEqual({ kind: "connecting" })
+    expect(panelStateOf({ phase: "ready", summary: MRR_CASH_CONNECTING })).toEqual({ kind: "loading", connecting: true })
     expect(panelStateOf({ phase: "ready", summary: MRR_CASH_NOT_CONNECTED })).toEqual({ kind: "not_connected" })
     expect(panelStateOf({ phase: "ready", summary: live })).toMatchObject({ kind: "live", stale: false })
     expect(panelStateOf({ phase: "ready", summary: { ...live, status: "stale" } })).toMatchObject({ kind: "live", stale: true })
-  })
-
-  it("polls every 5 s while connecting, 60 s otherwise", () => {
-    expect(nextPollMs({ phase: "ready", summary: MRR_CASH_CONNECTING })).toBe(MRR_CASH_CONNECTING_POLL_MS)
-    expect(nextPollMs({ phase: "ready", summary: live })).toBe(MRR_CASH_POLL_MS)
-    expect(nextPollMs({ phase: "loading" })).toBe(MRR_CASH_POLL_MS)
   })
 
   it("a failed read keeps figures as stale, otherwise reads not connected", () => {

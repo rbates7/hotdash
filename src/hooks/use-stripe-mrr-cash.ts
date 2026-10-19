@@ -5,20 +5,26 @@ import * as React from "react"
 import { retryDelay, type Timers } from "@/lib/subscriber-source"
 import {
   MRR_CASH_PATH,
-  nextPollMs,
   onFetchFailure,
   parseMrrCashSummary,
   type MrrCashSummary,
   type MrrCashView,
 } from "@/lib/stripe-mrr-cash"
 import { useSettings } from "@/hooks/use-settings"
+import { CONNECTING_POLL_MS, SUMMARY_POLL_MS } from "@/hooks/use-stripe-summary"
 
 /**
  * The browser's copy of `/api/stripe/mrr-cash` for the founder's Settings
- * zone. Loading until the first answer (the server render too); polls every
- * 5 s while the server says `connecting`, then every 60 s; our endpoint
+ * zone. Loading until the first answer (the server render too); polls at
+ * the Stripe summary's pace (`CONNECTING_POLL_MS` while the server says
+ * `connecting`, then `SUMMARY_POLL_MS`); our endpoint
  * failing keeps the last figures as stale (or reads as not connected).
  */
+
+/** The Stripe summary's poll pace: sooner while connecting. */
+export function nextPollMs(view: MrrCashView) {
+  return view.phase === "ready" && view.summary.status === "connecting" ? CONNECTING_POLL_MS : SUMMARY_POLL_MS
+}
 
 export type MrrCashFetcher = (timeZone: string) => Promise<MrrCashSummary>
 

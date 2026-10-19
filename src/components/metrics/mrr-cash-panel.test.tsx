@@ -35,11 +35,12 @@ const LIVE: MrrCashPanelState = {
 }
 
 describe("MrrCashPanelView", () => {
-  it("shows Connecting… while the first sync runs, and no figures", () => {
-    render(<MrrCashPanelView state={{ kind: "connecting" }} timeZone={CT} />)
+  it("says Stripe is connecting while the first sync runs, and no figures", () => {
+    render(<MrrCashPanelView state={{ kind: "loading", connecting: true }} timeZone={CT} />)
     const panel = screen.getByTestId("mrr-cash-panel")
     expect(panel).toHaveAttribute("aria-busy", "true")
-    expect(screen.getByRole("status")).toHaveTextContent("Connecting… first sync in progress")
+    expect(panel).toHaveAttribute("data-state", "connecting")
+    expect(screen.getByRole("status")).toHaveTextContent("Stripe is connecting (first sync in progress)")
     expect(panel.textContent).not.toMatch(/\$\d/)
     expect(panel.textContent).not.toMatch(/sample/i)
   })

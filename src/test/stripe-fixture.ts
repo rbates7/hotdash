@@ -41,3 +41,10 @@ export function liveSummary(
 ): StripeSummary {
   return { status, lastSyncedAt: SYNCED_AT, metrics, appStore }
 }
+
+/** A URL is set and the first count is still running: no count yet. */
+export const APP_STORE_CONNECTING: AppStoreSummary = { status: "connecting" }
+/** A key is set and Stripe's first sync is still running (a fresh server). */
+export function connectingSummary(appStore: AppStoreSummary = APP_STORE_CONNECTING): StripeSummary {
+  return { status: "connecting", lastSyncedAt: null, metrics: null, appStore }
+}
