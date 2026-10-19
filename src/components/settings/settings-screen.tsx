@@ -338,28 +338,57 @@ function SwitchRow({
   )
 }
 
-function SampleDataSection({ sampleData }: { sampleData: boolean }) {
-  const stripe = useStripeFeed().kind === "live"
-  const posthog = usePosthogFeed().kind === "live"
-  const gmail = useGmailFeed().kind === "live"
+/** The Sample data section's first sentence: what is live, what is connecting, and that the rest is sample. */
+export function sampleDataSummary({
+  stripe,
+  posthog,
+  gmail = false,
+  stripeConnecting,
+  appStoreConnecting,
+}: {
+  stripe: boolean
+  posthog: boolean
+  /** The CRM's Gmail conversations are live. */
+  gmail?: boolean
+  stripeConnecting: boolean
+  appStoreConnecting: boolean
+}): string {
   const figures = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
   const live =
     figures && gmail
-      ? `${figures} figures and the CRM's Gmail conversations are live`
+      ? `${figures} figures and the CRM's Gmail conversations are`
       : figures
-        ? `${figures} figures are live`
+        ? `${figures} figures are`
         : gmail
-          ? "The CRM's Gmail conversations are live"
+          ? "The CRM's Gmail conversations are"
           : null
+  if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
+  if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+  const connecting = stripeConnecting
+    ? " Stripe is connecting (first sync in progress)."
+    : appStoreConnecting
+      ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
+      : ""
+  if (!connecting) return `${live} live and carry no label; every other number is still sample data.`
+  return `${live} live and carry no label;${connecting} Every other number is still sample data.`
+}
+
+function SampleDataSection({ sampleData }: { sampleData: boolean }) {
+  const stripeFeed = useStripeFeed()
+  const summary = sampleDataSummary({
+    stripe: stripeFeed.kind === "live",
+    posthog: usePosthogFeed().kind === "live",
+    gmail: useGmailFeed().kind === "live",
+    stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
+    appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
+  })
   return (
     <Section
       id="sample-data"
       title="Sample data"
       description={
         <>
-          {live
-            ? `${live} and carry no label; every other number is still sample data.`
-            : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
+          {summary}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
           placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
           no label to hide.
@@ -407,7 +436,7 @@ const SOURCES = [
 const STATUS_BADGE = "h-6 px-2.5"
 
 /** What a live source's row needs: Stripe's, PostHog's and Gmail's feeds all fit. */
-type SourceFeed = { kind: "loading" } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
 
 /** Hooks per live source, so each row reads only its own. */
 const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
@@ -416,10 +445,21 @@ const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => 
   Gmail: { use: useGmailFeed, id: "gmail" },
 }
 
-/** A live source's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
+/**
+ * A live source's row: Connected (and when it last synced), Last updated
+ * (stale), Connecting… (a key is set, its first sync is still running), or
+ * Not connected (no key).
+ */
 function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
   const { use, id } = LIVE_FEEDS[name]!
   const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <Badge variant="outline" aria-busy data-testid={`${id}-status`} className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Connecting…
+      </Badge>
+    )
+  }
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -453,6 +493,13 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
 function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
   const { use, id } = LIVE_FEEDS[name]!
   const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
+        Read-only key found · first sync in progress, figures appear when it finishes
+      </p>
+    )
+  }
   if (feed.kind !== "live") return null
   return (
     <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
