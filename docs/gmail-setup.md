@@ -26,9 +26,10 @@ create a Google Cloud project, the info@chlkapp.com password, and Vercel.
 6. **Paste the four lines into Vercel.** Vercel → the hotdash project →
    **Settings → Environment Variables** → add each one
    (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`,
-   `GMAIL_MAILBOX`), ticking **Production** only (leave **Preview** and
+   `GMAIL_MAILBOX`), ticking **Production** and **Preview** (leave
    **Development** unticked) → **Save** → **Deployments → ⋯ → Redeploy**
-   the production deployment.
+   the production deployment. Preview deployments pick the variables up on
+   their next deploy.
 7. **Check it.** Open `/api/health/gmail` on the site, wait a minute, reload:
    it says `{"gmail":"ok"}`. The CRM header now says **Live from Gmail**.
 
@@ -43,7 +44,9 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 > ~200-character snippet; never full bodies or attachments). This is
 > Rashad's decision, Oct 16, 9:45 PM CT: "Yes, show the customer emails
 > publicly." It follows his Oct 13 decision to keep the dashboard public
-> with real data.
+> with real data. Preview links show the same emails: the variables are on
+> Production and Preview, per Rashad's Oct 18, 7:50 PM CT "ship
+> everything" (to Coulson).
 
 ### If something goes wrong
 
