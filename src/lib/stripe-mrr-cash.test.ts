@@ -145,6 +145,70 @@ describe("cashWeek", () => {
   })
 })
 
+describe("cashWeek across the US DST end (Sun Nov 1 2026, Central)", () => {
+  // Clocks fall back at 2 AM CDT to 1 AM CST: Sunday Nov 1 is 25 hours long,
+  // from 05:00Z to Mon Nov 2 06:00Z. The week is Mon Oct 26 – Sun Nov 1.
+  const DST: StripeData = {
+    subscriptions: [],
+    charges: [
+      charge("mon", "2026-10-26T05:00:00Z", 1_000), // Mon 00:00 CDT: first instant of the week
+      charge("sat-late", "2026-11-01T04:30:00Z", 2_000), // Sat 11:30 PM CDT
+      charge("sun-early", "2026-11-01T05:30:00Z", 300), // Sun 12:30 AM CDT
+      charge("sun-130-cdt", "2026-11-01T06:30:00Z", 400), // Sun 1:30 AM CDT (first 1:30)
+      charge("sun-130-cst", "2026-11-01T07:30:00Z", 500), // Sun 1:30 AM CST (second 1:30)
+      charge("sun-late", "2026-11-02T05:00:00Z", 600), // Sun 11:00 PM CST
+      charge("next-mon", "2026-11-02T06:00:00Z", 9_999), // Mon Nov 2 00:00 CST: next week
+      charge("prev-sun", "2026-10-26T04:59:00Z", 8_888), // Sun Oct 25 11:59 PM CDT: the week before
+    ],
+  }
+  const cents = (d: { value: number | null }[]) => Math.round(d.reduce((t, x) => t + (x.value ?? 0), 0) * 100)
+
+  it("keeps all seven day buckets right, with Sunday 25 hours long", () => {
+    const now = new Date("2026-11-02T05:30:00Z") // Sun Nov 1, 11:30 PM CST
+    const week = cashWeek(DST, now, CT)
+    expect(week.since).toBe("2026-10-26T05:00:00.000Z")
+    expect(week.days.map((d) => d.date)).toEqual([
+      "2026-10-26",
+      "2026-10-27",
+      "2026-10-28",
+      "2026-10-29",
+      "2026-10-30",
+      "2026-10-31",
+      "2026-11-01",
+    ])
+    // Both 1:30 AMs and 11 PM CST land on Sunday; nothing from next Monday or last Sunday.
+    expect(week.days.map((d) => d.value)).toEqual([10, 0, 0, 0, 0, 20, 18])
+    expect(cents(week.days)).toBe(Math.round(week.value * 100))
+    const summary = computeStripeMetrics(DST, { now, timeZone: CT }).cashThisWeek
+    expect(week.value).toBe(summary.value)
+    expect(week.since).toBe(summary.since)
+  })
+
+  it("compares the next week's days with the DST week, and the totals still add up", () => {
+    const now = new Date("2026-11-09T05:30:00Z") // Sun Nov 8, 11:30 PM CST
+    const week = cashWeek(DST, now, CT)
+    expect(week.since).toBe("2026-11-02T06:00:00.000Z")
+    expect(week.days.map((d) => d.date)).toEqual([
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-05",
+      "2026-11-06",
+      "2026-11-07",
+      "2026-11-08",
+    ])
+    expect(week.days[0].value).toBe(99.99)
+    // Last week's Saturday is whole; its Sunday is cut 23.5 elapsed hours in
+    // (10:30 PM CST on the 25-hour day, as the summary measures it), so 11 PM is out.
+    expect(week.days.map((d) => d.previous)).toEqual([10, 0, 0, 0, 0, 20, 12])
+    const previousCents = Math.round(week.days.reduce((t, d) => t + (d.previous ?? 0), 0) * 100)
+    expect(previousCents).toBe(Math.round(week.previous * 100))
+    const summary = computeStripeMetrics(DST, { now, timeZone: CT }).cashThisWeek
+    expect(week.value).toBe(summary.value)
+    expect(week.previous).toBe(summary.previous)
+  })
+})
+
 describe("parseMrrCashSummary", () => {
   const live: MrrCashSummary = {
     status: "connected",

@@ -306,6 +306,29 @@ export function inboxScreen(view: InboxView, timeZone: string): InboxScreen {
   }
 }
 
+/**
+ * Stale notes with the same time said once: "GitHub: Last updated X" and
+ * "Sentry: Last updated X" become "GitHub and Sentry: Last updated X".
+ * Different times stay separate, in order. Home's Inbox door uses it so
+ * the note stays one line at 1440.
+ */
+export function combineStaleNotes(notes: readonly string[]): string[] {
+  const groups: { names: string[]; rest: string }[] = []
+  for (const note of notes) {
+    const at = note.indexOf(": ")
+    if (at < 0) {
+      groups.push({ names: [], rest: note })
+      continue
+    }
+    const name = note.slice(0, at)
+    const rest = note.slice(at + 2)
+    const same = groups.find((g) => g.names.length > 0 && g.rest === rest)
+    if (same) same.names.push(name)
+    else groups.push({ names: [name], rest })
+  }
+  return groups.map((g) => (g.names.length ? `${sourceList(g.names)}: ${g.rest}` : g.rest))
+}
+
 /** "GitHub and Sentry", "Sentry". */
 export function sourceList(names: readonly string[]) {
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`

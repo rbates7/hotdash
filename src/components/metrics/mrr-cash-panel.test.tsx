@@ -75,6 +75,25 @@ describe("MrrCashPanelView", () => {
     expect(screen.getByTestId("mrr-cash-updated")).toHaveTextContent(lastUpdatedLabel(new Date("2026-10-14T17:00:00.000Z"), CT))
   })
 
+  it("labels this month's partial bar 'so far' under the chart, and not a whole month", () => {
+    const { rerender } = render(<MrrCashPanelView state={LIVE} timeZone={CT} />)
+    expect(screen.getByTestId("mrr-axis-last")).toHaveTextContent(/^Oct so far$/)
+    if (LIVE.kind !== "live") throw new Error("fixture")
+    const whole = LIVE.mrr.points.map((p) => ({ ...p, partial: false }))
+    rerender(<MrrCashPanelView state={{ ...LIVE, mrr: { points: whole } }} timeZone={CT} />)
+    expect(screen.getByTestId("mrr-axis-last")).toHaveTextContent(/^Oct$/)
+  })
+
+  it("keeps the cash total together on one line ('$4,322 / $3,900')", () => {
+    render(<MrrCashPanelView state={LIVE} timeZone={CT} />)
+    const total = screen.getByTestId("cash-week-total")
+    expect(total).toHaveTextContent("$4,322 / $3,900")
+    expect(total).toHaveClass("whitespace-nowrap", "shrink-0")
+    expect(screen.getByTestId("cash-week-value")).toHaveTextContent("$4,322")
+    expect(screen.getByTestId("cash-week-previous")).toHaveTextContent("$3,900")
+    expect(screen.getByTestId("mrr-chart-latest")).toHaveClass("whitespace-nowrap")
+  })
+
   it("says the MRR history uses today's prices", () => {
     render(<MrrCashPanelView state={LIVE} timeZone={CT} />)
     expect(screen.getByTestId("mrr-chart-caption")).toHaveTextContent("MRR · 3 months · USD, past months at today's prices")

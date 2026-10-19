@@ -63,6 +63,18 @@ describe("InboxPanel (live /api/inbox)", () => {
     await waitFor(() => expect(panel()).toHaveAttribute("data-state", "connecting"))
     expect(screen.getByText("Connecting to GitHub and Sentry…")).toBeInTheDocument()
     expect(screen.queryAllByRole("listitem")).toHaveLength(0)
+    // Said once, in the box: not again per source in the header.
+    expect(screen.queryByText("GitHub: Connecting…")).not.toBeInTheDocument()
+    expect(screen.queryByText("Sentry: Connecting…")).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Connecting/)).toHaveLength(1)
+  })
+
+  it("connecting with one source: the box names it once, and the other source's note stays", async () => {
+    const inbox = connectingInbox(NOW)
+    renderWith({ ...inbox, sources: { ...inbox.sources, github: { status: "not_connected", fetchedAt: null } } })
+    expect(await screen.findByText("Connecting to Sentry…")).toBeInTheDocument()
+    expect(screen.queryByText("Sentry: Connecting…")).not.toBeInTheDocument()
+    expect(screen.getByText("GitHub: Not connected")).toBeInTheDocument()
   })
 
   it("empty: a clean empty state", async () => {

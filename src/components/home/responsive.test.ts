@@ -41,6 +41,6 @@ describe("Home responsive layout", () => {
   it("lets the truth-strip label wrap and grows compact tap targets", () => {
     expect(HOME_KPI_HEAD).toContain("flex-wrap")
     expect(HOME_TOUCH).toContain("max-xl:h-11!")
-    expect(HOME_NEED_ROW).toBe("min-h-11")
+    expect(HOME_NEED_ROW).toBe("min-h-11 xl:py-1")
   })
 })

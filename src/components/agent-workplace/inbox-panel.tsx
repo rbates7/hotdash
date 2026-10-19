@@ -26,6 +26,12 @@ export function InboxPanel() {
   useWallClock(timeZone)
   const now = clockNow().getTime()
   const { status, items } = screen
+  const connectingBox = status === "connecting" && items.length === 0
+  // The box below already says "Connecting to …": don't repeat it per source
+  // in the header (other notes, like "Gmail: Not connected", stay).
+  const notes = connectingBox
+    ? screen.notes.filter((note) => !screen.connecting.some((label) => note === `${label}: Connecting…`))
+    : screen.notes
 
   return (
     <div className="flex flex-col gap-3" data-testid="inbox-panel" data-state={status}>
@@ -33,14 +39,14 @@ export function InboxPanel() {
         <span>Absorbs Home &ldquo;Needs you.&rdquo; Founder-only.</span>
         {screen.stale.length > 0 ? <span data-testid="inbox-updated">{screen.stale.join(" · ")}</span> : null}
         {status !== "loading" && status !== "not_connected"
-          ? screen.notes.map((note) => (
+          ? notes.map((note) => (
               <span key={note} data-testid="inbox-source-note">
                 {note}
               </span>
             ))
           : null}
       </div>
-      {status === "loading" || (status === "connecting" && items.length === 0) ? (
+      {status === "loading" || connectingBox ? (
         <div
           aria-busy="true"
           aria-label={status === "loading" ? "Loading the Inbox" : `Connecting to ${sourceList(screen.connecting)}`}
