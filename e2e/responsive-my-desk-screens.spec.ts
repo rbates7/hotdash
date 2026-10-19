@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { EMPTY_COPY, FINISHED_EARLIER_COPY, SCRATCH_PLACEHOLDER } from "../src/components/my-desk/my-desk-screen"
 import { addDays, now, todayIn } from "../src/lib/clock"
+import { CLEAR_COPY, CLEAR_DESCRIPTION } from "../src/components/persistence-note"
 import { carryFromLabel } from "../src/lib/my-desk"
 import { settleAnimations } from "./support/contrast"
 import { CLEAR_CONFIRM_NAME, NOTE, persistenceNote } from "./support/persistence"
@@ -156,12 +157,18 @@ for (const theme of ["light", "dark"] as const) {
         await expect(dialog(page, "Delete this to-do?")).toContainText(FIRST)
         await shoot(page, `my-desk-${size}-dialog-delete-${theme}`, { fullPage: false })
         await closeAll(page)
-
-        await clearButton(page).click()
-        await expect(dialog(page, CLEAR_CONFIRM_NAME)).toBeVisible()
-        await shoot(page, `my-desk-${size}-dialog-clear-${theme}`, { fullPage: false })
-        await closeAll(page)
       }
+
+      // The Clear my entries confirm, at every width: its title, what it
+      // deletes, and both choices; nothing is cleared from here.
+      await clearButton(page).click()
+      const confirm = dialog(page, CLEAR_CONFIRM_NAME)
+      await expect(confirm).toBeVisible()
+      await expect(confirm).toContainText(CLEAR_DESCRIPTION)
+      await expect(confirm.getByRole("button", { name: "Keep my edits", exact: true })).toBeVisible()
+      await expect(confirm.getByRole("button", { name: CLEAR_COPY.confirm, exact: true })).toBeVisible()
+      await shoot(page, `my-desk-${size}-clear-confirm-${theme}`, { fullPage: desktop })
+      await closeAll(page)
       await expect(todayList(page).locator("[data-todo]")).toHaveCount(3)
 
       const scratch = notes(page).getByLabel("Scratch")

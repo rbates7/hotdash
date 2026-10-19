@@ -13,7 +13,8 @@ import {
   openWithOwnContacts,
 } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { CLEAR_COPY, CLEAR_DESCRIPTION } from "../src/components/persistence-note"
+import { CLEAR_CONFIRM_NAME, NOTE, persistenceNote } from "./support/persistence"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
@@ -114,6 +115,18 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog", { name: "Edit contact", exact: true })).toBeVisible()
       await shoot(page, name("contact-edit"), { fullPage: false })
       await closeAll(page)
+
+      // The Clear my entries confirm (the founder's contacts are saved), at
+      // every width: title, what it deletes, both choices; nothing cleared.
+      await main(page).locator("header").first().getByRole("button", { name: CLEAR_COPY.button, exact: true }).click()
+      const confirm = page.getByRole("dialog", { name: CLEAR_CONFIRM_NAME, exact: true })
+      await expect(confirm).toBeVisible()
+      await expect(confirm).toContainText(CLEAR_DESCRIPTION)
+      await expect(confirm.getByRole("button", { name: "Keep my edits", exact: true })).toBeVisible()
+      await expect(confirm.getByRole("button", { name: CLEAR_COPY.confirm, exact: true })).toBeVisible()
+      await shoot(page, name("clear-confirm"), { fullPage: desktop })
+      await closeAll(page)
+      await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 
       // Gmail connected: the fixture inbox.
       await mockGmail(page, liveGmailSummary(Date.now()))
