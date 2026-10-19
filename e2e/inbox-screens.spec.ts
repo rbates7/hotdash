@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { INBOX_STATES, mockInbox, type InboxStateName } from "./support/inbox"
 import { waitForHydration } from "./support/shell"
+import { writeShotShas } from "./support/shots"
 import { setTheme } from "./support/theme"
 
 /**
@@ -17,10 +18,10 @@ import { setTheme } from "./support/theme"
  *
  * INBOX_SHOT_STATES=mixed,connected limits the states shot.
  *
- * Before shots of a base branch without `/api/inbox` (develop 3f96a83 for
- * #54) come from `e2e/inbox-before-shots.spec.ts`, which needs nothing from
- * this PR: copy it into a worktree of the base, build, and run it with
- * CI=true SCREENSHOTS=1 SCREENSHOT_DIR=….
+ * Before shots come from `e2e/inbox-before-shots.spec.ts` (self-contained,
+ * for a base built in its own worktree). Both write SHAS.txt beside the
+ * stills naming the commit served; `scripts/inbox-reshoot.sh` runs the
+ * pair against production builds of develop and the head.
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
@@ -37,6 +38,8 @@ const SURFACES = [
 ] as const
 const ONLY = process.env.INBOX_SHOT_STATES?.split(",").filter(Boolean) as InboxStateName[] | undefined
 const STATES: InboxStateName[] = ONLY ?? (Object.keys(INBOX_STATES) as InboxStateName[])
+
+test.beforeAll(() => writeShotShas(OUT, "inbox stills (after)"))
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(300)

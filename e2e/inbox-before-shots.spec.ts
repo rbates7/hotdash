@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -7,10 +8,11 @@ import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
 /**
- * "Before" stills of Home and the Workplace Inbox tab on a base branch that
- * has no /api/inbox (how #54's before shots of develop 3f96a83 were made).
- * Self-contained: it imports only support files develop already has, so it
- * can be copied into a worktree of the base, built, and run there:
+ * "Before" stills of Home and the Workplace Inbox tab on a base branch,
+ * nothing mocked. Self-contained: it imports only long-standing support
+ * files, so it can be copied into a worktree of any base, built, and run
+ * there (or run from the head against a base server, as
+ * scripts/inbox-reshoot.sh does). Writes SHAS.txt naming the commit served:
  *
  *   pnpm build && CI=true SCREENSHOTS=1 SCREENSHOT_DIR=… playwright test e2e/inbox-before-shots.spec.ts
  *
@@ -25,6 +27,24 @@ const WIDTHS = [
   { width: 1180, height: 820 },
   { width: 1440, height: 900 },
 ] as const
+/** SHAS.txt beside the stills (inline, not support/shots.ts, so a base without it can run this). */
+test.beforeAll(() => {
+  let head = "unknown"
+  try {
+    head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
+  } catch {
+    // Not a git checkout.
+  }
+  const lines = [
+    "inbox stills (before)",
+    `served ${process.env.SHOT_SERVER_SHA ?? head}`,
+    `spec checkout ${head}`,
+    `build ${process.env.SHOT_BUILD ?? "production (next build && next start); nextjs-portal not hidden"}`,
+  ]
+  fs.mkdirSync(OUT, { recursive: true })
+  fs.writeFileSync(path.join(OUT, "SHAS.txt"), `${lines.join("\n")}\n`)
+})
+
 const SURFACES = [
   { name: "home", path: "/home" },
   { name: "inbox", path: "/agent-workplace?tab=inbox" },
