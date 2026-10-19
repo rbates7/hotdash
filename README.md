@@ -46,8 +46,8 @@ and the property mapping: [docs/notion-roadmap.md](docs/notion-roadmap.md).
 **Live Gmail (read-only)** feeds the CRM — cases, contacts and triage from
 the support inbox (info@chlkapp.com) — when the server has `GMAIL_CLIENT_ID`,
 `GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` (server only; `GMAIL_MAILBOX`
-optional). Without them the CRM shows "Gmail not connected" and its sample,
-labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
+optional). Without them the CRM shows "Gmail not connected": a Not connected
+panel, and only the contacts the founder added in this browser. Setup (one consent, `pnpm gmail:consent`), states and checks:
 [docs/gmail-setup.md](docs/gmail-setup.md).
 
 **Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
@@ -67,7 +67,8 @@ what needs the founder; the tab lists everything. Each source is connecting,
 connected, stale or not connected (the #50 rule: no token is never
 connecting, and a failed first sync is not connected). There's a 5-minute
 cache with a 1-minute retry, and never sample rows. Gmail is a stub (Not
-connected). See [docs/inbox.md](docs/inbox.md).
+connected). Bugs lists the same Sentry rows, plus only the bug tickets the
+founder created on the Workplace board. See [docs/inbox.md](docs/inbox.md).
 
 ## Getting started
 
