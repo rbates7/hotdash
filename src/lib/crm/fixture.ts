@@ -22,9 +22,9 @@ const at = (nowMs: number, offsetMs: number) => new Date(nowMs - offsetMs).toISO
 export function seedOrganizations(nowMs: number): Organization[] {
   void nowMs
   return [
-    { id: "org-1", name: "Westfield HS", domain: "westfieldfb.org" },
-    { id: "org-2", name: "Riverbend High", domain: "riverbendhs.org" },
-    { id: "org-3", name: "Highland Athletics", domain: "highlandathletics.com" },
+    { id: "org-1", name: "Westfield HS", domain: "westfield.example.org" },
+    { id: "org-2", name: "Riverbend High", domain: "riverbend.example.org" },
+    { id: "org-3", name: "Highland Athletics", domain: "highland.example.com" },
   ]
 }
 
@@ -269,7 +269,7 @@ const MSG_SEEDS: MsgSeed[] = [
     dir: "outbound",
     from: FOUNDER,
     subject: "Re: Staff seats invite fails on the iPad",
-    text: "Hi Marcus, sorry about that. Quick question so I can dig in: are the assistants on westfieldfb.org, or personal addresses? Also — were you on the iPad app or Safari? I'll check the logs.",
+    text: "Hi Marcus, sorry about that. Quick question so I can dig in: are the assistants on westfield.example.org, or personal addresses? Also — were you on the iPad app or Safari? I'll check the logs.",
     sent: 5 * HOUR,
   },
   {
@@ -280,7 +280,7 @@ const MSG_SEEDS: MsgSeed[] = [
     from: "mhale@example.org",
     fromName: "Marcus Hale",
     subject: "Re: Staff seats invite fails on the iPad",
-    text: "Both are on westfieldfb.org. Last try was on the iPad app about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
+    text: "Both are on westfield.example.org. Last try was on the iPad app about 20 minutes before I emailed you. Attached a screenshot of the spinner.",
     sent: 2 * HOUR,
     attachments: [{ filename: "invite-spinner.png", mimeType: "image/png", size: 482133 }],
   },

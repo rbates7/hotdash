@@ -1075,7 +1075,7 @@ const WESTFIELD: OwnContact[] = [
   "Avery", "Blake", "Casey", "Devon", "Emerson", "Finley", "Gray", "Harper",
   "Indigo", "Jordan", "Kai", "Logan", "Morgan", "Noel", "Parker", "Quinn",
 ].map((firstName) => ({
-  email: `${firstName.toLowerCase()}@westfieldfb.org`,
+  email: `${firstName.toLowerCase()}@example.org`,
   firstName,
   lastName: "Westfield",
   organization: "Westfield FB",
