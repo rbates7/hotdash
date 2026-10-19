@@ -193,7 +193,7 @@ async function main() {
 
   console.log(`\nDone. ${granter || mailbox} granted read-only Gmail access.`)
   if (extra.length) console.log(`(Google also listed: ${extra.join(", ")} — harmless, the dashboard only reads Gmail.)`)
-  console.log("\nPaste these four into Vercel → Settings → Environment Variables (Production and Preview):\n")
+  console.log("\nPaste these four into Vercel → Settings → Environment Variables (Production only):\n")
   console.log(`  GMAIL_CLIENT_ID=${clientId}`)
   console.log(`  GMAIL_CLIENT_SECRET=${clientSecret}`)
   console.log(`  GMAIL_REFRESH_TOKEN=${tokens.refresh_token}`)

@@ -26,8 +26,9 @@ create a Google Cloud project, the info@chlkapp.com password, and Vercel.
 6. **Paste the four lines into Vercel.** Vercel → the hotdash project →
    **Settings → Environment Variables** → add each one
    (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`,
-   `GMAIL_MAILBOX`), ticking **Production** and **Preview** → **Save** →
-   **Deployments → ⋯ → Redeploy**.
+   `GMAIL_MAILBOX`), ticking **Production** only (leave **Preview** and
+   **Development** unticked) → **Save** → **Deployments → ⋯ → Redeploy**
+   the production deployment.
 7. **Check it.** Open `/api/health/gmail` on the site, wait a minute, reload:
    it says `{"gmail":"ok"}`. The CRM header now says **Live from Gmail**.
 
