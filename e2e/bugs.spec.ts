@@ -17,7 +17,7 @@ const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashb
 const list = (page: Page) => page.getByRole("region", { name: "Bug list", exact: true })
 const group = (page: Page, name: string) => list(page).getByRole("region", { name, exact: true })
 const bug = (page: Page, key: string) => list(page).getByRole("link", { name: new RegExp(`\\b${key}\\b`) })
-const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes", exact: true })
+const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes: not connected", exact: true })
 const props = (page: Page) => page.getByRole("complementary", { name: "Ticket properties" })
 const pageHeader = (page: Page) => page.locator("main header").first()
 
@@ -68,12 +68,15 @@ test.describe("Bugs", () => {
 
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
 
-    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("8")
-    await expect(crashCard(page).getByText("−7 vs previous 7 days")).toBeVisible()
-    await expect(crashCard(page).getByTestId("sample-data-tag")).toHaveText("Sample data")
-    await expect(crashCard(page).getByText(/Sentry not connected/)).toBeVisible()
+    // Sentry is not connected: the crash card has no figure and no Sample label.
+    await expect(crashCard(page)).toHaveAttribute("data-source", "not_connected")
+    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("\u2014")
+    await expect(crashCard(page).getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(crashCard(page).getByText(/no figure until Sentry is connected/)).toBeVisible()
+    await expect(crashCard(page).getByText(/vs previous 7 days/)).toHaveCount(0)
+    // The seeded bug list keeps its Sample data notice.
     await expect(list(page).getByRole("note", { name: "Sample data" })).toBeVisible()
-    await expect(page.getByTestId("sample-data-tag")).toHaveCount(1)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
   })
 
   test("happy path: a bug opens its ticket, a status edit here shows on the Workplace board, a tag there shows here, Reset puts the seed back", async ({ page }) => {

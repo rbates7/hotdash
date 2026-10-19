@@ -45,11 +45,12 @@ const hydrate = (state: State | null, today = TODAY) => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("reducer", () => {
-  it("starts with the eight default cards, no chart overrides and the seed expenses", () => {
+  it("starts with the eight default cards, no chart overrides and no expenses (no seed rows)", () => {
     const s = initialState(TODAY)
     expect(s.visible).toEqual([...DEFAULT_METRIC_IDS])
     expect(s.charts).toEqual({})
-    expect(s.expenses).toEqual(seedExpenses(TODAY))
+    expect(s.expenses).toEqual([])
+    // Ids start after the old seed's exp-1…exp-8, so a row never reuses one.
     expect(s.nextExpenseId).toBe(9)
     expect(s.seededAt).toBe(TODAY)
   })
@@ -95,15 +96,17 @@ describe("reducer", () => {
   })
 
   it("removes an expense by id", () => {
-    const s = reducer(initialState(TODAY), { type: "remove-expense", id: "exp-1" })
-    expect(s.expenses.find((e) => e.id === "exp-1")).toBeUndefined()
+    const added = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
+    const s = reducer(added, { type: "remove-expense", id: "exp-9" })
+    expect(s.expenses).toEqual([])
   })
 
-  it("reset regenerates the seed relative to the day it is pressed", () => {
+  it("reset starts an empty board dated the day it is pressed", () => {
     let s = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
     s = viaShell(s, { type: "reset", nowMs: noon("2026-10-07") })
     expect(s).toEqual(initialState("2026-10-07"))
-    expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-10-07")
+    expect(s.expenses).toEqual([])
+    expect(s.seededAt).toBe("2026-10-07")
   })
 
   it("hydrate with an empty result re-seeds for today (nothing saved, or a Reset elsewhere)", () => {
@@ -112,15 +115,14 @@ describe("reducer", () => {
   })
 })
 
-describe("seed ageing on load", () => {
-  it("moves seed rows forward by the days since they were seeded, capped at today", () => {
+describe("ageing a saved copy on load", () => {
+  it("moves seededAt to today; the founder's rows keep their dates", () => {
     const saved = reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL })
     const { state: loaded, today } = shiftSeed(saved, "2026-08-28")
     expect(today).toBe("2026-08-28")
     expect(loaded.seededAt).toBe("2026-08-28")
-    expect(loaded.expenses.find((e) => e.id === "exp-1")!.date).toBe("2026-08-25")
-    expect(loaded.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-08-28")
-    expect(loaded.expenses.find((e) => e.category === "Vercel")!.date).toBe("2026-08-20")
+    expect(loaded.expenses).toEqual(saved.expenses)
+    expect(loaded.expenses[0].date).toBe("2026-08-20")
   })
 
   it("leaves a same-day save alone", () => {
@@ -128,44 +130,50 @@ describe("seed ageing on load", () => {
     expect(shiftSeed(saved, "2026-08-21")).toEqual({ state: saved, today: "2026-08-21" })
   })
 
-  it("a copy seeded after this tab's day means this tab is stale: the copy wins and the day moves forward", () => {
-    // The repro: tab A opened 7 Oct at 23:30; tab B saved on 8 Oct. Reading
-    // B's copy as if it were "tomorrow" would push every seed row out of A's
-    // period and show $6,262 (−22.2%) instead of $8,240.
+  it("a copy saved after this tab's day means this tab is stale: the copy wins and the day moves forward", () => {
+    // Tab A opened 7 Oct at 23:30; tab B saved on 8 Oct. A's header period
+    // follows B's day rather than reading B's copy as "tomorrow".
     const theirs = initialState("2026-10-08")
     const { state, today } = shiftSeed(theirs, "2026-10-07")
     expect(state).toBe(theirs)
     expect(today).toBe("2026-10-08")
   })
 
-  it("falls back to a fresh seed when the saved copy defeats the arithmetic", () => {
+  it("falls back to a fresh board when the saved copy defeats the arithmetic", () => {
     const broken = { ...initialState(TODAY), seededAt: "garbage" }
     expect(shiftSeed(broken, "2026-10-07").state).toEqual(initialState("2026-10-07"))
     const worse = { ...initialState(TODAY), expenses: null as unknown as [] }
     expect(shiftSeed(worse, "2026-10-07").state).toEqual(initialState("2026-10-07"))
   })
 
-  it("through the shell: a stale tab adopting a next-day copy moves its clock and keeps the full $8,240", () => {
+  it("through the shell: a stale tab adopting a next-day copy moves its clock and keeps the founder's rows", () => {
     const stale = { ...initialShell(initialState("2026-10-07"), LATE_EVENING_CT_MS), persisted: true }
     expect(shellToday(stale)).toBe("2026-10-07")
-    const theirs = initialState("2026-10-08")
+    const theirs = reducer(initialState("2026-10-08"), { type: "add-expense", input: { ...VERCEL, date: "2026-10-08" } })
     const shell = shellReducer(stale, { type: "hydrate", result: { state: theirs, status: "saved" }, nowMs: LATE_EVENING_CT_MS })
     expect(shellToday(shell)).toBe("2026-10-08")
-    expect(shell.data.expenses.every((e) => e.date <= "2026-10-08")).toBe(true)
-    const inPeriod = shell.data.expenses.filter((e) => e.date >= "2026-09-11" && e.date <= "2026-10-08")
-    expect(inPeriod.reduce((sum, e) => sum + e.amount, 0)).toBe(8_240)
+    expect(shell.data.expenses).toEqual(theirs.expenses)
   })
 
   it("the hydrate action applies the shift", () => {
     // The shell's own clock says 1 Sep; the shift is measured from it.
     const s = viaShell(initialState("2026-09-01"), hydrate(initialState("2026-08-21"), "2026-09-01"), noon("2026-09-01"))
     expect(s.seededAt).toBe("2026-09-01")
-    expect(s.expenses.find((e) => e.id === "exp-2")!.date).toBe("2026-09-01")
+    expect(s.expenses).toEqual([])
+  })
+
+  it("a copy saved before the seed was removed loses its seed rows on load; the founder's rows stay", () => {
+    const own = reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL })
+    const legacy = { ...own, expenses: [...own.expenses, ...seedExpenses("2026-08-21")] }
+    const parsed = parseState(JSON.parse(JSON.stringify(legacy)))!
+    expect(parsed.expenses).toEqual(own.expenses)
+    expect(parsed.nextExpenseId).toBe(10)
   })
 })
 
 describe("isState rejects a bad saved copy", () => {
-  const good = initialState(TODAY)
+  // A copy with one founder row (exp-9), so the expense checks have a row to break.
+  const good = reducer(initialState(TODAY), { type: "add-expense", input: VERCEL })
   const cases: [string, unknown][] = [
     ["not an object", "nope"],
     ["unknown metric id", { ...good, visible: ["mrr", "bogus"] }],
@@ -181,8 +189,8 @@ describe("isState rejects a bad saved copy", () => {
     ["fractional amount", { ...good, expenses: [{ ...good.expenses[0], amount: 12.5 }] }],
     ["NaN amount", { ...good, expenses: [{ ...good.expenses[0], amount: Number.NaN }] }],
     ["duplicate expense ids", { ...good, expenses: [good.expenses[0], good.expenses[0]] }],
-    ["nextExpenseId not above the highest id", { ...good, nextExpenseId: 8 }],
-    ["nextExpenseId fractional", { ...good, nextExpenseId: 9.5 }],
+    ["nextExpenseId not above the highest id", { ...good, nextExpenseId: 9 }],
+    ["nextExpenseId fractional", { ...good, nextExpenseId: 10.5 }],
     ["impossible seededAt", { ...good, seededAt: "2026-13-45" }],
     ["missing seededAt (the v1 shape)", (() => { const { seededAt: _s, ...rest } = good; void _s; return rest })()],
   ]
@@ -191,9 +199,9 @@ describe("isState rejects a bad saved copy", () => {
     expect(isState(value)).toBe(false)
   })
 
-  it("accepts the seed and an edited copy", () => {
+  it("accepts a fresh board and an edited copy", () => {
+    expect(isState(initialState(TODAY))).toBe(true)
     expect(isState(good)).toBe(true)
-    expect(isState(reducer(good, { type: "add-expense", input: VERCEL }))).toBe(true)
   })
 
   it("parse rebuilds the copy from known keys only", () => {
@@ -306,19 +314,18 @@ describe("MetricsProvider persistence", () => {
     mount()
     expect(screen.getByTestId("visible")).not.toHaveTextContent("arr")
     expect(screen.getByTestId("mrr-chart")).toHaveTextContent("line")
-    expect(screen.getByTestId("expense-count")).toHaveTextContent("9")
+    expect(screen.getByTestId("expense-count")).toHaveTextContent("1")
 
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
-    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("dates")).not.toHaveTextContent(TODAY)
+    // Reset leaves an empty board: no seed rows come back.
+    expect(screen.getByTestId("expense-count")).toHaveTextContent("0")
     vi.useRealTimers()
   })
 
-  it("opened at 23:30 CT, Reset the next day: the seed and the header period both move to the new day", () => {
+  it("opened at 23:30 CT, Reset the next day: the store's day and the header period both move to the new day", () => {
     // Served 7 Oct at 23:30 Central (already 8 Oct in UTC).
     const first = mount("2026-10-07", LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
@@ -330,30 +337,24 @@ describe("MetricsProvider persistence", () => {
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
     // The header's date range and the cards' period move together.
     expect(screen.getByTestId("period")).toHaveTextContent("11 Sep – 8 Oct 2026")
-    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-08")
-    expect(screen.getByTestId("dates")).not.toHaveTextContent("2026-10-07")
+    expect(screen.getByTestId("expense-count")).toHaveTextContent("0")
     vi.useRealTimers()
     first.unmount()
   })
 
-  it("a stale tab (opened at 23:30) adopts a fresh tab's next-day copy and keeps the full card, not $6,262", () => {
+  it("a stale tab (opened at 23:30) adopts a fresh tab's next-day copy and its day", () => {
     mount("2026-10-07", LATE_EVENING_CT_MS)
-    const fresh = initialState("2026-10-08")
+    const fresh = reducer(initialState("2026-10-08"), { type: "add-expense", input: { ...VERCEL, date: "2026-10-08" } })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(fresh)))
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
-    const dates = screen.getByTestId("dates").textContent!.split(",")
-    expect(dates.every((d) => d <= "2026-10-08")).toBe(true)
-    expect(dates).toContain("2026-10-08")
+    expect(screen.getByTestId("dates")).toHaveTextContent("2026-10-08")
   })
 
-  it("on a later day, a saved seed reads relative to that day; user rows do not move; nothing is written back", () => {
+  it("on a later day, the founder's rows do not move and nothing is written back", () => {
     saveState(window.localStorage, reducer(initialState("2026-08-21"), { type: "add-expense", input: VERCEL }))
     mount("2026-08-24")
-    const dates = screen.getByTestId("dates").textContent!.split(",")
-    expect(dates).toContain("2026-08-24")
-    expect(dates).toContain("2026-08-21")
-    expect(dates).toContain("2026-08-20")
+    expect(screen.getByTestId("dates")).toHaveTextContent(/^2026-08-20$/)
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY)!).seededAt).toBe("2026-08-21")
   })
 
@@ -415,7 +416,7 @@ describe("MetricsProvider persistence", () => {
     window.localStorage.removeItem(STORAGE_KEY)
     act(() => fireStorageEvent(STORAGE_KEY, null))
     expect(screen.getByTestId("visible")).toHaveTextContent(DEFAULT_METRIC_IDS.join(","))
-    expect(screen.getByTestId("expense-count")).toHaveTextContent("8")
+    expect(screen.getByTestId("expense-count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
   })
 

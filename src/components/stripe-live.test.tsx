@@ -18,7 +18,7 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { MetricsHeaderSampleTag, MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
+import { MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 
 /**
@@ -55,9 +55,9 @@ function renderMetrics() {
   navigation.params = new URLSearchParams()
   return render(
     <MetricsProvider nowMs={FIXED_NOW_MS}>
-      <header data-testid="metrics-header">
-        <MetricsHeaderSampleTag />
-      </header>
+      {/* The header carries no Sample chip any more; the empty header keeps
+          the "no chip" checks meaningful. */}
+      <header data-testid="metrics-header" />
       <MetricsSampleNotice />
       <MetricsTabs />
     </MetricsProvider>
@@ -182,12 +182,14 @@ describe("Metrics with Stripe connected", () => {
     expect(within(card(/^Churn Rate\b/)).getByTestId("trend")).toHaveAttribute("data-good", "true")
   })
 
-  it("every other card stays sample, labelled", () => {
+  it("every other card says Not connected (Expenses: the founder's entries), never a sample figure", () => {
     renderMetrics()
-    for (const name of [/^ARR\b/, /^Revenue\b/, /^Retention\b/, /^Expenses\b/]) {
-      expect(within(card(name)).getByTestId("sample-data-tag")).toBeInTheDocument()
-      expect(card(name)).toHaveAttribute("data-source", "sample")
+    for (const name of [/^ARR\b/, /^Revenue\b/, /^Retention\b/]) {
+      expect(within(card(name)).queryByTestId("sample-data-tag")).toBeNull()
+      expect(card(name)).toHaveAttribute("data-source", "not_connected")
     }
+    expect(card(/^Expenses\b/)).toHaveAttribute("data-source", "entries")
+    expect(within(card(/^Expenses\b/)).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("a rate with no prior reading says so instead of inventing a trend; empty windows chart as gaps", () => {
@@ -204,23 +206,23 @@ describe("Metrics with Stripe connected", () => {
     expect(notice).toHaveTextContent(
       /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Subscribers also counts App Store payers from Chlk’s database \(read-only\)\./
     )
-    expect(notice).toHaveTextContent("PostHog is not connected yet, and Supabase only for that count")
-    expect(notice).not.toHaveTextContent("Sample data")
+    expect(notice).toHaveTextContent("Every other card says Not connected until its source is wired up")
+    expect(notice).not.toHaveTextContent(/sample|illustrative/i)
   })
 
   it("the notice does not claim the App Store when it is not connected", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
-    expect(notice).toHaveTextContent(/are live from Stripe \(read-only\)\. Every other number/)
+    expect(notice).toHaveTextContent(/are live from Stripe \(read-only\)\. Every other card says Not connected/)
     expect(notice).not.toHaveTextContent("App Store")
-    expect(notice).toHaveTextContent("Supabase and PostHog are not connected yet")
   })
 
-  it("drops the header Sample chip; the sample cards keep theirs", () => {
+  it("no Sample chip anywhere: not in the header, not on the Not connected cards", () => {
     renderMetrics()
     expect(headerTag()).toBeNull()
-    expect(within(card(/^ARR\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card(/^ARR\b/)).queryByTestId("sample-data-tag")).toBeNull()
+    expect(within(card(/^ARR\b/)).getByText("Not connected")).toBeInTheDocument()
   })
 })
 
@@ -246,20 +248,23 @@ describe("Metrics with Stripe stale", () => {
     renderMetrics()
     expect(within(card(/^MRR\b/)).getByTestId("metric-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
     expect(within(card(/^ARR\b/)).queryByTestId("metric-updated")).toBeNull()
-    expect(screen.getByTestId("sample-data-notice")).toHaveTextContent("as of their last update")
+    expect(screen.getByTestId("metrics-connection-notice")).toHaveTextContent("as of their last update")
     expect(screen.getByRole("note", { name: "Partly live" })).toBeInTheDocument()
     expect(headerTag()).toBeNull()
   })
 })
 
 describe("Metrics with Stripe not connected", () => {
-  it("every card is sample, labelled, and the notice says nothing is connected", () => {
+  it("every Stripe card says Not connected with no figure, and the notice says nothing is connected", () => {
     renderMetrics()
-    expect(within(card(/^MRR\b/)).getByTestId("metric-value")).toHaveTextContent("$26,190")
-    expect(within(card(/^MRR\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
-    expect(screen.getByTestId("sample-data-notice")).toHaveTextContent("Nothing is connected to Stripe")
-    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent(/^Sample data\./)
-    expect(headerTag()).toHaveTextContent("Sample data")
+    expect(within(card(/^MRR\b/)).getByTestId("metric-value")).toHaveTextContent("\u2014")
+    expect(card(/^MRR\b/)).not.toHaveTextContent("$26,190")
+    expect(within(card(/^MRR\b/)).queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.getByRole("note", { name: "Not connected" })).toHaveTextContent(
+      /^Not connected\. Stripe, PostHog and Chlk’s database are not connected yet, so no card has a figure/
+    )
+    expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
+    expect(headerTag()).toBeNull()
   })
 })
 

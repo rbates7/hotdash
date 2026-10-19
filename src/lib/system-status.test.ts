@@ -131,7 +131,9 @@ describe("seed", () => {
   })
 
   it("links out to Sentry and the site as plain hrefs", () => {
-    const rows = buildServices(FIXED_NOW_MS)
+    // The default (plain visit) has no checks; the seeded preview carries the links.
+    expect(buildServices(FIXED_NOW_MS)).toEqual([])
+    const rows = buildServices(FIXED_NOW_MS, "green")
     expect(rows.find((r) => r.id === "site")?.href).toBe("https://chlkapp.com")
     expect(rows.find((r) => r.id === "sentry")?.href).toMatch(/sentry\.io$/)
   })

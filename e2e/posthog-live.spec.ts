@@ -53,14 +53,14 @@ test.describe("server endpoints with no PostHog key", () => {
 test.describe("PostHog not connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Metrics: Retention and Active Users are sample, labelled", async ({ page }) => {
+  test("Metrics: Retention and Active Users say Not connected, with no figure", async ({ page }) => {
     await open(page, "/metrics")
-    await expect(metricCard(page, "Retention")).toHaveAttribute("data-source", "sample")
-    await expect(metricCard(page, "Retention").getByTestId("sample-data-tag")).toBeVisible()
+    await expect(metricCard(page, "Retention")).toHaveAttribute("data-source", "not_connected")
+    await expect(metricCard(page, "Retention").getByTestId("sample-data-tag")).toHaveCount(0)
     await addActiveUsers(page)
-    await expect(metricCard(page, "Active Users")).toHaveAttribute("data-source", "sample")
-    await expect(metricCard(page, "Active Users").getByTestId("sample-data-tag")).toBeVisible()
-    await expect(page.getByTestId("sample-data-notice")).toContainText("Nothing is connected to Stripe, Supabase or PostHog")
+    await expect(metricCard(page, "Active Users")).toHaveAttribute("data-source", "not_connected")
+    await expect(metricCard(page, "Active Users").getByTestId("metric-value")).toHaveText("\u2014")
+    await expect(page.getByRole("note", { name: "Not connected" })).toContainText("Stripe, PostHog and Chlk’s database are not connected yet")
     await expect(main(page).getByText(/Last updated/)).toHaveCount(0)
   })
 
@@ -91,12 +91,14 @@ test.describe("PostHog connected (1440)", () => {
     await expect(active.getByTestId("metric-value")).toHaveText("812")
     await expect(active.getByTestId("metric-live-note")).toHaveText("iOS app · 214 in 24 h · 455 in 7 days")
 
-    for (const name of ["MRR", "ARR", "Churn Rate", "Expenses"]) {
-      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
+    for (const name of ["MRR", "ARR", "Churn Rate"]) {
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
+    await expect(metricCard(page, "Expenses").getByTestId("sample-data-tag")).toHaveCount(0)
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).toContainText(/^Partly live\. Retention and Active Users are live from PostHog/)
-    await expect(notice).toContainText("Stripe and Supabase are not connected yet")
+    await expect(notice).toContainText("Every other card says Not connected")
     await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
 

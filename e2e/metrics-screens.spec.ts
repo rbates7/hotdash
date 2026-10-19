@@ -88,23 +88,26 @@ for (const theme of ["light", "dark"] as const) {
     await resetDemoData(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
 
-    // Tables.
+    // Subscriber lists: Not connected (no per-customer source yet).
     await tab(page, "New Subscribers").click()
-    await expect(panel(page, "New Subscribers").getByRole("table", { name: "New subscribers" })).toBeVisible()
+    await expect(panel(page, "New Subscribers").getByRole("region", { name: "New subscribers: not connected" })).toBeVisible()
     await shoot(page, `metrics-new-subscribers-${theme}`)
 
     await tab(page, "Churned Subscribers").click()
-    await expect(panel(page, "Churned Subscribers").getByRole("table", { name: "Churned subscribers" })).toBeVisible()
+    await expect(panel(page, "Churned Subscribers").getByRole("region", { name: "Churned subscribers: not connected" })).toBeVisible()
     await shoot(page, `metrics-churned-subscribers-${theme}`)
 
+    // Expenses: no seed table. With no founder entries, the empty state and
+    // an empty card (no figure, no chart).
     await tab(page, "Expenses").click()
-    await expect(panel(page, "Expenses").getByRole("table", { name: "Expenses", exact: true })).toBeVisible()
-    // Seed rows only: the card has no figure and no chart until a row is entered.
+    const empty = panel(page, "Expenses").getByRole("region", { name: "No expenses yet" })
+    await expect(empty).toBeVisible()
+    await expect(panel(page, "Expenses").getByRole("table")).toHaveCount(0)
     await expect(expensesCard(page).getByTestId("metric-entries-note")).toBeVisible()
     await shoot(page, `metrics-expenses-${theme}`)
 
     // Add-expense dialog, filled in.
-    await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
+    await empty.getByRole("button", { name: "Add expense", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
@@ -118,7 +121,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
     await shoot(page, `metrics-expenses-persisted-after-reload-${theme}`)
 
-    // Back to the seed for the next run.
+    // Back to an empty board for the next run.
     await resetDemoData(page)
     await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("—")
   })

@@ -5,9 +5,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import { navigation } from "@/test/setup"
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import { MetricsPersistenceNote } from "@/components/metrics/metrics-persistence-note"
-import { MetricsProvider } from "@/components/metrics/metrics-store"
+import { MetricsProvider, initialState, reducer, saveState } from "@/components/metrics/metrics-store"
+import { ChurnedSubscribersTable, NewSubscribersTable } from "@/components/metrics/subscribers-tables"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { METRICS_PRESSED, METRICS_RESET } from "@/components/metrics/responsive"
 import {
@@ -19,7 +19,7 @@ import {
   TABLET_PORTRAIT_QUERY,
   TABLET_QUERY,
 } from "@/hooks/use-mobile"
-import { MOCK_DAY } from "@/lib/kpis"
+import { MOCK_DAY, seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis"
 
 const TODAY = MOCK_DAY
 const nativeMatchMedia = window.matchMedia
@@ -83,6 +83,14 @@ function renderTabs(search = "", today = TODAY) {
   )
 }
 
+/**
+ * The subscriber lists have no per-customer source yet, so the page shows
+ * Not connected; their layout is checked with fixture rows passed in
+ * directly (tests only, never on a screen).
+ */
+const renderNew = () => render(<NewSubscribersTable rows={seedNewSubscribers(TODAY)} />)
+const renderChurned = () => render(<ChurnedSubscribersTable rows={seedChurnedSubscribers(TODAY)} />)
+
 const card = (name: string) => screen.getByRole("article", { name: new RegExp(`^${name}\\b`) })
 const grid = () => screen.getByRole("region", { name: "Metric cards" })
 
@@ -90,7 +98,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
   beforeEach(() => mockViewport(390))
 
   it("maps New Subscribers Name / Plan / Email / Signup date", () => {
-    renderTabs("tab=new")
+    renderNew()
     const list = screen.getByRole("list")
     const cards = within(list).getAllByRole("listitem")
     expect(cards).toHaveLength(8)
@@ -100,13 +108,13 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
     expect(alisha).toHaveTextContent("Monthly")
     expect(alisha).toHaveTextContent("apatel@canyonridgesports.com")
     expect(alisha).toHaveTextContent("18 Aug 2026")
-    expect(within(alisha).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    expect(within(alisha).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(alisha).getByText("Email:")).toHaveClass("sr-only")
     expect(within(alisha).getByText("Signup date:")).toHaveClass("sr-only")
   })
 
   it("maps Churned Subscribers Name / lifetime / Email / signup → churn", () => {
-    renderTabs("tab=churned")
+    renderChurned()
     const list = screen.getByRole("list")
     const brett = within(list).getByText("Brett Holloway").closest("[data-slot='row-collapse']")!
     expect(brett).toHaveTextContent("$199")
@@ -115,7 +123,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
   })
 
   it("labels every churned LTV pill with visible LTV and SR Lifetime value matching the desktop row", () => {
-    renderTabs("tab=churned")
+    renderChurned()
     const list = screen.getByRole("list")
     const items = within(list).getAllByRole("listitem")
     expect(items).toHaveLength(5)
@@ -150,7 +158,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
   })
 
   it("hides the RowCollapse chevron on New and Churned cards", () => {
-    renderTabs("tab=new")
+    renderNew()
     const neu = screen.getByRole("list")
     for (const collapse of neu.querySelectorAll("[data-slot='row-collapse']")) {
       expect(collapse.className).toContain("[&>svg]:hidden")
@@ -158,7 +166,7 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
     expect(within(neu).queryAllByRole("button")).toHaveLength(0)
 
     cleanup()
-    renderTabs("tab=churned")
+    renderChurned()
     const churned = screen.getByRole("list")
     for (const collapse of churned.querySelectorAll("[data-slot='row-collapse']")) {
       expect(collapse.className).toContain("[&>svg]:hidden")
@@ -167,15 +175,26 @@ describe("phone (<768): subscriber cards and Expenses pin", () => {
   })
 
   it("names the phone Sort button with the current direction", () => {
-    renderTabs("tab=new")
+    renderNew()
     expect(screen.getByRole("button", { name: "Sort: Signup date, newest first" })).toBeInTheDocument()
 
     cleanup()
-    renderTabs("tab=churned")
+    renderChurned()
     expect(screen.getByRole("button", { name: "Sort: Churn date, newest first" })).toBeInTheDocument()
   })
 
+  it("on the page, the subscriber tabs say Not connected with no rows", () => {
+    renderTabs("tab=new")
+    expect(screen.getByRole("region", { name: "New subscribers: not connected" })).toBeInTheDocument()
+    expect(screen.queryByRole("list")).toBeNull()
+  })
+
   it("keeps the Expenses table with a phone-only pin class, not the shared pinFirst paint", () => {
+    // The table only renders once the founder has a row.
+    saveState(
+      window.localStorage,
+      reducer(initialState(TODAY), { type: "add-expense", input: { category: "Vercel", amount: 160, date: TODAY, recurring: true } })
+    )
     renderTabs("tab=expenses")
     const scroller = screen.getByRole("table", { name: "Expenses" }).closest("[data-slot='responsive-table']")!
     expect(scroller).not.toHaveAttribute("data-pin-first")
@@ -223,18 +242,27 @@ describe("tablet (768–1279): Add metric is a popover, tables stay tables", () 
   })
 
   it("keeps New Subscribers as a table, not stacked cards", () => {
-    renderTabs("tab=new")
+    renderNew()
     expect(screen.getByRole("table", { name: "New subscribers" })).toBeInTheDocument()
     expect(screen.getByRole("list")).toHaveClass("md:hidden")
   })
 })
 
 describe("accessible names and pressed toggles", () => {
-  it("each card's name carries label, value and trend once", () => {
+  it("each card's name carries its label and state once (Not connected: no figure, no trend)", () => {
     renderTabs()
-    const mrr = card("MRR")
-    expect(mrr).toHaveAccessibleName("MRR $26,190 +4.2%")
-    expect(within(grid()).getByRole("article", { name: "ARR $314,280 +4.2%" })).toBeInTheDocument()
+    expect(card("MRR")).toHaveAccessibleName("MRR not connected")
+    expect(within(grid()).getByRole("article", { name: "ARR not connected" })).toBeInTheDocument()
+    expect(within(grid()).getByRole("article", { name: "Expenses no expenses entered" })).toBeInTheDocument()
+  })
+
+  it("a founder expense puts label, value and note in the Expenses card's name once", () => {
+    saveState(
+      window.localStorage,
+      reducer(initialState(TODAY), { type: "add-expense", input: { category: "Vercel", amount: 160, date: TODAY, recurring: true } })
+    )
+    renderTabs()
+    expect(card("Expenses")).toHaveAccessibleName(/^Expenses \$160\b/)
   })
 
   it("pressed is solid primary at every width", () => {

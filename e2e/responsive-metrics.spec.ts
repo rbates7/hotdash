@@ -11,10 +11,13 @@ import {
   waitForHydration,
 } from "./support/shell"
 import { setTheme } from "./support/theme"
+import { now, todayIn } from "../src/lib/clock"
+import { DEFAULT_METRIC_IDS } from "../src/lib/metrics"
 
 /**
  * Metrics at phone / tablet / desktop (Deke 7:47, 17:68, Expenses pin 7:141).
- * Phone: stacked subscriber cards, pinned Expenses column, sheets for Add.
+ * Phone: Not connected subscriber lists, pinned Expenses column (once the
+ * founder has a row), sheets for Add.
  * Tablet: ≤5-column tables. Desktop (≥1280) is develop plus pressed primary.
  */
 
@@ -57,6 +60,37 @@ async function fresh(page: Page, path = "/metrics") {
   await waitForHydration(page)
   await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
 }
+
+/**
+ * A saved board with one founder expense dated today: the Expenses table
+ * only renders once there is a row (no seed rows, no sample data).
+ */
+async function withExpense(page: Page, path = "/metrics?tab=expenses") {
+  await page.goto(path)
+  const day = todayIn(now())
+  await page.evaluate(
+    ({ key, state }) => localStorage.setItem(key, JSON.stringify(state)),
+    {
+      key: STORAGE_KEY,
+      state: {
+        visible: [...DEFAULT_METRIC_IDS],
+        charts: {},
+        expenses: [{ id: "exp-9", category: "Vercel", amount: 160, date: day, recurring: true }],
+        nextExpenseId: 10,
+        seededAt: day,
+      },
+    }
+  )
+  await page.reload()
+  await waitForHydration(page)
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+}
+
+const notConnected = (page: Page, owner: "New Subscribers" | "Churned Subscribers") =>
+  panel(page, owner).getByRole("region", {
+    name: owner === "New Subscribers" ? "New subscribers: not connected" : "Churned subscribers: not connected",
+  })
+const expensesEmpty = (page: Page) => panel(page, "Expenses").getByRole("region", { name: "No expenses yet" })
 
 async function expectTapTarget(locator: Locator, label: string) {
   await expect(locator, label).toBeVisible()
@@ -234,26 +268,29 @@ test.describe("responsive Metrics (phone 390)", () => {
     await expectNoOverflowX(page)
   })
 
-  test("New and Churned are stacked cards; Expenses pins Category", async ({ page }) => {
+  test("New and Churned say Not connected; Expenses is empty, then pins Category once a row exists", async ({ page }) => {
     await fresh(page, "/metrics?tab=new")
-    const newList = panel(page, "New Subscribers").getByRole("list")
-    await expect(newList.getByRole("listitem")).toHaveCount(8)
-    await expect(newList.getByText("Alisha Patel")).toBeVisible()
-    await expect(newList.getByText("Monthly").first()).toBeVisible()
+    await expect(notConnected(page, "New Subscribers")).toBeVisible()
+    await expect(panel(page, "New Subscribers").getByRole("list")).toHaveCount(0)
     await expect(table(page, "New subscribers")).toHaveCount(0)
 
     await tab(page, "Churned Subscribers").click()
-    const churnList = panel(page, "Churned Subscribers").getByRole("list")
-    await expect(churnList.getByRole("listitem")).toHaveCount(5)
-    await expect(churnList.getByText("Brett Holloway")).toBeVisible()
-    await expect(table(page, "Churned subscribers")).toHaveCount(0)
+    await expect(notConnected(page, "Churned Subscribers")).toBeVisible()
+    await expect(panel(page, "Churned Subscribers").getByRole("list")).toHaveCount(0)
 
     await tab(page, "Expenses").click()
+    await expect(expensesEmpty(page)).toBeVisible()
+    await expect(table(page, "Expenses")).toHaveCount(0)
+    // Below 1280 the empty state's Add expense is a 44px target.
+    await expectTapTarget(expensesEmpty(page).getByRole("button", { name: "Add expense", exact: true }), "390 empty Add expense")
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+
+    await withExpense(page)
     const expenses = table(page, "Expenses")
     await expect(expenses).toBeVisible()
     await expect(expenses.getByRole("columnheader", { name: /Category/ })).toBeVisible()
     await expect(page.getByTestId("metrics-expenses-fade")).toBeVisible()
-    await expect(expenses.getByRole("row", { name: /AWS/ })).toBeVisible()
+    await expect(expenses.getByRole("row", { name: /Vercel/ })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
@@ -311,25 +348,20 @@ test.describe("responsive Metrics (phone 390)", () => {
     await expectScrollLock(page, false)
   })
 
-  test("every desktop action is still reachable, and charts fit", async ({ page }) => {
+  test("every desktop action is still reachable", async ({ page }) => {
     await fresh(page)
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toBeVisible()
     await expect(card(page, "MRR").getByRole("button", { name: "Remove MRR" })).toBeVisible()
     await expect(panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true })).toBeVisible()
-    await expect(card(page, "MRR").getByRole("img").first()).toBeVisible()
-
-    await tab(page, "New Subscribers").click()
-    const sort = panel(page, "New Subscribers").getByRole("button", { name: /Sort:/ })
-    await expect(sort).toBeVisible()
-    await sort.click()
-    const sortMenu = page.getByRole("menu")
-    await expect(sortMenu).toBeVisible()
-    await expectAllTargets44(sortMenu, "390 sort menu")
-    await page.keyboard.press("Escape")
+    // Not connected cards draw no chart (no invented series).
+    await expect(card(page, "MRR").getByRole("img")).toHaveCount(0)
 
     await tab(page, "Expenses").click()
+    await expect(expensesEmpty(page).getByRole("button", { name: "Add expense", exact: true })).toBeVisible()
+
+    await withExpense(page)
     await expect(panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true })).toBeVisible()
-    await expect(table(page, "Expenses").getByRole("button", { name: "Remove AWS" })).toBeVisible()
+    await expect(table(page, "Expenses").getByRole("button", { name: "Remove Vercel" })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
@@ -340,18 +372,22 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
   test.describe(`responsive Metrics (${name} ${VIEWPORTS[name].width})`, () => {
     test.use({ viewport: VIEWPORTS[name] })
 
-    test("keeps tables of ≤5 data columns and no page overflow", async ({ page }) => {
+    test("subscriber lists say Not connected; the Expenses table keeps ≤5 columns; no page overflow", async ({ page }) => {
       await fresh(page, "/metrics?tab=new")
-      const neu = table(page, "New subscribers")
-      await expect(neu).toBeVisible()
-      await expect(neu.getByRole("columnheader")).toHaveCount(3)
+      await expect(notConnected(page, "New Subscribers")).toBeVisible()
       await expect(panel(page, "New Subscribers").getByRole("list")).toHaveCount(0)
 
       await tab(page, "Churned Subscribers").click()
-      const churned = table(page, "Churned subscribers")
-      await expect(churned.getByRole("columnheader")).toHaveCount(4)
+      await expect(notConnected(page, "Churned Subscribers")).toBeVisible()
 
       await tab(page, "Expenses").click()
+      await expect(expensesEmpty(page)).toBeVisible()
+      await expectTapTarget(
+        expensesEmpty(page).getByRole("button", { name: "Add expense", exact: true }),
+        `${VIEWPORTS[name].width} empty Add expense`
+      )
+
+      await withExpense(page)
       const expenses = table(page, "Expenses")
       await expect(expenses.getByRole("columnheader")).toHaveCount(5)
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
@@ -557,14 +593,14 @@ test.describe("responsive Metrics (B1 tablist)", () => {
 test.describe("responsive Metrics (desktop 1440)", () => {
   test.use({ viewport: VIEWPORTS.desktop })
 
-  test("is unchanged: 8 cards, tables, desktop-sized dialog chrome", async ({ page }) => {
+  test("is unchanged: 8 cards, Not connected lists, desktop-sized dialog chrome", async ({ page }) => {
     await fresh(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
     await expect(tablist(page).getByRole("tab")).toHaveCount(4)
     await expect(panel(page, "Overview").getByRole("list")).toHaveCount(0)
 
     await tab(page, "New Subscribers").click()
-    await expect(table(page, "New subscribers").getByRole("columnheader")).toHaveCount(3)
+    await expect(notConnected(page, "New Subscribers")).toBeVisible()
     await expect(panel(page, "New Subscribers").getByRole("list")).toHaveCount(0)
 
     await tab(page, "Expenses").click()
@@ -634,76 +670,20 @@ for (const [size, viewport] of [
 test.describe("responsive Metrics B3–B4–B5–B7 (phone 390)", () => {
   test.use({ viewport: VIEWPORTS.phone })
 
-  test("subscriber cards hide the chevron and are not buttons", async ({ page }) => {
-    await fresh(page, "/metrics?tab=new")
-    const neu = panel(page, "New Subscribers").getByRole("list")
-    await expect(neu.getByRole("listitem")).toHaveCount(8)
-    await expect(neu.locator("[data-slot=row-collapse] svg.lucide-chevron-right >> visible=true")).toHaveCount(0)
-    await expect(neu.getByRole("button")).toHaveCount(0)
-    await expect(neu.getByRole("link")).toHaveCount(0)
-
-    await tab(page, "Churned Subscribers").click()
-    const churned = panel(page, "Churned Subscribers").getByRole("list")
-    await expect(churned.getByRole("listitem")).toHaveCount(5)
-    await expect(churned.locator("[data-slot=row-collapse] svg.lucide-chevron-right >> visible=true")).toHaveCount(0)
-    await expect(churned.getByRole("button")).toHaveCount(0)
-    await expect(churned.getByRole("link")).toHaveCount(0)
-  })
-
-  test("the churned LTV pill is labelled and reads at ≥4.5:1", async ({ page }) => {
+  // The subscriber lists have no per-customer source yet, so the page shows
+  // Not connected panels; the stacked-card layout, LTV pill and Sort menu
+  // are covered with fixture rows in metrics.responsive.test.tsx.
+  test("the Not connected subscriber panels and the Expenses empty state read at ≥4.5:1 in both themes", async ({ page }) => {
     await fresh(page, "/metrics?tab=churned")
-    const brett = panel(page, "Churned Subscribers")
-      .getByRole("listitem")
-      .filter({ hasText: "Brett Holloway" })
-    await expect(brett.getByText("LTV")).toBeVisible()
-    await expect(brett.getByText("$199")).toBeVisible()
-    await expect(brett.getByText("Lifetime value")).toHaveClass(/sr-only/)
-    const ltvSpan = brett.locator("[aria-hidden]").filter({ hasText: "LTV" })
-    const gap = await ltvSpan.evaluate((el) => {
-      const a = el.getBoundingClientRect()
-      const pill = el.parentElement
-      if (!pill) return -1
-      const walker = document.createTreeWalker(pill, NodeFilter.SHOW_TEXT)
-      let valueNode: Text | null = null
-      while (walker.nextNode()) {
-        if (/^\$[\d,]+$/.test((walker.currentNode.textContent ?? "").trim())) {
-          valueNode = walker.currentNode as Text
-        }
-      }
-      if (!valueNode) return -1
-      const range = document.createRange()
-      range.selectNodeContents(valueNode)
-      return range.getBoundingClientRect().left - a.right
-    })
-    expect(gap, "drawn gap between LTV and value").toBeGreaterThan(0)
-    const pill = brett.locator("span.inline-flex").filter({ hasText: "$199" })
-    await expectReadable(pill, "390/light LTV pill", expect)
-    await setTheme(page, "dark")
-    await expectReadable(pill, "390/dark LTV pill", expect)
-  })
-
-  test("the phone Sort menu uses per-key direction words", async ({ page }) => {
-    await fresh(page, "/metrics?tab=churned")
-    const churned = panel(page, "Churned Subscribers")
-    const sort = churned.getByRole("button", { name: /Sort:/ })
-    await expect(sort).toHaveText("Sort: Churn date, newest first")
-
-    await sort.click()
-    const menu = page.getByRole("menu")
-    await expect(menu).toBeVisible()
-    await menu.getByRole("menuitemradio", { name: /Lifetime value/ }).click()
-    await expect(sort).toHaveText("Sort: Lifetime value, highest first")
-    await expect(churned.getByRole("listitem").first()).toContainText("$398")
-
-    await sort.click()
-    await page.getByRole("menu").getByRole("menuitemradio", { name: /Lifetime value/ }).click()
-    await expect(sort).toHaveText("Sort: Lifetime value, lowest first")
-    await expect(churned.getByRole("listitem").first()).toContainText("$79")
-
-    await tab(page, "New Subscribers").click()
-    await expect(panel(page, "New Subscribers").getByRole("button", { name: /Sort:/ })).toHaveText(
-      "Sort: Signup date, newest first"
-    )
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      await tab(page, "Churned Subscribers").click()
+      await expect(notConnected(page, "Churned Subscribers").getByRole("button")).toHaveCount(0)
+      await expectReadable(notConnected(page, "Churned Subscribers"), `390/${theme} churned not connected`, expect)
+      await tab(page, "Expenses").click()
+      await expectReadable(expensesEmpty(page), `390/${theme} expenses empty`, expect)
+    }
+    await setTheme(page, "light")
   })
 })
 
@@ -712,7 +692,7 @@ for (const theme of ["light", "dark"] as const) {
     test.use({ viewport: VIEWPORTS.phone })
 
     test("the Expenses pin matches the card surface and stays put", async ({ page }) => {
-      await fresh(page, "/metrics?tab=expenses")
+      await withExpense(page)
       await setTheme(page, theme)
       const expenses = table(page, "Expenses")
       await expect(expenses).toBeVisible()

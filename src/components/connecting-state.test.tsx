@@ -19,7 +19,7 @@ import {
   STRIPE_CONNECTING_TEXT,
   MetricsSampleNotice,
 } from "@/components/metrics/metrics-sample-notice"
-import { SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
+import { SEEDED_SCREENS, SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
 
 /**
  * The server has a key but its first sync is still running: every
@@ -158,8 +158,7 @@ describe("No key at all", () => {
 
 const notice = () => screen.getByTestId("metrics-connection-notice")
 const sampleSection = () => screen.getByRole("region", { name: "Sample data" })
-const REST =
-  "Home and Metrics show no invented figures (a card with no source says Not connected); the screens still built on seed rows keep their sample labels."
+const REST = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
 
 function renderMetricsHeader() {
   return render(
@@ -269,6 +268,11 @@ describe("page-level wording unchanged when live or not connected", () => {
     )
     for (const flags of [base, { ...base, stripe: true }, { ...base, stripeConnecting: true }]) {
       expect(sampleDataSummary(flags)).not.toMatch(/every (other )?number/i)
+    }
+    // Only screens that still have seed rows are named: not Home, Metrics
+    // (Expenses starts empty) or System Status (seeded checks are a preview).
+    for (const name of ["Home", "Metrics", "Expenses", "System Status"]) {
+      expect(SEEDED_SCREENS as readonly string[]).not.toContain(name)
     }
   })
 })

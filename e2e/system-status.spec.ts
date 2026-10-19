@@ -51,13 +51,25 @@ async function expectStatus(page: Page, name: string, status: "operational" | "d
 }
 
 test.describe("System Status", () => {
-  test("is reachable from the sidebar and shows the green verdict", async ({ page }) => {
+  test("is reachable from the sidebar: no checks (Not connected), and the green preview behind ?preview=green", async ({ page }) => {
     await page.goto("/home")
     await rail(page).getByRole("link", { name: "System Status", exact: true }).click()
     await expect(page).toHaveURL(/\/system-status$/)
     await expect(main(page).getByRole("heading", { level: 1, name: "System Status" })).toBeVisible()
     await expect(rail(page).getByRole("link", { name: "System Status", exact: true })).toHaveAttribute("data-active")
     await expect(rail(page).getByRole("link", { name: "Home", exact: true })).not.toHaveAttribute("data-active")
+
+    // The real page: nothing is polled, so no checks and no sample at all.
+    await expect(banner(page)).toHaveAttribute("data-verdict", "empty")
+    await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(sampleNote(page)).toHaveCount(0)
+    await expect(incident(page)).toHaveCount(0)
+    await expect(main(page).locator("header").getByTestId("not-connected")).toBeVisible()
+
+    // The seeded green preview.
+    await preview(page).getByRole("link", { name: "Green", exact: true }).click()
+    await expect(page).toHaveURL(/\/system-status\?preview=green$/)
 
     // One verdict.
     await expect(banner(page)).toHaveAttribute("data-verdict", "green")
@@ -89,7 +101,8 @@ test.describe("System Status", () => {
 
   test("switches to the not-green preview and back; the preview lives in the URL, not the browser", async ({ page }) => {
     await page.goto("/system-status")
-    await expect(preview(page).getByRole("link", { name: "Green", exact: true })).toHaveAttribute("aria-current", "page")
+    await expect(preview(page).getByRole("link", { name: "Live", exact: true })).toHaveAttribute("aria-current", "page")
+    await expect(preview(page).getByRole("link", { name: "Green", exact: true })).not.toHaveAttribute("aria-current")
     await expect(preview(page).getByRole("link", { name: "Not green", exact: true })).not.toHaveAttribute("aria-current")
 
     await preview(page).getByRole("link", { name: "Not green", exact: true }).click()
@@ -109,17 +122,17 @@ test.describe("System Status", () => {
     // Back is a plain navigation; nothing was stored for this screen.
     await page.goBack()
     await expect(page).toHaveURL(/\/system-status$/)
-    await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
+    await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
     expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("hotdash.system-status")))).toEqual([])
 
-    // An unknown preview falls back to green rather than erroring.
+    // An unknown preview falls back to the real (no checks) page rather than erroring.
     await page.goto("/system-status?preview=purple")
-    await expect(banner(page)).toHaveAttribute("data-verdict", "green")
+    await expect(banner(page)).toHaveAttribute("data-verdict", "empty")
   })
 
   test("every text node reads at ≥ 4.5:1 in both themes and both states, including the solid amber Sample data labels", async ({ page }) => {
     for (const theme of ["light", "dark"] as const) {
-      for (const path of ["/system-status", "/system-status?preview=not-green"] as const) {
+      for (const path of ["/system-status?preview=green", "/system-status?preview=not-green"] as const) {
         await page.goto(path)
         await setTheme(page, theme)
         const label = `${theme}/${path.endsWith("not-green") ? "not-green" : "green"}`
