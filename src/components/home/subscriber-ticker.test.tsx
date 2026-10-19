@@ -353,3 +353,19 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     expect(screen.queryByTestId("ticker-breakdown")).toBeNull()
   })
 })
+
+describe("SubscriberTicker with Stripe not connected", () => {
+  beforeEach(() => vi.useRealTimers())
+
+  it.each(["header", "bar"] as const)("%s: says Not connected, no simulated count, links to Connected data", (variant) => {
+    render(<SubscriberTicker variant={variant} />)
+    const ticker = screen.getByTestId("subscriber-ticker")
+    expect(ticker).toHaveAttribute("data-state", "not_connected")
+    expect(screen.getByTestId("not-connected")).toHaveTextContent("Not connected")
+    expect(screen.queryByTestId("ticker-tiles")).toBeNull()
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings#connected-data")
+    expect(screen.getByRole("link").className).toContain("min-h-11")
+  })
+})

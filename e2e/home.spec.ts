@@ -2,135 +2,91 @@ import { expect, test } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
 import { setTheme } from "./support/theme"
-import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
 
+/**
+ * Home carries no sample data. The CI server has no Stripe key, so every
+ * card without a real source must say Not connected (or show its honest
+ * empty state) — never an invented figure, row or priority.
+ */
 test.describe("Home", () => {
-  test("is the default screen and shows the day's pulse", async ({ page }) => {
+  test("is the default screen and shows the day's pulse, with no mock content", async ({ page }) => {
     await page.goto("/")
     await expect(page).toHaveURL(/\/home$/)
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-    // The lede is today's weekday where the founder is (Central), rendered on
-    // the server from the real clock — not a frozen demo instant.
     const weekday = new Date().toLocaleDateString("en-US", {
       weekday: "long",
       timeZone: "America/Chicago",
     })
     await expect(page.getByText(`${weekday} pulse`)).toBeVisible()
 
-    // Sidebar marks Home as the current page.
     const rail = page.getByRole("navigation", { name: "Founder dashboard" })
     await expect(rail.getByRole("link", { name: "Home" })).toHaveAttribute("data-active")
-    await expect(rail.getByRole("link", { name: "Metrics" })).not.toHaveAttribute("data-active")
 
-    // #1 strip.
+    const main = page.locator("main")
+    await expect(main.getByText(/Dummy \/ design mock/i)).toHaveCount(0)
+    await expect(main.getByText(/Aledo/)).toHaveCount(0)
+    await expect(main.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(main.getByTestId("persistence-note")).toHaveCount(0)
+
+    // #1: the honest empty state.
     const one = page.getByRole("region", { name: "Number one" })
-    await expect(one.getByRole("heading", { level: 2, name: "Call Aledo before Friday" })).toBeVisible()
+    await expect(one.getByRole("heading", { level: 2, name: "No #1 yet" })).toBeVisible()
     await expect(one.getByRole("link", { name: "My Desk" })).toHaveAttribute("href", "/my-desk")
 
-    // Truth strip: subscribers + cash this week — the Metrics page's own
-    // numbers (shared KPI fixture) — each stamped as sample.
+    // Truth strip: both cards Not connected, no figures.
     const kpis = page.getByRole("region", { name: "KPI strip" })
-    await expect(kpis.getByRole("heading", { name: "Truth strip" })).toBeVisible()
-    // One Subscribers article in the strip (the Metrics Subscribers number).
-    await expect(kpis.getByRole("article", { name: "Subscribers" })).toHaveCount(1)
     await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/])
-    await expect(kpis.getByText("186")).toBeVisible()
-    await expect(kpis.getByText(/\+3 vs previous 28 days/)).toBeVisible()
-    // A real trailing-7-day figure from the shared daily revenue spread.
-    await expect(kpis.getByText("$7,848")).toBeVisible()
-    await expect(kpis.getByText(/\+6\.8% vs previous 7 days/)).toBeVisible()
-    // Two card chips + the strip label; plus the Metrics door's chip and the
-    // header subscriber ticker's (the top-bar ticker's copy is phone-only).
-    await expect(kpis.getByTestId("sample-data-tag")).toHaveCount(3)
-    await expect(page.getByTestId("sample-data-tag").filter({ visible: true })).toHaveCount(5)
+    for (const card of await kpis.getByRole("article").all()) {
+      await expect(card).toHaveAttribute("data-source", "not_connected")
+      await expect(card.getByTestId("not-connected")).toBeVisible()
+    }
+    await expect(kpis.getByTestId("kpi-sample-label")).toHaveCount(0)
 
-    // Home reads the Workplace's browser-saved board and says so. Nothing
-    // has been edited in this browser, so nothing is saved yet.
-    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-
-    // Doors.
+    // Doors: Metrics, Agent Workplace and Inbox all say Not connected.
     const doors = page.getByRole("group", { name: "Doors" })
     await expect(doors.getByRole("region")).toHaveCount(3)
-    await expect(doors.getByText("3 agents working")).toBeVisible()
-    await expect(doors.getByText("2 waiting")).toBeVisible()
-    await expect(doors.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
+    for (const name of ["Metrics", "Agent Workplace", "Inbox"]) {
+      await expect(doors.getByRole("region", { name }).getByTestId("not-connected")).toBeVisible()
+    }
+    await expect(doors.getByText(/agents? working/)).toHaveCount(0)
+    await expect(doors.getByText(/waiting/)).toHaveCount(0)
+    await expect(doors.getByRole("list", { name: "Needs you" })).toHaveCount(0)
+    await expect(doors.getByRole("img")).toHaveCount(0)
   })
 
-  test("a Needs-you row opens its ticket in the Workplace Inbox", async ({ page }) => {
-    await page.goto("/home")
-    await page.getByRole("link", { name: /Agent blocked/ }).click()
-    await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox&issue=CHLK-412$/)
-    await expect(page.getByRole("heading", { level: 1, name: "Refund path for annual seats" })).toBeVisible()
-  })
-
-  test("the dev board door opens the board", async ({ page }) => {
+  test("the Agent Workplace door still opens the board", async ({ page }) => {
     await page.goto("/home")
     await page.getByRole("link", { name: "Open Agent Workplace" }).click()
     await expect(page).toHaveURL(/\/agent-workplace$/)
-    await expect(page.getByRole("region", { name: "To Do" })).toBeVisible()
   })
 
-  test("reflects the board: closing the linked tickets clears Needs you", async ({ page }) => {
+  test("Not connected states are readable in light and dark", async ({ page }) => {
     await page.goto("/home")
-    const inboxDoor = page.getByRole("region", { name: "Inbox" })
-    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
-
-    // The three Needs-you rows and the column each ticket currently sits in.
-    const linked = [
-      ["CHLK-408", "In Review"],
-      ["CHLK-412", "Blocked"],
-      ["CHLK-406", "In Progress"],
-    ] as const
-    for (const [key, status] of linked) {
-      await page.goto(`/agent-workplace?issue=${key}`)
-      const props = page.getByRole("complementary", { name: "Ticket properties" })
-      await props.getByRole("button", { name: status, exact: true }).click()
-      await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click()
-      await page.keyboard.press("Escape")
-      await expect(props.getByRole("button", { name: "Done", exact: true })).toBeVisible()
-    }
-
-    await page.goto("/home")
-    const inbox = page.getByRole("region", { name: "Inbox" })
-    await expect(inbox.getByText("Nothing needs you")).toBeVisible()
-    await expect(inbox.getByText(/waiting/)).toHaveCount(0)
-
-    // The Workplace Inbox agrees: only the dismissed digest is left.
-    await page.goto("/agent-workplace?tab=inbox")
-    const panel = page.getByRole("tabpanel", { name: "Inbox" })
-    await expect(panel.getByRole("listitem")).toHaveCount(1)
-    await expect(panel.getByText("Daily standup summary")).toBeVisible()
-
-    // Reset the browser copy so other tests see the seed.
-    await page.goto("/agent-workplace")
-    await resetDemoData(page, page.locator("main header").first())
-    await page.goto("/home")
-    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
-  })
-
-  test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {
-    await page.goto("/home")
-    const label = page.getByTestId("kpi-sample-label")
-    // Two on the truth-strip cards, one strip label, one on the Metrics door,
-    // one on the header subscriber ticker.
-    const chips = page.getByTestId("sample-data-tag").filter({ visible: true })
-    await expect(chips).toHaveCount(5)
-
-    for (const theme of ["Light", "Dark"] as const) {
-      await setTheme(page, theme === "Dark" ? "dark" : "light")
-      await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-
-      await expect(label).toBeVisible()
-      await expect(label).toContainText("Sample data")
-      // Every text node — "Sample data" and the second clause alike.
-      const labelNodes = await expectReadable(label, `${theme} strip label`, expect)
-      expect(labelNodes.length).toBeGreaterThanOrEqual(2)
-
-      for (const chip of await chips.all()) {
-        await expect(chip).toBeVisible()
-        await expect(chip).toContainText("Sample data")
-        await expectReadable(chip, `${theme} chip`, expect)
+    const badges = page.locator("main").getByTestId("not-connected").filter({ visible: true })
+    await expect(badges.first()).toBeVisible()
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      for (const badge of await badges.all()) {
+        await expectReadable(badge, `${theme} not-connected badge`, expect)
+      }
+      for (const hint of await page.getByTestId("door-not-connected").all()) {
+        await expectReadable(hint, `${theme} door hint`, expect)
       }
     }
   })
+
+  for (const width of [390, 820, 1180]) {
+    test(`the subscriber Not connected link is a 44px target at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto("/home")
+      const link = page
+        .getByTestId("subscriber-ticker")
+        .filter({ visible: true })
+        .first()
+        .getByRole("link", { name: /Subscribers: not connected/ })
+      await expect(link).toHaveAttribute("href", "/settings#connected-data")
+      const box = await link.boundingBox()
+      expect(box!.height).toBeGreaterThanOrEqual(44)
+    })
+  }
 })

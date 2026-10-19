@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
 import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
 import { SampleDataTag } from "@/components/sample-data"
+import { NotConnectedBadge } from "@/components/home/not-connected"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 
@@ -445,6 +446,30 @@ export function SubscriberTicker({
   // `mode` remounts the row, so nothing cascades out of a placeholder.
   const mode = reading ? "value" : state.status
   const header = variant === "header"
+
+  // Stripe not connected (and no source pinned by a test): no simulated
+  // count. Say so plainly instead of ticking a sample number.
+  if (!source && sample) {
+    return (
+      <div
+        data-testid="subscriber-ticker"
+        data-variant={variant}
+        data-state="not_connected"
+        className={cn("flex min-w-0 flex-none items-center gap-2", className)}
+      >
+        {header && (
+          <span className="text-caption text-muted-foreground font-medium tracking-tight">Subscribers</span>
+        )}
+        <Link
+          href="/settings#connected-data"
+          aria-label="Subscribers: not connected. Open Connected data in Settings"
+          className="focus-visible:ring-ring/50 flex min-h-11 items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none xl:min-h-0"
+        >
+          <NotConnectedBadge className={cn(!header && "px-2")} />
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div
