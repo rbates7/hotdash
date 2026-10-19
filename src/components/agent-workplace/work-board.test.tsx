@@ -85,6 +85,27 @@ describe("WorkBoardView", () => {
     expect(screen.getByTestId("workboard-empty")).toBeInTheDocument()
   })
 
+  it("badge tones beat the outline variant: red for failing/changes requested, amber for pending, green for passing/approved", () => {
+    const items = [
+      { ...LIVE_ITEMS[0], number: 1, ci: "failing" as const, review: "changes_requested" as const },
+      { ...LIVE_ITEMS[0], number: 2, ci: "pending" as const, review: "pending" as const },
+      { ...LIVE_ITEMS[0], number: 3, ci: "passing" as const, review: "approved" as const },
+      { ...LIVE_ITEMS[0], number: 4, ci: "none" as const, review: "none" as const },
+    ]
+    render(<WorkBoardView view={ready("connected", items)} />)
+    const tone = (name: string) => screen.getByText(name).closest("[data-slot='badge']")!.className
+    expect(tone("CI failing")).toMatch(/(^|\s)text-danger-text!(\s|$)/)
+    expect(tone("Changes requested")).toMatch(/(^|\s)text-danger-text!(\s|$)/)
+    expect(tone("CI pending")).toMatch(/(^|\s)text-warning-text!(\s|$)/)
+    expect(tone("Review pending")).toMatch(/(^|\s)text-warning-text!(\s|$)/)
+    expect(tone("CI passing")).toMatch(/(^|\s)text-success-text!(\s|$)/)
+    expect(tone("Approved")).toMatch(/(^|\s)text-success-text!(\s|$)/)
+    expect(tone("No CI")).toMatch(/(^|\s)text-muted-foreground!(\s|$)/)
+    // The word is its own span, inheriting the badge's colour.
+    expect(screen.getByText("CI failing").tagName).toBe("SPAN")
+    expect(screen.getByText("CI failing").className).toBe("")
+  })
+
   it("touch targets: links carry the 44px min below 1280", () => {
     render(<WorkBoardView view={ready("connected")} />)
     for (const link of screen.getAllByRole("link")) expect(link.className).toMatch(/\bmin-h-11\b.*\bxl:min-h-0\b/)

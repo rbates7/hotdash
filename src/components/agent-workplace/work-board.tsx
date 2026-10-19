@@ -41,12 +41,21 @@ const REVIEW_LABEL: Record<WorkboardReview, string> = {
   pending: "Review pending",
   none: "No review",
 }
-const TONE = {
-  good: "bg-success/10 text-success-text border-transparent",
-  bad: "text-danger-text",
-  wait: "text-warning-text",
+/**
+ * Badge tones. The outline variant's text colour is a layered rule
+ * (`cn-badge-variant-outline`), so a plain `text-*` utility loses to it and
+ * every badge came out neutral; like `NotConnectedBadge`, the tone is
+ * `!important` and the word sits in a child span that inherits it. The
+ * text-safe status tokens (as on System Status) clear 4.5:1 on the card in
+ * both themes; status is never colour alone, the word says it.
+ */
+export const WORKBOARD_TONE = {
+  good: "bg-success/10 text-success-text! border-transparent",
+  bad: "text-danger-text! border-destructive/40",
+  wait: "text-warning-text! border-warning/50",
   none: "text-muted-foreground!",
 } as const
+const TONE = WORKBOARD_TONE
 const CI_TONE: Record<WorkboardCi, string> = { passing: TONE.good, failing: TONE.bad, pending: TONE.wait, none: TONE.none }
 const REVIEW_TONE: Record<WorkboardReview, string> = {
   approved: TONE.good,
@@ -75,11 +84,11 @@ function WorkCard({ item }: { item: WorkboardItem }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline" className={CI_TONE[item.ci]}>
-              {CI_LABEL[item.ci]}
+            <Badge variant="outline" data-testid="work-ci" data-tone={item.ci} className={CI_TONE[item.ci]}>
+              <span>{CI_LABEL[item.ci]}</span>
             </Badge>
-            <Badge variant="outline" className={REVIEW_TONE[item.review]}>
-              {REVIEW_LABEL[item.review]}
+            <Badge variant="outline" data-testid="work-review" data-tone={item.review} className={REVIEW_TONE[item.review]}>
+              <span>{REVIEW_LABEL[item.review]}</span>
             </Badge>
           </div>
           <div className="flex flex-wrap gap-x-3">
