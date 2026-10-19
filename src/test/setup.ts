@@ -5,9 +5,11 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
+import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
+import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
 // Stripe, PostHog and Gmail start not connected in every test (no fetch to
@@ -23,6 +25,7 @@ beforeEach(() => {
     initial: { phase: "ready", summary: POSTHOG_NOT_CONNECTED },
     fetcher: async () => POSTHOG_NOT_CONNECTED,
   })
+  configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
   // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },

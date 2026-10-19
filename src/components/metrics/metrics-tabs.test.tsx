@@ -526,3 +526,18 @@ describe("MetricsTabs", () => {
     })
   })
 })
+
+describe("Overview: MRR and cash this week", () => {
+  beforeEach(mockDesktop)
+  afterEach(() => {
+    window.matchMedia = nativeMatchMedia
+  })
+
+  it("is mounted under the cards, and says Stripe not connected without a key (no sample figures)", async () => {
+    renderTabs()
+    const panel = screen.getByRole("region", { name: "MRR and cash this week" })
+    expect(await within(panel).findByText("Stripe not connected")).toBeInTheDocument()
+    expect(within(panel).queryByText(SAMPLE_DATA_LABEL)).not.toBeInTheDocument()
+    expect(grid().compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})

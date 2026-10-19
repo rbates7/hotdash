@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { MetricCard } from "@/components/metrics/metric-card"
+import { MrrCashPanel } from "@/components/metrics/mrr-cash-panel"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import {
   METRICS_GRID,
@@ -218,6 +219,8 @@ export function OverviewPanel() {
         </section>
       )}
       <AddMetric />
+      {/* Stripe's MRR by month and cash this week: real figures or a placeholder, never sample. */}
+      <MrrCashPanel />
     </div>
   )
 }
