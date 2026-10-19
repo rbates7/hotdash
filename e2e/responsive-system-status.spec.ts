@@ -47,6 +47,7 @@ async function expectOneLineLabel(locator: Locator, label: string) {
 
 async function expectPreviewLabelsOneLine(page: Page) {
   const group = preview(page)
+  await expectOneLineLabel(group.getByRole("link", { name: "Live", exact: true }), "Live")
   await expectOneLineLabel(group.getByRole("link", { name: "Green", exact: true }), "Green")
   await expectOneLineLabel(group.getByRole("link", { name: "Not green", exact: true }), "Not green")
 }
@@ -54,16 +55,27 @@ async function expectPreviewLabelsOneLine(page: Page) {
 const main = (page: Page) => page.getByRole("main")
 const preview = (page: Page) => main(page).getByRole("group", { name: "Preview", exact: true })
 const banner = (page: Page) => main(page).getByRole("region", { name: "Current status", exact: true })
+/** A plain visit: nothing is polled, so no checks (Not connected), never a seeded verdict. */
+const expectRealPage = async (page: Page) =>
+  expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
 
 for (const vp of VIEWPORTS) {
   test.describe(`responsive System Status (${vp.name})`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } })
 
-    test("opens from the URL, switches preview, and does not scroll sideways", async ({
+    test("opens on the real page, switches preview, and does not scroll sideways", async ({
       page,
     }) => {
       await page.goto("/system-status")
       await expect(page.getByRole("heading", { level: 1, name: "System Status" })).toBeVisible()
+      await expectRealPage(page)
+      await expectTapTarget(preview(page).getByRole("link", { name: "Live", exact: true }), "Live")
+      await expectPreviewLabelsOneLine(page)
+      expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+
+      // The seeded green preview has the rows.
+      await preview(page).getByRole("link", { name: "Green", exact: true }).click()
+      await expect(page).toHaveURL(/preview=green$/)
       await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
       await expect(main(page).getByRole("listitem", { name: "Billing" })).toBeVisible()
 
@@ -111,7 +123,8 @@ test.describe("responsive System Status (tablet-landscape 1180)", () => {
     page,
   }) => {
     await page.goto("/system-status")
-    await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
+    await expectRealPage(page)
+    await expectTapTarget(preview(page).getByRole("link", { name: "Live", exact: true }), "Live")
     await expectTapTarget(preview(page).getByRole("link", { name: "Not green", exact: true }), "Not green")
     await expectTapTarget(preview(page).getByRole("link", { name: "Green", exact: true }), "Green")
     await expectPreviewLabelsOneLine(page)
@@ -130,7 +143,7 @@ test.describe("responsive System Status (desktop 1440)", () => {
 
   test("keeps the header row and does not scroll sideways", async ({ page }) => {
     await page.goto("/system-status")
-    await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
+    await expectRealPage(page)
     await expect(preview(page).getByRole("link", { name: "Green", exact: true })).toBeVisible()
     await expectPreviewLabelsOneLine(page)
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
@@ -160,6 +173,13 @@ for (const theme of ["light", "dark"] as const) {
         await page.goto("/system-status")
         await forceTheme(page, theme)
         const label = `${theme}/${vp.name}`
+        // The real page: the empty banner and the Not connected badge.
+        await expectRealPage(page)
+        await expectReadable(banner(page), `${label}/empty banner`, expect)
+        await expectReadable(main(page).locator("header").getByTestId("not-connected"), `${label}/not connected`, expect)
+        // The seeded green preview: its rows. forceTheme reloads the same URL.
+        await page.goto("/system-status?preview=green")
+        await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
         await expectReadable(page.getByRole("heading", { level: 1, name: "System Status" }), `${label}/title`, expect)
         await expectReadable(preview(page), `${label}/preview`, expect)
         await expectReadable(banner(page), `${label}/banner`, expect)

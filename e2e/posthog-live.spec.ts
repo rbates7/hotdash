@@ -176,8 +176,8 @@ for (const vp of [
         await main(page).getByRole("button", { name: "Add metric", exact: true }).click()
         const picker = page.getByRole("dialog", { name: "Add a metric" })
         if (vp.width < 768) {
-          await expect(picker).toContainText("Live where connected; the rest are sample figures.")
-          await expect(picker).not.toContainText("removed. Sample figures.")
+          await expect(picker).toContainText("Live where connected; the rest say Not connected.")
+          await expect(picker).not.toContainText(/sample/i)
         }
         const choice = picker.getByRole("button", { name: /^Active Users/ })
         // Polled: the popover opens with a short zoom-in.
