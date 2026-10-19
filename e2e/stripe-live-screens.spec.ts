@@ -4,7 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { waitForHydration } from "./support/shell"
-import { APP_STORE_OFF, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, APP_STORE_ZERO, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { setTheme } from "./support/theme"
 
 /**
@@ -93,7 +93,7 @@ test(`not connected 1440 ${theme} (no key: Home + Settings)`, async ({ page }) =
   await page.goto("/home")
   await waitForHydration(page)
   await setTheme(page, theme)
-  await expect(page.getByRole("article", { name: "Subscribers", exact: true })).toHaveAttribute("data-source", "sample")
+  await expect(page.getByRole("article", { name: "Subscribers", exact: true })).toHaveAttribute("data-source", "not_connected")
   const home = await capture(page)
   await page.goto("/settings")
   await waitForHydration(page)
@@ -194,6 +194,29 @@ for (const vp of PHONE_AND_DESKTOP) {
         "Total excludes App Store (not connected)"
       )
       save(`home-${vp.width}-${theme}-appstore-not-connected.png`, await capture(page))
+    })
+  }
+}
+
+/**
+ * The App Store suspect-zero set (8 files): Stripe connected, the App
+ * Store connected but reading 0 — the row warns ("Check source"), the
+ * total leaves it out (1,284). Home at 390, 820, 1180 and 1440, both
+ * themes. Mocked; run on its own into its own folder:
+ *
+ *   STRIPE_READONLY_KEY= SCREENSHOT_DIR=/workspace/hotdash-shots/appstore-zero pnpm screens:stripe-live -g appstore-zero
+ */
+for (const vp of WIDTHS) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`appstore-zero home ${vp.width} ${theme} (suspect)`, async ({ page }) => {
+      await page.setViewportSize(vp)
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO))
+      await openLive(page, "/home")
+      await setTheme(page, theme)
+      await expect(
+        page.locator("[data-testid='subscriber-breakdown'] [data-row='appStore'][data-warning]").filter({ visible: true }).first()
+      ).toContainText("Check source")
+      save(`home-${vp.width}-${theme}-appstore-suspect.png`, await capture(page))
     })
   }
 }

@@ -15,6 +15,11 @@ type SeedRow = {
 }
 
 /**
+ * Tests only (#45): the app never shows these; with Notion not connected
+ * the Roadmap starts empty. Unit tests hand them to the board with
+ * `configureRoadmapBoard`, e2e saves them as a founder's own
+ * (`e2e/support/roadmap.ts`).
+ *
  * Eight believable Chlk bets, in board order. Windows and signed dates are
  * offsets from the request clock so the board always reads as current.
  * Nothing here is a real signed bet; every card carries the sample tag.

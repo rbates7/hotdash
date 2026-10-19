@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 import { HOME_KPI_HEAD } from "@/components/home/responsive"
+import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 
 const TONE_CLASS: Record<KpiTone, string> = {
   good: "bg-success/10 text-success-text",
@@ -62,6 +63,7 @@ const isSample = (kpi: Kpi) => !kpi.source || kpi.source === "sample"
 export function KpiCard({ kpi }: { kpi: Kpi }) {
   const sample = isSample(kpi)
   const loading = kpi.source === "loading"
+  const notConnected = kpi.source === "not_connected"
   return (
     <article
       aria-label={kpi.label}
@@ -74,17 +76,38 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
       <div className="flex min-h-5 items-start justify-between gap-2">
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
         {sample && <SampleDataTag />}
+        {notConnected && <NotConnectedBadge className="h-5 px-2" />}
+        {loading && kpi.connecting && <ConnectingBadge className="h-5 px-2" />}
       </div>
       <p
+        data-testid="kpi-value"
         className={cn(
           "mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
-          loading && "text-muted-foreground"
+          (loading || notConnected) && "text-muted-foreground"
         )}
       >
-        {loading ? <span aria-label="Loading">–</span> : kpi.value}
+        {/* Placeholders: the dash is decoration; screen readers get the words (sr-only, not aria-label on a span). */}
+        {loading ? (
+          <span data-testid="kpi-placeholder">
+            <span aria-hidden>–</span>
+            <span className="sr-only">Loading</span>
+          </span>
+        ) : notConnected ? (
+          <span data-testid="kpi-placeholder">
+            <span aria-hidden>{kpi.value}</span>
+            <span className="sr-only">No figure</span>
+          </span>
+        ) : (
+          kpi.value
+        )}
       </p>
+      {/* With no figure (Not connected, loading or Connecting…) the note keeps its room, hidden, so the strip does not shift. */}
       {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
-        <p data-testid="kpi-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+        <p
+          data-testid="kpi-note"
+          aria-hidden={notConnected || loading || undefined}
+          className={cn("text-caption text-muted-foreground mt-1.5 tracking-tight", (notConnected || loading) && "invisible")}
+        >
           {kpi.id === "mrr" ? MRR_NOTE : CASH_NOTE}
         </p>
       )}

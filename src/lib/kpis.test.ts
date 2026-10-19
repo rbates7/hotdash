@@ -176,7 +176,8 @@ describe("Expenses are scoped to the period", () => {
   })
 
   it("with no rows in the prior period the baseline alone is the comparison (+2.4%, as the mock)", () => {
-    const snap = snapshotFor("expenses", { today })
+    // The fixture math, fed the old seed rows explicitly (no screen shows them).
+    const snap = snapshotFor("expenses", { today, expenses: seedExpenses(today) })
     expect(snap.value).toBe(8_240)
     expect(snap.previous).toBe(8_050)
     expect(trendFor(snap.value, snap.previous, "percent", { lowerIsBetter: true }).text).toBe("+2.4%")

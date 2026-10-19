@@ -3,8 +3,7 @@ import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { crashCount } from "@/lib/bugs"
-import { formatRelative, todayIn } from "@/lib/clock"
+import { formatRelative } from "@/lib/clock"
 import { buildIssues } from "@/lib/issues-fixture"
 import { FIXED_NOW, FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
@@ -171,14 +170,19 @@ describe("Bugs screen", () => {
     expect(within(list()).queryByRole("link", { name: /CHLK-419/ })).not.toBeInTheDocument()
   })
 
-  it("shows the crash card from the sample fixture, labelled as sample data", () => {
+  it("the crash card says Not connected: an em dash, no delta, no sample figure", () => {
     renderBugs()
-    const card = screen.getByRole("article", { name: "Crashes" })
-    const { value, previous } = crashCount(todayIn(FIXED_NOW))
-    expect(within(card).getByTestId("crash-count")).toHaveTextContent(String(value))
-    expect(within(card).getByText(`−${previous - value} vs previous 7 days`)).toBeInTheDocument()
-    expect(within(card).getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
-    expect(within(card).getByText(/Sentry not connected/)).toBeInTheDocument()
+    const card = screen.getByRole("article", { name: "Crashes: not connected" })
+    expect(card).toHaveAttribute("data-source", "not_connected")
+    const count = within(card).getByTestId("crash-count")
+    // The dash is decoration; screen readers hear "No figure" (sr-only text, not an aria-label on a span).
+    expect(count).toHaveTextContent("\u2014No figure")
+    expect(within(count).getByText("\u2014")).toHaveAttribute("aria-hidden")
+    expect(within(count).getByText("No figure")).toHaveClass("sr-only")
+    expect(within(card).queryByTestId("sample-data-tag")).toBeNull()
+    expect(within(card).getByText("Not connected")).toBeInTheDocument()
+    expect(within(card).getByText(/no figure until Sentry is connected/)).toBeInTheDocument()
+    expect(card).not.toHaveTextContent(/vs previous 7 days/)
   })
 
   it("says 'No open bugs' when every bug is Done, and still lists the fixed ones", async () => {

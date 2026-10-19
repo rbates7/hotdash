@@ -12,7 +12,7 @@ import {
   TicketIcon,
 } from "lucide-react"
 
-import { COLUMN_CONFIG, COLUMN_ORDER, type RoadmapItem } from "@/lib/roadmap/roadmap"
+import { COLUMN_CONFIG, COLUMN_ORDER, type BoardItem } from "@/lib/roadmap/roadmap"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,6 +37,9 @@ function isEnabled(el: HTMLElement | null): el is HTMLElement {
 
 export const SOURCE_CHIP_TITLE =
   "Came in through the Feature Request intake. Shown for context; the two pages are not linked yet."
+
+/** Every control on a card while the board is read from Notion. */
+export const READ_ONLY_TITLE = "Read-only: this bet comes from Notion. Change it there."
 
 export const TICKETS_TITLE =
   "Linked Agent Workplace tickets. Sample count, display only — nothing is wired to the Issues board yet."
@@ -81,7 +84,7 @@ export function RoadmapCard({
   onMoved,
   onFocusConsumed,
 }: {
-  item: RoadmapItem
+  item: BoardItem
   /** Position within its column, 0-based. */
   index: number
   /** Cards in its column. */
@@ -91,7 +94,7 @@ export function RoadmapCard({
   onMoved: (request: FocusRequest) => void
   onFocusConsumed: () => void
 }) {
-  const { moveItem, reorderItem } = useRoadmap()
+  const { moveItem, reorderItem, readOnly } = useRoadmap()
   const phone = useIsMobile()
   const tablet = useIsTablet()
   const compact = phone || tablet
@@ -120,10 +123,10 @@ export function RoadmapCard({
       className={cn(
         "bg-surface border-surface-border flex w-full min-w-0 flex-col gap-2 rounded-xl border px-3.5 pt-3.5 pb-2.5",
         "hover:border-foreground/15 transition-colors",
-        compact && "cursor-pointer"
+        compact && !readOnly && "cursor-pointer"
       )}
       onClick={(event) => {
-        if (!compact) return
+        if (!compact || readOnly) return
         const target = event.target as HTMLElement
         if (target.closest("button, a, [data-control]")) return
         onEdit(item.id)
@@ -143,7 +146,7 @@ export function RoadmapCard({
       )}
 
       <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-        <OwnerChip owner={item.owner} />
+        {item.owner && <OwnerChip owner={item.owner} />}
         {item.window && (
           <span className="text-micro text-muted-foreground inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums">
             <CalendarIcon className="size-3" aria-hidden />
@@ -159,13 +162,16 @@ export function RoadmapCard({
             From Feature Request
           </span>
         )}
-        <span
-          title={TICKETS_TITLE}
-          className="text-micro text-muted-foreground ml-auto inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums"
-        >
-          <TicketIcon className="size-3" aria-hidden />
-          {ticketsLabel(item.linkedTickets)}
-        </span>
+        {/* Notion rows carry no ticket count: nothing is shown rather than a made-up "No tickets". */}
+        {item.linkedTickets !== undefined && (
+          <span
+            title={TICKETS_TITLE}
+            className="text-micro text-muted-foreground ml-auto inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums"
+          >
+            <TicketIcon className="size-3" aria-hidden />
+            {ticketsLabel(item.linkedTickets)}
+          </span>
+        )}
       </div>
 
       <div data-roadmap-toolbar className={ROADMAP_CARD_TOOLBAR}>
@@ -175,8 +181,8 @@ export function RoadmapCard({
           className={ROADMAP_ICON}
           data-control="up"
           aria-label="Move up"
-          title="Move up within this column"
-          disabled={index === 0}
+          title={readOnly ? READ_ONLY_TITLE : "Move up within this column"}
+          disabled={readOnly || index === 0}
           onClick={() => {
             reorderItem(item.id, -1)
             onMoved({ id: item.id, control: "up" })
@@ -190,8 +196,8 @@ export function RoadmapCard({
           className={ROADMAP_ICON}
           data-control="down"
           aria-label="Move down"
-          title="Move down within this column"
-          disabled={index >= count - 1}
+          title={readOnly ? READ_ONLY_TITLE : "Move down within this column"}
+          disabled={readOnly || index >= count - 1}
           onClick={() => {
             reorderItem(item.id, 1)
             onMoved({ id: item.id, control: "down" })
@@ -206,8 +212,8 @@ export function RoadmapCard({
           className={ROADMAP_ICON}
           data-control="left"
           aria-label={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already first column"}
-          title={left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already in the first column"}
-          disabled={!left}
+          title={readOnly ? READ_ONLY_TITLE : left ? `Move to ${COLUMN_CONFIG[left].label}` : "Already in the first column"}
+          disabled={readOnly || !left}
           onClick={() => {
             if (!left) return
             moveItem(item.id, left)
@@ -222,8 +228,8 @@ export function RoadmapCard({
           className={ROADMAP_ICON}
           data-control="right"
           aria-label={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already last column"}
-          title={right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already in the last column"}
-          disabled={!right}
+          title={readOnly ? READ_ONLY_TITLE : right ? `Move to ${COLUMN_CONFIG[right].label}` : "Already in the last column"}
+          disabled={readOnly || !right}
           onClick={() => {
             if (!right) return
             moveItem(item.id, right)
@@ -237,7 +243,8 @@ export function RoadmapCard({
           size="xs"
           className={ROADMAP_CARD_EDIT}
           aria-label="Edit"
-          title="Edit title, why, owner or window"
+          title={readOnly ? READ_ONLY_TITLE : "Edit title, why, owner or window"}
+          disabled={readOnly}
           onClick={() => onEdit(item.id)}
         >
           <PencilIcon aria-hidden />

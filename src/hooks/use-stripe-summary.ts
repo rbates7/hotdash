@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import { retryDelay, type Timers } from "@/lib/subscriber-source"
 import {
   NOT_CONNECTED,
@@ -20,10 +21,12 @@ import { useSettings } from "@/hooks/use-settings"
  *
  * - **Loading** until the first answer (the server render too): Stripe
  *   tiles show a placeholder, never a sample number that then swaps.
+ * - **Connecting** (the server has a key, its first sync is running) is
+ *   loading too, polled every `CONNECTING_POLL_MS` until figures land.
  * - **Polls** every `SUMMARY_POLL_MS` while anything listens (the server
  *   caches Stripe for 5 minutes, so this is cheap), backing off on failure.
  * - **Our own endpoint unreachable** keeps the last figures and marks them
- *   stale; with none yet, it reads as not connected (sample, labelled).
+ *   stale; with none yet, it reads as not connected (no figures).
  */
 
 export type { StripeView }
@@ -31,6 +34,11 @@ export type { StripeView }
 export const LOADING_VIEW: StripeView = { phase: "loading" }
 
 export const SUMMARY_POLL_MS = 60_000
+/** While the server is still connecting (first sync running), ask again sooner. */
+export const CONNECTING_POLL_MS = 5_000
+
+const isConnecting = (view: StripeView) =>
+  view.phase === "ready" && (view.summary.status === "connecting" || view.summary.appStore?.status === "connecting")
 
 export type SummaryFetcher = (timeZone: string) => Promise<StripeSummary>
 
@@ -47,9 +55,15 @@ export type SummaryEvent = { type: "summary"; summary: StripeSummary } | { type:
 export function summaryReducer(view: StripeView, event: SummaryEvent): StripeView {
   if (event.type === "summary") return { phase: "ready", summary: event.summary }
   if (view.phase === "ready" && view.summary.metrics) {
-    return { phase: "ready", summary: { ...view.summary, status: "stale" } }
+    // The figures stay (stale); an App Store count still connecting is no
+    // longer known to be on its way, so it reads as not connected.
+    const appStore = view.summary.appStore?.status === "connecting" ? APP_STORE_NOT_CONNECTED : view.summary.appStore
+    return { phase: "ready", summary: { ...view.summary, status: "stale", ...(appStore && { appStore }) } }
   }
-  return view.phase === "ready" ? view : { phase: "ready", summary: NOT_CONNECTED }
+  // Connecting was the server's word; with the server unreachable it is no
+  // longer known to be on its way, so it reads as not connected.
+  if (view.phase === "ready" && view.summary.status !== "connecting") return view
+  return { phase: "ready", summary: NOT_CONNECTED }
 }
 
 export type SummaryStore = {
@@ -98,7 +112,7 @@ export function createSummaryStore(
       state = next
       for (const l of listeners) l()
     }
-    schedule(failures > 0 ? retryDelay(failures) : SUMMARY_POLL_MS)
+    schedule(failures > 0 ? retryDelay(failures) : isConnecting(state) ? CONNECTING_POLL_MS : SUMMARY_POLL_MS)
   }
 
   return {

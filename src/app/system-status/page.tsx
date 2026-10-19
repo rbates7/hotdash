@@ -1,5 +1,4 @@
 import { now } from "@/lib/clock"
-import { DEFAULT_SCENARIO, PREVIEW_PARAM, isScenario } from "@/lib/system-status"
 import { StatusScreen } from "@/components/system-status/status-screen"
 
 export const metadata = {
@@ -11,16 +10,14 @@ export const metadata = {
 // from the last deploy.
 export const dynamic = "force-dynamic"
 
-export default async function SystemStatusPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
+/**
+ * Always the real page: nothing is polled yet, so no checks and Not
+ * connected. There is no `?preview=` route; the seeded views exist only in
+ * the unit tests (StatusScreen's `scenario` prop).
+ */
+export default function SystemStatusPage() {
   // The one read of the clock for this request. The screen is pure below
   // this line: every relative figure is measured from this instant.
   const nowMs = now().getTime()
-  const requested = (await searchParams)[PREVIEW_PARAM]
-  const scenario = isScenario(requested) ? requested : DEFAULT_SCENARIO
-
-  return <StatusScreen nowMs={nowMs} scenario={scenario} />
+  return <StatusScreen nowMs={nowMs} />
 }

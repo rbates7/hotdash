@@ -35,8 +35,8 @@ export default function MetricsError({
       </div>
       <p className="text-body text-muted-foreground">
         Something in this browser’s saved copy of the Metrics board could not be read.
-        Nothing is stored on a server; resetting discards the saved copy and shows the
-        sample data again.
+        Nothing is stored on a server; resetting discards the saved copy and starts the
+        board over.
       </p>
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>

@@ -3,9 +3,11 @@ import { formatRelative } from "@/lib/clock"
 import { InboxIcon } from "lucide-react"
 
 import type { NeedsYou } from "@/lib/home"
+import type { InboxSourceStatus } from "@/lib/inbox-sources"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import { DoorNotConnected } from "@/components/home/not-connected"
 import { HOME_NEED_ROW } from "@/components/home/responsive"
 
 const INBOX_HREF = "/agent-workplace?tab=inbox"
@@ -18,36 +20,70 @@ export function inboxIssueHref(issueKey?: string) {
 }
 
 /**
- * "Needs you" lives in the Inbox door: the few rows still waiting on the
- * founder, each opening its ticket in the Workplace Inbox.
+ * "Needs you" lives in the Inbox door: the few live Inbox rows (GitHub,
+ * Sentry) still waiting on the founder, each opening the Workplace Inbox.
+ * Placeholders while loading or connecting, "Not connected" with no live
+ * source, and never sample rows.
  */
 export function NeedsYouDoor({
   needs,
   now,
   loading = false,
+  status = "connected",
+  updated = null,
+  connectingTo = "GitHub and Sentry",
   className,
 }: {
   needs: NeedsYou
   /** The page's instant; row ages are measured from it. */
   now: Date
-  /** True until the browser's saved board has been read; shows placeholders. */
+  /** True until /api/inbox first answers; shows placeholders. */
   loading?: boolean
+  /** The Inbox's overall status (`inboxStatus`). */
+  status?: InboxSourceStatus
+  /** "Sentry: Last updated …" per stale source, even next to a live one. */
+  updated?: string | null
+  /** The sources mid first sync, e.g. "GitHub and Sentry". */
+  connectingTo?: string
   className?: string
 }) {
   const { items, waiting, overflow } = needs
+  const busy = loading || (status === "connecting" && items.length === 0)
+  const state = loading ? "loading" : status
+  // With rows and a stale source, "Last updated …" takes the footer's place
+  // instead of adding a line above the rows: at 1440×900 the door (and so
+  // Home) then fits the viewport, with no small vertical scroll.
+  const showUpdated = Boolean(updated) && !busy && status !== "not_connected" && items.length > 0
 
   return (
     <Door
       name="Inbox"
       href={INBOX_HREF}
       icon={InboxIcon}
-      count={!loading && waiting > 0 ? `${waiting} waiting` : undefined}
-      caption="Needs you lives here."
+      count={!busy && status !== "not_connected" && waiting > 0 ? `${waiting} waiting` : undefined}
+      caption={
+        showUpdated ? (
+          <span data-testid="needs-you-updated">{updated}</span>
+        ) : (
+          "Needs you lives here."
+        )
+      }
       className={className}
     >
-      {loading ? (
-        <div aria-busy="true" aria-label="Loading what needs you" className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-16" />
+      <span hidden data-testid="needs-you-state" data-state={state} />
+      {!loading && status === "not_connected" ? (
+        <DoorNotConnected hint="GitHub and Sentry aren't connected yet, so nothing needs you here." />
+      ) : busy ? (
+        <div
+          aria-busy="true"
+          aria-label={loading ? "Loading what needs you" : `Connecting to ${connectingTo}`}
+          className="flex flex-col gap-2"
+        >
+          {loading ? (
+            <Skeleton className="h-3 w-16" />
+          ) : (
+            <span className="text-caption text-muted-foreground tracking-tight">Connecting…</span>
+          )}
           {[0, 1, 2].map((n) => (
             <div key={n} className="flex items-start gap-2.5 px-0 py-2">
               <Skeleton className="mt-[5px] size-2 rounded-full" />

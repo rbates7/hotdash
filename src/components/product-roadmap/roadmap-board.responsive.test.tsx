@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
 import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
-import { RoadmapProvider } from "@/components/product-roadmap/roadmap-store"
+import { RoadmapProvider, configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
+import { seedState } from "@/lib/roadmap/fixture"
 import {
   ROADMAP_BOARD_DESKTOP,
   ROADMAP_BOARD_TABLET,
@@ -27,6 +28,8 @@ const TODAY = new Date("2026-10-07T15:00:00.000Z")
 const nativeMatchMedia = window.matchMedia
 
 beforeEach(() => {
+  // The editing tests need bets to move: the fixture, tests only.
+  configureRoadmapBoard(seedState)
   vi.useFakeTimers({ toFake: ["Date"] })
   vi.setSystemTime(TODAY)
 })

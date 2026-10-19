@@ -52,7 +52,7 @@ export function TriageScreen() {
                     <span className="flex flex-col leading-tight">
                       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
                         {thread.senderName ?? thread.senderEmail}
-                        {isSeedThread(thread.threadId) ? <SampleDataTag /> : null}
+                        {store.sample && isSeedThread(thread.threadId) ? <SampleDataTag /> : null}
                       </span>
                       <span className="text-muted-foreground text-xs">{thread.senderEmail}</span>
                     </span>

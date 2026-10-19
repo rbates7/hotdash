@@ -36,11 +36,15 @@ import {
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import { useMounted } from "@/hooks/use-mounted"
+import { useNotionRoadmapFeed } from "@/hooks/use-notion-roadmap"
+import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
+import { ConnectingBadge } from "@/components/connecting-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -161,7 +165,7 @@ function TimeZoneSection({ timeZone }: { timeZone: string }) {
     <Section
       id="time-zone"
       title="Time zone"
-      description="Central by default. Home's clock and weekday follow this choice, and so do Stripe's “today” and “this week” (from Monday 00:00). Sample figures are still dated in Central."
+      description="Central by default. Home's clock and weekday follow this choice, and so do Stripe's “today” and “this week” (from Monday 00:00). Seed rows are still dated in Central."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         <span id={labelId} className="sr-only">
@@ -336,34 +340,115 @@ function SwitchRow({
   )
 }
 
-function SampleDataSection({ sampleData }: { sampleData: boolean }) {
-  const live = useStripeFeed().kind === "live"
+/**
+ * The screens that still render seed rows. Home, Metrics (the Expenses tab
+ * starts empty), System Status (real page only; seeded checks are unit-test-only) and the
+ * Product Roadmap (Notion, or an empty board under Not connected) have none;
+ * keep this list to screens that really do.
+ */
+export const SEEDED_SCREENS = [
+  "My Desk",
+  "Agent Workplace and Bugs",
+  "Feature Requests",
+  "Clinics",
+  "Community Development",
+  "CRM",
+  "Sales Opportunities",
+] as const
+
+/**
+ * The Sample data section's first sentence: what is live, what is
+ * connecting, and where seed rows remain. Notion feeds the Product Roadmap
+ * (bets, not numbers), so it gets its own sentence after the figures'.
+ */
+export function sampleDataSummary({
+  notion = false,
+  notionConnecting = false,
+  ...figures
+}: {
+  stripe: boolean
+  posthog: boolean
+  /** The CRM's Gmail conversations are live (#46). */
+  gmail?: boolean
+  stripeConnecting: boolean
+  appStoreConnecting: boolean
+  notion?: boolean
+  notionConnecting?: boolean
+}): string {
+  const roadmap = notion
+    ? "The Product Roadmap is read from Notion."
+    : notionConnecting
+      ? "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+      : null
+  return figuresSummary(figures, roadmap)
+}
+
+function figuresSummary(
+  {
+    stripe,
+    posthog,
+    gmail = false,
+    stripeConnecting,
+    appStoreConnecting,
+  }: {
+    stripe: boolean
+    posthog: boolean
+    /** The CRM's Gmail conversations are live. */
+    gmail?: boolean
+    stripeConnecting: boolean
+    appStoreConnecting: boolean
+  },
+  /** Notion's sentence about the Product Roadmap, when it is live or connecting. */
+  roadmap: string | null
+): string {
+  const figures = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  const live =
+    figures && gmail
+      ? `${figures} figures and the CRM's Gmail conversations are`
+      : figures
+        ? `${figures} figures are`
+        : gmail
+          ? "The CRM's Gmail conversations are"
+          : null
+  // Home and Metrics never show an invented figure: a card with no source says Not connected.
+  const rest = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
+  const then = roadmap ? ` ${roadmap} ${rest}` : ` ${rest}`
+  if (!live && !stripeConnecting) return roadmap ? `${roadmap} ${rest}` : `Nothing is connected yet. ${rest}`
+  if (!live) return `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then.${then}`
+  const connecting = stripeConnecting
+    ? " Stripe is connecting (first sync in progress)."
+    : appStoreConnecting
+      ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
+      : ""
+  return `${live} live and carry no label.${connecting}${then}`
+}
+
+function SampleDataSection() {
+  const stripeFeed = useStripeFeed()
+  const notionFeed = useNotionRoadmapFeed()
+  const summary = sampleDataSummary({
+    stripe: stripeFeed.kind === "live",
+    posthog: usePosthogFeed().kind === "live",
+    gmail: useGmailFeed().kind === "live",
+    stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
+    appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
+    notion: notionFeed.kind === "live",
+    notionConnecting: notionFeed.kind === "loading" && Boolean(notionFeed.connecting),
+  })
   return (
     <Section
       id="sample-data"
       title="Sample data"
       description={
         <>
-          {live
-            ? "Stripe's figures are live and carry no label; every other number is still sample data."
-            : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
-          Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
-          placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
-          no label to hide.
+          {summary}{" "}
+          Every screen still on seed rows carries the amber {SAMPLE_DATA_LABEL} label, always:
+          there is no switch to hide it. Some seed screens (Agent Workplace, CRM rows) have
+          no label yet.
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <SwitchRow
-          label="Show Sample data labels"
-          checked={sampleData}
-          onCheckedChange={(checked) =>
-            updateSettings((s) => (s.sampleData === checked ? s : { ...s, sampleData: checked }))
-          }
-          className="-mx-2 self-start"
-        >
-          <span className="text-body font-medium">Show {SAMPLE_DATA_LABEL} labels</span>
-        </SwitchRow>
         <p className="text-caption flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground">Labels look like</span>
           <span
@@ -375,7 +460,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
             <FlaskConicalIcon className="size-3" aria-hidden />
             {SAMPLE_DATA_LABEL}
           </span>
-          <span className="text-muted-foreground">{sampleData ? "and are shown." : "and are hidden."}</span>
+          <span className="text-muted-foreground">and are always shown.</span>
         </p>
       </div>
     </Section>
@@ -386,16 +471,73 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
 
 const SOURCES = [
   { name: "Stripe", feeds: "Subscribers, revenue, churn, trials" },
-  { name: "PostHog", feeds: "Usage, active coaches, funnels" },
+  { name: "PostHog", feeds: "Active users and retention (iOS app)" },
   { name: "Sentry", feeds: "Errors, crash-free rate, bugs" },
   { name: "Gmail", feeds: "Coach conversations for CRM" },
+  { name: "Notion", feeds: "Product Roadmap" },
 ] as const
 
 const STATUS_BADGE = "h-6 px-2.5"
 
-/** Stripe's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
-function StripeStatus({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+/**
+ * What a live source's row needs: Stripe's, PostHog's, Gmail's and Notion's
+ * feeds all fit (with no key, each says `not_connected`).
+ */
+type SourceFeed =
+  | { kind: "loading"; connecting?: boolean }
+  | { kind: "not_connected" }
+  | { kind: "live"; stale: boolean; lastSyncedAt: Date; mailbox?: string }
+
+type LiveFeed = {
+  use: () => SourceFeed
+  id: string
+  /** The detail line while a first sync runs. */
+  connecting: string
+  /** The detail line when the source could not be read and the last good copy shows. */
+  stale: string
+  /** What the "read-only · last synced" line leads with; "Read-only" by default. */
+  readOnly?: (feed: Extract<SourceFeed, { kind: "live" }>) => string
+}
+
+/** Hooks per live source, so each row reads only its own. */
+const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], LiveFeed>> = {
+  Stripe: {
+    use: useStripeFeed,
+    id: "stripe",
+    connecting: "Read-only key found · first sync in progress, figures appear when it finishes",
+    stale: "Stripe could not be read just now, so its figures are the last good ones.",
+  },
+  PostHog: {
+    use: usePosthogFeed,
+    id: "posthog",
+    connecting: "Read-only key found · first sync in progress, figures appear when it finishes",
+    stale: "PostHog could not be read just now, so its figures are the last good ones.",
+  },
+  Gmail: {
+    use: useGmailFeed,
+    id: "gmail",
+    connecting: "Read-only access found · first sync in progress, the CRM's conversations appear when it finishes",
+    stale: "Gmail could not be read just now, so the CRM shows the last good threads.",
+    // Names the mailbox, as #46's row did: "info@chlkapp.com, read-only · …".
+    readOnly: (feed) => (feed.mailbox ? `${feed.mailbox}, read-only` : "Read-only"),
+  },
+  Notion: {
+    use: useNotionRoadmapFeed,
+    id: "notion",
+    connecting: "Read-only token found · first sync in progress, the Roadmap appears when it finishes",
+    stale: "Notion could not be read just now, so the Roadmap shows the last good copy.",
+  },
+}
+
+/**
+ * A live source's row: Connected (and when it last synced), Last updated
+ * (stale), Connecting… (a key is set, its first sync is still running), or
+ * Not connected (no key).
+ */
+function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id } = LIVE_FEEDS[name]!
+  const feed = use()
+  if (feed.kind === "loading" && feed.connecting) return <ConnectingBadge testId={`${id}-status`} className={STATUS_BADGE} />
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -403,11 +545,11 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
       </Badge>
     )
   }
-  if (feed.kind === "sample") return <NotConnected />
+  if (feed.kind === "not_connected") return <NotConnected />
   const when = formatWallClock(feed.lastSyncedAt, timeZone)
   if (feed.stale) {
     return (
-      <Badge variant="outline" data-testid="stripe-status" className={STATUS_BADGE}>
+      <Badge variant="outline" data-testid={`${id}-status`} className={STATUS_BADGE}>
         <AlertTriangleIcon aria-hidden className="text-danger-text" />
         {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
       </Badge>
@@ -416,7 +558,7 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   return (
     <Badge
       variant="outline"
-      data-testid="stripe-status"
+      data-testid={`${id}-status`}
       title={`Last synced ${when}`}
       className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
     >
@@ -426,14 +568,22 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   )
 }
 
-function StripeDetail({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id, connecting, stale, readOnly } = LIVE_FEEDS[name]!
+  const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
+        {connecting}
+      </p>
+    )
+  }
   if (feed.kind !== "live") return null
   return (
-    <p className="text-caption text-muted-foreground" data-testid="stripe-detail">
+    <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
       {feed.stale
-        ? "Stripe could not be read just now, so its figures are the last good ones."
-        : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
+        ? stale
+        : `${readOnly ? readOnly(feed) : "Read-only"} · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
     </p>
   )
 }
@@ -451,7 +601,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe is the first."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe, PostHog, Gmail and Notion are wired up so far."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
@@ -461,9 +611,13 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
-                {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
+                {LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />}
               </div>
-              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
+              {LIVE_FEEDS[source.name] ? (
+                <SourceStatus name={source.name} timeZone={timeZone} />
+              ) : (
+                <NotConnected />
+              )}
             </div>
           </li>
         ))}
@@ -599,7 +753,7 @@ export function SettingsScreen() {
         <AppearanceSection />
         <TimeZoneSection timeZone={settings.timeZone} />
         <GoalsSection goals={settings.goals} />
-        <SampleDataSection sampleData={settings.sampleData} />
+        <SampleDataSection />
         <ConnectedDataSection timeZone={settings.timeZone} />
         <SidebarSection prefs={settings.sidebar} />
       </div>

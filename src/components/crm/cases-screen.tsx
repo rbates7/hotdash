@@ -212,8 +212,9 @@ export function CasesScreen() {
           <InboxIcon className="text-faint-foreground size-6" aria-hidden />
           <p className="text-body text-foreground font-medium">No cases</p>
           <p className="text-caption">
-            Every case has been removed. Promote a triage thread, or Reset to bring the sample
-            cases back.
+            {store.sample
+              ? "Every case has been removed. Promote a triage thread, or Reset to bring the sample cases back."
+              : "No conversations the inbox has replied to yet. Promote a triage thread to open a case."}
           </p>
         </div>
       ) : rows.length === 0 ? (
@@ -242,7 +243,7 @@ export function CasesScreen() {
                   title={row.subject}
                   status={<StatusBadge status={row.status} />}
                   meta={caseCardMeta(row, contact, org, store.nowMs)}
-                  sample={isSeedCase(row.id)}
+                  sample={store.sample && isSeedCase(row.id)}
                   className={CARD}
                   onClick={() => {
                     setSheetId(row.id)
@@ -272,7 +273,7 @@ export function CasesScreen() {
                 const org = contact ? orgOf(store.organizations, contact.organizationId) : null
                 const name = contact ? contactDisplayName(contact) : "Unknown"
                 const lastActivity = formatCrmRelative(row.lastActivityAt, store.nowMs)
-                const sample = isSeedCase(row.id)
+                const sample = store.sample && isSeedCase(row.id)
                 return (
                   <TableRow key={row.id} data-case={row.id} className={TABLET_WRAP}>
                     <TableCell className={cn(`${CELL} text-muted-foreground`, TABLET_HIDE)}>

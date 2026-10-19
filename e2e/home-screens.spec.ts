@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { emptyInbox, liveInbox, mockInbox } from "./support/inbox"
 import { resetDemoData } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
@@ -32,31 +33,14 @@ async function shoot(page: Page, name: string) {
 }
 
 
-/** Close the three tickets Needs-you points at, through the ticket view. */
-async function closeLinkedTickets(page: Page) {
-  const linked = [
-    ["CHLK-408", "In Review"],
-    ["CHLK-412", "Blocked"],
-    ["CHLK-406", "In Progress"],
-  ] as const
-  for (const [key, status] of linked) {
-    await page.goto(`/agent-workplace?issue=${key}`)
-    await page.getByRole("button", { name: status, exact: true }).click()
-    await page.getByRole("button", { name: "Done", exact: true }).click()
-    await page.keyboard.press("Escape")
-    await expect(
-      page.locator('[data-slot="popover-trigger"]').filter({ hasText: /^Done$/ })
-    ).toBeVisible()
-  }
-}
-
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Home state (${theme})`, async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
     await page.goto("/home")
     await page.evaluate((key) => localStorage.removeItem(key), STORE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(page.getByText("2 waiting")).toBeVisible()
+    await expect(page.getByText("3 waiting")).toBeVisible()
 
     // With data: the seed board and inbox.
     await shoot(page, `home-with-data-${theme}`)
@@ -64,7 +48,7 @@ for (const theme of ["light", "dark"] as const) {
     // Interactive: hovering a door and a Needs-you row.
     await page.getByRole("link", { name: "Open Agent Workplace" }).hover()
     await shoot(page, `home-door-hover-${theme}`)
-    await page.getByRole("link", { name: /Agent blocked/ }).hover()
+    await page.getByRole("link", { name: /#912 Roster import/ }).hover()
     await shoot(page, `home-needs-you-row-hover-${theme}`)
     await page.mouse.move(0, 0)
 
@@ -75,8 +59,9 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByText("No sprint is running")).toBeVisible()
     await shoot(page, `home-no-sprint-${theme}`)
 
-    // Empty: nothing running, nothing waiting.
-    await closeLinkedTickets(page)
+    // Empty: nothing running, nothing waiting (Inbox connected, no rows).
+    await page.unroute("**/api/inbox")
+    await mockInbox(page, emptyInbox(Date.now()))
     await page.goto("/home")
     await expect(page.getByText("Nothing needs you")).toBeVisible()
     await expect(page.getByText("No sprint is running")).toBeVisible()
@@ -85,7 +70,5 @@ for (const theme of ["light", "dark"] as const) {
     // Back to the seed for the next run.
     await page.goto("/agent-workplace")
     await resetDemoData(page)
-    await page.goto("/home")
-    await expect(page.getByText("2 waiting")).toBeVisible()
   })
 }

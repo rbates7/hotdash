@@ -2,9 +2,9 @@
  * The System Status model: "Is Chlk up. Green / not green."
  *
  * Nothing here polls anything. Sentry and chlkapp.com are not connected
- * yet, so the page renders one of two *seeded* scenarios — the all-green
- * one and the mock's degraded one — generated against the request's
- * instant (`nowMs`), the same way the Home and Workplace fixtures are.
+ * yet, so the page shows no checks (Not connected). Two *seeded* views —
+ * the all-green one and the mock's degraded one — exist only for the unit
+ * tests (no control, no `?preview=` route), generated against `nowMs`.
  * Every "checked N min ago" is measured from that one instant, so the
  * server HTML and the client agree to the minute.
  */
@@ -35,17 +35,14 @@ export type PastIncident = {
   day: string
 }
 
-/** The seeded views the page can show. `empty` is the zero-checks state. */
+/** The scenarios: `empty` is the real zero-checks page; `green` / `not-green` are seeded views for unit tests only. */
 export type Scenario = "green" | "not-green" | "empty"
-export const SCENARIOS: readonly Scenario[] = ["green", "not-green", "empty"]
-export const DEFAULT_SCENARIO: Scenario = "green"
-
-export function isScenario(value: unknown): value is Scenario {
-  return typeof value === "string" && (SCENARIOS as readonly string[]).includes(value)
-}
-
-/** The URL query that picks the preview, e.g. `/system-status?preview=not-green`. */
-export const PREVIEW_PARAM = "preview"
+/**
+ * What a plain visit shows. Nothing is polled yet (Sentry and chlkapp.com
+ * are not connected), so the honest page is the zero-checks one: never a
+ * seeded "all green". The page always shows it; there is no preview route.
+ */
+export const DEFAULT_SCENARIO: Scenario = "empty"
 
 export const SENTRY_HREF = "https://chlk.sentry.io"
 export const SITE_HREF = "https://chlkapp.com"

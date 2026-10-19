@@ -5,8 +5,9 @@ import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
-import { liveMetric, liveValueText } from "@/lib/live-metrics"
+import { liveCard, liveValueText } from "@/lib/live-metrics"
 import { useSettings } from "@/hooks/use-settings"
+import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { MetricCard } from "@/components/metrics/metric-card"
+import { MrrCashPanel } from "@/components/metrics/mrr-cash-panel"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import {
   METRICS_GRID,
@@ -29,7 +31,6 @@ import {
   METRICS_TOUCH,
 } from "@/components/metrics/responsive"
 import { useMetricsSheetTabTrap } from "@/components/metrics/sheet-tab-trap"
-import { SampleDataTag } from "@/components/sample-data"
 
 function PickerChoices({
   onPick,
@@ -40,21 +41,17 @@ function PickerChoices({
 }) {
   const { today, visible, expenses } = useMetrics()
   const feed = useStripeFeed()
+  const posthog = usePosthogFeed()
   const { timeZone } = useSettings()
   const choices = pickerIds(visible)
 
   return (
     <>
-      {chrome ? (
+      {chrome && (
         <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1.5">
           <p className="text-micro text-muted-foreground font-semibold tracking-[0.06em] uppercase">
             Add a metric
           </p>
-          <SampleDataTag />
-        </div>
-      ) : (
-        <div className="flex justify-end px-2.5 pb-1.5">
-          <SampleDataTag />
         </div>
       )}
       {choices.length === 0 ? (
@@ -65,13 +62,20 @@ function PickerChoices({
         <ul className="flex flex-col">
           {choices.map((id) => {
             const snap = snapshotFor(id, { today, expenses })
-            const live = liveMetric(id, feed, timeZone)
+            const live = liveCard(id, feed, posthog, timeZone, { expenses, today })
+            // A live figure, the founder's own entries, or a plain word: never a fixture number.
             const figure =
               live.kind === "live"
                 ? liveValueText(live.metric, snap.unit)
                 : live.kind === "loading"
-                  ? "–"
-                  : formatMetricValue(snap.value, snap.unit)
+                  ? live.connecting
+                    ? "Connecting…"
+                    : "–"
+                  : live.kind === "entries"
+                    ? live.value === null
+                      ? "None entered"
+                      : formatMetricValue(live.value, snap.unit)
+                    : "Not connected"
             return (
               <li key={id}>
                 <button
@@ -97,6 +101,13 @@ function AddMetric() {
   const phone = useIsMobile()
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
+  // Stripe or PostHog live: some choices carry real figures; the sheet
+  // says which way the rest go.
+  const stripeFeed = useStripeFeed()
+  const stripeLive = stripeFeed.kind === "live"
+  const stripeConnecting = stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting)
+  const posthogLive = usePosthogFeed().kind === "live"
+  const anyLive = stripeLive || posthogLive
   useMetricsSheetTabTrap(phone && open)
 
   function pick(id: MetricId) {
@@ -130,7 +141,12 @@ function AddMetric() {
             <SheetHeader className={METRICS_SHEET_HEADER}>
               <SheetTitle>Add a metric</SheetTitle>
               <SheetDescription>
-                Extra metrics and any card you have removed. Sample figures.
+                Extra metrics and any card you have removed.{" "}
+                {anyLive
+                  ? "Live where connected; the rest say Not connected."
+                  : stripeConnecting
+                    ? "Stripe is connecting (first sync in progress); the rest say Not connected."
+                    : "No source is connected yet, so none has a figure."}
               </SheetDescription>
             </SheetHeader>
             <PickerChoices onPick={pick} chrome={false} />
@@ -166,6 +182,7 @@ function AddMetric() {
 export function OverviewPanel() {
   const { today, visible, charts, expenses, setChart, removeMetric } = useMetrics()
   const feed = useStripeFeed()
+  const posthog = usePosthogFeed()
   const { timeZone } = useSettings()
 
   return (
@@ -195,13 +212,15 @@ export function OverviewPanel() {
                 chart={charts[id] ?? METRIC_DEFS[id].defaultChart}
                 onChartChange={(chart) => setChart(id, chart)}
                 onRemove={() => removeMetric(id)}
-                live={liveMetric(id, feed, timeZone)}
+                live={liveCard(id, feed, posthog, timeZone, { expenses, today })}
               />
             )
           })}
         </section>
       )}
       <AddMetric />
+      {/* Stripe's MRR by month and cash this week: real figures or a placeholder, never sample. */}
+      <MrrCashPanel />
     </div>
   )
 }

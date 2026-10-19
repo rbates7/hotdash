@@ -9,7 +9,14 @@ import {
   type StripeData,
   type StripeMetrics,
 } from "@/lib/stripe-metrics"
-import { NOT_CONNECTED, type StripeHealth, type StripeSummary } from "@/lib/stripe-summary"
+import {
+  MRR_CASH_CONNECTING,
+  MRR_CASH_NOT_CONNECTED,
+  computeMrrCash,
+  type MrrCash,
+  type MrrCashSummary,
+} from "@/lib/stripe-mrr-cash"
+import { CONNECTING, NOT_CONNECTED, type StripeHealth, type StripeSummary } from "@/lib/stripe-summary"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
@@ -24,7 +31,8 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
  * request, in the caller's time zone.
  *
  * A request never waits for a sync (a full one takes minutes): it gets the
- * copy there is now — or `not_connected` before the first sync lands — and
+ * copy there is now — or `connecting` before the first sync lands (with a
+ * key; `not_connected` without one, or after a first sync failed) — and
  * a due sync starts in the background, one at a time, cut off after
  * `SYNC_TIMEOUT_MS`.
  */
@@ -230,6 +238,13 @@ type Snapshot = { data: StripeData; syncedAt: number }
 export type StripeService = {
   /** Answers at once from the copy there is; never waits for a sync. */
   summary(timeZone: string): Promise<StripeSummary>
+  /**
+   * The MRR chart and Cash this week breakdown, from the same copy, with
+   * the same status as `summary()`: `connecting` exactly when it is
+   * (never sample figures), `not_connected` with no key or once the first
+   * sync has failed.
+   */
+  mrrCash(timeZone: string): Promise<MrrCashSummary>
   health(): Promise<StripeHealth>
   /**
    * Settles when the background sync running now (if any) is done. Routes
@@ -262,6 +277,7 @@ export function createStripeService({
   let lastAttempt: { at: number; ok: boolean } | null = null
   let inflight: Promise<void> | null = null
   let computed = new Map<string, StripeMetrics>()
+  let computedMrrCash = new Map<string, MrrCash>()
   /** Bumped by `reset()`, so a sync started before it cannot write after it. */
   let generation = 0
 
@@ -279,6 +295,7 @@ export function createStripeService({
       }
       lastGood = { data, syncedAt: at }
       computed = new Map()
+      computedMrrCash = new Map()
       lastAttempt = { at, ok: true }
     } catch (error) {
       if (mine !== generation) return
@@ -293,9 +310,9 @@ export function createStripeService({
    * Whether the copy is current, starting a sync in the background when
    * one is due and none is running. Never waits for it; never throws.
    */
-  function read(): { fresh: boolean; configured: boolean } {
+  function read(): { fresh: boolean; configured: boolean; connecting: boolean } {
     const config = readStripeConfig(env())
-    if (config.kind !== "ok") return { fresh: false, configured: false }
+    if (config.kind !== "ok") return { fresh: false, configured: false, connecting: false }
     const age = lastAttempt ? clock() - lastAttempt.at : Infinity
     const due = !lastAttempt || age >= (lastAttempt.ok ? ttlMs : retryMs)
     if (due && !inflight) {
@@ -306,7 +323,8 @@ export function createStripeService({
     }
     // A refresh running behind a good copy leaves it current; only a
     // failed sync makes it stale.
-    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true }
+    // No sync has finished yet: the first one (started above) is running.
+    return { fresh: Boolean(lastAttempt?.ok && lastGood), configured: true, connecting: !lastAttempt && !lastGood }
   }
 
   function metricsFor(snapshot: Snapshot, timeZone: string) {
@@ -318,20 +336,43 @@ export function createStripeService({
     return m
   }
 
+  function mrrCashFor(snapshot: Snapshot, timeZone: string) {
+    let m = computedMrrCash.get(timeZone)
+    if (!m) {
+      m = computeMrrCash(snapshot.data, { now: new Date(snapshot.syncedAt), timeZone })
+      computedMrrCash.set(timeZone, m)
+    }
+    return m
+  }
+
   return {
     async summary(timeZone) {
-      const { fresh } = read()
+      const { fresh, connecting } = read()
       const snapshot = lastGood
-      if (!snapshot) return NOT_CONNECTED
+      if (!snapshot) return connecting ? CONNECTING : NOT_CONNECTED
       return {
         status: fresh ? "connected" : "stale",
         lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
         metrics: metricsFor(snapshot, timeZone),
       }
     },
+    async mrrCash(timeZone) {
+      // The same connecting rule as `summary()` (from `read()`): a key is
+      // set and no sync has finished yet. A failed first sync is not
+      // connecting forever: it reads as not connected.
+      const { fresh, connecting } = read()
+      const snapshot = lastGood
+      if (!snapshot) return connecting ? MRR_CASH_CONNECTING : MRR_CASH_NOT_CONNECTED
+      return {
+        status: fresh ? "connected" : "stale",
+        lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
+        ...mrrCashFor(snapshot, timeZone),
+      }
+    },
     async health() {
-      const { fresh, configured } = read()
+      const { fresh, configured, connecting } = read()
       if (!configured) return "not_configured"
+      if (connecting) return "connecting"
       return fresh ? "ok" : "unavailable"
     },
     async settled() {
@@ -343,6 +384,7 @@ export function createStripeService({
       lastAttempt = null
       inflight = null
       computed = new Map()
+      computedMrrCash = new Map()
     },
   }
 }

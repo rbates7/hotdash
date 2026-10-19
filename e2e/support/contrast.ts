@@ -207,3 +207,90 @@ export async function expectProbeCatchesSabotage(
   await locator.evaluate((el, attr) => el.removeAttribute(attr), SABOTAGE_ATTR)
   await expectReadable(locator, `${label} (after)`, expect)
 }
+
+/** WCAG 1.4.11: graphical objects (bars, swatches) need 3:1 against what is behind them. */
+export const MIN_NON_TEXT_CONTRAST = 3
+
+export type FillContrast = { label: string; ratio: number; fill: string; bg: string }
+
+/**
+ * WCAG contrast of each element's own background fill (a chart bar, a
+ * legend swatch) against what is really behind it: the parent's
+ * backgrounds composited onto the nearest opaque ancestor, the same way
+ * `textNodeContrasts` measures text. The fill's alpha and any ancestor
+ * opacity are folded in, so a `/30` tint is measured as painted.
+ */
+export async function fillContrasts(locator: Locator): Promise<FillContrast[]> {
+  await settleAnimations(locator.page())
+  return locator.evaluateAll((els) => {
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b, a: a / 255 }
+    }
+    type Rgb = { r: number; g: number; b: number }
+    const over = (top: ReturnType<typeof parse>, under: Rgb): Rgb => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: Rgb) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const backdropOf = (el: Element | null): Rgb => {
+      const layers: ReturnType<typeof parse>[] = []
+      for (let node = el; node; node = node.parentElement) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+      }
+      let backdrop: Rgb = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      return backdrop
+    }
+    const opacityOf = (el: Element) => {
+      let o = 1
+      for (let node: Element | null = el; node; node = node.parentElement) o *= Number(getComputedStyle(node).opacity)
+      return o
+    }
+    const rgb = ({ r, g, b }: Rgb) => `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`
+    return els.map((el, i) => {
+      const backdrop = backdropOf(el.parentElement)
+      const own = parse(getComputedStyle(el).backgroundColor)
+      const fill = over({ ...own, a: own.a * opacityOf(el) }, backdrop)
+      const [l1, l2] = [lum(fill), lum(backdrop)].sort((a, b) => b - a)
+      return {
+        label: el.getAttribute("data-testid") ?? `#${i}`,
+        ratio: Math.round(((l1 + 0.05) / (l2 + 0.05)) * 100) / 100,
+        fill: rgb(fill),
+        bg: rgb(backdrop),
+      }
+    })
+  })
+}
+
+/**
+ * Assert every element in `locator` paints a fill at least 3:1 against
+ * what is behind it (WCAG 1.4.11 non-text contrast). Returns the measurements.
+ */
+export async function expectNonTextContrast(
+  locator: Locator,
+  label: string,
+  expect: typeof import("@playwright/test").expect,
+  minimum = MIN_NON_TEXT_CONTRAST
+) {
+  const fills = await fillContrasts(locator)
+  expect(fills.length, `${label}: fills measured`).toBeGreaterThan(0)
+  const failures = fills
+    .filter((f) => f.ratio < minimum)
+    .map((f) => `${label}: ${f.label} ${f.fill} on ${f.bg} — ${f.ratio.toFixed(2)}:1 < ${minimum}:1`)
+  expect(failures).toEqual([])
+  return fills
+}

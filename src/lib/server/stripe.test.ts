@@ -17,7 +17,7 @@ import {
 } from "@/lib/server/stripe"
 import { SYNC_TIMEOUT_MS, SyncTimeoutError } from "@/lib/server/time-limit"
 import type { StripeData } from "@/lib/stripe-metrics"
-import { NOT_CONNECTED } from "@/lib/stripe-summary"
+import { CONNECTING, NOT_CONNECTED } from "@/lib/stripe-summary"
 
 /** Fake keys: shaped like Stripe's, valid nowhere. */
 const KEY = "rk_test_hotdashUnitTestOnly000"
@@ -97,13 +97,13 @@ async function synced(svc: StripeService, timeZone = "UTC") {
 }
 
 describe("never waits for a sync", () => {
-  it("cold start: answers not_connected at once while a 200 s sync runs, then connected once it lands", async () => {
+  it("cold start: answers connecting at once while a 200 s sync runs, then connected once it lands", async () => {
     const load = vi.fn<Loader>(() => new Promise((r) => setTimeout(() => r(DATA), 200_000)))
     const { svc } = service(load)
 
     const started = wallClock()
-    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
-    expect(await svc.health()).toBe("unavailable")
+    expect(await svc.summary("UTC")).toEqual(CONNECTING)
+    expect(await svc.health()).toBe("connecting")
     expect(wallClock() - started).toBeLessThan(1_000)
     expect(load).toHaveBeenCalledTimes(1)
 
@@ -162,12 +162,43 @@ describe("never waits for a sync", () => {
     expect(load).toHaveBeenCalledTimes(3)
   })
 
-  it("a cold-start sync that times out leaves not_connected", async () => {
-    const { svc, log } = service(() => new Promise(() => {}))
-    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+  it("a cold-start sync that times out goes from connecting to not_connected, and stays so on the retry", async () => {
+    const load = vi.fn<Loader>(() => new Promise(() => {}))
+    const { svc, log } = service(load)
+    expect(await svc.summary("UTC")).toEqual(CONNECTING)
     await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
     expect(log).toHaveBeenCalledWith("SyncTimeout")
     expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+    expect(await svc.health()).toBe("unavailable")
+    // The retry a minute later is not "connecting" again: it already failed once.
+    vi.advanceTimersByTime(RETRY_AFTER_MS)
+    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it("a cold-start sync that fails outright goes from connecting to not_connected", async () => {
+    const { svc, log } = service(async () => {
+      throw Object.assign(new Error("no"), { type: "StripeAuthenticationError" })
+    })
+    expect(await svc.summary("UTC")).toEqual(CONNECTING)
+    await svc.settled()
+    expect(log).toHaveBeenCalledWith("StripeAuthenticationError")
+    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+  })
+
+  it("no key is never connecting: not_connected / not_configured straight away", async () => {
+    const load = vi.fn<Loader>(async () => DATA)
+    const { svc } = service(load, { NODE_ENV: "test" })
+    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+    expect(await svc.health()).toBe("not_configured")
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it("an invalid key is never connecting either", async () => {
+    const load = vi.fn<Loader>(async () => DATA)
+    const { svc } = service(load, { STRIPE_READONLY_KEY: "not-a-key", NODE_ENV: "test" })
+    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+    expect(load).not.toHaveBeenCalled()
   })
 })
 
@@ -198,7 +229,7 @@ describe("cache", () => {
     const load = vi.fn<Loader>(() => new Promise((r) => (release = () => r(DATA))))
     const { svc } = service(load)
     const [a, b, h] = await Promise.all([svc.summary("UTC"), svc.summary("America/Chicago"), svc.health()] as const)
-    expect([a, b, h]).toEqual([NOT_CONNECTED, NOT_CONNECTED, "unavailable"])
+    expect([a, b, h]).toEqual([CONNECTING, CONNECTING, "connecting"])
     expect(load).toHaveBeenCalledTimes(1)
     release()
     await svc.settled()
@@ -223,7 +254,8 @@ describe("cache", () => {
     release()
     await Promise.resolve()
     await vi.advanceTimersByTimeAsync(0)
-    expect(await svc.summary("UTC")).toEqual(NOT_CONNECTED)
+    // The old sync wrote nothing: this read starts a fresh first sync.
+    expect(await svc.summary("UTC")).toEqual(CONNECTING)
   })
 })
 

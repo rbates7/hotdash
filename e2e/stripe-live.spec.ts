@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
-import { APP_STORE_OFF, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
+import { APP_STORE_OFF, APP_STORE_ZERO, APP_STORE_ZERO_STALE, LIVE_METRICS, liveSummary, mockStripe } from "./support/stripe"
 import { MIN_TAP, expectTapTarget } from "./support/tap-target"
 import { setTheme } from "./support/theme"
 
@@ -53,6 +53,13 @@ test.describe("server endpoints with no key", () => {
     expect(res.status()).toBe(200)
     expect(await res.text()).toBe('{"stripe":"not_configured"}')
   })
+
+  test("/api/health/app-store says only not_connected, never cached", async ({ request }) => {
+    const res = await request.get("/api/health/app-store")
+    expect(res.status()).toBe(200)
+    expect(res.headers()["cache-control"]).toBe("no-store")
+    expect(await res.text()).toBe('{"appStore":"not_connected"}')
+  })
 })
 
 /* ------------------------------------------------------- not connected */
@@ -60,29 +67,30 @@ test.describe("server endpoints with no key", () => {
 test.describe("Stripe not connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Home: the Stripe tiles show sample figures, labelled", async ({ page }) => {
+  test("Home: the Stripe tiles and ticker say Not connected, with no figures", async ({ page }) => {
     await open(page, "/home")
     for (const name of ["Subscribers", "Cash this week"]) {
-      await expect(kpi(page, name)).toHaveAttribute("data-source", "sample")
-      await expect(kpi(page, name).getByTestId("sample-data-tag")).toBeVisible()
+      await expect(kpi(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(kpi(page, name).getByTestId("not-connected")).toBeVisible()
+      await expect(kpi(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    await expect(strip(page).getByTestId("kpi-sample-label")).toBeVisible()
-    await expect(ticker(page).getByTestId("sample-data-tag")).toBeVisible()
+    await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
+    await expect(ticker(page)).toHaveAttribute("data-state", "not_connected")
+    await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(main(page).getByText(/Last updated/)).toHaveCount(0)
-    // Sample, as before: no breakdown, and the ticker has nothing to describe.
     await expect(kpi(page, "Subscribers").getByTestId("subscriber-breakdown")).toHaveCount(0)
-    await expect(ticker(page).getByRole("link")).not.toHaveAttribute("aria-describedby")
   })
 
-  test("Metrics: every card is sample, labelled", async ({ page }) => {
+  test("Metrics: every Stripe card says Not connected, with no figure and no Sample label", async ({ page }) => {
     await open(page, "/metrics")
     for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers", "ARR"]) {
-      await expect(metricCard(page, name)).toHaveAttribute("data-source", "sample")
-      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText("\u2014")
+      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    await expect(page.getByTestId("sample-data-notice")).toContainText("Nothing is connected to Stripe")
-    await expect(page.getByRole("note", { name: "Sample data" })).toContainText(/^Sample data\./)
-    await expect(metricsHeaderTag(page)).toHaveText("Sample data")
+    await expect(page.getByRole("note", { name: "Not connected" })).toContainText("so no card has a figure")
+    await expect(page.getByRole("note", { name: "Sample data" })).toHaveCount(0)
+    await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
 
   test("Settings: Stripe and every other source say Not connected", async ({ page }) => {
@@ -90,7 +98,7 @@ test.describe("Stripe not connected (1440)", () => {
     await expect(stripeRow(page)).toContainText("Not connected")
     await expect(
       main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    ).toHaveCount(4)
+    ).toHaveCount(5)
   })
 })
 
@@ -115,7 +123,7 @@ test.describe("Stripe connected (1440)", () => {
     expect(zones[0]).toBe("America/Chicago")
   })
 
-  test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest sample", async ({ page }) => {
+  test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest Not connected", async ({ page }) => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/metrics")
     const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,337" }
@@ -124,9 +132,13 @@ test.describe("Stripe connected (1440)", () => {
       await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText(value)
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    for (const name of ["ARR", "Revenue", "Retention", "Expenses"]) {
-      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
+    for (const name of ["ARR", "Revenue", "Retention"]) {
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
+    // Expenses is the founder's own entries (none yet), never a sample figure.
+    await expect(metricCard(page, "Expenses")).toHaveAttribute("data-source", "entries")
+    await expect(metricCard(page, "Expenses").getByTestId("sample-data-tag")).toHaveCount(0)
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).toContainText(/^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe/)
     await expect(notice).not.toContainText("Sample data")
@@ -142,7 +154,7 @@ test.describe("Stripe connected (1440)", () => {
       "Read-only · last synced Tue, Oct 13 · 9:41 AM CDT"
     )
     const others = main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    await expect(others).toHaveCount(3)
+    await expect(others).toHaveCount(4)
   })
 
   test("a saved time zone is what the page asks Stripe's figures in", async ({ page }) => {
@@ -313,6 +325,103 @@ test.describe("Subscribers total, App Store not connected (1440)", () => {
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).not.toContainText("App Store")
   })
+})
+
+const SUSPECT_NOTE = "App Store read 0 — check database access (likely a permissions/RLS issue)"
+
+test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: the App Store row warns instead of saying 0, and the total leaves it out (Home, ticker, Metrics)`, async ({
+      page,
+    }) => {
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO))
+      await open(page, "/home")
+      await setTheme(page, theme)
+      const card = kpi(page, "Subscribers")
+      await expect(card).toContainText("1,284")
+      expect(await rowsOf(card)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      const row = card.locator("[data-row='appStore']")
+      await expect(row).toHaveAttribute("data-warning", "")
+      await expect(row.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expect(card).not.toContainText(/App Store\s*0\b/)
+      await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} suspect breakdown`, expect)
+
+      const link = ticker(page).getByRole("link")
+      await expect(link).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+      await expect(link).toHaveAccessibleDescription(
+        `Stripe paying 1,110, App Store Check source (warning), Free (never paid) 174. ${SUSPECT_NOTE}.`
+      )
+      await link.hover()
+      const tip = page.getByTestId("ticker-breakdown")
+      await expect(tip.locator("[data-warning]")).toContainText("Check source")
+      await expect(tip.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      // The warning and its note (the other labels are the tooltip's existing 75% secondary text).
+      await expectReadable(tip.locator("[data-warning] dd"), `${theme} suspect tooltip row`, expect)
+      await expectReadable(tip.getByText(SUSPECT_NOTE), `${theme} suspect tooltip note`, expect)
+
+      await open(page, "/metrics")
+      await setTheme(page, theme)
+      const metrics = metricCard(page, "Subscribers")
+      await expect(metrics.getByTestId("metric-value")).toHaveText("1,284")
+      expect(await rowsOf(metrics)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      await expect(metrics.locator("[data-row='appStore']").getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expectReadable(metrics.getByTestId("subscriber-breakdown"), `${theme} suspect Metrics breakdown`, expect)
+      const notice = page.getByRole("note", { name: "Partly live" })
+      await expect(notice).not.toContainText("also counts App Store payers")
+      await expect(notice).toContainText("leaves out App Store payers")
+    })
+  }
+})
+
+test.describe("Subscribers total, App Store stale and read 0 — still suspect (1440)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`${theme}: a stale 0 warns in amber with the icon, and the total leaves it out (1,284)`, async ({ page }) => {
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_ZERO_STALE))
+      await open(page, "/home")
+      await setTheme(page, theme)
+      const card = kpi(page, "Subscribers")
+      await expect(card).toContainText("1,284")
+      await expect(card).not.toContainText("1,337")
+      expect(await rowsOf(card)).toEqual([
+        ["Stripe paying", "1,110"],
+        ["App Store", "Check source"],
+        ["Free (never paid)", "174"],
+      ])
+      const row = card.locator("[data-row='appStore']")
+      await expect(row).toHaveAttribute("data-warning", "")
+      await expect(row.getByRole("img", { name: "Warning: App Store count is suspect" })).toBeVisible()
+      // Amber: the figure is painted in the theme's --warning-text, not the default foreground.
+      const [value, amber] = await row.locator("dd").evaluate((dd) => {
+        const probe = document.createElement("span")
+        probe.style.color = "var(--warning-text)"
+        dd.parentElement!.appendChild(probe)
+        const want = getComputedStyle(probe).color
+        probe.remove()
+        return [getComputedStyle(dd).color, want]
+      })
+      expect(value).toBe(amber)
+      // Suspect wins over stale: the RLS note, not "App Store as of …".
+      await expect(card.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
+      await expect(card).not.toContainText(/App Store\s*0\b/)
+      await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} stale suspect breakdown`, expect)
+
+      await expect(ticker(page).getByRole("link")).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+    })
+  }
 })
 
 /* ----------------------------------------------------------- responsive */

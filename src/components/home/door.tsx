@@ -22,8 +22,8 @@ export function Door({
   icon: LucideIcon
   /** Small pill under the title, e.g. "2 waiting". */
   count?: string
-  /** One-line footer, pinned to the bottom. */
-  caption?: string
+  /** One-line footer, pinned to the bottom (text, or a node with its own test id). */
+  caption?: React.ReactNode
   children?: React.ReactNode
   className?: string
 }) {

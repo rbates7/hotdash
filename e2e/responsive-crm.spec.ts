@@ -388,9 +388,16 @@ test.describe("responsive CRM (phone 390)", () => {
 
   test("Delete from the Cases sheet: focus moves to the card now in its place, then to the heading", async ({ page }) => {
     await fresh(page)
+    // evaluateAll does not auto-wait: the persistence note can read "unsaved"
+    // a frame before the cards replace the "Loading saved cases" skeleton, so
+    // an immediate snapshot can be [] (i = -1, and nth(-1) is the last card).
+    // Wait for the seeded list before taking the index of the card to delete.
+    await expect(cards(page)).toHaveCount(8)
     const titles = await cards(page).evaluateAll((els) => els.map((el) => el.textContent ?? ""))
     const i = titles.findIndex((t) => t.startsWith(STAFF_SEATS))
+    expect(i, "the seeded list includes the case to delete").toBeGreaterThanOrEqual(0)
     const next = titles[i + 1]
+    expect(next, "a card follows it").toBeTruthy()
     await card(page, STAFF_SEATS).click()
     await sheetActions(page, STAFF_SEATS, "Case actions").filter({ hasText: "Delete case" }).click()
     const confirm = dialog(page, "Delete this case?")

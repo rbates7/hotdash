@@ -115,7 +115,7 @@ export function WorkplaceTabs() {
         <AutopilotsPanel />
       </TabsContent>
       <TabsContent value="inbox" className="min-w-0">
-        <InboxPanel onOpenIssue={openIssue} />
+        <InboxPanel />
       </TabsContent>
     </Tabs>
   )

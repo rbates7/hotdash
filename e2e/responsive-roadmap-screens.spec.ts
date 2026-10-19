@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { settleAnimations } from "./support/contrast"
 import { NOTE, NOTE_NAME } from "./support/persistence"
 import { waitForHydration } from "./support/shell"
+import { ownBets } from "./support/roadmap"
 import { setTheme } from "./support/theme"
 
 /**
@@ -49,15 +50,17 @@ const actions = (page: Page) => page.getByRole("group", { name: "Page actions", 
 async function open(page: Page, theme: "light" | "dark", empty: boolean) {
   await page.goto("/product-roadmap")
   await page.evaluate(
-    ([key, clear]) => {
-      if (clear) localStorage.setItem(key, JSON.stringify({ items: [], nextId: 1 }))
-      else localStorage.removeItem(key)
+    ([key, clear, value]) => {
+      // Empty: nothing saved (Not connected, no bets). Otherwise the
+      // fixture's bets saved as this browser's own (tests only, #45).
+      if (clear) localStorage.removeItem(key)
+      else localStorage.setItem(key, value)
     },
-    [STORAGE_KEY, empty] as const
+    [STORAGE_KEY, empty, JSON.stringify(ownBets())] as const
   )
   await page.reload()
   await waitForHydration(page)
-  await expect(persistence(page)).toHaveText(empty ? NOTE.saved : NOTE.unsaved)
+  await expect(persistence(page)).toHaveText(empty ? NOTE.unsaved : NOTE.saved)
   await setTheme(page, theme)
 }
 

@@ -9,22 +9,26 @@ import type { StripeMetrics } from "@/lib/stripe-metrics"
  * - `stale`         — Stripe could not be read (down, key revoked or
  *                     removed); these are the last good figures, as of
  *                     `lastSyncedAt`.
+ * - `connecting`    — a key is set and the first sync is still running (a
+ *                     fresh server, just after a deploy): no figures yet,
+ *                     and never sample ones in their place.
  * - `not_connected` — no key, or Stripe has never answered: no figures.
  *
  * `appStore` is a separate source (Chlk's database, not Stripe) with its
  * own status; the route always sets it, the Stripe service never does.
  */
-export type StripeStatus = "connected" | "stale" | "not_connected"
+export type StripeStatus = "connected" | "stale" | "connecting" | "not_connected"
 
 export type StripeSummary = (
   | { status: "connected" | "stale"; lastSyncedAt: string; metrics: StripeMetrics }
-  | { status: "not_connected"; lastSyncedAt: null; metrics: null }
+  | { status: "connecting" | "not_connected"; lastSyncedAt: null; metrics: null }
 ) & { appStore?: AppStoreSummary }
 
 export const NOT_CONNECTED: StripeSummary = { status: "not_connected", lastSyncedAt: null, metrics: null }
+export const CONNECTING: StripeSummary = { status: "connecting", lastSyncedAt: null, metrics: null }
 
 /** `/api/health/stripe`: a status word, nothing else. */
-export type StripeHealth = "ok" | "unavailable" | "not_configured"
+export type StripeHealth = "ok" | "connecting" | "unavailable" | "not_configured"
 
 export const STRIPE_SUMMARY_PATH = "/api/stripe/summary"
 export const STRIPE_HEALTH_PATH = "/api/health/stripe"
@@ -49,6 +53,7 @@ export function parseStripeSummary(value: unknown): StripeSummary | null {
   if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
   if (v.status === "not_connected") return withAppStore(NOT_CONNECTED, v.appStore)
+  if (v.status === "connecting") return withAppStore(CONNECTING, v.appStore)
   if (v.status !== "connected" && v.status !== "stale") return null
   if (typeof v.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(v.lastSyncedAt))) return null
   const m = v.metrics as Record<string, Record<string, unknown>> | null
@@ -73,19 +78,22 @@ export type StripeView = { phase: "loading" } | { phase: "ready"; summary: Strip
 
 /**
  * What a Stripe-backed number shows:
- * - `loading` — a placeholder;
- * - `sample`  — Stripe is not connected: the sample figure, labelled;
+ * - `loading` — a placeholder; `connecting` when the server has a key and
+ *               its first sync is still running (Settings says so);
+ * - `not_connected` — Stripe has no key (or never answered): no figure at
+ *               all, never a sample one in its place; the screen says
+ *               Not connected;
  * - `live`    — Stripe's figure, no label; `stale` adds "Last updated …".
  */
 export type StripeFeed =
-  | { kind: "loading" }
-  | { kind: "sample" }
+  | { kind: "loading"; connecting?: boolean }
+  | { kind: "not_connected" }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; metrics: StripeMetrics; appStore: AppStoreSummary }
 
 export function feedOf(view: StripeView): StripeFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.status === "not_connected") return { kind: "sample" }
+  if (summary.metrics === null) return summary.status === "connecting" ? { kind: "loading", connecting: true } : { kind: "not_connected" }
   return {
     kind: "live",
     stale: summary.status === "stale",

@@ -1,13 +1,11 @@
 /**
- * Dummy rows for the Autopilots and Inbox tabs, after
- * founder-dashboard-workplace-v0.html. Both tabs are still "open" in the
- * requirements doc, so this is deliberately flat display data — no model,
- * no store — until the product is locked.
+ * Dummy rows for the Autopilots tab, after founder-dashboard-workplace-v0.html,
+ * and the shape of an Inbox row. The Inbox itself is live (`/api/inbox`,
+ * see `@/lib/inbox-sources`); its old sample rows now live only in
+ * `@/test/inbox-fixture` for unit tests.
  *
- * Nothing here carries an absolute date. Inbox rows are built relative to
- * the instant the page was requested (`buildInbox(now)`), and an autopilot's
- * next run is computed from its schedule (`nextRunLabel` in
- * `@/lib/autopilots`), so neither can go stale.
+ * Nothing here carries an absolute date: an autopilot's next run is
+ * computed from its schedule (`nextRunLabel` in `@/lib/autopilots`).
  */
 
 export type AutopilotSchedule =
@@ -63,43 +61,4 @@ export type InboxItem = {
   dismissed?: boolean
   /** Opens the ticket when set. */
   issueKey?: string
-}
-
-/** The mock's four rows — 18 minutes, 2 hours, 4 hours and a day old. */
-export function buildInbox(now: Date): InboxItem[] {
-  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000).toISOString()
-  return [
-    {
-      id: "408-review",
-      title: "Agent finished — needs review",
-      snippet: "Preview thumbnail on iPad is ready",
-      at: minutesAgo(18),
-      unread: true,
-      issueKey: "CHLK-408",
-    },
-    {
-      id: "412-blocked",
-      title: "Agent blocked",
-      snippet: "Refund path for annual seats · waiting on Stripe dashboard access",
-      at: minutesAgo(2 * 60),
-      unread: true,
-      issueKey: "CHLK-412",
-    },
-    {
-      id: "406-urgent",
-      title: "Agent flagged something urgent",
-      snippet: "Failed-card webhook needs a look before morning",
-      at: minutesAgo(4 * 60),
-      unread: false,
-      issueKey: "CHLK-406",
-    },
-    {
-      id: "standup-digest",
-      title: "Daily standup summary",
-      snippet: "Dismissed · yesterday's digest",
-      at: minutesAgo(26 * 60),
-      unread: false,
-      dismissed: true,
-    },
-  ]
 }

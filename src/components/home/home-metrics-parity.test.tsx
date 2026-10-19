@@ -10,6 +10,7 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { kpiSets } from "@/lib/home-fixture"
+import { notConnectedKpi } from "@/lib/live-metrics"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 
@@ -58,52 +59,31 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     )
   }
 
-  it("the truth strip's Subscribers card shows the Metrics Subscribers card's value and delta", () => {
-    const metrics = renderMetrics()
-    const metricsCard = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^Subscribers\b/ })
-    const metricsValue = within(metricsCard).getByTestId("metric-value").textContent
-    const metricsTrend = within(metricsCard).getByTestId("trend").textContent
-    const metricsCaption = within(metricsCard).getByText(/vs previous/).textContent
-    metrics.unmount()
-
+  it("with Stripe not connected, Home shows no sample figure for Subscribers or MRR", () => {
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    expect(within(homeCard).getByText(metricsValue!)).toBeInTheDocument()
-    expect(homeCard).toHaveTextContent(`${metricsTrend} ${metricsCaption}`)
+    expect(homeCard).toHaveAttribute("data-source", "not_connected")
+    expect(within(screen.getByRole("region", { name: "Metrics" })).queryByRole("img")).not.toBeInTheDocument()
   })
 
-  it("the Metrics door's MRR span is the Metrics MRR card's series", () => {
-    const metrics = renderMetrics()
-    const mrr = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^MRR\b/ })
-    const name = within(mrr).getByRole("img").getAttribute("aria-label")!
-    // "…: to 10 Apr $23,800, …, to 27 Aug $26,190"
-    const values = [...name.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")))
-    expect(values).toHaveLength(6)
-    metrics.unmount()
-
-    renderHome()
-    const door = screen.getByRole("region", { name: "Metrics" })
-    const first = `$${(values[0] / 1000).toFixed(1).replace(/\.0$/, "")}k`
-    const last = `$${(values[5] / 1000).toFixed(1).replace(/\.0$/, "")}k`
-    expect(within(door).getByText(new RegExp(`${first.replace("$", "\\$").replace(".", "\\.")} → ${last.replace("$", "\\$").replace(".", "\\.")}`))).toBeInTheDocument()
-    expect(within(door).getByRole("img").getAttribute("aria-label")).toContain(`${first} to ${last}`)
-  })
-
-  it("every growth-set figure Home could show matches the rendered Metrics card", () => {
+  it("with Stripe not connected, neither Home's growth set nor the Metrics cards show a figure", () => {
     const metrics = renderMetrics()
     const grid = screen.getByRole("region", { name: "Metric cards" })
-    const rendered = Object.fromEntries(
-      ["MRR", "ARR", "Subscribers", "Churn Rate"].map((name) => {
-        const card = within(grid).getByRole("article", { name: new RegExp(`^${name}\\b`) })
-        return [name, within(card).getByTestId("metric-value").textContent]
-      })
-    )
+    for (const name of ["MRR", "ARR", "Subscribers", "Churn Rate"]) {
+      const card = within(grid).getByRole("article", { name: new RegExp(`^${name}\\b`) })
+      expect(card).toHaveAttribute("data-source", "not_connected")
+      expect(within(card).getByTestId("metric-value")).toHaveTextContent("\u2014")
+    }
     metrics.unmount()
 
-    // The growth set is not the active strip, so render its cards directly.
-    render(<KpiStrip kpis={kpiSets(today).growth} title="KPIs" />)
-    for (const [name, value] of Object.entries(rendered)) {
-      expect(within(screen.getByRole("article", { name })).getByText(value!)).toBeInTheDocument()
+    // The growth set is not the active strip, so render its cards directly,
+    // the way liveKpis does with no key: notConnectedKpi, never the fixture figures.
+    const growth = kpiSets(today).growth
+    render(<KpiStrip kpis={growth.map(notConnectedKpi)} title="KPIs" />)
+    for (const kpi of growth) {
+      const card = screen.getByRole("article", { name: kpi.label })
+      expect(card).toHaveAttribute("data-source", "not_connected")
+      expect(card).not.toHaveTextContent(kpi.value)
     }
   })
 

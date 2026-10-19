@@ -13,7 +13,6 @@ import {
   formatCheckedAgo,
   formatCounts,
   formatDownCount,
-  isScenario,
   joinNames,
   verdictFor,
   type Service,
@@ -131,7 +130,9 @@ describe("seed", () => {
   })
 
   it("links out to Sentry and the site as plain hrefs", () => {
-    const rows = buildServices(FIXED_NOW_MS)
+    // The default (plain visit) has no checks; the seeded preview carries the links.
+    expect(buildServices(FIXED_NOW_MS)).toEqual([])
+    const rows = buildServices(FIXED_NOW_MS, "green")
     expect(rows.find((r) => r.id === "site")?.href).toBe("https://chlkapp.com")
     expect(rows.find((r) => r.id === "sentry")?.href).toMatch(/sentry\.io$/)
   })
@@ -140,15 +141,6 @@ describe("seed", () => {
     // 27 Aug 2026 09:00 Chicago → 8 Jul 2026.
     expect(buildPastIncident(FIXED_NOW_MS).day).toBe("2026-07-08")
     expect(formatDate(buildPastIncident(FIXED_NOW_MS).day)).toBe("8 Jul 2026")
-  })
-
-  it("only knows the seeded scenarios", () => {
-    expect(isScenario("green")).toBe(true)
-    expect(isScenario("not-green")).toBe(true)
-    expect(isScenario("empty")).toBe(true)
-    expect(isScenario("red")).toBe(false)
-    expect(isScenario(undefined)).toBe(false)
-    expect(isScenario(["green"])).toBe(false)
   })
 })
 

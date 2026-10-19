@@ -26,8 +26,48 @@ The other 11 routes are intentional stubs; each gets its own build phase.
 **Live Stripe (read-only)** feeds Home's ticker, Subscribers and Cash this
 week, and Metrics' MRR, Churn Rate, Trial Conversions and Subscribers when
 the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
-no key those tiles show their sample figures, labelled. Definitions, states
-and checks: [docs/stripe-live.md](docs/stripe-live.md).
+no key those tiles show their sample figures, labelled. Metrics › Overview
+also has an MRR (12 months) and Cash this week panel from the same cache
+(`GET /api/stripe/mrr-cash`), with no sample state. Definitions, states,
+endpoints and checks: [docs/stripe-live.md](docs/stripe-live.md).
+
+**Live PostHog (read-only)** feeds Metrics' Retention and Active Users
+(iOS app events only, from June 2026) when the server has
+`POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS"); otherwise those cards
+are sample, labelled. See [docs/posthog-live.md](docs/posthog-live.md).
+
+**Product Roadmap from Notion (read-only)** when the server has
+`NOTION_READONLY_TOKEN` (server only). `NOTION_ROADMAP_PAGE_ID` is optional:
+it defaults to CHLK's Product Roadmap database and only overrides it. With a
+token set, the first sync shows Connecting… (never sample bets); with no
+token, the Roadmap says Not connected and shows no bets. Setup, token scope
+and the property mapping: [docs/notion-roadmap.md](docs/notion-roadmap.md).
+
+**Live Gmail (read-only)** feeds the CRM — cases, contacts and triage from
+the support inbox (info@chlkapp.com) — when the server has `GMAIL_CLIENT_ID`,
+`GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` (server only; `GMAIL_MAILBOX`
+optional). Without them the CRM shows "Gmail not connected" and its sample,
+labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
+[docs/gmail-setup.md](docs/gmail-setup.md).
+
+**Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
+open and recently merged pull requests with their CI and review state
+when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
+name the token has in Vercel). The token is fine-grained and read-only,
+for this repo only, and server only. No screen shows the workboard itself
+yet (Agent Workplace's board is still the design mock), but the Inbox reads
+its PRs. States, cache and checks: [docs/workboard-live.md](docs/workboard-live.md).
+
+**Inbox (read-only)**: `GET /api/inbox` feeds the Workplace Inbox tab and
+Home's "Needs you". It shows GitHub PRs ready for review or needing a fix
+(through the workboard above) and Sentry issues from org `chlk`, project
+`chlk-ios` (via `us.sentry.io`). Sentry needs `SENTRY_READONLY_TOKEN`: server
+only, with read-only `project:read` and `event:read` scopes. Home lists only
+what needs the founder; the tab lists everything. Each source is connecting,
+connected, stale or not connected (the #50 rule: no token is never
+connecting, and a failed first sync is not connected). There's a 5-minute
+cache with a 1-minute retry, and never sample rows. Gmail is a stub (Not
+connected). See [docs/inbox.md](docs/inbox.md).
 
 ## Getting started
 
@@ -44,7 +84,8 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe key (or its env var name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token, the GitHub or Sentry token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `SENTRY_READONLY_TOKEN`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
+| `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |

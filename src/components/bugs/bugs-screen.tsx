@@ -47,7 +47,7 @@ export function BugsScreen() {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      <CrashCountCard now={now} />
+      <CrashCountCard />
       <BugsList issues={issues} actors={actors} now={now} onOpen={openIssue} />
     </div>
   )

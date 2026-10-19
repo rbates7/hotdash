@@ -92,15 +92,11 @@ describe("SubscriberTicker", () => {
     expect(screen.getByText("+3")).toBeInTheDocument()
   })
 
-  it("wears the shared Sample chip, which follows Settings › Sample data", async () => {
+  it("wears the shared Sample chip, always (no setting hides it)", async () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="header" source={source} />)
     expect(screen.getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
-    act(() => updateSettings((s) => ({ ...s, sampleData: false })))
-    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    // Only the label goes; the number stays.
     expect(spoken()).toBe("Subscribers: 186, no change today")
-    act(() => updateSettings((s) => ({ ...s, sampleData: true })))
   })
 
   it("the phone bar uses the compact chip and no visible label", () => {
@@ -351,5 +347,21 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.hover(link())
     await new Promise((r) => setTimeout(r, 300))
     expect(screen.queryByTestId("ticker-breakdown")).toBeNull()
+  })
+})
+
+describe("SubscriberTicker with Stripe not connected", () => {
+  beforeEach(() => vi.useRealTimers())
+
+  it.each(["header", "bar"] as const)("%s: says Not connected, no simulated count, links to Connected data", (variant) => {
+    render(<SubscriberTicker variant={variant} />)
+    const ticker = screen.getByTestId("subscriber-ticker")
+    expect(ticker).toHaveAttribute("data-state", "not_connected")
+    expect(screen.getByTestId("not-connected")).toHaveTextContent("Not connected")
+    expect(screen.queryByTestId("ticker-tiles")).toBeNull()
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings#connected-data")
+    expect(screen.getByRole("link").className).toContain("min-h-11")
   })
 })

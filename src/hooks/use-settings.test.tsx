@@ -11,7 +11,7 @@ function Probe() {
   const { settings, saved } = useSettingsSnapshot()
   return (
     <p data-testid="probe">
-      {settings.timeZone}|{String(settings.sampleData)}|{String(saved)}
+      {settings.timeZone}|{String(saved)}
     </p>
   )
 }
@@ -19,14 +19,14 @@ function Probe() {
 describe("useSettings", () => {
   it("reads defaults without writing anything", () => {
     render(<Probe />)
-    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|true|false")
+    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|false")
     expect(window.localStorage.getItem(SETTINGS_KEY)).toBeNull()
   })
 
   it("saves a real change and skips a no-op", () => {
     render(<Probe />)
     act(() => updateSettings((s) => ({ ...s, timeZone: "UTC" })))
-    expect(screen.getByTestId("probe")).toHaveTextContent("UTC|true|true")
+    expect(screen.getByTestId("probe")).toHaveTextContent("UTC|true")
     const raw = window.localStorage.getItem(SETTINGS_KEY)
     expect(JSON.parse(raw!).timeZone).toBe("UTC")
     act(() => updateSettings((s) => s))
@@ -35,39 +35,38 @@ describe("useSettings", () => {
 
   it("hears another tab, and falls back to defaults when it clears the key", () => {
     render(<Probe />)
-    const theirs = { ...DEFAULT_SETTINGS, sampleData: false }
+    const theirs = { ...DEFAULT_SETTINGS, timeZone: "America/New_York" as const }
     act(() => {
       window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(theirs))
       fireStorageEvent(SETTINGS_KEY, JSON.stringify(theirs))
     })
-    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|false|true")
+    expect(screen.getByTestId("probe")).toHaveTextContent("America/New_York|true")
     act(() => {
       window.localStorage.removeItem(SETTINGS_KEY)
       fireStorageEvent(SETTINGS_KEY, null)
     })
-    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|true|false")
+    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|false")
   })
 
   it("ignores a corrupt copy", () => {
     window.localStorage.setItem(SETTINGS_KEY, '{"timeZone":"Mars"}')
     render(<Probe />)
-    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|true|false")
+    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|false")
   })
 })
 
-describe("sample-data surfaces follow the setting", () => {
-  it("hide when Sample data is off and come back when it is on", () => {
+describe("sample-data surfaces have no setting", () => {
+  it("stay shown whatever an older stored copy says (the Show Sample data labels switch is gone)", () => {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, sampleData: false }))
     render(
       <>
+        <Probe />
         <SampleDataTag />
         <SampleDataNotice />
       </>
     )
+    expect(screen.getByTestId("probe")).toHaveTextContent("America/Chicago|true")
     expect(screen.getByTestId("sample-data-tag")).toBeInTheDocument()
-    act(() => updateSettings((s) => ({ ...s, sampleData: false })))
-    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.queryByTestId("sample-data-notice")).toBeNull()
-    act(() => updateSettings((s) => ({ ...s, sampleData: true })))
     expect(screen.getByTestId("sample-data-notice")).toBeInTheDocument()
   })
 })

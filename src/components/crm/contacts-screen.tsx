@@ -253,7 +253,7 @@ export function ContactsScreen() {
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
             {rows.length} {rows.length === 1 ? "person" : "people"}
-            {q.trim() ? " matching search" : " — sample rows, plus anyone you add"}
+            {q.trim() ? " matching search" : store.sample ? " — sample rows, plus anyone you add" : ""}
           </p>
         </div>
         <ContactNewDialog />
@@ -278,7 +278,9 @@ export function ContactsScreen() {
           <UsersIcon className="text-faint-foreground size-6" aria-hidden />
           <p className="text-body text-foreground font-medium">No contacts</p>
           <p className="text-caption">
-            Every contact has been removed. Add one, or Reset to bring the sample people back.
+            {store.sample
+              ? "Every contact has been removed. Add one, or Reset to bring the sample people back."
+              : "Nobody the inbox has replied to yet. Add someone by hand, or promote a triage thread."}
           </p>
         </div>
       ) : rows.length === 0 ? (
@@ -312,7 +314,7 @@ export function ContactsScreen() {
                   orgOf(store.organizations, contact.organizationId),
                   openCaseCount(store.cases, contact.id)
                 )}
-                sample={isSeedContact(contact.id)}
+                sample={store.sample && isSeedContact(contact.id)}
                 className={CARD}
                 onClick={() => {
                   setSheetId(contact.id)
@@ -355,7 +357,7 @@ export function ContactsScreen() {
                         <span className="truncate md:max-xl:max-w-[calc(100%-2rem)] md:max-xl:min-w-0 md:max-xl:whitespace-normal md:max-xl:[overflow-wrap:anywhere]">
                           {name}
                         </span>
-                        {isSeedContact(contact.id) ? <SampleDataTag /> : null}
+                        {store.sample && isSeedContact(contact.id) ? <SampleDataTag /> : null}
                       </Link>
                       {/* Tablet: Email folds under Name. */}
                       <span className="text-caption text-muted-foreground hidden pl-8 md:max-xl:block md:max-xl:[overflow-wrap:anywhere]">

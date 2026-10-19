@@ -47,6 +47,7 @@ export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   subscribers: { id: "subscribers", label: "Subscribers", unit: "count", trendKind: "abs", defaultChart: "bar" },
   trials: { id: "trials", label: "Trial Conversions", unit: "percent", trendKind: "pts", defaultChart: "line" },
   expenses: { id: "expenses", label: "Expenses", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },
+  active: { id: "active", label: "Active Users", unit: "count", trendKind: "percent", defaultChart: "bar" },
   cac: { id: "cac", label: "CAC", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },
   ltv: { id: "ltv", label: "LTV", unit: "currency", trendKind: "percent", defaultChart: "bar" },
   arpu: { id: "arpu", label: "ARPU", unit: "currency", trendKind: "percent", defaultChart: "bar" },
@@ -81,6 +82,7 @@ const SERIES: Record<MetricId, number[]> = {
   // The second-to-last point is the prior period's total; the last is
   // summed live from the table.
   expenses: [7_800, 7_900, 7_960, 8_000, 8_050, 0],
+  active: [540, 575, 610, 648, 690, 731],
   cac: [168, 162, 160, 158, 155, 142],
   ltv: [1_520, 1_560, 1_590, 1_600, 1_620, 1_680],
   arpu: [132, 134, 136, 137, 138, 141],
@@ -117,7 +119,7 @@ export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
   const last = series.length - 1
 
   if (id === "expenses") {
-    const rows = ctx.expenses ?? seedExpenses(today)
+    const rows = ctx.expenses ?? []
     series[last] = expensesTotal(rows, period)
     series[last - 1] = priorExpensesTotal(rows, period)
   }
@@ -256,7 +258,11 @@ function toKpi(snap: MetricSnapshot, suffix: string): Kpi {
 
 /* ------------------------------------------------------------- expenses */
 
-/** Eight rows, every one inside the trailing four weeks ending `today`. */
+/**
+ * The old Expenses seed (eight rows inside the four weeks ending `today`).
+ * No screen shows it any more; it is kept so rows a browser saved before the
+ * seed was removed can be recognised by id and dropped (`SEED_EXPENSE_IDS`).
+ */
 export function seedExpenses(today: IsoDay | Date): Expense[] {
   const d = (offset: number) => addDays(today, offset)
   return [

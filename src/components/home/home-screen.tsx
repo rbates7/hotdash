@@ -1,16 +1,16 @@
 "use client"
 
 import { todayIn } from "@/lib/clock"
-import { boardPreview, needsYou, pulseLabel } from "@/lib/home"
-import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
-import { mrrTrend, snapshotFor } from "@/lib/kpis"
+import { needsYou, pulseLabel } from "@/lib/home"
+import { kpiStripTitle, kpis } from "@/lib/home-fixture"
+import { snapshotFor } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
-import { buildInbox } from "@/lib/workplace-fixture"
+import { combineStaleNotes, inboxScreen, sourceList } from "@/lib/inbox-sources"
+import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { useIssues } from "@/components/agent-workplace/issues-store"
-import { PersistenceNote } from "@/components/persistence-note"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
@@ -19,25 +19,20 @@ import { NumberOneStrip } from "@/components/home/number-one-strip"
 import { SubscriberTicker } from "@/components/home/subscriber-ticker"
 import {
   HOME_DOORS,
-  HOME_DUMMY,
   HOME_HEADER,
-  HOME_HEADER_META,
   HOME_HEADER_TOP,
   HOME_INBOX_DOOR,
-  HOME_NOTE,
-  HOME_RESET,
   HOME_TICKER,
   HOME_TITLE,
 } from "@/components/home/responsive"
 
 /**
  * The founder's pulse for the day: one thing, four numbers, three doors.
- * Must sit inside an IssuesProvider — the Dev board and Needs-you doors read
- * the Workplace store so Home always matches the board.
+ * No sample data: a card with no real source shows Not connected or its
+ * honest empty state. Sits inside an IssuesProvider for the page's instant.
  */
 export function HomeScreen() {
-  const store = useIssues()
-  const { issues, sprints, actors, now, persisted } = store
+  const { now } = useIssues()
   // The weekday and the clock read in the founder's Settings zone (Central
   // until the browser's copy is read, so the server HTML hydrates cleanly).
   const { timeZone } = useSettings()
@@ -46,13 +41,18 @@ export function HomeScreen() {
   // The page's instant, as the founder's calendar day: the same `today` the
   // Metrics page would compute, so the strip and door match it.
   const today = todayIn(now)
-  const needs = needsYou(buildInbox(now), issues)
-  const board = boardPreview(issues, sprints, actors, now)
-  // Until the browser's saved board is read, the two store-backed doors show
-  // placeholders rather than flashing the seed and then swapping.
-  const loading = !persisted
-  // Stripe's figures where it feeds them; the rest stay sample, labelled.
+  // Needs you: only the live Inbox rows that need the founder (a PR ready
+  // for review, a new/regressed/escalating Sentry issue), never sample.
+  // "PR needs a fix" and ongoing Sentry rows stay in the Inbox tab only.
+  const inbox = inboxScreen(useInboxView(), timeZone)
+  const needs = needsYou(inbox.needsYou, [])
+  // Stripe's figures where it feeds them; every other card says Not
+  // connected. No sample numbers, rows or priorities on Home.
   const feed = useStripeFeed()
+  // #50's connecting state comes through liveKpis / liveMetric: a Stripe
+  // card whose source has a key and is on its first sync (or Subscribers,
+  // while App Store payers are on their first read) is a placeholder marked
+  // `connecting`. With no key, every card is Not connected.
   const strip = liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)
   const mrr = liveMetric("mrr", feed, timeZone)
 
@@ -76,35 +76,40 @@ export function HomeScreen() {
               top bar (AppHeader), so this one starts at md. */}
           <SubscriberTicker variant="header" className={HOME_TICKER} />
         </div>
-        <div className={HOME_HEADER_META}>
-          {/* Home reads the Workplace's browser-saved board, so it says so
-              the same way the Workplace does. */}
-          <PersistenceNote
-            store={store}
-            className={HOME_NOTE}
-            resetClassName={HOME_RESET}
-          />
-          <span className={HOME_DUMMY}>Dummy / design mock</span>
-        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4">
-        <NumberOneStrip item={numberOne} />
+        {/* No source for the #1 yet (My Desk is not wired), so the honest empty state. */}
+        <NumberOneStrip item={null} />
         <KpiStrip kpis={strip} title={kpiStripTitle} />
         <div role="group" aria-label="Doors" className={HOME_DOORS}>
           <MetricsDoor
             // MRR always has a value (a sum, never a ratio), so no point is null.
-            trend={mrr.kind === "live" ? (mrr.metric.series as number[]) : mrrTrend({ today })}
+            trend={mrr.kind === "live" ? (mrr.metric.series as number[]) : []}
             today={today}
-            state={mrr.kind}
+            // MRR is a Stripe metric, never founder entries; that kind only
+            // narrows the type.
+            state={
+              mrr.kind === "loading" && mrr.connecting
+                ? "connecting"
+                : mrr.kind === "entries"
+                  ? "not_connected"
+                  : mrr.kind
+            }
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
-          <DevBoardDoor preview={board} loading={loading} />
+          {/* The Workplace board is a design mock with no live source yet,
+              so its door says Not connected. The Inbox door is live
+              (/api/inbox). */}
+          <DevBoardDoor preview={null} notConnected />
           <NeedsYouDoor
             className={HOME_INBOX_DOOR}
             needs={needs}
             now={now}
-            loading={loading}
+            loading={inbox.status === "loading"}
+            status={inbox.status === "loading" ? "connecting" : inbox.status}
+            updated={inbox.stale.length > 0 ? combineStaleNotes(inbox.stale).join(" · ") : null}
+            connectingTo={sourceList(inbox.connecting)}
           />
         </div>
       </div>
