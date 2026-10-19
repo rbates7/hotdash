@@ -11,18 +11,23 @@ import {
   MyDeskScreen,
   NOTES_FOOTER,
   SCRATCH_HINT,
+  SCRATCH_PLACEHOLDER,
   TODAY_FOOTER,
 } from "@/components/my-desk/my-desk-screen"
 import {
   MyDeskProvider,
   STORAGE_KEY,
   initialState,
-  reducer,
   saveState,
+  type State,
 } from "@/components/my-desk/my-desk-store"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import { LATE_EVENING_CT_MS } from "@/test/clock"
-import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME, RESET_DISABLED_HINT } from "@/components/persistence-note"
+import {
+  CLEAR_COPY,
+  CLEAR_DESCRIPTION,
+  PERSISTENCE_COPY,
+  PERSISTENCE_NOTE_NAME,
+} from "@/components/persistence-note"
 
 /** Noon Central on the day the mock was drawn, so the date chip matches it. */
 const NOW_MS = new Date("2026-08-26T17:00:00.000Z").getTime()
@@ -38,57 +43,108 @@ function renderScreen(nowMs = NOW_MS) {
 
 const todayList = () => screen.getByRole("region", { name: "Today list" })
 const notes = () => screen.getByRole("region", { name: "Notes" })
+const header = () => screen.getByRole("heading", { level: 1, name: "My Desk" }).closest("header")!
+/** The header's Add to-do (an empty list has a second one in its empty state). */
+const addTodoButton = () => within(header()).getByRole("button", { name: "Add to-do" })
+
+/** The founder's own desk: to-dos they added (ids after the old seed's) and a note they typed. */
+const MINE: State = {
+  todos: [
+    { id: "todo-8", title: "Book the bus", note: "Aledo trip", done: false, createdOn: DESK_MOCK_DAY, doneOn: null },
+    { id: "todo-9", title: "Order cones", note: "Two dozen, orange", done: false, createdOn: DESK_MOCK_DAY, doneOn: null },
+    {
+      id: "todo-10",
+      title: "Email the printer",
+      note: "Proofs back Thursday",
+      done: true,
+      createdOn: DESK_MOCK_DAY,
+      doneOn: DESK_MOCK_DAY,
+    },
+  ],
+  nextId: 11,
+  scratch: "Mine: call the printer back.",
+  scratchUpdatedAt: new Date(NOW_MS).toISOString(),
+}
+const saveMine = () => saveState(window.localStorage, MINE)
 
 describe("MyDeskScreen", () => {
-  it("renders the header, the lede, the shared note and chip, and Add to-do", () => {
+  it("renders the header, the lede, the shared note, Clear my entries and Add to-do; no Sample tag", () => {
     renderScreen()
     expect(screen.getByRole("heading", { level: 1, name: "My Desk" })).toBeInTheDocument()
     expect(screen.getByText(LEDE)).toBeInTheDocument()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
-    const header = screen.getByRole("heading", { level: 1, name: "My Desk" }).closest("header")!
-    expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-    expect(screen.getByRole("button", { name: "Add to-do" })).toBeEnabled()
+    const clear = within(header()).getByRole("button", { name: CLEAR_COPY.button })
+    expect(clear).toHaveAttribute("aria-disabled", "true")
+    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(addTodoButton()).toBeEnabled()
   })
 
-  it("shows Today and Notes with the mock's rows, date chip, open count and scratch", () => {
+  it("a fresh desk is empty: no to-dos, an empty scratch with its placeholder, the date chip and footers", () => {
     renderScreen()
     expect(within(todayList()).getByText("Today")).toBeInTheDocument()
     expect(screen.getByTestId("today-date")).toHaveTextContent(formatDeskDate(DESK_MOCK_DAY))
-    expect(screen.getByTestId("open-count")).toHaveTextContent("5")
+    expect(screen.getByTestId("open-count")).toHaveTextContent("0")
+    expect(todayList().querySelectorAll("[data-todo]")).toHaveLength(0)
+    expect(screen.getByRole("status", { name: "No to-dos" })).toHaveTextContent(EMPTY_COPY)
     expect(todayList()).toHaveTextContent(TODAY_FOOTER)
+    for (const seed of seedTodos()) expect(screen.queryByText(seed.title)).not.toBeInTheDocument()
 
-    const todos = seedTodos()
-    expect(todos).toHaveLength(7)
-    for (const todo of todos) {
+    expect(within(notes()).getByRole("heading", { name: "Scratch" })).toBeInTheDocument()
+    const scratch = screen.getByLabelText("Scratch")
+    expect(scratch).toHaveValue("")
+    expect(scratch).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
+    expect(notes()).toHaveTextContent(NOTES_FOOTER)
+    expect(notes()).toHaveTextContent(SCRATCH_HINT)
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+
+  it("shows the founder's saved rows, open count and scratch; no row or note carries a Sample tag", async () => {
+    const user = userEvent.setup()
+    saveMine()
+    renderScreen()
+    expect(screen.getByTestId("open-count")).toHaveTextContent("2")
+    for (const todo of MINE.todos) {
       const box = screen.getByRole("checkbox", { name: todo.title })
       expect(box).toHaveAttribute("aria-checked", String(todo.done))
       expect(screen.getByText(todo.note)).toBeInTheDocument()
     }
-
-    const done = screen.getByRole("checkbox", { name: "Text May — Dallas night" }).closest("li")!
+    const done = screen.getByRole("checkbox", { name: "Email the printer" }).closest("li")!
     expect(done).toHaveAttribute("data-done", "true")
-    expect(within(done).getByText("Text May — Dallas night")).toHaveClass("line-through")
+    expect(within(done).getByText("Email the printer")).toHaveClass("line-through")
+    expect(screen.getByLabelText("Scratch")).toHaveValue(MINE.scratch)
+    expect(screen.queryByRole("status", { name: "No to-dos" })).not.toBeInTheDocument()
 
-    expect(within(notes()).getByRole("heading", { name: "Scratch" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Scratch")).toHaveValue(SEED_SCRATCH)
-    expect(notes()).toHaveTextContent(NOTES_FOOTER)
-    expect(notes()).toHaveTextContent(SCRATCH_HINT)
-  })
-
-  it("marks every seed row and the seed scratch as sample data; a user row does not get the tag", async () => {
-    const user = userEvent.setup()
-    renderScreen()
-    expect(within(todayList()).getAllByTestId("sample-data-tag")).toHaveLength(7)
-    expect(within(notes()).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-
-    await user.click(screen.getByRole("button", { name: "Add to-do" }))
+    await user.click(addTodoButton())
     const dialog = await screen.findByRole("dialog", { name: "Add to-do" })
     await user.type(within(dialog).getByLabelText("Title"), "Walk the dog")
     await user.click(within(dialog).getByRole("button", { name: "Add to-do" }))
-    const added = screen.getByRole("checkbox", { name: "Walk the dog" }).closest("li")!
-    expect(within(added).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Walk the dog" })).toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+  })
+
+  it("an old copy with the seed shows only what the founder touched; the seed note is gone", () => {
+    const seed = seedTodos(DESK_MOCK_DAY)
+    const ticked = { ...seed[0], done: true, doneOn: DESK_MOCK_DAY }
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        todos: [ticked, ...seed.slice(1), MINE.todos[0]],
+        nextId: 9,
+        scratch: SEED_SCRATCH,
+        scratchUpdatedAt: new Date(NOW_MS).toISOString(),
+      })
+    )
+    renderScreen()
+    expect(
+      [...todayList().querySelectorAll("[data-todo]")].map((el) => el.getAttribute("data-todo"))
+    ).toEqual(["todo-1", "todo-8"])
+    expect(screen.getByRole("checkbox", { name: "Call Aledo" })).toHaveAttribute("aria-checked", "true")
+    expect(screen.queryByText("Clinic follow-up")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Scratch")).toHaveValue("")
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
   it("the Today chip is the Central day: 23:30 CT on 7 Oct still reads Wed 7 Oct", () => {
@@ -153,8 +209,8 @@ describe("MyDeskScreen", () => {
   })
 
   describe("hydration", () => {
-    it("shows skeletons, never the seed, until localStorage has been read", async () => {
-      saveState(window.localStorage, reducer(initialState(NOW_MS), { type: "remove", id: "todo-1" }))
+    it("shows skeletons, never the empty desk, until localStorage has been read", async () => {
+      saveMine()
       const removed: Element[] = []
       const observer = new MutationObserver((records) => {
         for (const r of records) for (const n of r.removedNodes) if (n instanceof Element) removed.push(n)
@@ -170,11 +226,11 @@ describe("MyDeskScreen", () => {
       expect(removed.some(wasSkeleton)).toBe(true)
       for (const el of removed) {
         expect(el.matches("[data-todo]") || el.querySelector("[data-todo]")).toBeFalsy()
-        expect(el.textContent).not.toContain("Call Aledo")
+        expect(el.textContent).not.toContain(EMPTY_COPY)
       }
       expect(screen.queryByRole("status", { name: "Loading saved desk" })).not.toBeInTheDocument()
-      expect(screen.queryByText("Call Aledo")).not.toBeInTheDocument()
-      expect(todayList().querySelectorAll("[data-todo]")).toHaveLength(6)
+      expect(screen.queryByText(EMPTY_COPY)).not.toBeInTheDocument()
+      expect(todayList().querySelectorAll("[data-todo]")).toHaveLength(3)
     })
   })
 
@@ -182,7 +238,7 @@ describe("MyDeskScreen", () => {
     it("opens the add dialog on the title, caps every field, and the submit waits for a title", async () => {
       const user = userEvent.setup()
       renderScreen()
-      await user.click(screen.getByRole("button", { name: "Add to-do" }))
+      await user.click(addTodoButton())
       const dialog = await screen.findByRole("dialog", { name: "Add to-do" })
       const title = within(dialog).getByLabelText("Title")
       await waitFor(() => expect(title).toHaveFocus())
@@ -200,7 +256,7 @@ describe("MyDeskScreen", () => {
     it("adds a to-do, checks it off, edits it, and the note says Saved", async () => {
       const user = userEvent.setup()
       renderScreen()
-      await user.click(screen.getByRole("button", { name: "Add to-do" }))
+      await user.click(addTodoButton())
       const add = await screen.findByRole("dialog", { name: "Add to-do" })
       await user.type(within(add).getByLabelText("Title"), "Walk the dog")
       await user.type(within(add).getByLabelText(/Note/), "after clinic")
@@ -210,12 +266,14 @@ describe("MyDeskScreen", () => {
       const box = screen.getByRole("checkbox", { name: "Walk the dog" })
       expect(box).toHaveAttribute("aria-checked", "false")
       expect(screen.getByText("after clinic")).toBeInTheDocument()
-      expect(screen.getByTestId("open-count")).toHaveTextContent("6")
+      expect(screen.getByTestId("open-count")).toHaveTextContent("1")
+      expect(screen.queryByRole("status", { name: "No to-dos" })).not.toBeInTheDocument()
       expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.saved)
+      expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeEnabled()
 
       await user.click(box)
       expect(box).toHaveAttribute("aria-checked", "true")
-      expect(screen.getByTestId("open-count")).toHaveTextContent("5")
+      expect(screen.getByTestId("open-count")).toHaveTextContent("0")
 
       await user.click(screen.getByRole("button", { name: "Edit Walk the dog" }))
       const edit = await screen.findByRole("dialog", { name: "Edit to-do" })
@@ -228,23 +286,24 @@ describe("MyDeskScreen", () => {
 
     it("delete asks first; Keep it leaves the row, Delete removes it, Undo puts it back", async () => {
       const user = userEvent.setup()
+      saveMine()
       renderScreen()
-      await user.click(screen.getByRole("button", { name: "Delete Call Aledo" }))
+      await user.click(screen.getByRole("button", { name: "Delete Book the bus" }))
       let dialog = await screen.findByRole("dialog", { name: "Delete this to-do?" })
-      expect(dialog).toHaveTextContent("Call Aledo")
+      expect(dialog).toHaveTextContent("Book the bus")
       await user.click(within(dialog).getByRole("button", { name: "Keep it" }))
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-      expect(screen.getByRole("checkbox", { name: "Call Aledo" })).toBeInTheDocument()
+      expect(screen.getByRole("checkbox", { name: "Book the bus" })).toBeInTheDocument()
 
-      await user.click(screen.getByRole("button", { name: "Delete Call Aledo" }))
+      await user.click(screen.getByRole("button", { name: "Delete Book the bus" }))
       dialog = await screen.findByRole("dialog", { name: "Delete this to-do?" })
       await user.click(within(dialog).getByRole("button", { name: "Delete" }))
-      expect(screen.queryByRole("checkbox", { name: "Call Aledo" })).not.toBeInTheDocument()
-      expect(screen.getByTestId("open-count")).toHaveTextContent("4")
+      expect(screen.queryByRole("checkbox", { name: "Book the bus" })).not.toBeInTheDocument()
+      expect(screen.getByTestId("open-count")).toHaveTextContent("1")
 
       await user.click(screen.getByRole("button", { name: "Undo" }))
-      expect(screen.getByRole("checkbox", { name: "Call Aledo" })).toBeInTheDocument()
-      expect(screen.getByTestId("open-count")).toHaveTextContent("5")
+      expect(screen.getByRole("checkbox", { name: "Book the bus" })).toBeInTheDocument()
+      expect(screen.getByTestId("open-count")).toHaveTextContent("2")
     })
   })
 
@@ -257,7 +316,7 @@ describe("MyDeskScreen", () => {
       await user.type(area, "A personal thought.")
       await user.tab()
       expect(screen.getByTestId("scratch-status")).toHaveTextContent(/Saved/)
-      expect(within(notes()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+      expect(screen.getByLabelText("Scratch")).toHaveValue("A personal thought.")
       expect(window.localStorage.getItem(STORAGE_KEY)).toContain("A personal thought.")
     })
 
@@ -455,17 +514,30 @@ describe("MyDeskScreen", () => {
     })
   })
 
-  it("Reset asks first and then puts the seed back", async () => {
+  it("Clear my entries asks first, keeps everything on Keep my edits, and Clear empties the desk and the key", async () => {
     const user = userEvent.setup()
-    saveState(window.localStorage, { ...initialState(NOW_MS), todos: [], scratch: "" })
+    saveMine()
     renderScreen()
-    await user.click(screen.getByRole("button", { name: "Reset" }))
-    const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
-    await user.click(within(dialog).getByRole("button", { name: "Reset" }))
-    expect(screen.getByRole("checkbox", { name: "Call Aledo" })).toBeInTheDocument()
-    expect(screen.getByLabelText("Scratch")).toHaveValue(SEED_SCRATCH)
+    const clear = within(header()).getByRole("button", { name: CLEAR_COPY.button })
+    expect(clear).toBeEnabled()
+
+    await user.click(clear)
+    let dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    expect(dialog).toHaveAccessibleDescription(CLEAR_DESCRIPTION)
+    await user.click(within(dialog).getByRole("button", { name: "Keep my edits" }))
+    expect(screen.getByRole("checkbox", { name: "Book the bus" })).toBeInTheDocument()
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+
+    await user.click(clear)
+    dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
+    expect(todayList().querySelectorAll("[data-todo]")).toHaveLength(0)
+    expect(screen.getByRole("status", { name: "No to-dos" })).toHaveTextContent(EMPTY_COPY)
+    expect(screen.getByLabelText("Scratch")).toHaveValue("")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
+    expect(within(header()).getByRole("button", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
   it("a failed save is announced and nothing claims Saved", async () => {
@@ -475,9 +547,12 @@ describe("MyDeskScreen", () => {
     })
     const user = userEvent.setup()
     renderScreen()
-    await user.click(screen.getByRole("checkbox", { name: "Call Aledo" }))
+    await user.click(addTodoButton())
+    const dialog = await screen.findByRole("dialog", { name: "Add to-do" })
+    await user.type(within(dialog).getByLabelText("Title"), "Walk the dog")
+    await user.click(within(dialog).getByRole("button", { name: "Add to-do" }))
     expect(screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })).toHaveTextContent(PERSISTENCE_COPY.failed)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
     spy.mockRestore()
   })
 })

@@ -8,7 +8,7 @@ import { clearState } from "@/components/my-desk/my-desk-store"
 
 /**
  * Last line of defence for this route. The store validates every saved
- * row and falls back to the seed on its own, so this should not fire; if
+ * row and falls back to an empty desk on its own, so this should not fire; if
  * something still gets through, the founder can clear the browser copy and
  * try again rather than being stuck on a broken page.
  */
@@ -34,8 +34,7 @@ export default function MyDeskError({
       </div>
       <p className="text-body text-muted-foreground">
         Something in this browser’s saved copy of My Desk could not be read.
-        Nothing is stored on a server; resetting discards the saved copy and shows the
-        sample to-dos and scratch note again.
+        Nothing is stored on a server; clearing discards the saved copy and starts an empty desk.
       </p>
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>

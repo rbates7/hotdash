@@ -6,12 +6,12 @@ import { now, todayIn, type IsoDay } from "@/lib/clock"
 import {
   isSeedScratch,
   isTodo,
+  isUntouchedSeedTodo,
   msUntilNextCentralMidnight,
   normalizeScratch,
   normalizeTodoInput,
   sameTodo,
-  seedTodos,
-  SEED_SCRATCH,
+  SEED_TODO_IDS,
   stripTodo,
   TODO_ID,
   TODO_LIMITS,
@@ -132,7 +132,7 @@ type Shell = PersistenceShell<State>
 /** The calendar day a shell measures from (America/Chicago). */
 export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
 
-/** The seed around the instant `nowMs` falls on. */
+/** A fresh desk at the instant `nowMs`: nothing in it. */
 const seedAt = (nowMs: number) => initialState(nowMs)
 
 export function shellReducer(shell: Shell, action: Action): Shell {
@@ -153,15 +153,32 @@ export function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-/** The seed: the mock's seven to-dos and one scratch note, dated from `nowMs`. */
+/**
+ * A fresh desk: no to-dos and an empty note. No sample rows, labelled or
+ * not. Ids start after the old seed's (`todo-1`…`todo-7`) so a new row
+ * never takes one of theirs.
+ */
 export function initialState(nowMs: number): State {
-  const todos = seedTodos(todayIn(new Date(nowMs)))
   return {
-    todos,
-    nextId: highestId(todos) + 1,
-    scratch: SEED_SCRATCH,
+    todos: [],
+    nextId: SEED_TODO_IDS.size + 1,
+    scratch: "",
     scratchUpdatedAt: new Date(nowMs).toISOString(),
   }
+}
+
+/**
+ * A copy saved before the seed was removed still holds it. Seed to-dos the
+ * founder never touched are dropped; ones they edited or ticked stay, as
+ * theirs. The scratch note is cleared only when it is still the seed's,
+ * character for character. The id counter never moves back, so no new row
+ * reuses an id.
+ */
+export function dropSeed(state: State): State {
+  const todos = state.todos.filter((t) => !isUntouchedSeedTodo(t))
+  const scratch = isSeedScratch(state.scratch) ? "" : state.scratch
+  if (todos.length === state.todos.length && scratch === state.scratch) return state
+  return { ...state, todos, scratch, nextId: Math.max(state.nextId, SEED_TODO_IDS.size + 1) }
 }
 
 /** The highest numeric suffix among todo-n ids; 0 when there are none. */
@@ -174,7 +191,7 @@ function highestId(todos: readonly Todo[]) {
 /**
  * My Desk is saved to this browser's localStorage under the shared policy
  * in `@/lib/persistence`: only after a real edit, validated whole on load,
- * Reset clears the key. Bump the version when the seed or shape changes.
+ * Clear my entries clears the key. Bump the version when the shape changes.
  */
 export const STORAGE_KEY = "hotdash.my-desk.v2"
 export const LEGACY_KEY = "hotdash.my-desk.v1"
@@ -182,7 +199,7 @@ export const LEGACY_KEY = "hotdash.my-desk.v1"
 /**
  * Every row is checked, not just the envelope: a bad type, a blank title,
  * a duplicate id or an id counter that would collide all drop the copy
- * for the seed.
+ * for a fresh, empty desk.
  */
 export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
@@ -206,9 +223,9 @@ export function stripState(state: State): State {
   }
 }
 
-/** The storage `parse`: validate every row, then keep only the known keys. */
+/** The storage `parse`: validate every row, keep only the known keys, drop the old seed. */
 export function parseState(value: unknown): State | null {
-  return isState(value) ? stripState(value) : null
+  return isState(value) ? dropSeed(stripState(value)) : null
 }
 
 export const deskStorage = createStorage<State>({
@@ -285,7 +302,7 @@ export function migrateV1(v1: V1State, today: IsoDay): State | null {
     scratch: v1.scratch,
     scratchUpdatedAt: v1.scratchUpdatedAt,
   }
-  return isState(state) ? stripState(state) : null
+  return isState(state) ? dropSeed(stripState(state)) : null
 }
 
 /**
@@ -335,7 +352,6 @@ type Store = State &
     today: IsoDay
     /** The shell clock, for "Saved 5m ago" on the scratch note. */
     nowMs: number
-    scratchSample: boolean
     addTodo: (input: TodoInput) => void
     updateTodo: (id: string, input: TodoInput) => void
     toggleTodo: (id: string) => void
@@ -397,7 +413,7 @@ export function MyDeskProvider({
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
   // layout effect — before paint — so the first frame is already the
-  // founder's data, never a flash of seed. This first hydrate is the only
+  // founder's data, never a flash of the empty desk. This first hydrate is the only
   // one dated from the request. v1 is migrated in memory; nothing is written.
   React.useLayoutEffect(() => {
     if (holdHydration) return
@@ -407,7 +423,7 @@ export function MyDeskProvider({
   const onHydrate = React.useCallback(
     (result: LoadResult<State>, hydrateNowMs: number) => {
       dispatch({ type: "hydrate", result, nowMs: hydrateNowMs })
-      // Another tab's Reset (no copy) reseeds from `now()`; move the
+      // Another tab's Clear (no copy) starts fresh from `now()`; move the
       // calendar day with that instant so the chip and stamps match.
       if (result.state === null) setDay(todayIn(new Date(hydrateNowMs)))
     },
@@ -425,7 +441,6 @@ export function MyDeskProvider({
       ...state,
       today: day,
       nowMs,
-      scratchSample: isSeedScratch(state.scratch),
       persisted,
       edited,
       saved,
