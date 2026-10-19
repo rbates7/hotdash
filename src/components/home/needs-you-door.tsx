@@ -6,6 +6,7 @@ import type { NeedsYou } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import { DoorNotConnected } from "@/components/home/not-connected"
 import { HOME_NEED_ROW } from "@/components/home/responsive"
 
 const INBOX_HREF = "/agent-workplace?tab=inbox"
@@ -25,6 +26,7 @@ export function NeedsYouDoor({
   needs,
   now,
   loading = false,
+  notConnected = false,
   className,
 }: {
   needs: NeedsYou
@@ -32,6 +34,8 @@ export function NeedsYouDoor({
   now: Date
   /** True until the browser's saved board has been read; shows placeholders. */
   loading?: boolean
+  /** No live Inbox source yet: no rows, no count, just Not connected. */
+  notConnected?: boolean
   className?: string
 }) {
   const { items, waiting, overflow } = needs
@@ -41,11 +45,13 @@ export function NeedsYouDoor({
       name="Inbox"
       href={INBOX_HREF}
       icon={InboxIcon}
-      count={!loading && waiting > 0 ? `${waiting} waiting` : undefined}
+      count={!notConnected && !loading && waiting > 0 ? `${waiting} waiting` : undefined}
       caption="Needs you lives here."
       className={className}
     >
-      {loading ? (
+      {notConnected ? (
+        <DoorNotConnected hint="What needs you will show here once the Inbox has a live source." />
+      ) : loading ? (
         <div aria-busy="true" aria-label="Loading what needs you" className="flex flex-col gap-2">
           <Skeleton className="h-3 w-16" />
           {[0, 1, 2].map((n) => (

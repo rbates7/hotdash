@@ -22,24 +22,6 @@ export const HOME_TITLE = "min-w-0 max-md:w-full xl:mr-auto"
 /** The header ticker is tablet-up; the phone one is in the top bar. */
 export const HOME_TICKER = "max-md:hidden xl:order-last xl:mt-0.5"
 
-/**
- * Persistence + dummy chip sit under the title below `xl` (1280). They wrap
- * as whole chips (`shrink-0`) so the stamp never ellipsizes to
- * “DUMMY / DESIGN MO…”.
- */
-export const HOME_HEADER_META =
-  "flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 max-md:pt-0 xl:mt-1 xl:w-auto xl:shrink-0 xl:gap-2.5"
-
-/** Dummy / design-mock stamp — never shrink or truncate. */
-export const HOME_DUMMY =
-  "text-muted-foreground border-surface-border bg-surface shrink-0 rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] whitespace-nowrap uppercase"
-
-/** Extra root classes — Home is the screen that wraps the note. */
-export const HOME_NOTE = "max-w-full shrink-0 flex-wrap"
-
-/** Passed to PersistenceNote so Reset is 44px on phone/tablet. */
-export const HOME_RESET = "max-xl:h-11! max-xl:px-2.5!"
-
 export const HOME_DOORS =
   "grid min-h-[200px] flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
 
