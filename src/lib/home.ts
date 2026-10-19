@@ -9,8 +9,9 @@ import {
   sprintProgress,
   workingAgentIds,
 } from "@/lib/issues"
-import { CENTRAL } from "@/lib/clock"
+import { CENTRAL, todayIn } from "@/lib/clock"
 import { pendingInboxItems } from "@/lib/inbox"
+import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 import type { InboxItem } from "@/lib/workplace-fixture"
 
 /* ------------------------------------------------------------------ types */
@@ -28,6 +29,15 @@ export type Kpi = {
   direction: KpiDirection
   /** Churn-style metrics: a drop is the healthy move, so it reads as good. */
   lowerIsBetter?: boolean
+  /**
+   * Where the figure comes from: absent or `sample` is the dummy fixture
+   * (labelled), `stripe` is live, `loading` is waiting for Stripe.
+   */
+  source?: "sample" | "stripe" | "loading"
+  /** "Last updated …" on a stale Stripe figure. */
+  updated?: string | null
+  /** Live Subscribers only: the groups the total adds up. */
+  breakdown?: SubscriberBreakdownView
 }
 
 /** The single thing the founder has pinned for today, lifted from My Desk. */
@@ -73,11 +83,16 @@ export function kpiTone(kpi: Pick<Kpi, "direction" | "lowerIsBetter">): KpiTone 
 }
 
 /**
- * The page lede, e.g. "Wednesday pulse". The founder is in Central time, so
- * the weekday is read there rather than wherever the server happens to run.
+ * The page lede, e.g. "Wednesday pulse": the weekday of the calendar day
+ * `date` falls on in `timeZone` (the founder's Settings choice; Central by
+ * default), never wherever the server happens to run.
  */
 export function pulseLabel(date: Date, timeZone: string = CENTRAL) {
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long", timeZone })
+  // `todayIn` resolves the zone; the day itself is read back in UTC.
+  const weekday = new Date(`${todayIn(date, timeZone)}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  })
   return `${weekday} pulse`
 }
 

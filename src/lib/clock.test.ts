@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   CENTRAL,
+  DEFAULT_TIME_ZONE,
+  TIME_ZONES,
+  formatWallClock,
+  isTimeZoneId,
+  timeZoneOption,
   addDays,
   daysBetween,
   formatDate,
@@ -17,6 +22,8 @@ import {
   windowsEnding,
   now,
   periodEnding,
+  startOfDay,
+  startOfWeek,
   toDay,
   todayIn,
 } from "@/lib/clock"
@@ -246,5 +253,66 @@ describe("formatRelativeDay — calendar days in Central, both directions", () =
     expect(formatRelativeDay("2026-03-09", "2026-03-07")).toBe("in 2 days") // US spring-forward weekend
     expect(formatRelativeDay("2026-01-01", "2025-12-31")).toBe("Tomorrow")
     expect(formatRelativeDay("2025-12-31", "2026-01-01")).toBe("Yesterday")
+  })
+})
+
+describe("time zones", () => {
+  it("offer the US zones plus UTC, Central by default", () => {
+    expect(DEFAULT_TIME_ZONE).toBe(CENTRAL)
+    expect(TIME_ZONES.map((z) => z.label)).toEqual([
+      "Eastern",
+      "Central",
+      "Mountain",
+      "Arizona",
+      "Pacific",
+      "Alaska",
+      "Hawaii",
+      "UTC",
+    ])
+  })
+
+  it("validate ids and fall back to Central for anything unknown", () => {
+    expect(isTimeZoneId("America/Denver")).toBe(true)
+    expect(isTimeZoneId("Europe/Paris")).toBe(false)
+    expect(isTimeZoneId(42)).toBe(false)
+    expect(timeZoneOption("nope").id).toBe(CENTRAL)
+    expect(timeZoneOption("UTC").label).toBe("UTC")
+  })
+
+  it("format the wall clock in the chosen zone, not the machine's", () => {
+    // 23:30 Central on 7 Oct is 8 Oct in UTC and 21:30 in Pacific.
+    expect(formatWallClock(LATE_EVENING_CT)).toBe("Wed, Oct 7 · 11:30 PM CDT")
+    expect(formatWallClock(LATE_EVENING_CT, "UTC")).toBe("Thu, Oct 8 · 4:30 AM UTC")
+    expect(formatWallClock(LATE_EVENING_CT, "America/Los_Angeles")).toBe("Wed, Oct 7 · 9:30 PM PDT")
+    expect(formatWallClock(LATE_EVENING_CT, "America/Phoenix")).toBe("Wed, Oct 7 · 9:30 PM MST")
+  })
+})
+
+describe("startOfDay / startOfWeek — a zone's own midnight", () => {
+  it("is 00:00 on the zone's wall clock, CDT and CST", () => {
+    expect(startOfDay("2026-10-14", CENTRAL).toISOString()).toBe("2026-10-14T05:00:00.000Z")
+    expect(startOfDay("2026-12-01", CENTRAL).toISOString()).toBe("2026-12-01T06:00:00.000Z")
+    expect(startOfDay("2026-10-14", "UTC").toISOString()).toBe("2026-10-14T00:00:00.000Z")
+    expect(startOfDay("2026-10-14", "America/Los_Angeles").toISOString()).toBe("2026-10-14T07:00:00.000Z")
+    expect(startOfDay("2026-10-14", "Pacific/Honolulu").toISOString()).toBe("2026-10-14T10:00:00.000Z")
+  })
+
+  it("survives the DST changes on either side", () => {
+    // Spring forward 8 Mar 2026, fall back 1 Nov 2026 (both at 02:00 local).
+    expect(startOfDay("2026-03-08", CENTRAL).toISOString()).toBe("2026-03-08T06:00:00.000Z")
+    expect(startOfDay("2026-03-09", CENTRAL).toISOString()).toBe("2026-03-09T05:00:00.000Z")
+    expect(startOfDay("2026-11-01", CENTRAL).toISOString()).toBe("2026-11-01T05:00:00.000Z")
+    expect(startOfDay("2026-11-02", CENTRAL).toISOString()).toBe("2026-11-02T06:00:00.000Z")
+  })
+
+  it("startOfWeek is the Monday of the zone's week, not the machine's", () => {
+    // Wed 14 Oct 2026, 03:00 UTC = Tue 13 Oct 22:00 Central.
+    const at = new Date("2026-10-14T03:00:00.000Z")
+    expect(startOfWeek(at, CENTRAL).toISOString()).toBe("2026-10-12T05:00:00.000Z")
+    expect(startOfWeek(at, "UTC").toISOString()).toBe("2026-10-12T00:00:00.000Z")
+    // A Monday is its own week start; a Sunday belongs to the week before.
+    expect(startOfWeek(new Date("2026-10-12T05:00:00.000Z"), CENTRAL).toISOString()).toBe("2026-10-12T05:00:00.000Z")
+    expect(startOfWeek(new Date("2026-10-19T04:59:59.000Z"), CENTRAL).toISOString()).toBe("2026-10-12T05:00:00.000Z")
+    expect(startOfWeek(LATE_EVENING_CT, CENTRAL).toISOString()).toBe("2026-10-05T05:00:00.000Z")
   })
 })

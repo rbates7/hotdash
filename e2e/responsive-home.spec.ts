@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
+import { liveSummary } from "./support/stripe"
+import { expectTapTarget } from "./support/tap-target"
 
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 844 },
@@ -11,12 +13,13 @@ async function pageOverflowX(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
 }
 
-async function expectTapTarget(locator: ReturnType<Page["getByRole"]>, label: string) {
-  await expect(locator, label).toBeVisible()
-  const box = await locator.boundingBox()
-  expect(box, `${label}: painted`).toBeTruthy()
-  expect(box!.height, `${label}: height`).toBeGreaterThanOrEqual(44)
-  expect(box!.width, `${label}: width`).toBeGreaterThanOrEqual(44)
+/**
+ * Wait for /api/stripe/summary to answer: nothing on Home still shows a
+ * Stripe placeholder. The placeholders hold the loaded height, but geometry
+ * is measured against the settled page all the same.
+ */
+async function stripeSettled(page: Page) {
+  await expect(page.locator('main [data-source="loading"]')).toHaveCount(0)
 }
 
 function boxesOverlap(
@@ -41,7 +44,7 @@ for (const vp of VIEWPORTS) {
       ).toBeVisible()
       await expect(page.getByRole("article", { name: "Subscribers" })).toBeVisible()
       await expect(page.getByRole("article", { name: "Cash this week" })).toBeVisible()
-      await expect(page.getByText("186")).toBeVisible()
+      await expect(page.getByRole("article", { name: "Subscribers" }).getByText("186")).toBeVisible()
       await expect(page.getByText("3 agents working")).toBeVisible()
       await expect(page.getByText("2 waiting")).toBeVisible()
 
@@ -106,6 +109,7 @@ test.describe("responsive Home (tablet-landscape 1180)", () => {
     await expect(metrics).toBeVisible()
     await expect(workplace).toBeVisible()
     await expect(inbox).toBeVisible()
+    await stripeSettled(page)
     const m = await metrics.boundingBox()
     const w = await workplace.boundingBox()
     const i = await inbox.boundingBox()
@@ -130,6 +134,7 @@ test.describe("responsive Home (desktop 1440)", () => {
     await expect(metrics).toBeVisible()
     await expect(workplace).toBeVisible()
     await expect(inbox).toBeVisible()
+    await stripeSettled(page)
     const m = await metrics.boundingBox()
     const w = await workplace.boundingBox()
     const i = await inbox.boundingBox()
@@ -141,6 +146,41 @@ test.describe("responsive Home (desktop 1440)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
+
+const SETTLE_VIEWPORTS = [
+  { name: "phone 390", width: 390, height: 844 },
+  { name: "desktop 1440", width: 1440, height: 900 },
+] as const
+
+const SETTLE_CASES = SETTLE_VIEWPORTS.flatMap((vp) =>
+  (["not connected", "connected"] as const).map((answer) => ({ vp, answer }))
+)
+
+for (const { vp, answer } of SETTLE_CASES) {
+  test.describe(`responsive Home (${vp.name}, Stripe ${answer})`, () => {
+    test.use({ viewport: { width: vp.width, height: vp.height } })
+
+    test("the doors do not move when the Stripe summary lands", async ({ page }) => {
+      let release!: () => void
+      const held = new Promise<void>((r) => (release = r))
+      await page.route("**/api/stripe/summary**", async (route) => {
+        await held
+        // Not connected is the e2e server's own answer (it has no key).
+        if (answer === "connected") await route.fulfill({ json: liveSummary("connected") })
+        else await route.continue()
+      })
+      await page.goto("/home")
+      const doors = page.getByRole("group", { name: "Doors" })
+      await expect(page.getByRole("article", { name: "Subscribers" })).toHaveAttribute("data-source", "loading")
+      const before = await doors.boundingBox()
+      release()
+      await stripeSettled(page)
+      const after = await doors.boundingBox()
+      expect(before && after, "doors painted").toBeTruthy()
+      expect(after!.y, "placeholders hold the loaded height").toBe(before!.y)
+    })
+  })
+}
 
 const TILE_WIDTHS = [
   { name: "820", width: 820, height: 1180 },

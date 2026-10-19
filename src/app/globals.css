@@ -64,6 +64,8 @@
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
   --color-danger-text: var(--danger-text);
+  /* The same, on an inverted surface (the tooltip: foreground-on-background). */
+  --color-warning-text-inverse: var(--warning-text-inverse);
   /* Role-named type scale, after Multica: name sizes by what they are for,
      not how big they are. `text-body` is the workhorse. */
   --text-micro: 11px;
@@ -148,6 +150,7 @@
   /* Status text on --surface (white): green-800 / amber-800 / red-700 territory. */
   --success-text: oklch(0.45 0.14 145);
   --warning-text: oklch(0.47 0.12 70);
+  --warning-text-inverse: oklch(0.86 0.15 85);
   --danger-text: oklch(0.50 0.19 28);
 
   /* Chlk brand — the blue on the founder avatar and the active nav item. */
@@ -211,6 +214,7 @@
   /* Status text on --surface (oklch 0.21): green-300 / amber-300 / red-300 territory. */
   --success-text: oklch(0.82 0.16 145);
   --warning-text: oklch(0.86 0.15 85);
+  --warning-text-inverse: oklch(0.47 0.12 70);
   --danger-text: oklch(0.80 0.14 25);
 
   --brand: oklch(0.588 0.166 253);
@@ -238,5 +242,60 @@
 
   body {
     @apply min-h-full bg-background text-foreground;
+  }
+}
+
+/* Home subscriber ticker (split-flap). 60ms per flap: the old top half
+   falls over the split (0 → -90°, 30ms ease-in), then the new bottom half
+   lands (90° → 0, 30ms ease-out). Reduced motion never renders a flap —
+   the number crossfades over 150ms instead — and the guard below holds
+   even if one slipped through. */
+@keyframes ticker-flap-top {
+  from { transform: perspective(160px) rotateX(0deg); }
+  to { transform: perspective(160px) rotateX(-90deg); }
+}
+@keyframes ticker-flap-bottom {
+  from { transform: perspective(160px) rotateX(90deg); }
+  to { transform: perspective(160px) rotateX(0deg); }
+}
+@keyframes ticker-enter {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ticker-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ticker-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes ticker-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+.ticker-flap-top {
+  transform-origin: 50% 100%;
+  backface-visibility: hidden;
+  animation: ticker-flap-top 30ms ease-in both;
+}
+.ticker-flap-bottom {
+  transform-origin: 50% 0%;
+  backface-visibility: hidden;
+  animation: ticker-flap-bottom 30ms ease-out 30ms both;
+}
+.ticker-enter {
+  animation: ticker-enter 120ms ease-out both;
+}
+.ticker-fade-in {
+  animation: ticker-fade-in 150ms ease both;
+}
+.ticker-fade-out {
+  animation: ticker-fade-out 150ms ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-flap],
+  .ticker-enter {
+    animation: none !important;
   }
 }

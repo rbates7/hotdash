@@ -19,6 +19,58 @@ export function now(): Date {
 /** Where the founder is. Display-side weekday and clock labels use it. */
 export const CENTRAL = "America/Chicago"
 
+/* ------------------------------------------------------------ time zones */
+
+/**
+ * The zones Settings offers: the US zones plus UTC. Central is the default
+ * and what every screen still dates its figures in; the founder's choice is
+ * stored by Settings and read back through `timeZoneOption` /
+ * `formatWallClock` — never a zone string copied into a component.
+ */
+export const TIME_ZONES = [
+  { id: "America/New_York", label: "Eastern" },
+  { id: CENTRAL, label: "Central" },
+  { id: "America/Denver", label: "Mountain" },
+  { id: "America/Phoenix", label: "Arizona" },
+  { id: "America/Los_Angeles", label: "Pacific" },
+  { id: "America/Anchorage", label: "Alaska" },
+  { id: "Pacific/Honolulu", label: "Hawaii" },
+  { id: "UTC", label: "UTC" },
+] as const
+
+export type TimeZoneId = (typeof TIME_ZONES)[number]["id"]
+
+export const DEFAULT_TIME_ZONE: TimeZoneId = CENTRAL
+
+export function isTimeZoneId(value: unknown): value is TimeZoneId {
+  return TIME_ZONES.some((zone) => zone.id === value)
+}
+
+/** The option for `id`; anything unknown falls back to Central. */
+export function timeZoneOption(id: unknown) {
+  return TIME_ZONES.find((zone) => zone.id === id) ?? TIME_ZONES[1]
+}
+
+/**
+ * "Tue, Oct 13 · 9:41 PM CDT": an instant as the wall clock reads in
+ * `timeZone`, with the zone's own abbreviation so the label is never
+ * ambiguous about which clock it means.
+ */
+export function formatWallClock(instant: Date, timeZone: string = CENTRAL) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).formatToParts(instant)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? ""
+  return `${get("weekday")}, ${get("month")} ${get("day")} · ${get("hour")}:${get("minute")} ${get("dayPeriod")} ${get("timeZoneName")}`
+}
+
 /* ------------------------------------------------------------ calendar */
 
 /**
@@ -51,6 +103,43 @@ export function todayIn(instant: Date, timeZone: string = CENTRAL): IsoDay {
         })
   // en-CA formats as YYYY-MM-DD already.
   return fmt.format(instant)
+}
+
+/** How far `timeZone`'s wall clock is ahead of UTC at `instant`, in ms. */
+function zoneOffsetMs(instant: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant)
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value)
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"))
+  return wall - Math.floor(instant.getTime() / 1000) * 1000
+}
+
+/**
+ * The instant 00:00 falls on `day` in `timeZone`. Every US zone changes its
+ * clocks at 02:00, so midnight always exists exactly once; the offset is
+ * read twice so a day that starts on one side of a change and is guessed
+ * from the other still lands on the zone's own midnight.
+ */
+export function startOfDay(day: IsoDay, timeZone: string = CENTRAL): Date {
+  const utcMidnight = Date.parse(`${day}T00:00:00Z`)
+  const first = utcMidnight - zoneOffsetMs(new Date(utcMidnight), timeZone)
+  return new Date(utcMidnight - zoneOffsetMs(new Date(first), timeZone))
+}
+
+/** Monday 00:00 of the week `instant` falls in, on `timeZone`'s calendar. */
+export function startOfWeek(instant: Date, timeZone: string = CENTRAL): Date {
+  const day = todayIn(instant, timeZone)
+  // 0 = Sunday … 6 = Saturday, read from the calendar day itself.
+  const weekday = new Date(`${day}T00:00:00Z`).getUTCDay()
+  return startOfDay(addDays(day, -((weekday + 6) % 7)), timeZone)
 }
 
 /** An instant becomes its Central calendar day; a day passes through. */

@@ -1,8 +1,10 @@
+import { CASH_NOTE, MRR_NOTE } from "@/lib/live-metrics"
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
 import { kpiTone, type Kpi, type KpiTone } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { SampleDataTag } from "@/components/sample-data"
+import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 import { HOME_KPI_HEAD } from "@/components/home/responsive"
 
 const TONE_CLASS: Record<KpiTone, string> = {
@@ -39,8 +41,15 @@ export function DeltaPill({ kpi }: { kpi: Kpi }) {
 
 const SAMPLE_LABEL_ID = "kpi-sample-data"
 
-/** Strip-level note: says plainly that the figures are invented. */
-export function SampleDataLabel() {
+/**
+ * Strip-level note: says plainly that the figures are invented.
+ * `reserve` is an empty box the label's size instead (no words, so nothing
+ * claims "sample" before Stripe answers), so the strip is the same height —
+ * wrapping on a phone included — whether Stripe is loading, live or not
+ * connected. Keep its width in step with the label's (281px).
+ */
+export function SampleDataLabel({ reserve = false }: { reserve?: boolean }) {
+  if (reserve) return <span aria-hidden data-testid="kpi-sample-reserve" className="h-6 w-[282px] max-w-full" />
   return (
     <p id={SAMPLE_LABEL_ID} role="note" data-testid="kpi-sample-label" className="inline-flex">
       <SampleDataTag className="text-caption h-6 px-2">· figures are invented, not live</SampleDataTag>
@@ -48,22 +57,56 @@ export function SampleDataLabel() {
   )
 }
 
+const isSample = (kpi: Kpi) => !kpi.source || kpi.source === "sample"
+
 export function KpiCard({ kpi }: { kpi: Kpi }) {
+  const sample = isSample(kpi)
+  const loading = kpi.source === "loading"
   return (
     <article
       aria-label={kpi.label}
-      aria-describedby={SAMPLE_LABEL_ID}
+      aria-describedby={sample ? SAMPLE_LABEL_ID : undefined}
+      aria-busy={loading || undefined}
+      data-source={kpi.source ?? "sample"}
       className="bg-surface border-surface-border flex min-h-[124px] flex-col rounded-xl border px-[18px] pt-[18px] pb-4"
     >
-      <div className="flex items-start justify-between gap-2">
+      {/* min-h-5: the Sample tag's height, held when there is no tag. */}
+      <div className="flex min-h-5 items-start justify-between gap-2">
         <p className="text-label font-semibold tracking-tight">{kpi.label}</p>
-        <SampleDataTag />
+        {sample && <SampleDataTag />}
       </div>
-      <p className="mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums">
-        {kpi.value}
+      <p
+        className={cn(
+          "mt-3.5 text-[26px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
+          loading && "text-muted-foreground"
+        )}
+      >
+        {loading ? <span aria-label="Loading">–</span> : kpi.value}
       </p>
+      {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
+        <p data-testid="kpi-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+          {kpi.id === "mrr" ? MRR_NOTE : CASH_NOTE}
+        </p>
+      )}
+      {kpi.updated && (
+        <p data-testid="kpi-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+          {kpi.updated}
+        </p>
+      )}
+      {/* The total's three groups; a sample or loading card keeps their room. */}
+      {kpi.id === "subscribers" && (
+        <SubscriberBreakdown breakdown={kpi.breakdown} reserve={!kpi.breakdown} className="mt-2.5" />
+      )}
+      {/* Always a pill's height: a loading card or one with no comparison
+          keeps the row, so the strip does not grow when the figures land. */}
       <p className="mt-auto pt-3">
-        <DeltaPill kpi={kpi} />
+        {kpi.delta ? (
+          <DeltaPill kpi={kpi} />
+        ) : (
+          <span aria-hidden className="invisible">
+            <DeltaPill kpi={{ ...kpi, delta: "\u00a0" }} />
+          </span>
+        )}
       </p>
     </article>
   )
@@ -76,7 +119,7 @@ export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
         <h2 className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
           {title}
         </h2>
-        <SampleDataLabel />
+        <SampleDataLabel reserve={!kpis.some(isSample)} />
       </div>
       <div
         className={cn(

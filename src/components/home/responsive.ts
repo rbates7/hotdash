@@ -11,6 +11,18 @@ export const HOME_HEADER =
   "flex flex-col items-stretch gap-3 max-md:w-full xl:flex-row xl:items-start xl:justify-between xl:gap-4"
 
 /**
+ * Title + subscriber ticker. Below `xl` they share the first row (ticker
+ * top-right); at `xl` the wrapper dissolves so the ticker can sit last in
+ * the one-line header, after the persistence note and dummy stamp.
+ */
+export const HOME_HEADER_TOP = "flex items-start justify-between gap-3 xl:contents"
+
+export const HOME_TITLE = "min-w-0 max-md:w-full xl:mr-auto"
+
+/** The header ticker is tablet-up; the phone one is in the top bar. */
+export const HOME_TICKER = "max-md:hidden xl:order-last xl:mt-0.5"
+
+/**
  * Persistence + dummy chip sit under the title below `xl` (1280). They wrap
  * as whole chips (`shrink-0`) so the stamp never ellipsizes to
  * “DUMMY / DESIGN MO…”.

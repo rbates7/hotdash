@@ -20,10 +20,10 @@ import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 
-function renderHome(pulse = "Wednesday pulse") {
+function renderHome() {
   return render(
     <IssuesProvider nowMs={FIXED_NOW_MS}>
-      <HomeScreen pulse={pulse} />
+      <HomeScreen />
     </IssuesProvider>
   )
 }
@@ -35,9 +35,10 @@ function seedStore(mutate: (state: State) => State) {
 
 describe("HomeScreen", () => {
   it("shows the heading, the day's pulse and the dummy stamp", () => {
-    renderHome("Wednesday pulse")
+    renderHome()
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument()
-    expect(screen.getByText("Wednesday pulse")).toBeInTheDocument()
+    // FIXED_NOW is Thursday in Central, the default zone.
+    expect(screen.getByText("Thursday pulse")).toBeInTheDocument()
     expect(screen.getByText("Dummy / design mock")).toBeInTheDocument()
   })
 
@@ -227,7 +228,7 @@ describe("HomeScreen before the saved board is read", () => {
   it("server HTML shows placeholders, not the seed, and says edits are loading", () => {
     const html = renderToStaticMarkup(
       <IssuesProvider nowMs={FIXED_NOW_MS}>
-        <HomeScreen pulse="Thursday pulse" />
+        <HomeScreen />
       </IssuesProvider>
     )
     expect(html).toContain('aria-busy="true"')
@@ -238,12 +239,16 @@ describe("HomeScreen before the saved board is read", () => {
     // The parts that do not depend on the browser copy render straight away.
     expect(html).toContain("Call Aledo before Friday")
     expect(html).toContain("Subscribers")
-    expect(html).toContain("$7,848")
-    // The sample caveat is in the first paint, not added after hydration.
-    expect(html).toContain("Sample data")
-    expect(html).toContain("figures are invented, not live")
-    // Two card chips, the strip label, and the Metrics door.
-    expect(html.match(/data-testid="sample-data-tag"/g)).toHaveLength(4)
+    // Stripe-fed figures wait for /api/stripe/summary: a placeholder, never
+    // a sample number that could swap for a live one (or the reverse).
+    expect(html).not.toContain("$7,848")
+    expect(html).toContain('aria-label="Subscribers" aria-busy="true" data-source="loading"')
+    expect(html).toContain('aria-label="Cash this week" aria-busy="true" data-source="loading"')
+    expect(html).not.toContain("figures are invented, not live")
+    expect(html).not.toContain('data-testid="sample-data-tag"')
+    // The ticker shows its loading row, not a figure.
+    expect(html).toContain('<span class="sr-only">Loading subscriber count</span>')
+    expect(html).not.toContain("data-flap")
   })
 
   it("swaps to the data and the persistence note once mounted", async () => {

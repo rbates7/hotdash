@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
+import { liveSummary, setStripeSummaryForTest } from "@/test/stripe"
 import { todayIn } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
@@ -52,7 +53,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
   function renderHome() {
     return render(
       <IssuesProvider nowMs={FIXED_NOW_MS}>
-        <HomeScreen pulse="Thursday pulse" />
+        <HomeScreen />
       </IssuesProvider>
     )
   }
@@ -104,5 +105,29 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     for (const [name, value] of Object.entries(rendered)) {
       expect(within(screen.getByRole("article", { name })).getByText(value!)).toBeInTheDocument()
     }
+  })
+
+  it("with Stripe connected, Home's Subscribers, ticker and MRR door match the live Metrics cards", () => {
+    setStripeSummaryForTest(liveSummary("connected"))
+    const metrics = renderMetrics()
+    const grid = screen.getByRole("region", { name: "Metric cards" })
+    const subsCard = within(grid).getByRole("article", { name: /^Subscribers\b/ })
+    const subs = within(subsCard).getByTestId("metric-value").textContent
+    const subsTrend = within(subsCard).getByTestId("trend").textContent
+    const subsRows = within(subsCard).getByTestId("subscriber-breakdown").textContent
+    const mrrName = within(within(grid).getByRole("article", { name: /^MRR\b/ })).getByRole("img").getAttribute("aria-label")!
+    metrics.unmount()
+
+    renderHome()
+    const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
+    expect(subs).toBe("1,337")
+    expect(within(homeCard).getByText(subs!)).toBeInTheDocument()
+    expect(homeCard).toHaveTextContent(`${subsTrend} vs previous`)
+    expect(within(homeCard).getByTestId("subscriber-breakdown").textContent).toBe(subsRows)
+    expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Subscribers: ${subs}`)
+    // Same six MRR points: $52,000 … $61,235 on the card, $52k → $61.2k on the door.
+    expect(mrrName).toContain("$52,000")
+    expect(mrrName).toContain("$61,235")
+    expect(within(screen.getByRole("region", { name: "Metrics" })).getByText(/\$52k → \$61\.2k/)).toBeInTheDocument()
   })
 })

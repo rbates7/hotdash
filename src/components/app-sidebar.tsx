@@ -7,11 +7,12 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleQuestionMarkIcon,
-  LogOutIcon,
   XIcon,
 } from "lucide-react"
 
-import { isActiveRoute, navItems } from "@/lib/nav"
+import { isActiveRoute, settingsItem } from "@/lib/nav"
+import { visibleNavItems } from "@/lib/settings"
+import { useSettings } from "@/hooks/use-settings"
 import { cn } from "@/lib/utils"
 import { FounderIdentity } from "@/components/founder-identity"
 import { Button } from "@/components/ui/button"
@@ -101,6 +102,10 @@ function DrawerClose() {
 export function AppSidebar() {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
+  // Settings › Sidebar: the founder's order and hidden screens. The server
+  // and first client render use the default order, so hydration matches.
+  const { sidebar } = useSettings()
+  const items = React.useMemo(() => visibleNavItems(sidebar), [sidebar])
 
   // Route changes close the overlay. Same-page clicks are handled on the link.
   React.useEffect(() => {
@@ -132,7 +137,7 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navItems.map((item) => {
+                {items.map((item) => {
                   const active =
                     !item.external && isActiveRoute(pathname, item.href)
                   return (
@@ -178,6 +183,18 @@ export function AppSidebar() {
           <ThemeToggle />
         </section>
         <SidebarMenu>
+          {/* Settings sits outside `navItems` so it can never be hidden. */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={isActiveRoute(pathname, settingsItem.href)}
+              tooltip={settingsItem.label}
+              className={TABLET_ROW}
+              render={<Link href={settingsItem.href} onClick={closeOverlay} />}
+            >
+              <settingsItem.icon />
+              <span>{settingsItem.label}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Help"
@@ -185,18 +202,6 @@ export function AppSidebar() {
             >
               <CircleQuestionMarkIcon />
               <span>Help</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Logout"
-              className={cn(
-                "text-destructive hover:text-destructive [&_svg]:text-destructive",
-                TABLET_ROW
-              )}
-            >
-              <LogOutIcon />
-              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
