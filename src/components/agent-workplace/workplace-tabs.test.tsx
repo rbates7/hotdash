@@ -31,6 +31,7 @@ describe("WorkplaceTabs", () => {
     expect(tabs).toEqual([
       "Issues",
       "Backlog",
+      "Work board",
       "Agents",
       "Chat",
       "Autopilots",

@@ -1,92 +1,94 @@
 "use client"
 
-import * as React from "react"
-import { ExternalLinkIcon } from "lucide-react"
+import { ExternalLinkIcon, GitPullRequestIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import type { WorkboardCi, WorkboardItem, WorkboardReview } from "@/lib/workboard"
 import {
-  NOT_CONNECTED,
   WORK_COLUMNS,
+  formatWorkboardTime,
   groupByState,
   ownerName,
-  parseWorkboard,
-  type CiStatus,
-  type ReviewStatus,
-  type WorkItem,
-  type Workboard,
-} from "@/lib/workboard"
+  workboardKind,
+  type WorkboardView,
+} from "@/lib/workboard-view"
+import { useWorkboardView } from "@/hooks/use-workboard"
+import { ConnectingBadge } from "@/components/connecting-badge"
+import { NotConnectedPanel } from "@/components/not-connected-panel"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-type Load = { kind: "loading" } | { kind: "ready"; board: Workboard }
+/**
+ * The work board: rbates7/hotdash's pull requests from `GET /api/workboard`
+ * (#51), in four columns. Rashad's Oct 16 rule (plan L99-101): no sample
+ * rows, ever. Before the first answer, or while the server's first GitHub
+ * sync runs, it says Connecting…; with no token it says Not connected; a
+ * connected board with nothing on it says "No open pull requests"; a failed
+ * sync keeps the last good rows under a stale note.
+ */
 
-/** Reads Hill's /api/workboard. A missing route (404) or error is Not connected. */
-export function useWorkboard(): Load {
-  const [load, setLoad] = React.useState<Load>({ kind: "loading" })
-  React.useEffect(() => {
-    let alive = true
-    fetch("/api/workboard", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => alive && setLoad({ kind: "ready", board: parseWorkboard(json) }))
-      .catch(() => alive && setLoad({ kind: "ready", board: NOT_CONNECTED }))
-    return () => {
-      alive = false
-    }
-  }, [])
-  return load
-}
+export const WORKBOARD_SOURCE = "Reads rbates7/hotdash's pull requests, CI and reviews from GitHub."
 
-const CI_LABEL: Record<CiStatus, string> = { passing: "CI passing", failing: "CI failing", pending: "CI pending", none: "No CI" }
-const CI_TONE: Record<CiStatus, string> = {
-  passing: "bg-success/10 text-success-text border-transparent",
-  failing: "text-danger-text",
-  pending: "text-warning-text",
-  none: "text-muted-foreground!",
+const CI_LABEL: Record<WorkboardCi, string> = {
+  passing: "CI passing",
+  failing: "CI failing",
+  pending: "CI pending",
+  none: "No CI",
 }
-const REVIEW_LABEL: Record<ReviewStatus, string> = {
+const REVIEW_LABEL: Record<WorkboardReview, string> = {
   approved: "Approved",
   changes_requested: "Changes requested",
   pending: "Review pending",
   none: "No review",
 }
-const REVIEW_TONE: Record<ReviewStatus, string> = {
-  approved: "bg-success/10 text-success-text border-transparent",
-  changes_requested: "text-danger-text",
-  pending: "text-warning-text",
+const TONE = {
+  good: "bg-success/10 text-success-text border-transparent",
+  bad: "text-danger-text",
+  wait: "text-warning-text",
   none: "text-muted-foreground!",
+} as const
+const CI_TONE: Record<WorkboardCi, string> = { passing: TONE.good, failing: TONE.bad, pending: TONE.wait, none: TONE.none }
+const REVIEW_TONE: Record<WorkboardReview, string> = {
+  approved: TONE.good,
+  changes_requested: TONE.bad,
+  pending: TONE.wait,
+  none: TONE.none,
 }
 
 /** 44px touch targets below 1280; compact on desktop. */
-const LINK = "inline-flex min-h-11 xl:min-h-0 items-center gap-1 text-caption font-medium text-foreground underline underline-offset-2 hover:text-primary focus-visible:outline-2"
+const LINK =
+  "inline-flex min-h-11 min-w-11 items-center gap-1 rounded-sm text-caption font-medium text-foreground underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-ring xl:min-h-0 xl:min-w-0"
 
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })
-}
+/** The frame every non-row state shares, so the tab does not jump between them. */
+const STATE_FRAME =
+  "bg-surface border-surface-border flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-8 text-center"
 
-function WorkCard({ item }: { item: WorkItem }) {
+function WorkCard({ item }: { item: WorkboardItem }) {
   return (
     <li>
       <Card size="sm" className="gap-2" data-testid="work-card">
         <CardHeader>
-          <CardTitle className="text-body font-medium">{item.title}</CardTitle>
+          <CardTitle className="text-body font-medium break-words">{item.title}</CardTitle>
           <p className="text-caption text-muted-foreground">
             {ownerName(item.owner)} · <code className="break-all">{item.branch}</code>
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline" className={CI_TONE[item.ci]}>{CI_LABEL[item.ci]}</Badge>
-            <Badge variant="outline" className={REVIEW_TONE[item.review]}>{REVIEW_LABEL[item.review]}</Badge>
+            <Badge variant="outline" className={CI_TONE[item.ci]}>
+              {CI_LABEL[item.ci]}
+            </Badge>
+            <Badge variant="outline" className={REVIEW_TONE[item.review]}>
+              {REVIEW_LABEL[item.review]}
+            </Badge>
           </div>
           <div className="flex flex-wrap gap-x-3">
-            <a className={LINK} href={item.url} target="_blank" rel="noreferrer">
+            <a className={LINK} href={item.url} target="_blank" rel="noopener noreferrer">
               PR #{item.number}
               <ExternalLinkIcon aria-hidden className="size-3" />
             </a>
             {item.proofLinks.map((href, i) => (
-              <a key={href} className={LINK} href={href} target="_blank" rel="noreferrer">
+              <a key={href} className={LINK} href={href} target="_blank" rel="noopener noreferrer">
                 Proof{item.proofLinks.length > 1 ? ` ${i + 1}` : ""}
                 <ExternalLinkIcon aria-hidden className="size-3" />
               </a>
@@ -98,41 +100,100 @@ function WorkCard({ item }: { item: WorkItem }) {
   )
 }
 
-export function WorkBoardView({ load }: { load: Load }) {
-  if (load.kind === "loading") {
-    return <p aria-busy className="text-body text-muted-foreground py-6">Checking the work board…</p>
-  }
-  const { board } = load
-  if (!board.connected) {
+function StaleNote({ fetchedAt }: { fetchedAt: string }) {
+  return (
+    <p data-testid="workboard-stale" role="status" className="text-caption text-warning-text tracking-tight">
+      GitHub could not be read just now. Showing the last good copy
+      {fetchedAt ? `, from ${formatWorkboardTime(fetchedAt)}` : ""}.
+    </p>
+  )
+}
+
+export function WorkBoardView({ view }: { view: WorkboardView }) {
+  const kind = workboardKind(view)
+
+  if (kind === "connecting") {
     return (
-      <div data-testid="workboard-not-connected" className="rounded-lg border border-dashed p-6 text-center">
-        <Badge variant="outline" className="text-muted-foreground!">Not connected</Badge>
-        <p className="mt-2 text-body text-muted-foreground">
-          The work board reads branches, PRs, CI and reviews from GitHub. It isn&apos;t connected yet.
+      <section
+        aria-label="Work board: connecting"
+        aria-busy="true"
+        data-testid="workboard-connecting"
+        data-source="connecting"
+        className={STATE_FRAME}
+      >
+        <ConnectingBadge testId="workboard-connecting-badge" />
+        <p className="text-label font-semibold tracking-tight">Work board</p>
+        <p className="text-caption text-muted-foreground max-w-prose tracking-tight">
+          Reading pull requests from GitHub. Cards appear when the first read finishes.
         </p>
+      </section>
+    )
+  }
+
+  if (kind === "not_connected" || view.phase !== "ready") {
+    return (
+      <NotConnectedPanel
+        title="Work board"
+        hint={`${WORKBOARD_SOURCE} It isn't connected yet, so there are no cards.`}
+        testId="workboard-not-connected"
+      />
+    )
+  }
+
+  const { summary } = view
+  const updated = summary.fetchedAt ? formatWorkboardTime(summary.fetchedAt) : ""
+
+  if (kind === "empty") {
+    return (
+      <div className="flex flex-col gap-2">
+        {summary.stale && <StaleNote fetchedAt={summary.fetchedAt} />}
+        <section
+          aria-label="Work board: no open pull requests"
+          data-testid="workboard-empty"
+          data-source={summary.status}
+          className={STATE_FRAME}
+        >
+          <GitPullRequestIcon aria-hidden className="text-muted-foreground size-5" />
+          <p className="text-label font-semibold tracking-tight">No open pull requests</p>
+          <p className="text-caption text-muted-foreground max-w-prose tracking-tight">
+            Nothing open on rbates7/hotdash and nothing merged in the last 14 days.
+            {updated ? ` Checked ${updated}.` : ""}
+          </p>
+        </section>
       </div>
     )
   }
-  const groups = groupByState(board.items)
+
+  const groups = groupByState(summary.items)
   return (
-    <div className="flex flex-col gap-2">
-      {board.stale && (
-        <p data-testid="workboard-stale" className="text-caption text-muted-foreground">
-          GitHub could not be read just now; showing the last good copy from {formatTime(board.fetchedAt)}.
+    <div className="flex flex-col gap-2" data-testid="workboard-live" data-source={summary.status}>
+      {summary.stale ? (
+        <StaleNote fetchedAt={summary.fetchedAt} />
+      ) : (
+        <p className="text-caption text-muted-foreground tracking-tight">
+          From GitHub{updated ? ` · updated ${updated}` : ""}
         </p>
       )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {WORK_COLUMNS.map((col) => (
-          <section key={col.state} aria-label={col.label} className="flex min-w-0 flex-col gap-2 rounded-lg bg-muted/40 p-2">
+          <section
+            key={col.state}
+            aria-label={col.label}
+            className="flex min-w-0 flex-col gap-2 rounded-lg bg-muted/40 p-2"
+          >
             <h2 className="flex items-center justify-between text-body font-semibold">
               {col.label}
-              <span className="text-caption text-muted-foreground">{groups[col.state].length}</span>
+              <span className="text-caption text-muted-foreground tabular-nums">{groups[col.state].length}</span>
             </h2>
-            <ul className={cn("flex flex-col gap-2")}>
-              {groups[col.state].map((item) => (
-                <WorkCard key={item.number} item={item} />
-              ))}
-            </ul>
+            {groups[col.state].length === 0 ? (
+              <p className="text-caption text-muted-foreground px-1 pb-1">None</p>
+            ) : (
+              <ul className={cn("flex flex-col gap-2")}>
+                {groups[col.state].map((item) => (
+                  <WorkCard key={item.number} item={item} />
+                ))}
+              </ul>
+            )}
           </section>
         ))}
       </div>
@@ -141,5 +202,5 @@ export function WorkBoardView({ load }: { load: Load }) {
 }
 
 export function WorkBoard() {
-  return <WorkBoardView load={useWorkboard()} />
+  return <WorkBoardView view={useWorkboardView()} />
 }

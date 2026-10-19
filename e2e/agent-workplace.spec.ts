@@ -10,7 +10,7 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Agent Workplace" })).toBeVisible()
 
     const tabs = page.getByRole("tab")
-    await expect(tabs).toHaveText(["Issues", "Backlog", "Agents", "Chat", "Autopilots", "Inbox"])
+    await expect(tabs).toHaveText(["Issues", "Backlog", "Work board", "Agents", "Chat", "Autopilots", "Inbox"])
 
     for (const col of ["To Do", "In Progress", "In Review", "Done", "Blocked"]) {
       await expect(page.getByRole("region", { name: col })).toBeVisible()
