@@ -27,6 +27,7 @@ import {
 } from "@/lib/system-status"
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
+import { NotConnectedBadge } from "@/components/home/not-connected"
 import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 import {
   STATUS_BANNER,
@@ -110,15 +111,16 @@ function OutLink({ href, children, className }: { href: string; children: React.
 /* ---------------------------------------------------------------- preview */
 
 /**
- * The dev switch between the two seeded views. A pair of links, not a
- * stored setting: the page re-renders on the server with the chosen
- * scenario, the URL says which one is showing, and the next visit is
- * green again — a health page should not remember a "not green" that was
- * only ever a preview.
+ * The dev switch between the real (unpolled) page and the two seeded
+ * previews. Links, not a stored setting: the page re-renders on the server
+ * with the chosen scenario, the URL says which one is showing, and the next
+ * visit is the real page again — a health page should not remember a
+ * preview.
  */
 function PreviewToggle({ scenario }: { scenario: Scenario }) {
   const options: { value: Scenario; label: string; href: string }[] = [
-    { value: "green", label: "Green", href: "/system-status" },
+    { value: "empty", label: "Live", href: "/system-status" },
+    { value: "green", label: "Green", href: `/system-status?${PREVIEW_PARAM}=green` },
     { value: "not-green", label: "Not green", href: `/system-status?${PREVIEW_PARAM}=not-green` },
   ]
   return (
@@ -181,7 +183,8 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-title-lg font-semibold tracking-tight">{verdict.title}</h2>
-            <SampleDataTag />
+            {/* Only the seeded previews have checks; the real page has none to label. */}
+            {!verdict.empty && <SampleDataTag />}
           </div>
           <p className="text-label text-muted-foreground mt-1 tracking-tight">{verdict.detail}</p>
         </div>
@@ -249,6 +252,9 @@ export function StatusScreen({
   const services = buildServices(nowMs, scenario)
   const verdict = verdictFor(services)
   const incident = buildPastIncident(nowMs)
+  // The seeded previews are sample and say so; the real page has no checks
+  // and no incident history to show, so it carries no sample at all.
+  const preview = scenario !== "empty"
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -261,14 +267,20 @@ export function StatusScreen({
         </div>
         <div className={STATUS_HEADER_META}>
           <PreviewToggle scenario={scenario} />
-          <SampleDataTag className={STATUS_HEADER_CHIP} />
+          {preview ? (
+            <SampleDataTag className={STATUS_HEADER_CHIP} />
+          ) : (
+            <NotConnectedBadge className={STATUS_HEADER_CHIP} />
+          )}
         </div>
       </header>
 
-      <SampleDataNotice>
-        Nothing here is polled yet. Sentry and chlkapp.com are not connected, so these
-        checks are seeded from the moment you opened the page.
-      </SampleDataNotice>
+      {preview && (
+        <SampleDataNotice>
+          This is a preview. Nothing here is polled yet; Sentry and chlkapp.com are not connected, so these
+          checks are seeded from the moment you opened the page.
+        </SampleDataNotice>
+      )}
 
       <div className="flex max-w-[920px] flex-col gap-4">
         <VerdictBanner services={services} nowMs={nowMs} />
@@ -277,7 +289,7 @@ export function StatusScreen({
           <div className="flex min-h-6 items-center justify-between gap-2 px-0.5">
             <div className="flex items-center gap-2">
               <h2 className="text-label font-semibold tracking-tight">Components</h2>
-              <SampleDataTag />
+              {preview && <SampleDataTag />}
             </div>
             <span className="text-caption text-muted-foreground font-medium tracking-tight">
               {verdict.empty ? "No checks" : formatDownCount(verdict.counts)}
@@ -298,6 +310,7 @@ export function StatusScreen({
           </Card>
         </section>
 
+        {preview && (
         <Card role="region" aria-label="Past incident" className="gap-2 px-5 py-4">
           <div className="flex items-center gap-2">
             <p className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
@@ -315,6 +328,7 @@ export function StatusScreen({
             </time>
           </div>
         </Card>
+        )}
       </div>
     </div>
   )
