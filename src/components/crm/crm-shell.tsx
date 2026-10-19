@@ -11,10 +11,17 @@ import { Button } from "@/components/ui/button"
 import { PersistenceNote } from "@/components/persistence-note"
 import { SampleDataTag } from "@/components/sample-data"
 import { CommandPalette } from "@/components/crm/command-palette"
+import { CrmSourceBadge, GMAIL_READ_ONLY_NOTE } from "@/components/crm/crm-source-badge"
 import { useCrm } from "@/components/crm/crm-store"
 import { CRM_RESET } from "@/components/crm/crm-touch"
 
 export const LEDE = "Conversations, contacts, and triage — sample data until Gmail and Stripe sync"
+/** While Gmail's first sync runs: no word about sample data, which is not shown. */
+export const CONNECTING_LEDE = "Conversations, contacts, and triage"
+
+export function liveLede(mailbox: string) {
+  return `Conversations, contacts, and triage from ${mailbox}`
+}
 
 const TABS = [
   { href: "/crm", label: "Overview", match: (path: string) => path === "/crm" },
@@ -32,6 +39,10 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
   const store = useCrm()
   const [searchOpen, setSearchOpen] = React.useState(false)
   const triageCount = countTriagePending(store.messages)
+  const { gmail } = store
+  // Connecting: the rows are skeletons, not the sample, so nothing sample-only
+  // shows (no sample lede, saved-edits note, Reset, Sample data tag or triage count).
+  const connecting = gmail.kind === "loading" && Boolean(gmail.connecting)
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-[22px]">
@@ -40,11 +51,22 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
       <header className="flex flex-wrap items-start justify-between gap-4 max-md:justify-start max-md:gap-x-2.5">
         <div className="min-w-0 max-md:w-[calc(100%-3.375rem)] md:max-xl:min-w-52 md:max-xl:flex-1 md:max-xl:basis-0">
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
-          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
+          <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
+            {gmail.kind === "live" ? liveLede(gmail.mailbox) : connecting ? CONNECTING_LEDE : LEDE}
+          </p>
         </div>
         <div className="mt-1 flex shrink-0 flex-wrap items-center gap-2.5 max-md:contents">
-          <PersistenceNote store={store} className="max-md:order-3" resetClassName={CRM_RESET} />
-          <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" />
+          {gmail.kind === "live" ? (
+            <span data-testid="crm-read-only" className="text-micro text-muted-foreground max-md:order-3">
+              {GMAIL_READ_ONLY_NOTE}
+            </span>
+          ) : connecting ? null : (
+            <PersistenceNote store={store} className="max-md:order-3" resetClassName={CRM_RESET} />
+          )}
+          <CrmSourceBadge feed={gmail} className="max-md:order-4 max-md:self-center" />
+          {store.sample && !connecting ? (
+            <SampleDataTag className="h-6 px-2 max-md:order-4 max-md:self-center" />
+          ) : null}
           <Button
             size="sm"
             variant="outline"
@@ -80,7 +102,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
               )}
             >
               {tab.label}
-              {tab.label === "Triage" && triageCount > 0 ? (
+              {tab.label === "Triage" && triageCount > 0 && !connecting ? (
                 <span className="bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 rounded-full px-1.5 text-[0.65rem] font-semibold tabular-nums">
                   {triageCount}
                 </span>

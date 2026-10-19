@@ -91,3 +91,7 @@ The sign-in lock shipped in #38 and was then reverted at Rashad's request (via C
 ## Decision: real data without sign-in
 
 **Decision: keep the dashboard public with real data. Chosen by Rashad on 2026-10-13 at 11:50 PM CT, picked from three options Coulson offered (bring sign-in back first / connect live data without sign-in / wait), after he rolled back sign-in at 8:59 PM CT. Sign-in must come back before anyone else is given access.**
+
+## Decision: Gmail in the CRM, customer emails on the public link
+
+**Decision: show the customer emails publicly. Rashad on 2026-10-16 at 9:45 PM CT: "Yes, show the customer emails publicly." Then on 2026-10-18 at 7:50 PM CT, to Coulson: "ship everything", which covers Gmail on the public link, previews included (the `GMAIL_*` variables are on Production and Preview). This is [row 5](#screen-by-screen) (CRM ← Gmail) and [order item 6](#suggested-order) (Gmail → CRM). It follows the Oct 13 decision above to keep the dashboard public with real data. Sign-in must come back before anyone else is given access.**
