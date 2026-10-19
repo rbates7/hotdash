@@ -47,14 +47,20 @@ export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "sav
  * Pass any store that exposes `PersistenceStore` (Agent Workplace / Home
  * via `useIssues()`, Metrics via `useMetrics()`).
  */
+export const RESET_DESCRIPTION =
+  "This discards every edit saved in this browser and regenerates the sample data from today. There is no server copy to recover from."
+
 export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
 
 export function PersistenceNote({
   store,
   className,
   resetClassName,
+  resetDescription = RESET_DESCRIPTION,
 }: {
   store: PersistenceStore
+  /** What Reset does, in the confirm. Defaults to the sample screens' wording. */
+  resetDescription?: string
   /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
   className?: string
   /** Extra classes on Reset — screens use this to grow the tap target below `xl`. */
@@ -123,10 +129,7 @@ export function PersistenceNote({
         <DialogContent className="sm:max-w-sm!">
           <DialogHeader>
             <DialogTitle>Reset demo data?</DialogTitle>
-            <DialogDescription>
-              This discards every edit saved in this browser and regenerates the
-              sample data from today. There is no server copy to recover from.
-            </DialogDescription>
+            <DialogDescription>{resetDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>

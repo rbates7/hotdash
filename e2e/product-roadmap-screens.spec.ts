@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { ownBets } from "./support/roadmap"
 import { setTheme } from "./support/theme"
 
 /**
@@ -38,16 +39,21 @@ async function shoot(page: Page, name: string) {
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Product Roadmap state (${theme})`, async ({ page }) => {
+    // Not connected, nothing saved: the empty board (no sample bets, #45).
     await page.goto("/product-roadmap")
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+    await shoot(page, `product-roadmap-not-connected-${theme}`)
 
-    // With data (the seed).
+    // With data: the fixture's bets saved as this browser's own (tests only).
+    await page.evaluate(([key, value]) => localStorage.setItem(key, value), [STORAGE_KEY, JSON.stringify(ownBets())])
+    await page.reload()
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await shoot(page, `product-roadmap-board-${theme}`)
 
-    // Persistence label, close up (before any save).
+    // Persistence label, close up.
     for (const dir of OUT_DIRS) {
       await page.getByRole("main").locator("header").first().screenshot({
         path: path.join(dir, `product-roadmap-persistence-label-${theme}.png`),
@@ -107,8 +113,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("status", { name: "Empty board" })).toBeVisible()
     await shoot(page, `product-roadmap-empty-${theme}`)
 
-    // Back to the seed for the next run.
+    // Back to nothing saved for the next run.
     await resetDemoData(page, page.locator("main header").first(), page)
-    await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(8)
+    await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(0)
   })
 }

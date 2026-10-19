@@ -41,19 +41,22 @@ jobs:
         run: pnpm test:tz
 
       # Dummies, only for the build and the scan below: they prove the
-      # values never land in client code. The Stripe key and the GitHub token
-      # have a hyphen, which the server refuses; the PostHog dummy key contains
-      # dots, so the server refuses it as a key too; the Sentry dummy has
-      # colons, which the Sentry token check refuses; and the database URL
-      # points at a closed loopback port, so even an accidental build-time call
-      # cannot go to Stripe, PostHog, GitHub, Sentry or a database. The steps that run
-      # the app have none of them, nor the Gmail credentials.
-      - name: Build (with dummy Stripe and PostHog keys, database URL, GitHub token, Sentry token and Gmail credentials)
+      # values never land in client code. The Stripe key, the Notion token and
+      # the GitHub token have hyphens, which the server refuses; the PostHog
+      # dummy key contains dots, so the server refuses it as a key too; the
+      # Sentry dummy has colons, which the Sentry token check refuses; and the
+      # database URL points at a closed loopback port, so even an accidental
+      # build-time call cannot go to Stripe, PostHog, Notion, GitHub, Sentry or
+      # a database. The steps that run the app have none of them, nor the Gmail
+      # credentials.
+      - name: Build (with dummy Stripe and PostHog keys, database URL, Notion token, GitHub token, Sentry token and Gmail credentials)
         run: pnpm build
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
           POSTHOG_READONLY_KEY: phx_CI.DUMMY.not-a-real-key.5e8b2d
+          NOTION_READONLY_TOKEN: ntn_CI-DUMMY-not-a-real-token-4b8e1d
+          NOTION_ROADMAP_PAGE_ID: 00000000000000000000000000000000
           GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
@@ -66,6 +69,7 @@ jobs:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
           SUPABASE_READONLY_DB_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
           POSTHOG_READONLY_KEY: phx_CI.DUMMY.not-a-real-key.5e8b2d
+          NOTION_READONLY_TOKEN: ntn_CI-DUMMY-not-a-real-token-4b8e1d
           GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
@@ -75,17 +79,19 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      # No Stripe or PostHog key, database URL, GitHub token or Gmail
-      # credentials here: the app is "not connected", and the specs mock
-      # /api/stripe/*, /api/posthog/* and /api/crm/gmail in the browser for
-      # the connected and stale states. CI never calls Stripe, PostHog,
-      # Chlk's database, GitHub's API or Gmail.
+      # No Stripe or PostHog key, database URL, Notion token, GitHub token or
+      # Gmail credentials here: the app is "not connected", and the specs mock
+      # /api/stripe/*, /api/posthog/*, /api/notion/roadmap and /api/crm/gmail
+      # in the browser for the connected and stale states. CI never calls
+      # Stripe, PostHog, Notion, Chlk's database, GitHub's API or Gmail.
       - name: Playwright smoke (a retry may not hide a flake)
         run: pnpm test:e2e:ci
         env:
           STRIPE_READONLY_KEY: ""
           SUPABASE_READONLY_DB_URL: ""
           POSTHOG_READONLY_KEY: ""
+          NOTION_READONLY_TOKEN: ""
+          NOTION_ROADMAP_PAGE_ID: ""
           GMAIL_CLIENT_ID: ""
           GMAIL_CLIENT_SECRET: ""
           GMAIL_REFRESH_TOKEN: ""
