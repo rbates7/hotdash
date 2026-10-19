@@ -30,7 +30,6 @@ import { ContactEditDialog, ContactNewDialog } from "@/components/crm/contact-di
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import {
-  CARD,
   CARD_LIST,
   RecordSheet,
   RowMenu,
@@ -314,7 +313,6 @@ export function ContactsScreen() {
                   orgOf(store.organizations, contact.organizationId),
                   openCaseCount(store.cases, contact.id)
                 )}
-                className={CARD}
                 onClick={() => {
                   setSheetId(contact.id)
                   setSheetOpen(true)

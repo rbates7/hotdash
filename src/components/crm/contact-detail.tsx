@@ -29,7 +29,7 @@ import { PlanBadge, PriorityBadge, StatusBadge } from "@/components/crm/case-bad
 import { ContactEditDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
-import { CARD, CARD_LIST } from "@/components/crm/crm-row-actions"
+import { CARD_LIST } from "@/components/crm/crm-row-actions"
 import { backToList, useListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmSkeleton } from "@/components/crm/crm-skeleton"
@@ -164,7 +164,6 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                 title={caseRow.subject}
                 status={<StatusBadge status={caseRow.status} />}
                 meta={contactCaseCardMeta(caseRow, store.nowMs)}
-                className={CARD}
                 onClick={() => router.push(`/crm/cases/${caseRow.id}`)}
               />
             ))}

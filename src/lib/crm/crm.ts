@@ -12,9 +12,9 @@ import { normalizeEmail } from "./matching"
 export type { Plan }
 
 /**
- * CRM domain: cases, contacts, notes and a triage queue. Ported from the
- * Sept 1 discovery app as sample data until Gmail/Stripe sync lands.
- * Shapes stay close to that model so a later live-data PR can swap the store.
+ * CRM domain: cases, contacts, notes and a triage queue. Rows come from the
+ * support inbox (Gmail, `gmail-mapping.ts`) or, while Gmail is not
+ * connected, only from contacts the founder adds in this browser.
  */
 
 export const CASE_STATUSES = ["new", "open", "waiting", "closed"] as const

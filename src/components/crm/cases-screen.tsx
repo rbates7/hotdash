@@ -31,7 +31,6 @@ import { CasesFilterBar, caseFilterFromSearch } from "@/components/crm/cases-fil
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { CaseDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import {
-  CARD,
   CARD_LIST,
   RecordSheet,
   RowMenu,
@@ -250,7 +249,6 @@ export function CasesScreen() {
                   title={row.subject}
                   status={<StatusBadge status={row.status} />}
                   meta={caseCardMeta(row, contact, org, store.nowMs)}
-                  className={CARD}
                   onClick={() => {
                     setSheetId(row.id)
                     setSheetOpen(true)
