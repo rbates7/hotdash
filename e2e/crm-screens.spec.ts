@@ -8,6 +8,7 @@ import {
   CRM_STORAGE_KEY as STORAGE_KEY,
   LIVE_CASES,
   LIVE_TRIAGE,
+  emptyLiveSummary,
   expectGmailPanel,
   gmailPanel,
 } from "./support/crm"
@@ -137,19 +138,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("status", { name: "Triage is clear" })).toBeVisible()
     await shoot(page, `crm-triage-empty-${theme}`)
 
-    await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
-    for (let i = 0; i < 8; i++) {
-      const table = page.getByRole("table", { name: "Cases" })
-      if (!(await table.isVisible())) break
-      const subject = table.locator("tbody tr").first().locator("td").nth(1).getByRole("link")
-      await subject.click()
-      await page.getByRole("button", { name: /Delete case/ }).click()
-      await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
-      await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
-      await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-      await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
-    }
+    // An inbox with nothing in it: the empty Cases list.
+    await page.unroute("**/api/crm/gmail")
+    await mockGmail(page, emptyLiveSummary())
+    await page.goto("/crm/cases")
+    await expect(source(page)).toHaveText("Live from Gmail")
     await expect(page.getByRole("status", { name: "No cases" })).toBeVisible()
     await shoot(page, `crm-empty-${theme}`)
   })

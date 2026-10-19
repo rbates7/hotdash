@@ -18,6 +18,7 @@ import {
   LIVE_TRIAGE,
   OWN_CONTACTS,
   OWN_ID_BASE,
+  emptyLiveSummary,
   expectGmailPanel,
   gmailPanel,
   liveCase,
@@ -367,7 +368,7 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     expect(await paddingLeft(palette.getByLabel("Search cases and contacts"))).toBeGreaterThanOrEqual(32)
   })
 
-  test("open a case, change status and priority, add a note, promote triage: on screen only, gone after reload", async ({
+  test("open a case, change status and priority, add a note, promote triage: on the page only, never saved", async ({
     page,
   }) => {
     await liveCrm(page)
@@ -394,15 +395,11 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await sam.getByRole("button", { name: "Promote to case", exact: true }).click()
     await expect(page.getByText(LIVE_TRIAGE.sam)).toHaveCount(0)
     await expect(triageCards(page).filter({ hasText: LIVE_TRIAGE.jordan })).toBeVisible()
-    await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
-    await expect(page.getByRole("row", { name: new RegExp(LIVE_TRIAGE.sam) })).toBeVisible()
 
     // Nothing reached this browser's storage; the next copy starts clean.
     expect(await stored(page)).toBeNull()
     await page.reload()
     await expect(source(page)).toHaveText("Live from Gmail")
-    await expect(page.getByRole("row", { name: new RegExp(LIVE_TRIAGE.sam) })).toHaveCount(0)
-    await crmNav(page).getByRole("link", { name: /Triage/ }).click()
     await expect(triageCards(page).filter({ hasText: LIVE_TRIAGE.sam })).toBeVisible()
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
     await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
@@ -427,7 +424,9 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await expect(page).toHaveURL(new RegExp(`/crm/contacts/${DANA.id}$`))
   })
 
-  test("delete a case and a contact: Keep keeps it, Delete cascades, empty states show", async ({ page }) => {
+  test("delete a case and a contact: Keep keeps it, Delete removes it; an empty inbox shows every empty state", async ({
+    page,
+  }) => {
     await liveCrm(page)
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
     await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
@@ -442,7 +441,6 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
     await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
 
-    // Dana's other case goes with her.
     const dana = LIVE_PEOPLE.dana.name
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
     await page.getByRole("link", { name: new RegExp(dana) }).click()
@@ -456,56 +454,25 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await page.getByRole("button", { name: `Delete ${dana}` }).click()
     await dialog(page, "Delete this contact?").getByRole("button", { name: "Delete", exact: true }).click()
     await expect(page.getByRole("status", { name: "Contact not found" })).toBeVisible()
-    await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    await expect(page.getByRole("table", { name: "Cases" })).toBeVisible()
-    await expect(page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) })).toHaveCount(0)
-    await expect(page.getByRole("link", { name: new RegExp(LIVE_CASES.assistants) })).toHaveCount(0)
+    // Live edits are never saved in this browser (the cascade itself is a
+    // reducer rule, covered in crm-store.test.tsx).
+    expect(await stored(page)).toBeNull()
 
-    for (let i = 0; i < 8; i++) {
-      await expect(page.getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
-      const empty = page.getByRole("status", { name: "No cases" })
-      if (await empty.isVisible()) break
-      const table = page.getByRole("table", { name: "Cases" })
-      await expect(table).toBeVisible()
-      await table.locator("tbody tr").first().locator("td").nth(1).getByRole("link").click()
-      await page.getByRole("button", { name: /Delete case/ }).click()
-      await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
-      await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
-      await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    }
+    // An inbox with nothing in it: every screen's empty state.
+    await page.unroute("**/api/crm/gmail")
+    await mockGmail(page, emptyLiveSummary())
+    await page.goto("/crm/cases")
+    await expect(source(page)).toHaveText("Live from Gmail")
     await expect(page.getByRole("status", { name: "No cases" })).toContainText(
       "No conversations the inbox has replied to yet. Promote a triage thread to open a case."
     )
-
-    await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
-    for (let i = 0; i < 8; i++) {
-      await expect(page.getByRole("heading", { level: 2, name: "Contacts" })).toBeVisible()
-      const empty = page.getByRole("status", { name: "No contacts" })
-      if (await empty.isVisible()) break
-      const table = page.getByRole("table", { name: "Contacts" })
-      await expect(table).toBeVisible()
-      await table.locator("tbody tr").first().getByRole("link").click()
-      await page.getByRole("button", { name: /^Delete / }).click()
-      await dialog(page, "Delete this contact?").getByRole("button", { name: "Delete", exact: true }).click()
-      await expect(page.getByRole("status", { name: "Contact not found" })).toBeVisible()
-      await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
-    }
+    await page.goto("/crm/contacts")
     await expect(page.getByRole("status", { name: "No contacts" })).toContainText(
       "Nobody the inbox has replied to yet. Add someone by hand, or promote a triage thread."
     )
-
-    await crmNav(page).getByRole("link", { name: /Triage/ }).click()
-    await expect(page.getByRole("heading", { level: 2, name: "Triage" })).toBeVisible()
-    for (let i = 0; i < 4; i++) {
-      const clear = page.getByRole("status", { name: "Triage is clear" })
-      if (await clear.isVisible()) break
-      await expect(triageCards(page).first()).toBeVisible()
-      await triageCards(page).first().getByRole("button", { name: "More actions" }).click()
-      await page.getByRole("menuitem", { name: "Ignore this thread" }).click()
-    }
+    await page.goto("/crm/triage")
     await expect(page.getByRole("status", { name: "Triage is clear" })).toBeVisible()
-
-    await crmNav(page).getByRole("link", { name: "Overview", exact: true }).click()
+    await page.goto("/crm")
     await expect(page.getByRole("status", { name: "No CRM data" })).toContainText(
       "No conversations in info@chlkapp.com in the last 90 days."
     )
@@ -515,11 +482,6 @@ test.describe("CRM, Gmail connected (mocked)", () => {
 
   test("contrast is ≥ 4.5:1 in light and dark on Contacts, triage, case detail, and Overview", async ({ page }) => {
     await liveCrm(page, "/crm", withPlans(liveGmailSummary(Date.now())))
-    // A note on the case, so the note card has something to measure.
-    await page.goto(`/crm/cases/${ROSTER.id}`)
-    await page.getByLabel("Internal note").fill("Asked Dana for the CSV.")
-    await page.getByRole("button", { name: "Add note", exact: true }).click()
-    await expect(page.getByText("Asked Dana for the CSV.")).toBeVisible()
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
       await expectReadable(source(page), `${theme}/live badge`, expect)
@@ -551,6 +513,11 @@ test.describe("CRM, Gmail connected (mocked)", () => {
       }
       await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
       await expectReadable(page.getByRole("group", { name: "Case status" }), `${theme}/status path`, expect)
+      // A note on the case, so the note card has something to measure (live
+      // edits belong to this page, so it is added here, in each theme).
+      await page.getByLabel("Internal note").fill("Asked Dana for the CSV.")
+      await page.getByRole("button", { name: "Add note", exact: true }).click()
+      await expect(page.getByText("Asked Dana for the CSV.")).toBeVisible()
       const noteCard = page.getByText("Asked Dana for the CSV.").locator("..")
       await expectReadable(noteCard, `${theme}/note card`, expect)
 

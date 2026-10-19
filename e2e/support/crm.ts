@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test"
 
 import type { LiveGmailSummary } from "../../src/lib/crm/gmail-summary"
 
+import { liveGmailSummary } from "./gmail"
 import { NOTE, persistenceNote } from "./persistence"
 
 /**
@@ -66,6 +67,16 @@ export const LIVE_PEOPLE = {
 
 /** Its unknown senders: two triage cards. */
 export const LIVE_TRIAGE = { sam: "Sam Patel", jordan: "Jordan Lee" } as const
+
+/**
+ * Gmail connected with nothing in the inbox: every screen's empty state.
+ * Edits made while live belong to the page they were made on (the CRM's
+ * provider lives in each page, and nothing is saved), so an empty inbox is
+ * the way to reach the empty states, not deleting rows across pages.
+ */
+export function emptyLiveSummary(nowMs = Date.now()): LiveGmailSummary {
+  return { ...liveGmailSummary(nowMs), data: { organizations: [], contacts: [], cases: [], messages: [] } }
+}
 
 export function liveCase(summary: LiveGmailSummary, subject: string) {
   const found = summary.data.cases.find((c) => c.subject === subject)
