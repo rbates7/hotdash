@@ -34,9 +34,10 @@ export async function readInbox({
       .catch(() => null),
   ])
 
-  const github: InboxSourceState = board?.connected
-    ? { status: board.stale ? "stale" : "connected", fetchedAt: board.fetchedAt }
-    : { status: workboard.connecting() ? "connecting" : "not_connected", fetchedAt: null }
+  // The workboard's own status (#51): connecting, connected, stale or not_connected.
+  const boardLive = board?.status === "connected" || board?.status === "stale"
+  const github: InboxSourceState =
+    board && boardLive ? { status: board.status, fetchedAt: board.fetchedAt } : { status: board?.status ?? "not_connected", fetchedAt: null }
   const sentryState: InboxSourceState = issues
     ? { status: issues.status, fetchedAt: issues.fetchedAt }
     : { status: "not_connected", fetchedAt: null }
@@ -44,7 +45,7 @@ export async function readInbox({
   return {
     fetchedAt: at.toISOString(),
     sources: { github, sentry: sentryState, gmail: gmailInbox() },
-    items: mergeInbox(board?.connected ? fromWorkboard(board.items) : [], issues ? fromSentry(issues.issues, at) : []),
+    items: mergeInbox(board && boardLive ? fromWorkboard(board.items) : [], issues ? fromSentry(issues.issues, at) : []),
   }
 }
 

@@ -37,13 +37,12 @@ const ISSUE: SentryIssue = {
   lastSeen: "2026-10-18T19:30:00Z",
 }
 
-function workboard(body: WorkboardResponse | Error, connecting = false): WorkboardService {
+function workboard(body: WorkboardResponse | Error): WorkboardService {
   return {
     read: vi.fn(async () => {
       if (body instanceof Error) throw body
       return body
     }),
-    connecting: () => connecting,
     settled: async () => {},
     reset: () => {},
   }
@@ -65,7 +64,7 @@ const now = () => NOW
 describe("readInbox", () => {
   it("merges GitHub and Sentry rows; Gmail is not connected", async () => {
     const inbox = await readInbox({
-      workboard: workboard({ connected: true, fetchedAt: NOW.toISOString(), stale: false, items: [PR] }),
+      workboard: workboard({ status: "connected", connected: true, fetchedAt: NOW.toISOString(), stale: false, items: [PR] }),
       sentry: sentry({ status: "connected", fetchedAt: NOW.toISOString(), issues: [ISSUE] }),
       now,
     })
@@ -82,7 +81,7 @@ describe("readInbox", () => {
 
   it("says connecting while the first syncs run, with no rows", async () => {
     const inbox = await readInbox({
-      workboard: workboard({ connected: false, fetchedAt: NOW.toISOString(), stale: false, items: [] }, true),
+      workboard: workboard({ status: "connecting", connected: false, fetchedAt: NOW.toISOString(), stale: false, items: [] }),
       sentry: sentry({ status: "connecting", fetchedAt: null, issues: [] }),
       now,
     })
@@ -102,12 +101,22 @@ describe("readInbox", () => {
     expect(inbox.items.map((i) => i.id)).toEqual(["sentry-7"])
 
     const other = await readInbox({
-      workboard: workboard({ connected: true, fetchedAt: NOW.toISOString(), stale: true, items: [PR] }),
+      workboard: workboard({ status: "stale", connected: true, fetchedAt: NOW.toISOString(), stale: true, items: [PR] }),
       sentry: sentry(new Error("boom")),
       now,
     })
     expect(other.sources.github.status).toBe("stale")
     expect(other.sources.sentry.status).toBe("not_connected")
     expect(other.items.map((i) => i.id)).toEqual(["github-pr-51"])
+  })
+
+  it("GitHub's state is the workboard's status: not_connected passes through, with no rows", async () => {
+    const inbox = await readInbox({
+      workboard: workboard({ status: "not_connected", connected: false, fetchedAt: NOW.toISOString(), stale: false, items: [] }),
+      sentry: sentry({ status: "not_connected", fetchedAt: null, issues: [] }),
+      now,
+    })
+    expect(inbox.sources.github).toEqual({ status: "not_connected", fetchedAt: null })
+    expect(inbox.items).toEqual([])
   })
 })
