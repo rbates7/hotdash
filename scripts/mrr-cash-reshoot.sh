@@ -16,7 +16,7 @@ OUT_ROOT=${3:-/workspace/hotdash-shots/stripe-mrr-cash-53}
 PORT_BASE=${PORT_BASE:-3201}
 PORT_HEAD=${PORT_HEAD:-3202}
 REPO=$(git rev-parse --show-toplevel)
-git() { env -u GITHUB_TOKEN -u GH_TOKEN command git "$@"; }
+git() { env -u GITHUB_TOKEN -u GH_TOKEN "$(type -P git)" "$@"; }
 
 avail=$(free -g | awk '/^Mem:/ {print $7}')
 if [ "${avail:-0}" -lt 4 ]; then echo "only ${avail} GB available (< 4): wait and retry" >&2; exit 1; fi
@@ -34,7 +34,7 @@ blank_keys=(STRIPE_READONLY_KEY= STRIPE_API_BASE= SUPABASE_READONLY_DB_URL= POST
   GITHUB_READONLY_TOKEN= github_read_only= GMAIL_CLIENT_ID= GMAIL_CLIENT_SECRET= GMAIL_REFRESH_TOKEN= GMAIL_MAILBOX=)
 
 cleanup() {
-  [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+  [ -n "$SERVER_PID" ] && stop_server
   git -C "$REPO" worktree remove --force "$WT_HEAD" 2>/dev/null || true
   git -C "$REPO" worktree remove --force "$WT_BASE" 2>/dev/null || true
 }
@@ -45,9 +45,15 @@ git -C "$REPO" worktree add --detach "$WT_BASE" "$BASE_SHA"
 # The spec (and Playwright) always come from the head worktree.
 (cd "$WT_HEAD" && pnpm install --frozen-lockfile --prefer-offline)
 
+stop_server() { # the server runs in its own session: stop pnpm *and* next
+  kill -TERM -- "-$SERVER_PID" 2>/dev/null || true
+  wait "$SERVER_PID" 2>/dev/null || true
+  SERVER_PID=
+}
+
 serve() { # dir port: production build, then start in the background
   (cd "$1" && pnpm install --frozen-lockfile --prefer-offline && env "${blank_keys[@]}" pnpm build)
-  (cd "$1" && env "${blank_keys[@]}" pnpm start --port "$2") &
+  (cd "$1" && exec setsid env "${blank_keys[@]}" pnpm start --port "$2") &
   SERVER_PID=$!
   for _ in $(seq 1 60); do curl -sf "http://localhost:$2/metrics" >/dev/null && return 0; sleep 2; done
   echo "server on $2 never came up" >&2; exit 1
@@ -62,8 +68,8 @@ shoot() { # tag port: every state, from the HEAD worktree's spec, against the ru
   done
 }
 
-serve "$WT_BASE" "$PORT_BASE"; shoot before "$PORT_BASE"; kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERVER_PID=
-serve "$WT_HEAD" "$PORT_HEAD"; shoot after "$PORT_HEAD"; kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERVER_PID=
+serve "$WT_BASE" "$PORT_BASE"; shoot before "$PORT_BASE"; stop_server
+serve "$WT_HEAD" "$PORT_HEAD"; shoot after "$PORT_HEAD"; stop_server
 
 printf 'head %s\nbase (develop) %s\nproduction builds (next build && next start), nextjs-portal not hidden\n' \
   "$HEAD_SHA" "$BASE_SHA" > "$OUT/SHAS.txt"
