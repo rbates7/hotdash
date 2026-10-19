@@ -99,7 +99,8 @@ for (const theme of ["light", "dark"] as const) {
 
     await tab(page, "Expenses").click()
     await expect(panel(page, "Expenses").getByRole("table", { name: "Expenses", exact: true })).toBeVisible()
-    await expect(expensesCard(page).getByRole("img", { name: /^Expenses, bar chart of six 28-day windows, / })).toBeVisible()
+    // Seed rows only: the card has no figure and no chart until a row is entered.
+    await expect(expensesCard(page).getByTestId("metric-entries-note")).toBeVisible()
     await shoot(page, `metrics-expenses-${theme}`)
 
     // Add-expense dialog, filled in.
@@ -114,11 +115,11 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.reload()
     await expect(panel(page, "Expenses").getByRole("table", { name: "Expenses", exact: true }).getByRole("row", { name: /Vercel/ })).toBeVisible()
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
     await shoot(page, `metrics-expenses-persisted-after-reload-${theme}`)
 
     // Back to the seed for the next run.
     await resetDemoData(page)
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,240")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("—")
   })
 }

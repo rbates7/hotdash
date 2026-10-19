@@ -13,6 +13,7 @@ import {
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import { MOCK_DAY } from "@/lib/kpis"
+import { NO_EXPENSES_TEXT, NO_PRIOR_EXPENSES_TEXT } from "@/lib/live-metrics"
 
 /** The day the mock was drawn, so rows and labels match it verbatim. */
 const TODAY = MOCK_DAY
@@ -159,9 +160,13 @@ describe("MetricsTabs", () => {
       expect(strip).toHaveTextContent(SAMPLE_DATA_LABEL)
     })
 
-    it("the Expenses tab card is labelled as sample data", () => {
+    it("the Expenses tab card has no Sample label and leaves the seed rows out", () => {
       renderTabs("tab=expenses")
-      expect(within(card("Expenses")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      const exp = card("Expenses")
+      expect(within(exp).queryByTestId("sample-data-tag")).toBeNull()
+      expect(exp).toHaveAttribute("aria-label", "Expenses no expenses entered")
+      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("—")
+      expect(within(exp).getByTestId("metric-entries-note")).toHaveTextContent(NO_EXPENSES_TEXT)
     })
   })
 
@@ -244,7 +249,9 @@ describe("MetricsTabs", () => {
       renderTabs("tab=expenses")
       const table = screen.getByRole("table", { name: "Expenses" })
       expect(within(table).getByRole("row", { name: /Old/ })).toBeInTheDocument()
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$8,240")
+      // Only the founder's row counts, and it is in the window before.
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$0")
+      expect(within(card("Expenses")).getByTestId("trend")).toHaveTextContent("−100.0%")
     })
   })
 
@@ -260,7 +267,7 @@ describe("MetricsTabs", () => {
         "Retention 97.3% +1.5 pts",
         "Subscribers 186 +3",
         "Trial Conversions 28% +3.1 pts",
-        "Expenses $8,240 +2.4%",
+        "Expenses no expenses entered",
       ])
       const mrr = card("MRR")
       expect(within(mrr).getByTestId("metric-value")).toHaveTextContent("$26,190")
@@ -269,7 +276,8 @@ describe("MetricsTabs", () => {
       expect(within(mrr).getByText("vs previous 28 days")).toBeInTheDocument()
 
       const exp = card("Expenses")
-      expect(within(exp).getByTestId("trend")).toHaveAttribute("data-good", "false")
+      expect(within(exp).queryByTestId("trend")).toBeNull()
+      expect(within(exp).queryByTestId("sample-data-tag")).toBeNull()
     })
 
     it("each card has a bar/line toggle reflecting its default", () => {
@@ -411,7 +419,7 @@ describe("MetricsTabs", () => {
     it("shows the Expenses card without a remove button, plus the eight rows", () => {
       renderTabs("tab=expenses")
       const exp = card("Expenses")
-      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("$8,240")
+      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("—")
       expect(within(exp).queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument()
 
       const table = screen.getByRole("table", { name: "Expenses" })
@@ -452,18 +460,20 @@ describe("MetricsTabs", () => {
       expect(within(vercel).getByText("21 Aug 2026")).toBeInTheDocument()
       expect(within(vercel).getByText("Yes")).toBeInTheDocument()
       expect(within(table).getAllByRole("row").slice(1)).toHaveLength(9)
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$8,400")
-      expect(within(card("Expenses")).getByTestId("trend")).toHaveTextContent("+4.3%")
+      // The card counts the founder's row only: $160, nothing in the window before.
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$160")
+      expect(within(card("Expenses")).queryByTestId("trend")).toBeNull()
+      expect(within(card("Expenses")).getByTestId("metric-entries-note")).toHaveTextContent(NO_PRIOR_EXPENSES_TEXT)
     })
 
-    it("removes an expense and the card total follows", async () => {
+    it("removes an expense; a seed row never counted, so the card stays empty", async () => {
       const user = userEvent.setup()
       renderTabs("tab=expenses")
       await user.click(screen.getByRole("button", { name: "Remove AWS" }))
       const table = screen.getByRole("table", { name: "Expenses" })
       expect(within(table).queryByText("AWS")).not.toBeInTheDocument()
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$2,830")
-      expect(within(card("Expenses")).getByTestId("trend")).toHaveAttribute("data-good", "true")
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("—")
+      expect(within(card("Expenses")).getByTestId("metric-entries-note")).toHaveTextContent(NO_EXPENSES_TEXT)
     })
 
     it("the Expenses card shares its chart choice with the Overview card", async () => {

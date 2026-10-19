@@ -20,27 +20,34 @@ export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, AP
  * neither is Stripe or Chlk's database. `liveSummary()` has the App Store
  * connected (1,110 + 53 + 174 = 1,337); pass `APP_STORE_OFF` as its third
  * argument for not connected (1,284, "Total excludes App Store").
+ * Pass a function to change the answer mid-test (each poll reads it anew).
  * Returns the time-zone parameters the page asked with.
  */
-export async function mockStripe(page: Page, summary: StripeSummary) {
+export async function mockStripe(page: Page, summary: StripeSummary | (() => StripeSummary)) {
   const zones: string[] = []
   await page.route("**/api/stripe/summary**", async (route) => {
     zones.push(new URL(route.request().url()).searchParams.get("tz") ?? "")
-    await route.fulfill({ json: summary, headers: { "Cache-Control": "no-store" } })
+    const json = typeof summary === "function" ? summary() : summary
+    await route.fulfill({ json, headers: { "Cache-Control": "no-store" } })
   })
   return zones
 }
 
 /**
- * Connected (or stale) with a Subscribers total of `count`, flat today: the
- * fixture's free accounts and App Store payers, and Stripe paying the rest.
+ * Connected (or stale) with a Subscribers total of `count`: the fixture's
+ * free accounts and App Store payers, and Stripe paying the rest. Today's
+ * net change is `today` (flat by default), all of it on Stripe.
  */
-export function withSubscribers(count: number, status: "connected" | "stale" = "connected"): StripeSummary {
+export function withSubscribers(
+  count: number,
+  status: "connected" | "stale" = "connected",
+  today = 0
+): StripeSummary {
   const free = LIVE_METRICS.freeAccounts.value
   const app = "count" in APP_STORE_CONNECTED ? APP_STORE_CONNECTED.count : 0
   const metrics: StripeMetrics = {
     ...LIVE_METRICS,
-    subscribers: { ...LIVE_METRICS.subscribers, value: count - free - app, today: 0 },
+    subscribers: { ...LIVE_METRICS.subscribers, value: count - free - app, today },
     freeAccounts: { ...LIVE_METRICS.freeAccounts, today: 0 },
   }
   return liveSummary(status, metrics, APP_STORE_CONNECTED)

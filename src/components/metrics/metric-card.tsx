@@ -17,13 +17,20 @@ import {
 import { MRR_NOTE } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
-import { liveValueText, notConnected, notConnectedText, sourceFor, type LiveState } from "@/lib/live-metrics"
+import {
+  NO_EXPENSES_TEXT,
+  NO_PRIOR_EXPENSES_TEXT,
+  liveValueText,
+  notConnected,
+  notConnectedText,
+  sourceFor,
+  type LiveState,
+} from "@/lib/live-metrics"
 import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { METRICS_ICON, METRICS_PRESSED } from "@/components/metrics/responsive"
 import { ConnectingBadge } from "@/components/connecting-badge"
 import { NotConnectedBadge } from "@/components/home/not-connected"
-import { SampleDataTag } from "@/components/sample-data"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 
 function ToolButton({
@@ -106,7 +113,7 @@ export function MetricCard({
   // Only a live source or the founder's own entries (Expenses) put a number
   // on the card; the snapshot's fixture figures never do.
   const entries = live.kind === "entries"
-  const shown = figure ?? (entries ? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series } : { value: null, previous: null, series: [] as (number | null)[] })
+  const shown = figure ?? (entries ? { value: live.value, previous: live.previous, series: live.series } : { value: null, previous: null, series: [] as (number | null)[] })
   const trendable = !loading && shown.value !== null && shown.previous !== null
   const trend = trendable
     ? trendFor(shown.value!, shown.previous!, snapshot.trendKind, {
@@ -118,8 +125,8 @@ export function MetricCard({
     ? "–"
     : figure
       ? liveValueText(figure, snapshot.unit)
-      : entries
-        ? formatMetricValue(snapshot.value, snapshot.unit)
+      : entries && live.value !== null
+        ? formatMetricValue(live.value, snapshot.unit)
         : "\u2014"
   const charted = !loading && shown.series.some((v) => v !== null)
   const offText = off ? notConnectedText(live.source) : null
@@ -129,7 +136,9 @@ export function MetricCard({
     ? `${snapshot.label} ${connecting ? "connecting" : "loading"}`
     : off
       ? `${snapshot.label} not connected`
-      : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
+      : entries && live.value === null
+        ? `${snapshot.label} no expenses entered`
+        : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
   return (
     <article
       aria-label={name}
@@ -144,7 +153,6 @@ export function MetricCard({
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
-          {entries && <SampleDataTag />}
           {off && <NotConnectedBadge className="h-5 px-2" />}
           {connecting && <ConnectingBadge className="h-5 px-2" />}
         </div>
@@ -228,6 +236,10 @@ export function MetricCard({
           ) : offText ? (
             <p data-testid="metric-not-connected" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
               {offText}
+            </p>
+          ) : entries ? (
+            <p data-testid="metric-entries-note" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+              {live.value === null ? NO_EXPENSES_TEXT : NO_PRIOR_EXPENSES_TEXT}
             </p>
           ) : null}
         </div>

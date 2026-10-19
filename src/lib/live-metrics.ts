@@ -1,7 +1,15 @@
-import { formatWallClock } from "@/lib/clock"
+import { formatWallClock, periodBefore, periodEnding, type IsoDay } from "@/lib/clock"
 import type { Kpi } from "@/lib/home"
-import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
-import { formatCurrency, formatMetricValue, trendFor, type MetricId, type MetricSnapshot } from "@/lib/metrics"
+import { SEED_EXPENSE_IDS, VS_PREVIOUS_WINDOW } from "@/lib/kpis"
+import {
+  expensesTotal,
+  formatCurrency,
+  formatMetricValue,
+  trendFor,
+  type Expense,
+  type MetricId,
+  type MetricSnapshot,
+} from "@/lib/metrics"
 import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
 import { isAppStoreConnecting } from "@/lib/app-store-summary"
@@ -78,11 +86,12 @@ export function liveSubscribers(feed: Extract<StripeFeed, { kind: "live" }>, tim
  * - `loading` — a placeholder; `connecting` while a source with a key runs
  *   its first sync (#50), so the card says Connecting….
  * - `live` — the source's figure.
- * - `entries` — Expenses only: the figure is the sum of rows typed into the
- *   Expenses tab in this browser, not an outside source.
+ * - `entries` — Expenses only: the figure is the sum of the rows the founder
+ *   typed into the Expenses tab in this browser — never the seed rows or the
+ *   fixture baseline. `value` is null until one is entered.
  */
 export type LiveState =
-  | { kind: "entries" }
+  | { kind: "entries"; value: number | null; previous: number | null; series: (number | null)[] }
   | { kind: "not_connected"; source: LiveSource | null }
   | { kind: "loading"; connecting?: boolean }
   | { kind: "live"; metric: LiveMetric }
@@ -177,9 +186,42 @@ export function posthogMetric(id: MetricId, feed: PosthogFeed, timeZone: string)
   }
 }
 
-/** What Metrics card `id` shows: PostHog's figure for its cards, Stripe's for Stripe's, Not connected otherwise. */
-export function liveCard(id: MetricId, stripe: StripeFeed, posthog: PosthogFeed, timeZone: string): LiveState {
-  if (id === "expenses") return { kind: "entries" }
+/** The Expenses card's line before the founder has entered a row. */
+export const NO_EXPENSES_TEXT = "No expenses entered yet. Rows you add on the Expenses tab count here."
+/** The Expenses card with entries this window but none in the one before. */
+export const NO_PRIOR_EXPENSES_TEXT = "No expenses entered for the previous 28 days"
+
+/** How many 28-day windows a card's chart shows (oldest first). */
+const WINDOWS = 6
+
+/**
+ * The Expenses card from the rows the founder entered: six 28-day windows
+ * ending `today`, oldest first. Seed rows (`SEED_EXPENSE_IDS`) and the
+ * fixture baseline never count, so with nothing entered there is no figure.
+ */
+export function ownExpenses(expenses: readonly Expense[], today: IsoDay | Date): LiveState {
+  const own = expenses.filter((e) => !SEED_EXPENSE_IDS.has(e.id))
+  if (own.length === 0) return { kind: "entries", value: null, previous: null, series: [] }
+  const series: number[] = []
+  let period = periodEnding(today)
+  for (let i = 0; i < WINDOWS; i++) {
+    series.unshift(expensesTotal(own, period))
+    period = periodBefore(period)
+  }
+  // Nothing entered in the window before: no comparison, rather than "+0.0%".
+  const previous = series[WINDOWS - 2] === 0 ? null : series[WINDOWS - 2]
+  return { kind: "entries", value: series[WINDOWS - 1], previous, series }
+}
+
+/** What Metrics card `id` shows: PostHog's figure for its cards, Stripe's for Stripe's, the founder's entries for Expenses, Not connected otherwise. */
+export function liveCard(
+  id: MetricId,
+  stripe: StripeFeed,
+  posthog: PosthogFeed,
+  timeZone: string,
+  entries: { expenses: readonly Expense[]; today: IsoDay | Date }
+): LiveState {
+  if (id === "expenses") return ownExpenses(entries.expenses, entries.today)
   return POSTHOG_METRIC_IDS.has(id) ? posthogMetric(id, posthog, timeZone) : liveMetric(id, stripe, timeZone)
 }
 

@@ -40,7 +40,8 @@ const table = (page: Page, name: "New subscribers" | "Churned subscribers" | "Ex
   const owner = name === "New subscribers" ? "New Subscribers" : name === "Churned subscribers" ? "Churned Subscribers" : "Expenses"
   return panel(page, owner).getByRole("table", { name, exact: true })
 }
-const sampleNote = (page: Page) => page.getByRole("note", { name: "Sample data" })
+/** The Metrics connection notice (Not connected / Connecting / Partly live). */
+const connectionNote = (page: Page) => page.getByTestId("metrics-connection-notice")
 const header = (page: Page) => page.locator("main header").first()
 const headerTag = (page: Page) => header(page).getByTestId("sample-data-tag")
 const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
@@ -76,47 +77,42 @@ test.describe("Metrics", () => {
     await expect(tab(page, "Overview")).toHaveAttribute("aria-selected", "true")
 
     await expect(grid(page).getByRole("article")).toHaveCount(8)
+    // No key in e2e: Stripe's cards say Not connected, with no figure and no chart.
     const mrr = card(page, "MRR")
-    await expect(mrr.getByTestId("metric-value")).toHaveText("$26,190")
-    await expect(mrr.getByTestId("trend")).toHaveText("+4.2%")
-    await expect(mrr.getByText("vs previous 28 days")).toBeVisible()
-    // Recharts draws once it has measured its box; the name says what the
-    // six points really are (28-day windows, not months) and their values.
-    await expect(mrr.getByRole("img", { name: /^MRR, bar chart of six 28-day windows, .*to \d+ \w+ \$26,190$/ })).toBeVisible()
+    await expect(mrr).toHaveAttribute("data-source", "not_connected")
+    await expect(mrr.getByTestId("metric-value")).toHaveText("—")
+    await expect(mrr.getByTestId("metric-not-connected")).toHaveText("No figures until Stripe is connected.")
+    await expect(mrr.getByRole("img")).toHaveCount(0)
   })
 
-  test("labels every hard-coded number as sample data, in both themes, at ≥ 4.5:1 on every text node", async ({ page }) => {
+  test("no invented figures: Not connected notice and cards, no Sample label, in both themes, at ≥ 4.5:1", async ({ page }) => {
     await freshMetrics(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expect(sampleNote(page)).toBeVisible()
-      await expect(sampleNote(page)).toContainText("Every number on this page is illustrative")
-      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
-        await expect(card(page, name).getByTestId("sample-data-tag")).toBeVisible()
-        await expect(card(page, name).getByTestId("sample-data-tag")).toHaveText("Sample data")
+      await expect(connectionNote(page)).toBeVisible()
+      await expect(connectionNote(page)).toContainText("so no card has a figure")
+      await expect(connectionNote(page)).not.toContainText("illustrative")
+      await expect(headerTag(page)).toHaveCount(0)
+      await expect(grid(page).getByTestId("sample-data-tag")).toHaveCount(0)
+      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions"]) {
+        await expect(card(page, name)).toHaveAttribute("data-source", "not_connected")
+        await expect(card(page, name).getByTestId("not-connected")).toHaveText("Not connected")
       }
+      // Expenses counts only the founder's entries: none yet, so no figure.
+      await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("—")
+      await expect(card(page, "Expenses").getByTestId("metric-entries-note")).toBeVisible()
 
-      // Overview: header tag + notice + eight card tags + the picker's tag.
-      await expectReadable(sampleNote(page), `${theme}/notice`, expect)
-      await expectReadable(headerTag(page), `${theme}/header badge`, expect)
-      for (const tag of await grid(page).getByTestId("sample-data-tag").all()) {
-        await expectReadable(tag, `${theme}/card tag`, expect)
-      }
-      // The picker fades in; the probe waits for that to finish before it
-      // measures (it read 1.45:1 mid-animation before the shared fix).
-      await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
-      const picker = page.getByRole("dialog", { name: "Add a metric" })
-      const pickerTag = await expectReadable(picker.getByTestId("sample-data-tag"), `${theme}/picker tag`, expect)
-      expect(pickerTag.every((n) => n.ratio >= 4.5)).toBe(true)
-      await page.keyboard.press("Escape")
+      await expectReadable(connectionNote(page), `${theme}/notice`, expect)
+      await expectReadable(card(page, "MRR"), `${theme}/not-connected card`, expect)
+      await expectReadable(card(page, "Expenses"), `${theme}/expenses card`, expect)
 
-      // Expenses: the card's tag and the table strip (tag + explanatory line).
+      // Expenses tab: the seed table keeps its Sample strip; the card has none.
       await tab(page, "Expenses").click()
       const strip = panel(page, "Expenses").getByTestId("sample-data-strip")
       await expect(strip).toBeVisible()
       const stripNodes = await expectReadable(strip, `${theme}/table strip`, expect)
       expect(stripNodes.some((n) => /illustrative/.test(n.text))).toBe(true)
-      await expectReadable(expensesCard(page).getByTestId("sample-data-tag"), `${theme}/expenses card tag`, expect)
+      await expect(expensesCard(page).getByTestId("sample-data-tag")).toHaveCount(0)
       await tab(page, "Overview").click()
     }
     await setTheme(page, "light")
@@ -126,10 +122,10 @@ test.describe("Metrics", () => {
     await freshMetrics(page)
     // One shared probe for every screen; if it stopped seeing unreadable
     // text, every contrast assertion above would pass vacuously.
-    await expectProbeCatchesSabotage(sampleNote(page), "notice", expect)
-    await expectProbeCatchesSabotage(card(page, "MRR").getByTestId("sample-data-tag"), "card tag", expect)
+    await expectProbeCatchesSabotage(connectionNote(page), "notice", expect)
+    await expectProbeCatchesSabotage(card(page, "MRR").getByTestId("not-connected"), "card badge", expect)
     await setTheme(page, "dark")
-    await expectProbeCatchesSabotage(headerTag(page), "header tag (dark)", expect)
+    await expectProbeCatchesSabotage(connectionNote(page), "notice (dark)", expect)
     await setTheme(page, "light")
   })
 
@@ -219,7 +215,9 @@ test.describe("Metrics", () => {
 
     await tab(page, "Expenses").click()
     await expect(page).toHaveURL(/tab=expenses$/)
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,240")
+    // The card counts only rows the founder entered; the seed rows never count.
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("—")
+    await expect(expensesCard(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(table(page, "Expenses").getByRole("row")).toHaveCount(9)
 
     await page.goBack()
@@ -296,20 +294,20 @@ test.describe("Metrics", () => {
     await expect(row).toContainText("$160")
     await expect(row).toContainText(formatDate(day))
     await expect(row).toContainText("Yes")
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
 
     await page.reload()
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(expenses.getByRole("row", { name: /Vercel/ })).toBeVisible()
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
 
     // The Overview card is the same number.
     await tab(page, "Overview").click()
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$160")
 
-    // Reset (behind its confirm) clears the key and puts the seed back.
+    // Reset (behind its confirm) clears the key and puts the seed back: no entries, no figure.
     await resetDemoData(page)
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
+    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("—")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
   })

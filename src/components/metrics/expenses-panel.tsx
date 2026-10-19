@@ -12,6 +12,7 @@ import {
   type Sort,
 } from "@/lib/metrics"
 import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
+import { ownExpenses } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -311,12 +312,12 @@ export function ExpensesPanel() {
           chart={charts.expenses ?? METRIC_DEFS.expenses.defaultChart}
           onChartChange={(chart) => setChart("expenses", chart)}
           className="w-full max-w-[420px]"
-          live={{ kind: "entries" }}
+          live={ownExpenses(expenses, today)}
         />
         <AddExpenseDialog />
       </div>
 
-      <TableCard note="Seed rows are illustrative; rows you add are saved in this browser.">
+      <TableCard note="Seed rows are illustrative and the card above leaves them out; rows you add are saved in this browser and counted.">
         <div className="relative">
           <ResponsiveTable className={METRICS_EXPENSE_PIN}>
             <Table aria-label="Expenses">

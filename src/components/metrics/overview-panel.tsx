@@ -61,7 +61,7 @@ function PickerChoices({
         <ul className="flex flex-col">
           {choices.map((id) => {
             const snap = snapshotFor(id, { today, expenses })
-            const live = liveCard(id, feed, posthog, timeZone)
+            const live = liveCard(id, feed, posthog, timeZone, { expenses, today })
             // A live figure, the founder's own entries, or a plain word: never a fixture number.
             const figure =
               live.kind === "live"
@@ -71,7 +71,9 @@ function PickerChoices({
                     ? "Connecting…"
                     : "–"
                   : live.kind === "entries"
-                    ? formatMetricValue(snap.value, snap.unit)
+                    ? live.value === null
+                      ? "None entered"
+                      : formatMetricValue(live.value, snap.unit)
                     : "Not connected"
             return (
               <li key={id}>
@@ -209,7 +211,7 @@ export function OverviewPanel() {
                 chart={charts[id] ?? METRIC_DEFS[id].defaultChart}
                 onChartChange={(chart) => setChart(id, chart)}
                 onRemove={() => removeMetric(id)}
-                live={liveCard(id, feed, posthog, timeZone)}
+                live={liveCard(id, feed, posthog, timeZone, { expenses, today })}
               />
             )
           })}
