@@ -342,7 +342,7 @@ function SwitchRow({
 
 /**
  * The screens that still render seed rows. Home, Metrics (the Expenses tab
- * starts empty), System Status (seeded checks only behind ?preview=) and the
+ * starts empty), System Status (real page only; seeded checks are unit-test-only) and the
  * Product Roadmap (Notion, or an empty board under Not connected) have none;
  * keep this list to screens that really do.
  */
