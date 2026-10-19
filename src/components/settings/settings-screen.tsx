@@ -423,7 +423,7 @@ function figuresSummary(
   return `${live} live and carry no label.${connecting}${then}`
 }
 
-function SampleDataSection({ sampleData }: { sampleData: boolean }) {
+function SampleDataSection() {
   const stripeFeed = useStripeFeed()
   const notionFeed = useNotionRoadmapFeed()
   const summary = sampleDataSummary({
@@ -442,23 +442,13 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
       description={
         <>
           {summary}{" "}
-          Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
-          seed rows they sit on stay, and some screens (Agent Workplace, CRM rows) have
-          no label to hide.
+          Every screen still on seed rows carries the amber {SAMPLE_DATA_LABEL} label, always:
+          there is no switch to hide it. Some seed screens (Agent Workplace, CRM rows) have
+          no label yet.
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        <SwitchRow
-          label="Show Sample data labels"
-          checked={sampleData}
-          onCheckedChange={(checked) =>
-            updateSettings((s) => (s.sampleData === checked ? s : { ...s, sampleData: checked }))
-          }
-          className="-mx-2 self-start"
-        >
-          <span className="text-body font-medium">Show {SAMPLE_DATA_LABEL} labels</span>
-        </SwitchRow>
         <p className="text-caption flex flex-wrap items-center gap-2">
           <span className="text-muted-foreground">Labels look like</span>
           <span
@@ -470,7 +460,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
             <FlaskConicalIcon className="size-3" aria-hidden />
             {SAMPLE_DATA_LABEL}
           </span>
-          <span className="text-muted-foreground">{sampleData ? "and are shown." : "and are hidden."}</span>
+          <span className="text-muted-foreground">and are always shown.</span>
         </p>
       </div>
     </Section>
@@ -763,7 +753,7 @@ export function SettingsScreen() {
         <AppearanceSection />
         <TimeZoneSection timeZone={settings.timeZone} />
         <GoalsSection goals={settings.goals} />
-        <SampleDataSection sampleData={settings.sampleData} />
+        <SampleDataSection />
         <ConnectedDataSection timeZone={settings.timeZone} />
         <SidebarSection prefs={settings.sidebar} />
       </div>

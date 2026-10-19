@@ -60,7 +60,8 @@ describe("Settings › Connected data › Notion", () => {
     )
     const sample = screen.getByRole("region", { name: "Sample data" })
     expect(sample).toHaveTextContent("The Product Roadmap is read from Notion")
-    expect(sample).toHaveTextContent("some screens (Agent Workplace, CRM rows) have no label to hide")
+    expect(sample).toHaveTextContent("carries the amber Sample data label, always: there is no switch to hide it")
+    expect(within(sample).queryByRole("switch")).toBeNull()
   })
 
   it("loading: Checking…", () => {

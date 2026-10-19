@@ -27,9 +27,9 @@ import { quotaExceededStorage } from "@/test/storage"
 const screens = customizableItems().map((i) => i.href)
 
 describe("defaults", () => {
-  it("start in Central, with sample labels on, goals unset and the default sidebar", () => {
+  it("start in Central, goals unset and the default sidebar; there is no Sample data labels setting", () => {
     expect(DEFAULT_SETTINGS.timeZone).toBe(CENTRAL)
-    expect(DEFAULT_SETTINGS.sampleData).toBe(true)
+    expect(DEFAULT_SETTINGS).not.toHaveProperty("sampleData")
     expect(DEFAULT_SETTINGS.goals).toEqual({ monthlyRevenue: null, trialToPaid: null, churnLimit: null })
     expect(DEFAULT_SETTINGS.sidebar.order).toEqual(screens)
     expect(DEFAULT_SETTINGS.sidebar.hidden).toEqual([])
@@ -154,7 +154,6 @@ describe("parseSettings", () => {
   const valid: Settings = {
     timeZone: "America/New_York",
     goals: { monthlyRevenue: 20000, trialToPaid: 15, churnLimit: null },
-    sampleData: false,
     sidebar: { order: screens, hidden: ["/bugs"] },
   }
 
@@ -168,7 +167,6 @@ describe("parseSettings", () => {
       "x",
       [],
       { ...valid, timeZone: "Mars/Olympus" },
-      { ...valid, sampleData: "yes" },
       { ...valid, goals: { ...valid.goals, monthlyRevenue: -1 } },
       { ...valid, goals: { ...valid.goals, churnLimit: 140 } },
       { ...valid, goals: { monthlyRevenue: 1 } },
@@ -176,6 +174,12 @@ describe("parseSettings", () => {
       { ...valid, sidebar: undefined },
     ]
     for (const value of bad) expect(parseSettings(value), JSON.stringify(value)).toBeNull()
+  })
+
+  it("reads past the dropped sampleData field in an older copy (it goes on the next save)", () => {
+    for (const sampleData of [false, true, "yes"]) {
+      expect(parseSettings({ ...valid, sampleData })).toEqual(valid)
+    }
   })
 
   it("normalizes the sidebar rather than rejecting it", () => {
@@ -188,7 +192,7 @@ describe("parseSettings", () => {
 
 describe("settingsStorage", () => {
   it("round-trips through localStorage under the versioned key", () => {
-    const next = { ...DEFAULT_SETTINGS, sampleData: false }
+    const next = { ...DEFAULT_SETTINGS, timeZone: "UTC" as const }
     expect(settingsStorage.save(window.localStorage, next)).toBe(true)
     expect(window.localStorage.getItem(SETTINGS_KEY)).toBe(JSON.stringify(next))
     expect(settingsStorage.load(window.localStorage)).toEqual({ state: next, status: "saved" })

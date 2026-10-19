@@ -92,15 +92,11 @@ describe("SubscriberTicker", () => {
     expect(screen.getByText("+3")).toBeInTheDocument()
   })
 
-  it("wears the shared Sample chip, which follows Settings › Sample data", async () => {
+  it("wears the shared Sample chip, always (no setting hides it)", async () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="header" source={source} />)
     expect(screen.getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
-    act(() => updateSettings((s) => ({ ...s, sampleData: false })))
-    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    // Only the label goes; the number stays.
     expect(spoken()).toBe("Subscribers: 186, no change today")
-    act(() => updateSettings((s) => ({ ...s, sampleData: true })))
   })
 
   it("the phone bar uses the compact chip and no visible label", () => {
