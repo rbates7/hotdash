@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
 import { liveSummary } from "./support/stripe"
+import { liveInbox, mockInbox } from "./support/inbox"
 import { expectTapTarget } from "./support/tap-target"
 
 const VIEWPORTS = [
@@ -36,6 +37,7 @@ for (const vp of VIEWPORTS) {
     test("opens from the URL, runs the happy path, and does not scroll sideways", async ({
       page,
     }) => {
+      await mockInbox(page, liveInbox(Date.now()))
       await page.goto("/home")
       await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
       await expect(page.getByText(/pulse$/)).toBeVisible()
@@ -46,7 +48,7 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole("article", { name: "Cash this week" })).toBeVisible()
       await expect(page.getByRole("article", { name: "Subscribers" }).getByText("186")).toBeVisible()
       await expect(page.getByText("3 agents working")).toBeVisible()
-      await expect(page.getByText("2 waiting")).toBeVisible()
+      await expect(page.getByText("3 waiting")).toBeVisible()
 
       await expectTapTarget(page.getByRole("button", { name: "Reset" }), "Reset")
       await expectTapTarget(
@@ -57,8 +59,8 @@ for (const vp of VIEWPORTS) {
         page.getByRole("link", { name: "Open Agent Workplace" }),
         "Open Agent Workplace"
       )
-      await expectTapTarget(page.getByRole("link", { name: /Agent blocked/ }), "Needs-you row")
-      await expect(page.getByRole("link", { name: /Agent blocked/ })).toContainText("CHLK-412")
+      await expectTapTarget(page.getByRole("link", { name: /#912 Roster import/ }), "Needs-you row")
+      await expect(page.getByRole("link", { name: /#912 Roster import/ })).toContainText("PR ready for review")
 
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
@@ -77,10 +79,10 @@ for (const vp of VIEWPORTS) {
       expect(noteBox!.y, "note sits under the title").toBeGreaterThan(titleBox!.y + titleBox!.height - 1)
       expect(dummyBox!.width, "dummy stamp is not ellipsized").toBeGreaterThan(100)
 
-      await page.getByRole("link", { name: /Agent blocked/ }).click()
-      await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox&issue=CHLK-412$/)
+      await page.getByRole("link", { name: /#912 Roster import/ }).click()
+      await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox$/)
       await expect(
-        page.getByRole("heading", { level: 1, name: "Refund path for annual seats" })
+        page.getByRole("tabpanel", { name: "Inbox" }).getByRole("link", { name: /#912 Roster import/ })
       ).toBeVisible()
     })
   })

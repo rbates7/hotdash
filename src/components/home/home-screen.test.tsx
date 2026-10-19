@@ -19,6 +19,8 @@ import { formatMetricValue } from "@/lib/metrics"
 import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
+import { configureInbox } from "@/hooks/use-inbox"
+import { emptyInbox, liveInbox, notConnectedInbox } from "@/test/inbox-fixture"
 
 function renderHome() {
   return render(
@@ -168,20 +170,18 @@ describe("HomeScreen", () => {
     expect(within(door).getByText("Sprint 4 · 9 days left")).toBeInTheDocument()
   })
 
-  it("lists what needs you, capped and linked to each ticket", () => {
+  it("lists what needs you from the live Inbox, each row opening the Workplace Inbox", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(liveInbox(Date.now())) })
     renderHome()
     const door = screen.getByRole("region", { name: "Inbox" })
-    expect(within(door).getByText("2 waiting")).toBeInTheDocument()
+    expect(await within(door).findByText("3 waiting")).toBeInTheDocument()
     const rows = within(within(door).getByRole("list", { name: "Needs you" })).getAllByRole("link")
-    expect(rows.map((r) => r.getAttribute("href"))).toEqual([
-      "/agent-workplace?tab=inbox&issue=CHLK-408",
-      "/agent-workplace?tab=inbox&issue=CHLK-412",
-      "/agent-workplace?tab=inbox&issue=CHLK-406",
-    ])
-    expect(rows).toHaveLength(3)
-    // Dismissed digests do not come to Home.
-    expect(within(door).queryByText("Daily standup summary")).not.toBeInTheDocument()
+    expect(rows).toHaveLength(5)
+    expect(new Set(rows.map((r) => r.getAttribute("href")))).toEqual(new Set(["/agent-workplace?tab=inbox"]))
+    // None of the design mock's sample rows.
+    expect(within(door).queryByText(/Agent blocked|Daily standup summary/)).not.toBeInTheDocument()
     expect(within(door).getByText("Needs you lives here.")).toBeInTheDocument()
+    configureInbox({})
   })
 
   it("previews metrics with a trend chart, stamped as sample data", () => {
@@ -207,20 +207,17 @@ describe("HomeScreen", () => {
     expect(within(door).getByText("Sprints are planned from the Backlog tab.")).toBeInTheDocument()
   })
 
-  it("empties the Needs-you door once the linked tickets are closed", async () => {
-    seedStore((s) => ({
-      ...s,
-      issues: s.issues.map((i) =>
-        ["CHLK-408", "CHLK-412", "CHLK-406"].includes(i.key)
-          ? { ...i, status: "done" }
-          : i
-      ),
-    }))
+  it("shows Nothing needs you when connected and empty, and Not connected with no source", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(emptyInbox(Date.now())) })
+    const first = renderHome()
+    expect(await within(screen.getByRole("region", { name: "Inbox" })).findByText("Nothing needs you")).toBeInTheDocument()
+    first.unmount()
+    configureInbox({ fetcher: () => Promise.resolve(notConnectedInbox(Date.now())) })
     renderHome()
     const door = screen.getByRole("region", { name: "Inbox" })
-    expect(await within(door).findByText("Nothing needs you")).toBeInTheDocument()
+    expect(await within(door).findByText("Not connected")).toBeInTheDocument()
     expect(within(door).queryByText(/waiting/)).not.toBeInTheDocument()
-    expect(within(door).queryByRole("list", { name: "Needs you" })).not.toBeInTheDocument()
+    configureInbox({})
   })
 })
 

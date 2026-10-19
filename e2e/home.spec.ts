@@ -2,10 +2,12 @@ import { expect, test } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
 import { setTheme } from "./support/theme"
-import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { liveInbox, mockInbox } from "./support/inbox"
+import { NOTE, persistenceNote } from "./support/persistence"
 
 test.describe("Home", () => {
   test("is the default screen and shows the day's pulse", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
     await page.goto("/")
     await expect(page).toHaveURL(/\/home$/)
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
@@ -52,15 +54,21 @@ test.describe("Home", () => {
     const doors = page.getByRole("group", { name: "Doors" })
     await expect(doors.getByRole("region")).toHaveCount(3)
     await expect(doors.getByText("3 agents working")).toBeVisible()
-    await expect(doors.getByText("2 waiting")).toBeVisible()
-    await expect(doors.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
+    await expect(doors.getByText("3 waiting")).toBeVisible()
+    await expect(doors.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(5)
   })
 
-  test("a Needs-you row opens its ticket in the Workplace Inbox", async ({ page }) => {
+  test("a Needs-you row opens the Workplace Inbox, which lists the same live rows", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
     await page.goto("/home")
-    await page.getByRole("link", { name: /Agent blocked/ }).click()
-    await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox&issue=CHLK-412$/)
-    await expect(page.getByRole("heading", { level: 1, name: "Refund path for annual seats" })).toBeVisible()
+    await page.getByRole("link", { name: /#912 Roster import/ }).click()
+    await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox$/)
+    const panel = page.getByRole("tabpanel", { name: "Inbox" })
+    await expect(panel.getByRole("list", { name: "Inbox" }).getByRole("listitem")).toHaveCount(5)
+    await expect(panel.getByRole("link", { name: /#912 Roster import/ })).toHaveAttribute(
+      "href",
+      "https://github.com/rbates7/hotdash/pull/912"
+    )
   })
 
   test("the dev board door opens the board", async ({ page }) => {
@@ -70,42 +78,12 @@ test.describe("Home", () => {
     await expect(page.getByRole("region", { name: "To Do" })).toBeVisible()
   })
 
-  test("reflects the board: closing the linked tickets clears Needs you", async ({ page }) => {
-    await page.goto("/home")
-    const inboxDoor = page.getByRole("region", { name: "Inbox" })
-    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
-
-    // The three Needs-you rows and the column each ticket currently sits in.
-    const linked = [
-      ["CHLK-408", "In Review"],
-      ["CHLK-412", "Blocked"],
-      ["CHLK-406", "In Progress"],
-    ] as const
-    for (const [key, status] of linked) {
-      await page.goto(`/agent-workplace?issue=${key}`)
-      const props = page.getByRole("complementary", { name: "Ticket properties" })
-      await props.getByRole("button", { name: status, exact: true }).click()
-      await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click()
-      await page.keyboard.press("Escape")
-      await expect(props.getByRole("button", { name: "Done", exact: true })).toBeVisible()
-    }
-
+  test("with no GitHub or Sentry token, Needs you reads Not connected — no sample rows", async ({ page }) => {
     await page.goto("/home")
     const inbox = page.getByRole("region", { name: "Inbox" })
-    await expect(inbox.getByText("Nothing needs you")).toBeVisible()
+    await expect(inbox.getByText("Not connected")).toBeVisible()
     await expect(inbox.getByText(/waiting/)).toHaveCount(0)
-
-    // The Workplace Inbox agrees: only the dismissed digest is left.
-    await page.goto("/agent-workplace?tab=inbox")
-    const panel = page.getByRole("tabpanel", { name: "Inbox" })
-    await expect(panel.getByRole("listitem")).toHaveCount(1)
-    await expect(panel.getByText("Daily standup summary")).toBeVisible()
-
-    // Reset the browser copy so other tests see the seed.
-    await page.goto("/agent-workplace")
-    await resetDemoData(page, page.locator("main header").first())
-    await page.goto("/home")
-    await expect(inboxDoor.getByText("2 waiting")).toBeVisible()
+    await expect(inbox.getByText(/Agent blocked|Daily standup summary/)).toHaveCount(0)
   })
 
   test("renders in light and dark, with readable sample-data labels on the strip and every card", async ({ page }) => {

@@ -216,3 +216,48 @@ export function onInboxFailure(view: InboxView, now: Date): InboxView {
     },
   }
 }
+
+/* ------------------------------------------------------------------ screens */
+
+/**
+ * One status for the whole Inbox, as Home and the Inbox tab show it. Any
+ * source live (connected, else stale) wins; otherwise connecting only if a
+ * source really is mid first sync (the server never reports connecting
+ * without a token, and a failed first sync is not_connected); otherwise
+ * not connected.
+ */
+export function inboxStatus(sources: InboxResponse["sources"]): InboxSourceStatus {
+  const all = INBOX_SOURCES.map((id) => sources[id].status)
+  if (all.includes("connected")) return "connected"
+  if (all.includes("stale")) return "stale"
+  if (all.includes("connecting")) return "connecting"
+  return "not_connected"
+}
+
+/** The oldest last sync among stale sources: what "Last updated …" names. */
+export function staleSince(sources: InboxResponse["sources"]): Date | null {
+  const times = INBOX_SOURCES.filter((id) => sources[id].status === "stale")
+    .map((id) => sources[id].fetchedAt)
+    .filter((at): at is string => at !== null && Number.isFinite(Date.parse(at)))
+    .map((at) => Date.parse(at))
+  return times.length ? new Date(Math.min(...times)) : null
+}
+
+/**
+ * What a screen renders from the browser's copy. `loading` until the
+ * endpoint first answers, then the overall status with the rows (never
+ * sample ones; empty when nothing is live).
+ */
+export type InboxScreen = {
+  status: InboxSourceStatus | "loading"
+  items: RealInboxItem[]
+  /** Set when some source is stale. */
+  staleSince: Date | null
+  notes: string[]
+}
+
+export function inboxScreen(view: InboxView): InboxScreen {
+  if (view.phase === "loading") return { status: "loading", items: [], staleSince: null, notes: [] }
+  const { sources, items } = view.inbox
+  return { status: inboxStatus(sources), items, staleSince: staleSince(sources), notes: sourceNotes(sources) }
+}

@@ -82,10 +82,11 @@ test.describe("Agent Workplace", () => {
     await page.getByRole("tab", { name: "Autopilots" }).click()
     await expect(page.getByRole("row")).toHaveCount(4)
 
+    // The Inbox is live (/api/inbox); with no GitHub or Sentry token in e2e
+    // it says Not connected rather than showing sample rows.
     await page.getByRole("tab", { name: "Inbox" }).click()
-    await page.getByRole("button", { name: /Agent blocked/ }).click()
-    await expect(page).toHaveURL(/issue=CHLK-412/)
-    await expect(page.getByText("Waiting on Stripe dashboard access.")).toBeVisible()
+    await expect(page.getByTestId("inbox-not-connected")).toContainText("Not connected")
+    await expect(page.getByRole("tabpanel", { name: "Inbox" }).getByRole("listitem")).toHaveCount(0)
   })
 
   test("two tabs: an edit in A shows in B, Reset in A re-seeds B, and the writes settle", async ({ context }) => {

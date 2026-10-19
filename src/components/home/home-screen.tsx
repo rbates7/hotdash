@@ -4,8 +4,9 @@ import { todayIn } from "@/lib/clock"
 import { boardPreview, needsYou, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
 import { mrrTrend, snapshotFor } from "@/lib/kpis"
-import { liveKpis, liveMetric } from "@/lib/live-metrics"
-import { buildInbox } from "@/lib/workplace-fixture"
+import { lastUpdatedLabel, liveKpis, liveMetric } from "@/lib/live-metrics"
+import { inboxScreen } from "@/lib/inbox-sources"
+import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
@@ -46,9 +47,11 @@ export function HomeScreen() {
   // The page's instant, as the founder's calendar day: the same `today` the
   // Metrics page would compute, so the strip and door match it.
   const today = todayIn(now)
-  const needs = needsYou(buildInbox(now), issues)
+  // Needs you: the live Inbox's unread rows (GitHub, Sentry), never sample.
+  const inbox = inboxScreen(useInboxView())
+  const needs = needsYou(inbox.items, issues)
   const board = boardPreview(issues, sprints, actors, now)
-  // Until the browser's saved board is read, the two store-backed doors show
+  // Until the browser's saved board is read, the Dev board door shows
   // placeholders rather than flashing the seed and then swapping.
   const loading = !persisted
   // Stripe's figures where it feeds them; the rest stay sample, labelled.
@@ -104,7 +107,9 @@ export function HomeScreen() {
             className={HOME_INBOX_DOOR}
             needs={needs}
             now={now}
-            loading={loading}
+            loading={inbox.status === "loading"}
+            status={inbox.status === "loading" ? "connecting" : inbox.status}
+            updated={inbox.staleSince ? lastUpdatedLabel(inbox.staleSince, timeZone) : null}
           />
         </div>
       </div>
