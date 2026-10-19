@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { addDays, daysBetween, isIsoDay, todayIn, type IsoDay } from "@/lib/clock"
-import { SEED_EXPENSE_IDS, seedExpenses } from "@/lib/kpis"
+import { SEED_EXPENSE_IDS } from "@/lib/kpis"
 import {
   DEFAULT_METRIC_IDS,
   METRIC_IDS,
@@ -180,18 +180,17 @@ export function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-/** The seed, dated relative to `today` so no row ever postdates it. */
+/**
+ * A fresh board: the default cards and no expenses. There are no seed rows
+ * (no sample data, labelled or not); ids start after the old seed's
+ * (`exp-1`…`exp-8`) so a row never takes one of their ids.
+ */
 export function initialState(today: IsoDay): State {
-  const expenses = seedExpenses(today)
-  const highest = expenses.reduce((max, e) => {
-    const n = Number(e.id.split("-")[1])
-    return Number.isFinite(n) && n > max ? n : max
-  }, 0)
   return {
     visible: [...DEFAULT_METRIC_IDS],
     charts: {},
-    expenses,
-    nextExpenseId: highest + 1,
+    expenses: [],
+    nextExpenseId: SEED_EXPENSE_IDS.size + 1,
     seededAt: today,
   }
 }
@@ -268,7 +267,10 @@ export function parseState(value: unknown): State | null {
   if (!isFiniteNumber(v.nextExpenseId) || !Number.isInteger(v.nextExpenseId)) return null
   if (v.nextExpenseId <= highestExpenseId(expenses)) return null
   if (!isIsoDay(v.seededAt)) return null
-  return { visible: [...v.visible], charts, expenses, nextExpenseId: v.nextExpenseId, seededAt: v.seededAt }
+  // A copy saved before the seed rows were removed still holds them: they
+  // are sample data, so they are dropped here; the founder's rows stay.
+  const own = expenses.filter((e) => !SEED_EXPENSE_IDS.has(e.id))
+  return { visible: [...v.visible], charts, expenses: own, nextExpenseId: v.nextExpenseId, seededAt: v.seededAt }
 }
 
 /** Boolean form of `parseState`, for callers that only need yes/no. */

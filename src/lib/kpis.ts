@@ -119,7 +119,7 @@ export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
   const last = series.length - 1
 
   if (id === "expenses") {
-    const rows = ctx.expenses ?? seedExpenses(today)
+    const rows = ctx.expenses ?? []
     series[last] = expensesTotal(rows, period)
     series[last - 1] = priorExpensesTotal(rows, period)
   }
@@ -258,7 +258,11 @@ function toKpi(snap: MetricSnapshot, suffix: string): Kpi {
 
 /* ------------------------------------------------------------- expenses */
 
-/** Eight rows, every one inside the trailing four weeks ending `today`. */
+/**
+ * The old Expenses seed (eight rows inside the four weeks ending `today`).
+ * No screen shows it any more; it is kept so rows a browser saved before the
+ * seed was removed can be recognised by id and dropped (`SEED_EXPENSE_IDS`).
+ */
 export function seedExpenses(today: IsoDay | Date): Expense[] {
   const d = (offset: number) => addDays(today, offset)
   return [

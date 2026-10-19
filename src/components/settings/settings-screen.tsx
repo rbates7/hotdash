@@ -339,6 +339,22 @@ function SwitchRow({
   )
 }
 
+/**
+ * The screens that still render seed rows. Home, Metrics (the Expenses tab
+ * starts empty) and System Status (seeded checks only behind ?preview=) have
+ * none; keep this list to screens that really do.
+ */
+export const SEEDED_SCREENS = [
+  "My Desk",
+  "Agent Workplace and Bugs",
+  "Product Roadmap",
+  "Feature Requests",
+  "Clinics",
+  "Community Development",
+  "CRM",
+  "Sales Opportunities",
+] as const
+
 /** The Sample data section's first sentence: what is live, what is connecting, and where sample rows remain. */
 export function sampleDataSummary({
   stripe,
@@ -364,7 +380,7 @@ export function sampleDataSummary({
           ? "The CRM's Gmail conversations are"
           : null
   // Home and Metrics never show an invented figure: a card with no source says Not connected.
-  const rest = "Home and Metrics show no invented figures (a card with no source says Not connected); the screens still built on seed rows keep their sample labels."
+  const rest = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
   if (!live && !stripeConnecting) return `Nothing is connected yet. ${rest}`
   if (!live) return `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${rest}`
   const connecting = stripeConnecting

@@ -80,7 +80,15 @@ export function HomeScreen() {
             // MRR always has a value (a sum, never a ratio), so no point is null.
             trend={mrr.kind === "live" ? (mrr.metric.series as number[]) : []}
             today={today}
-            state={mrr.kind === "loading" && mrr.connecting ? "connecting" : mrr.kind}
+            // MRR is a Stripe metric, never founder entries; that kind only
+            // narrows the type.
+            state={
+              mrr.kind === "loading" && mrr.connecting
+                ? "connecting"
+                : mrr.kind === "entries"
+                  ? "not_connected"
+                  : mrr.kind
+            }
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
           {/* The Workplace board and Inbox are design mocks with no live

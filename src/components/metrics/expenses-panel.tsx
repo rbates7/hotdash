@@ -291,6 +291,34 @@ function AddExpenseDialog() {
   )
 }
 
+export const NO_EXPENSES_TITLE = "No expenses yet"
+export const NO_EXPENSES_BODY =
+  "Expenses you add are saved in this browser and counted on the card above. There are no sample rows."
+
+/**
+ * The Expenses tab with no founder entries: no seed table, just what to do
+ * next. Its Add expense is the panel's only one here and keeps the 44px
+ * target below 1280 (`METRICS_TOUCH`). Text uses the foreground and
+ * muted-foreground tokens, so it reads in light and dark.
+ */
+function ExpensesEmpty() {
+  return (
+    <section
+      aria-labelledby="metrics-expenses-empty-title"
+      data-testid="metrics-expenses-empty"
+      className="bg-surface border-surface-border flex w-full flex-col items-start gap-3 rounded-xl border px-5 py-6"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="metrics-expenses-empty-title" className="text-body text-foreground font-semibold">
+          {NO_EXPENSES_TITLE}
+        </h2>
+        <p className="text-caption text-muted-foreground">{NO_EXPENSES_BODY}</p>
+      </div>
+      <AddExpenseDialog />
+    </section>
+  )
+}
+
 type ExpenseKey = keyof Omit<Expense, "id">
 
 export function ExpensesPanel() {
@@ -314,62 +342,59 @@ export function ExpensesPanel() {
           className="w-full max-w-[420px]"
           live={ownExpenses(expenses, today)}
         />
-        <AddExpenseDialog />
+        {/* With no rows, the empty state below carries the one Add expense. */}
+        {expenses.length > 0 && <AddExpenseDialog />}
       </div>
 
-      <TableCard note="Seed rows are illustrative and the card above leaves them out; rows you add are saved in this browser and counted.">
-        <div className="relative">
-          <ResponsiveTable className={METRICS_EXPENSE_PIN}>
-            <Table aria-label="Expenses">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <SortableHead
-                    column="category"
-                    sort={sort}
-                    onSort={onSort}
-                    className={METRICS_SORT_HEAD}
-                  >
-                    Category
-                  </SortableHead>
-                  <SortableHead
-                    column="amount"
-                    sort={sort}
-                    onSort={onSort}
-                    align="right"
-                    className={METRICS_SORT_HEAD}
-                  >
-                    Amount
-                  </SortableHead>
-                  <SortableHead
-                    column="date"
-                    sort={sort}
-                    onSort={onSort}
-                    className={METRICS_SORT_HEAD}
-                  >
-                    Date
-                  </SortableHead>
-                  <SortableHead
-                    column="recurring"
-                    sort={sort}
-                    onSort={onSort}
-                    className={METRICS_SORT_HEAD}
-                  >
-                    Recurring
-                  </SortableHead>
-                  <th className={`${HEAD} w-10 max-xl:w-11`}>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.length === 0 ? (
+      {expenses.length === 0 ? (
+        <ExpensesEmpty />
+      ) : (
+        <TableCard>
+          <div className="relative">
+            <ResponsiveTable className={METRICS_EXPENSE_PIN}>
+              <Table aria-label="Expenses">
+                <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} className={`${CELL} text-muted-foreground py-8 text-center`}>
-                      No expenses yet. Add one above.
-                    </TableCell>
+                    <SortableHead
+                      column="category"
+                      sort={sort}
+                      onSort={onSort}
+                      className={METRICS_SORT_HEAD}
+                    >
+                      Category
+                    </SortableHead>
+                    <SortableHead
+                      column="amount"
+                      sort={sort}
+                      onSort={onSort}
+                      align="right"
+                      className={METRICS_SORT_HEAD}
+                    >
+                      Amount
+                    </SortableHead>
+                    <SortableHead
+                      column="date"
+                      sort={sort}
+                      onSort={onSort}
+                      className={METRICS_SORT_HEAD}
+                    >
+                      Date
+                    </SortableHead>
+                    <SortableHead
+                      column="recurring"
+                      sort={sort}
+                      onSort={onSort}
+                      className={METRICS_SORT_HEAD}
+                    >
+                      Recurring
+                    </SortableHead>
+                    <th className={`${HEAD} w-10 max-xl:w-11`}>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </TableRow>
-                ) : (
-                  sorted.map((e) => (
+                </TableHeader>
+                <TableBody>
+                  {sorted.map((e) => (
                     <TableRow key={e.id} className="group/row hover:bg-transparent">
                       <TableCell className={CELL}>{e.category}</TableCell>
                       <TableCell className={`${CELL} text-right tabular-nums`}>
@@ -397,14 +422,14 @@ export function ExpensesPanel() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </ResponsiveTable>
-          <div data-testid="metrics-expenses-fade" className={METRICS_EXPENSE_FADE} />
-        </div>
-      </TableCard>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+            <div data-testid="metrics-expenses-fade" className={METRICS_EXPENSE_FADE} />
+          </div>
+        </TableCard>
+      )}
     </div>
   )
 }
