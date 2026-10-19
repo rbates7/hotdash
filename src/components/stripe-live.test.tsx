@@ -152,7 +152,7 @@ describe("Home while the summary loads", () => {
     renderHome()
     for (const name of ["Subscribers", "Cash this week"]) {
       expect(kpi(name)).toHaveAttribute("aria-busy", "true")
-      expect(within(kpi(name)).getByLabelText("Loading")).toHaveTextContent("–")
+      expect(within(kpi(name)).getByTestId("kpi-placeholder")).toHaveTextContent("–Loading")
       expect(within(kpi(name)).queryByTestId("sample-data-tag")).toBeNull()
     }
     expect(ticker()).toHaveAttribute("data-state", "loading")

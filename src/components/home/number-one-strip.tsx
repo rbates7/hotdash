@@ -5,9 +5,13 @@ import type { NumberOne } from "@/lib/home"
 import { cn } from "@/lib/utils"
 import { HOME_TOUCH } from "@/components/home/responsive"
 
+/** The empty #1's line: My Desk is not connected to Home yet, and has no picker. */
+export const NUMBER_ONE_EMPTY = "Your #1 will come from My Desk once it\u2019s connected."
+
 /**
- * The one thing for today, pinned from My Desk. Until My Desk ships this is
- * display data; the pill still points at where it will come from.
+ * The one thing for today, to come from My Desk. My Desk is not connected
+ * to Home yet, so Home passes `null` and the strip says where it will come
+ * from; the pill still links there.
  */
 export function NumberOneStrip({ item }: { item: NumberOne | null }) {
   return (
@@ -46,7 +50,7 @@ export function NumberOneStrip({ item }: { item: NumberOne | null }) {
             No #1 yet
           </h2>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
-            Pick one on My Desk and it shows up here.
+            {NUMBER_ONE_EMPTY}
           </p>
         </div>
       )}

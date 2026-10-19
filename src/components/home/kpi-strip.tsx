@@ -85,7 +85,20 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
           (loading || notConnected) && "text-muted-foreground"
         )}
       >
-        {loading ? <span aria-label="Loading">–</span> : notConnected ? <span aria-label="No figure">{kpi.value}</span> : kpi.value}
+        {/* Placeholders: the dash is decoration; screen readers get the words (sr-only, not aria-label on a span). */}
+        {loading ? (
+          <span data-testid="kpi-placeholder">
+            <span aria-hidden>–</span>
+            <span className="sr-only">Loading</span>
+          </span>
+        ) : notConnected ? (
+          <span data-testid="kpi-placeholder">
+            <span aria-hidden>{kpi.value}</span>
+            <span className="sr-only">No figure</span>
+          </span>
+        ) : (
+          kpi.value
+        )}
       </p>
       {/* A Not connected card keeps the note's room (hidden) so the strip does not shift. */}
       {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
