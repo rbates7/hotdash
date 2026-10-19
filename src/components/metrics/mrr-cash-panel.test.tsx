@@ -2,7 +2,8 @@ import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { MrrCashPanelView } from "@/components/metrics/mrr-cash-panel"
+import { CASH_LAST_WEEK_BAR, CASH_THIS_WEEK_BAR, MrrCashPanelView } from "@/components/metrics/mrr-cash-panel"
+import { lastUpdatedLabel } from "@/lib/live-metrics"
 import type { MrrCashPanelState } from "@/lib/stripe-mrr-cash"
 
 const CT = "America/Chicago"
@@ -70,5 +71,31 @@ describe("MrrCashPanelView", () => {
   it("says when stale figures were last updated", () => {
     render(<MrrCashPanelView state={{ ...LIVE, stale: true }} timeZone={CT} />)
     expect(screen.getByTestId("mrr-cash-updated")).toHaveTextContent(/^Last updated /)
+    // The shared label, not a copy of it.
+    expect(screen.getByTestId("mrr-cash-updated")).toHaveTextContent(lastUpdatedLabel(new Date("2026-10-14T17:00:00.000Z"), CT))
+  })
+
+  it("says the MRR history uses today's prices", () => {
+    render(<MrrCashPanelView state={LIVE} timeZone={CT} />)
+    expect(screen.getByTestId("mrr-chart-caption")).toHaveTextContent("MRR · 3 months · USD, past months at today's prices")
+  })
+
+  it("names both cash series in a legend, and paints last week in a full-strength token", () => {
+    render(<MrrCashPanelView state={LIVE} timeZone={CT} />)
+    const legend = screen.getByTestId("cash-legend")
+    expect(legend).toHaveTextContent("This week")
+    expect(legend).toHaveTextContent("Last week")
+    expect(CASH_LAST_WEEK_BAR).toBe("bg-muted-foreground")
+    expect(CASH_THIS_WEEK_BAR).toBe("bg-primary")
+    const lastWeek = screen.getAllByTestId("cash-bar-last-week")
+    expect(lastWeek).toHaveLength(7)
+    for (const bar of lastWeek) {
+      expect(bar).toHaveClass("bg-muted-foreground")
+      // No translucent tint (the old bg-muted-foreground/30 was about 1.5:1).
+      expect(bar.className).not.toMatch(/bg-muted-foreground\//)
+    }
+    expect(screen.getByTestId("cash-legend-last-week")).toHaveClass(CASH_LAST_WEEK_BAR)
+    expect(screen.getByTestId("cash-legend-this-week")).toHaveClass(CASH_THIS_WEEK_BAR)
+    for (const bar of screen.getAllByTestId("cash-bar-this-week")) expect(bar).toHaveClass(CASH_THIS_WEEK_BAR)
   })
 })

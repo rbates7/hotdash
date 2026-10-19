@@ -1,6 +1,7 @@
 "use client"
 
-import { formatWallClock, formatDayShort } from "@/lib/clock"
+import { formatDayShort } from "@/lib/clock"
+import { lastUpdatedLabel } from "@/lib/live-metrics"
 import { formatCurrency } from "@/lib/metrics"
 import {
   monthLabel,
@@ -40,7 +41,7 @@ export function MrrCashPanelView({ state, timeZone }: { state: MrrCashPanelState
         <h2 className="text-body text-foreground font-medium">MRR and cash this week</h2>
         {state.kind === "live" && state.stale && (
           <p data-testid="mrr-cash-updated" className="text-caption text-muted-foreground">
-            Last updated {formatWallClock(state.lastSyncedAt, timeZone)}
+            {lastUpdatedLabel(state.lastSyncedAt, timeZone)}
           </p>
         )}
       </header>
@@ -72,6 +73,35 @@ function Placeholder({ state }: { state: Exclude<MrrCashPanelState, { kind: "liv
 
 const BAR_H = 96
 
+/**
+ * The two cash series. Last week is `muted-foreground` at full strength:
+ * at least 3:1 against `--card` in both themes (6.5:1 light, 7.2:1 dark),
+ * where the old `/30` tint was about 1.5:1. The legend names both, so the
+ * series are never told apart by colour alone.
+ */
+export const CASH_THIS_WEEK_BAR = "bg-primary"
+export const CASH_LAST_WEEK_BAR = "bg-muted-foreground"
+
+/** Matches the shared chart legend (components/ui/chart.tsx ChartLegendContent). */
+function CashLegend() {
+  return (
+    <ul
+      aria-label="Legend"
+      data-testid="cash-legend"
+      className="text-caption text-muted-foreground flex items-center justify-center gap-4"
+    >
+      <li className="flex items-center gap-1.5">
+        <span aria-hidden data-testid="cash-legend-this-week" className={`h-2 w-2 shrink-0 rounded-[2px] ${CASH_THIS_WEEK_BAR}`} />
+        This week
+      </li>
+      <li className="flex items-center gap-1.5">
+        <span aria-hidden data-testid="cash-legend-last-week" className={`h-2 w-2 shrink-0 rounded-[2px] ${CASH_LAST_WEEK_BAR}`} />
+        Last week
+      </li>
+    </ul>
+  )
+}
+
 function MrrBars({ points }: { points: MrrPoint[] }) {
   const max = Math.max(1, ...points.map((p) => p.value))
   const first = points[0]
@@ -79,7 +109,9 @@ function MrrBars({ points }: { points: MrrPoint[] }) {
   return (
     <figure className="flex flex-col gap-2">
       <figcaption className="flex items-baseline justify-between">
-        <span className="text-caption text-muted-foreground">MRR · {points.length} months</span>
+        <span data-testid="mrr-chart-caption" className="text-caption text-muted-foreground">
+          MRR · {points.length} months · USD, past months at today&apos;s prices
+        </span>
         <span data-testid="mrr-chart-latest" className="text-body text-foreground font-medium tabular-nums">
           {formatCurrency(last.value)}
         </span>
@@ -129,12 +161,14 @@ function CashDays({ value, previous, days }: { value: number; previous: number; 
           <li key={d.date} data-testid="cash-day" data-date={d.date} className="flex flex-1 items-end gap-0.5">
             <span
               aria-hidden
-              className="bg-muted-foreground/30 flex-1 rounded-sm"
+              data-testid="cash-bar-last-week"
+              className={`${CASH_LAST_WEEK_BAR} flex-1 rounded-sm`}
               style={{ height: d.previous === null ? 0 : `${Math.max(2, (d.previous / max) * BAR_H)}px` }}
             />
             <span
               aria-hidden
-              className="bg-primary flex-1 rounded-sm"
+              data-testid="cash-bar-this-week"
+              className={`${CASH_THIS_WEEK_BAR} flex-1 rounded-sm`}
               style={{ height: d.value === null ? 0 : `${Math.max(2, (d.value / max) * BAR_H)}px` }}
             />
             <span className="sr-only">
@@ -151,6 +185,7 @@ function CashDays({ value, previous, days }: { value: number; previous: number; 
           </span>
         ))}
       </div>
+      <CashLegend />
     </figure>
   )
 }
