@@ -9,12 +9,13 @@ import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Bugs page, every main state in both themes
- * at desktop width. Opt-in: `pnpm screens:bugs` (CI=true so Playwright
- * starts the production server — the Next.js dev badge must never cover
- * Logout). Output goes to docs/screenshots/bugs and, when SCREENSHOT_DIR
- * is set, there as well.
+ * at desktop width. The walk and its assertions run in every e2e run (CI
+ * included), so the states it shoots stay true; the PNGs are written only
+ * with SCREENSHOTS=1 (`pnpm screens:bugs`, CI=true so Playwright starts the
+ * production server). Output goes to docs/screenshots/bugs and, when
+ * SCREENSHOT_DIR is set, there as well.
  */
-test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
+const CAPTURE = Boolean(process.env.SCREENSHOTS)
 
 const OUT_DIRS = [
   path.resolve("docs/screenshots/bugs"),
@@ -26,6 +27,7 @@ const STORAGE_KEY = "hotdash.agent-workplace.v2"
 test.use({ viewport: { width: 1440, height: 900 } })
 
 async function shoot(page: Page, name: string, locator?: ReturnType<Page["locator"]>) {
+  if (!CAPTURE) return
   await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
@@ -49,10 +51,13 @@ for (const theme of ["light", "dark"] as const) {
     await fresh(page)
     await setTheme(page, theme)
     await expect(page.getByRole("region", { name: "Bug list" })).toBeVisible()
-    await expect(page.getByRole("article", { name: "Crashes" }).getByTestId("crash-count")).toHaveText("8")
+    // Sentry is not connected: the crash card says so, with no figure.
+    const crashCard = page.getByRole("article", { name: "Crashes: not connected", exact: true })
+    await expect(crashCard.getByTestId("crash-count")).toHaveText("\u2014No figure")
+    await expect(crashCard.getByTestId("not-connected")).toHaveText("Not connected")
 
     await shoot(page, `bugs-list-${theme}`)
-    await shoot(page, `bugs-crash-card-${theme}`, page.getByRole("article", { name: "Crashes", exact: true }))
+    await shoot(page, `bugs-crash-card-${theme}`, crashCard)
 
     // Ticket open on Bugs — the Workplace TicketView, editing in place.
     await page.getByRole("region", { name: "Bug list" }).getByRole("link", { name: /CHLK-419/ }).click()
