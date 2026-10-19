@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Fails the build if a server secret could reach a browser: the Stripe key
- * (`STRIPE_READONLY_KEY`) or Chlk's read-only database URL
- * (`SUPABASE_READONLY_DB_URL`, which carries a password) or the GitHub
- * token (`GITHUB_READONLY_TOKEN`, or `github_read_only` as named in Vercel)
- * or the Sentry token (`SENTRY_READONLY_TOKEN`).
+ * (`STRIPE_READONLY_KEY`), Chlk's read-only database URL
+ * (`SUPABASE_READONLY_DB_URL`, which carries a password), the PostHog
+ * personal API key (`POSTHOG_READONLY_KEY`), the GitHub token
+ * (`GITHUB_READONLY_TOKEN`, or `github_read_only` as named in Vercel) or
+ * the Sentry token (`SENTRY_READONLY_TOKEN`).
  *
  * Scans everything Next serves to clients — `.next/static` (every JS/CSS
  * chunk) and the prerendered pages and RSC payloads under
@@ -21,7 +22,14 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
 
-const ENV_NAMES = ["STRIPE_READONLY_KEY", "SUPABASE_READONLY_DB_URL", "GITHUB_READONLY_TOKEN", "github_read_only", "SENTRY_READONLY_TOKEN"]
+const ENV_NAMES = [
+  "STRIPE_READONLY_KEY",
+  "SUPABASE_READONLY_DB_URL",
+  "POSTHOG_READONLY_KEY",
+  "GITHUB_READONLY_TOKEN",
+  "github_read_only",
+  "SENTRY_READONLY_TOKEN",
+]
 const buildDir = path.resolve(process.argv[2] ?? ".next")
 const staticDir = path.join(buildDir, "static")
 const prerenderDir = path.join(buildDir, "server", "app")

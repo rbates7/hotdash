@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useMounted } from "@/hooks/use-mounted"
+import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
@@ -336,17 +337,45 @@ function SwitchRow({
   )
 }
 
+/** The Sample data section's first sentence: what is live, what is connecting, and that the rest is sample. */
+export function sampleDataSummary({
+  stripe,
+  posthog,
+  stripeConnecting,
+  appStoreConnecting,
+}: {
+  stripe: boolean
+  posthog: boolean
+  stripeConnecting: boolean
+  appStoreConnecting: boolean
+}): string {
+  const live = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
+  if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
+  if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+  const connecting = stripeConnecting
+    ? " Stripe is connecting (first sync in progress)."
+    : appStoreConnecting
+      ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
+      : ""
+  if (!connecting) return `${live} figures are live and carry no label; every other number is still sample data.`
+  return `${live} figures are live and carry no label;${connecting} Every other number is still sample data.`
+}
+
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
-  const live = useStripeFeed().kind === "live"
+  const stripeFeed = useStripeFeed()
+  const summary = sampleDataSummary({
+    stripe: stripeFeed.kind === "live",
+    posthog: usePosthogFeed().kind === "live",
+    stripeConnecting: stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting),
+    appStoreConnecting: stripeFeed.kind === "live" && stripeFeed.appStore.status === "connecting",
+  })
   return (
     <Section
       id="sample-data"
       title="Sample data"
       description={
         <>
-          {live
-            ? "Stripe's figures are live and carry no label; every other number is still sample data."
-            : "Nothing is connected yet, so every number on every screen is sample data."}{" "}
+          {summary}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
           placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
           no label to hide.
@@ -386,16 +415,37 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
 
 const SOURCES = [
   { name: "Stripe", feeds: "Subscribers, revenue, churn, trials" },
-  { name: "PostHog", feeds: "Usage, active coaches, funnels" },
+  { name: "PostHog", feeds: "Active users and retention (iOS app)" },
   { name: "Sentry", feeds: "Errors, crash-free rate, bugs" },
   { name: "Gmail", feeds: "Coach conversations for CRM" },
 ] as const
 
 const STATUS_BADGE = "h-6 px-2.5"
 
-/** Stripe's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
-function StripeStatus({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+/** What a live source's row needs: Stripe's and PostHog's feeds both fit. */
+type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+
+/** Hooks per live source, so each row reads only its own. */
+const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
+  Stripe: { use: useStripeFeed, id: "stripe" },
+  PostHog: { use: usePosthogFeed, id: "posthog" },
+}
+
+/**
+ * A live source's row: Connected (and when it last synced), Last updated
+ * (stale), Connecting… (a key is set, its first sync is still running), or
+ * Not connected (no key).
+ */
+function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id } = LIVE_FEEDS[name]!
+  const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <Badge variant="outline" aria-busy data-testid={`${id}-status`} className={cn("text-muted-foreground!", STATUS_BADGE)}>
+        Connecting…
+      </Badge>
+    )
+  }
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -407,7 +457,7 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   const when = formatWallClock(feed.lastSyncedAt, timeZone)
   if (feed.stale) {
     return (
-      <Badge variant="outline" data-testid="stripe-status" className={STATUS_BADGE}>
+      <Badge variant="outline" data-testid={`${id}-status`} className={STATUS_BADGE}>
         <AlertTriangleIcon aria-hidden className="text-danger-text" />
         {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
       </Badge>
@@ -416,7 +466,7 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   return (
     <Badge
       variant="outline"
-      data-testid="stripe-status"
+      data-testid={`${id}-status`}
       title={`Last synced ${when}`}
       className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
     >
@@ -426,13 +476,21 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   )
 }
 
-function StripeDetail({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id } = LIVE_FEEDS[name]!
+  const feed = use()
+  if (feed.kind === "loading" && feed.connecting) {
+    return (
+      <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
+        Read-only key found · first sync in progress, figures appear when it finishes
+      </p>
+    )
+  }
   if (feed.kind !== "live") return null
   return (
-    <p className="text-caption text-muted-foreground" data-testid="stripe-detail">
+    <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
       {feed.stale
-        ? "Stripe could not be read just now, so its figures are the last good ones."
+        ? `${name} could not be read just now, so its figures are the last good ones.`
         : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
     </p>
   )
@@ -451,7 +509,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe is the first."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe and PostHog are wired up so far."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
@@ -461,9 +519,9 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
-                {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
+                {LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />}
               </div>
-              {source.name === "Stripe" ? <StripeStatus timeZone={timeZone} /> : <NotConnected />}
+              {LIVE_FEEDS[source.name] ? <SourceStatus name={source.name} timeZone={timeZone} /> : <NotConnected />}
             </div>
           </li>
         ))}
