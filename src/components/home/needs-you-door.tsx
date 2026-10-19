@@ -7,6 +7,7 @@ import type { InboxSourceStatus } from "@/lib/inbox-sources"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Door, DoorEmpty } from "@/components/home/door"
+import { DoorNotConnected } from "@/components/home/not-connected"
 import { HOME_NEED_ROW } from "@/components/home/responsive"
 
 const INBOX_HREF = "/agent-workplace?tab=inbox"
@@ -55,12 +56,14 @@ export function NeedsYouDoor({
       name="Inbox"
       href={INBOX_HREF}
       icon={InboxIcon}
-      count={!busy && waiting > 0 ? `${waiting} waiting` : undefined}
+      count={!busy && status !== "not_connected" && waiting > 0 ? `${waiting} waiting` : undefined}
       caption="Needs you lives here."
       className={className}
     >
       <span hidden data-testid="needs-you-state" data-state={state} />
-      {busy ? (
+      {!loading && status === "not_connected" ? (
+        <DoorNotConnected hint="GitHub and Sentry aren't connected yet, so nothing needs you here." />
+      ) : busy ? (
         <div
           aria-busy="true"
           aria-label={loading ? "Loading what needs you" : `Connecting to ${connectingTo}`}
@@ -139,11 +142,6 @@ export function NeedsYouDoor({
             </Link>
           )}
         </div>
-      ) : status === "not_connected" ? (
-        <DoorEmpty
-          title="Not connected"
-          hint="GitHub and Sentry aren't connected yet."
-        />
       ) : (
         <DoorEmpty
           title="Nothing needs you"

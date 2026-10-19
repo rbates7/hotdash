@@ -58,35 +58,11 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     )
   }
 
-  it("the truth strip's Subscribers card shows the Metrics Subscribers card's value and delta", () => {
-    const metrics = renderMetrics()
-    const metricsCard = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^Subscribers\b/ })
-    const metricsValue = within(metricsCard).getByTestId("metric-value").textContent
-    const metricsTrend = within(metricsCard).getByTestId("trend").textContent
-    const metricsCaption = within(metricsCard).getByText(/vs previous/).textContent
-    metrics.unmount()
-
+  it("with Stripe not connected, Home shows no sample figure for Subscribers or MRR", () => {
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    expect(within(homeCard).getByText(metricsValue!)).toBeInTheDocument()
-    expect(homeCard).toHaveTextContent(`${metricsTrend} ${metricsCaption}`)
-  })
-
-  it("the Metrics door's MRR span is the Metrics MRR card's series", () => {
-    const metrics = renderMetrics()
-    const mrr = within(screen.getByRole("region", { name: "Metric cards" })).getByRole("article", { name: /^MRR\b/ })
-    const name = within(mrr).getByRole("img").getAttribute("aria-label")!
-    // "…: to 10 Apr $23,800, …, to 27 Aug $26,190"
-    const values = [...name.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")))
-    expect(values).toHaveLength(6)
-    metrics.unmount()
-
-    renderHome()
-    const door = screen.getByRole("region", { name: "Metrics" })
-    const first = `$${(values[0] / 1000).toFixed(1).replace(/\.0$/, "")}k`
-    const last = `$${(values[5] / 1000).toFixed(1).replace(/\.0$/, "")}k`
-    expect(within(door).getByText(new RegExp(`${first.replace("$", "\\$").replace(".", "\\.")} → ${last.replace("$", "\\$").replace(".", "\\.")}`))).toBeInTheDocument()
-    expect(within(door).getByRole("img").getAttribute("aria-label")).toContain(`${first} to ${last}`)
+    expect(homeCard).toHaveAttribute("data-source", "not_connected")
+    expect(within(screen.getByRole("region", { name: "Metrics" })).queryByRole("img")).not.toBeInTheDocument()
   })
 
   it("every growth-set figure Home could show matches the rendered Metrics card", () => {

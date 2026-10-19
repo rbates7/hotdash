@@ -31,9 +31,11 @@ export type Kpi = {
   lowerIsBetter?: boolean
   /**
    * Where the figure comes from: absent or `sample` is the dummy fixture
-   * (labelled), `stripe` is live, `loading` is waiting for Stripe.
+   * (labelled), `stripe` is live, `loading` is waiting for Stripe, `not_connected` has no source (no figure).
    */
-  source?: "sample" | "stripe" | "loading"
+  source?: "sample" | "stripe" | "loading" | "not_connected"
+  /** A `loading` card whose source is connecting (#50: first sync running). */
+  connecting?: boolean
   /** "Last updated …" on a stale Stripe figure. */
   updated?: string | null
   /** Live Subscribers only: the groups the total adds up. */
@@ -179,4 +181,16 @@ function round(n: number) {
 export function compactDollars(n: number) {
   if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`
   return `$${n}`
+}
+
+/**
+ * Any KPI still on the sample fixture becomes Not connected: an em dash, no
+ * delta, no invented figure. Live (Stripe) and loading cards pass through.
+ */
+export function notConnectedKpis(kpis: readonly Kpi[]): Kpi[] {
+  return kpis.map((kpi): Kpi =>
+    !kpi.source || kpi.source === "sample"
+      ? { id: kpi.id, label: kpi.label, value: "\u2014", delta: "", direction: "flat", source: "not_connected" }
+      : kpi
+  )
 }

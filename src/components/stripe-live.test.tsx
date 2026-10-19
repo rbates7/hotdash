@@ -130,13 +130,17 @@ describe("Home with Stripe stale", () => {
 })
 
 describe("Home with Stripe not connected", () => {
-  it("shows the sample figures, every one labelled (as before Stripe)", () => {
+  it("says Not connected with no figures and no sample labels (Home carries no sample data)", () => {
     renderHome()
-    expect(within(kpi("Subscribers")).getByText("186")).toBeInTheDocument()
-    expect(within(kpi("Subscribers")).getByTestId("sample-data-tag")).toBeInTheDocument()
-    expect(within(kpi("Cash this week")).getByTestId("sample-data-tag")).toBeInTheDocument()
-    expect(within(strip()).getByTestId("kpi-sample-label")).toBeInTheDocument()
-    expect(within(ticker()).getByTestId("sample-data-tag")).toBeInTheDocument()
+    for (const name of ["Subscribers", "Cash this week"]) {
+      expect(kpi(name)).toHaveAttribute("data-source", "not_connected")
+      expect(within(kpi(name)).getByTestId("not-connected")).toBeInTheDocument()
+      expect(within(kpi(name)).queryByTestId("sample-data-tag")).toBeNull()
+    }
+    expect(within(kpi("Subscribers")).queryByText("186")).toBeNull()
+    expect(within(strip()).queryByTestId("kpi-sample-label")).toBeNull()
+    expect(ticker()).toHaveAttribute("data-state", "not_connected")
+    expect(within(ticker()).queryByTestId("sample-data-tag")).toBeNull()
     expect(screen.queryByText(/Last updated/)).toBeNull()
   })
 })
@@ -148,7 +152,7 @@ describe("Home while the summary loads", () => {
     renderHome()
     for (const name of ["Subscribers", "Cash this week"]) {
       expect(kpi(name)).toHaveAttribute("aria-busy", "true")
-      expect(within(kpi(name)).getByLabelText("Loading")).toHaveTextContent("–")
+      expect(within(kpi(name)).getByTestId("kpi-placeholder")).toHaveTextContent("–Loading")
       expect(within(kpi(name)).queryByTestId("sample-data-tag")).toBeNull()
     }
     expect(ticker()).toHaveAttribute("data-state", "loading")
