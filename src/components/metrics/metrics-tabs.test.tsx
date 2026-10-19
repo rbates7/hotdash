@@ -537,7 +537,7 @@ describe("Overview: MRR and cash this week", () => {
     renderTabs()
     const panel = screen.getByRole("region", { name: "MRR and cash this week" })
     expect(await within(panel).findByText("Stripe not connected")).toBeInTheDocument()
-    expect(within(panel).queryByText(SAMPLE_DATA_LABEL)).not.toBeInTheDocument()
+    expect(within(panel).queryByTestId("sample-data-tag")).toBeNull()
     expect(grid().compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
