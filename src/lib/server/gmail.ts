@@ -24,9 +24,10 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
  * vars and never leave this module: they are not logged, not returned, and
  * nothing here is importable from a client component (`server-only`).
  *
- * Plain `fetch` against Google's REST endpoints — no SDK: one refresh-token
+ * Plain `fetch` against Google's REST endpoints — no SDK: a refresh-token
  * exchange at `oauth2.googleapis.com/token` (scope `gmail.readonly`, granted
- * once by `pnpm gmail:consent`), then `threads.list` and, per thread,
+ * once by `pnpm gmail:consent`) whose access token is reused until shortly
+ * before it expires (`createTokenCache`), then `threads.list` and, per thread,
  * `threads.get?format=metadata` (headers, labels and Gmail's snippet —
  * never a body or an attachment). The threads are mapped into the CRM's
  * own rows (`mapGmailThreads`) and kept for `CACHE_TTL_MS`; the last good
@@ -99,19 +100,163 @@ export type Loader = (
   signal?: AbortSignal
 ) => Promise<GmailThreadMeta[]>
 
+export type GmailErrorType = "GmailAuth" | "GmailApi" | "GmailRateLimited" | "InvalidData"
+
+/**
+ * Google's non-secret error fields, for the log. Only codes from fixed
+ * places in Google's error JSON (the OAuth `error`, the Gmail API
+ * `error.status` and `error.errors[].reason`) and only when they look like
+ * a code (letters and underscores, ≤ 48) — never `error_description`,
+ * `message`, a body, a header or anything we sent.
+ */
+export type GoogleErrorDetail = {
+  /** Which call failed: the token exchange or a Gmail API read. */
+  step: "token" | "api"
+  status: number
+  /** OAuth `error`, e.g. invalid_grant, unauthorized_client. */
+  error?: string
+  /** Gmail API `error.status`, e.g. PERMISSION_DENIED, RESOURCE_EXHAUSTED. */
+  apiStatus?: string
+  /** Gmail API `error.errors[].reason`, e.g. userRateLimitExceeded. */
+  reasons?: string[]
+}
+
 /** A failure with a fixed word for the log; never a message from Google. */
 class GmailError extends Error {
-  constructor(readonly type: "GmailAuth" | "GmailApi" | "GmailRateLimited" | "InvalidData") {
+  constructor(
+    readonly type: GmailErrorType,
+    readonly detail?: GoogleErrorDetail
+  ) {
     super(type)
     this.name = "GmailError"
   }
 }
 
-function apiError(status: number) {
-  return new GmailError(status === 401 || status === 403 ? "GmailAuth" : status === 429 ? "GmailRateLimited" : "GmailApi")
+const asString = (v: unknown) => (typeof v === "string" ? v : null)
+
+/** What an error code looks like; a token, secret or sentence never does. */
+const SAFE_CODE = /^[A-Za-z][A-Za-z_]{0,47}$/
+
+/** Gmail's 403 reasons (and status) that mean slow down, not "not allowed". */
+const RATE_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "dailyLimitExceeded"])
+
+/**
+ * Google's error fields from a failed response, code-shaped values only.
+ * `secrets` are dropped even if Google echoed one in a code field.
+ */
+export function googleErrorDetail(
+  step: GoogleErrorDetail["step"],
+  status: number,
+  body: unknown,
+  secrets: readonly string[] = []
+): GoogleErrorDetail {
+  const safe = (v: unknown) => {
+    const s = asString(v)
+    return s && SAFE_CODE.test(s) && !secrets.some((secret) => secret && s.includes(secret)) ? s : undefined
+  }
+  const detail: GoogleErrorDetail = { step, status: Number.isInteger(status) ? status : 0 }
+  const err = body && typeof body === "object" ? (body as { error?: unknown }).error : undefined
+  if (typeof err === "string") {
+    const code = safe(err)
+    if (code) detail.error = code
+  } else if (err && typeof err === "object") {
+    const e = err as { status?: unknown; errors?: unknown }
+    const apiStatus = safe(e.status)
+    if (apiStatus) detail.apiStatus = apiStatus
+    const reasons = (Array.isArray(e.errors) ? e.errors : [])
+      .map((x) => safe((x as { reason?: unknown } | null)?.reason))
+      .filter((r): r is string => Boolean(r))
+      .slice(0, 5)
+    if (reasons.length) detail.reasons = [...new Set(reasons)]
+  }
+  return detail
 }
 
-const asString = (v: unknown) => (typeof v === "string" ? v : null)
+/** 401 and other 403s are an invalid token or grant; 429 or a quota 403 is a rate limit. */
+export function classifyGoogleError(detail: GoogleErrorDetail): Exclude<GmailErrorType, "InvalidData"> {
+  const rate =
+    detail.status === 429 ||
+    detail.apiStatus === "RESOURCE_EXHAUSTED" ||
+    (detail.status === 403 && (detail.reasons ?? []).some((r) => RATE_REASONS.has(r)))
+  if (rate) return "GmailRateLimited"
+  if (detail.step === "token") return detail.status >= 500 ? "GmailApi" : "GmailAuth"
+  return detail.status === 401 || detail.status === 403 ? "GmailAuth" : "GmailApi"
+}
+
+async function googleError(step: GoogleErrorDetail["step"], res: Response, secrets: readonly string[]) {
+  const body = await res.json().catch(() => null)
+  const detail = googleErrorDetail(step, res.status, body, secrets)
+  return new GmailError(classifyGoogleError(detail), detail)
+}
+
+/* ------------------------------------------------------------ token cache */
+
+/** Refresh this long before Google's `expires_in` runs out. */
+export const TOKEN_EXPIRY_MARGIN_MS = 60_000
+
+type OkConfig = Extract<GmailConfig, { kind: "ok" }>
+
+export type TokenCache = {
+  /** A valid access token: the cached one, or one refresh shared by every caller waiting now. */
+  get(config: OkConfig, signal?: AbortSignal): Promise<string>
+  /** Forget the token (Gmail said 401), so the next `get` refreshes. */
+  invalidate(): void
+}
+
+/**
+ * The access token for this server instance, shared by every request:
+ * reused until `TOKEN_EXPIRY_MARGIN_MS` before `expires_in`, and at most one
+ * refresh in flight (callers that arrive meanwhile wait for it). A token is
+ * only reused for the same client and refresh token. Other instances keep
+ * their own (sharing one needs a store; see docs/gmail-setup.md).
+ */
+export function createTokenCache(fetchImpl: typeof fetch = fetch, clock: () => number = () => Date.now()): TokenCache {
+  let cached: { token: string; expiresAt: number; key: string } | null = null
+  let inflight: { promise: Promise<string>; key: string } | null = null
+
+  const keyOf = (config: OkConfig) => `${config.clientId}\u0000${config.refreshToken}`
+
+  async function refresh(config: OkConfig, key: string, signal?: AbortSignal) {
+    const secrets = [config.clientSecret, config.refreshToken, config.clientId]
+    const res = await fetchImpl(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: config.refreshToken,
+        grant_type: "refresh_token",
+      }),
+      signal,
+      cache: "no-store",
+    })
+    if (!res.ok) throw await googleError("token", res, secrets)
+    const body = (await res.json().catch(() => null)) as { access_token?: unknown; expires_in?: unknown } | null
+    const token = asString(body?.access_token)
+    if (!token) throw new GmailError("GmailAuth", { step: "token", status: res.status, error: "no_access_token" })
+    const expiresIn = typeof body?.expires_in === "number" && Number.isFinite(body.expires_in) ? body.expires_in : 0
+    const expiresAt = clock() + expiresIn * 1000 - TOKEN_EXPIRY_MARGIN_MS
+    // No (or a too-short) expiry: use it for this sync only, never reuse it.
+    cached = expiresAt > clock() ? { token, expiresAt, key } : null
+    return token
+  }
+
+  return {
+    get(config, signal) {
+      const key = keyOf(config)
+      if (cached && cached.key === key && clock() < cached.expiresAt) return Promise.resolve(cached.token)
+      if (inflight && inflight.key === key) return inflight.promise
+      const promise = refresh(config, key, signal).finally(() => {
+        if (inflight?.promise === promise) inflight = null
+      })
+      inflight = { promise, key }
+      return promise
+    },
+    invalidate() {
+      cached = null
+    },
+  }
+}
 
 /** Only the fields the mapper reads; everything else Google sent is dropped. */
 export function slimThread(raw: unknown): GmailThreadMeta | null {
@@ -162,25 +307,13 @@ async function mapLimited<T, R>(items: readonly T[], limit: number, fn: (item: T
 
 /**
  * The read-only calls. `fetchImpl` is swappable for tests; nothing in here
- * logs, and no error carries Google's response text.
+ * logs, and an error carries only Google's code-shaped fields
+ * (`GoogleErrorDetail`), never its text.
  */
-export function gmailLoader(fetchImpl: typeof fetch = fetch): Loader {
+export function gmailLoader(fetchImpl: typeof fetch = fetch, tokens: TokenCache = createTokenCache(fetchImpl)): Loader {
   return async (config, signal) => {
-    const tokenRes = await fetchImpl(TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        refresh_token: config.refreshToken,
-        grant_type: "refresh_token",
-      }),
-      signal,
-      cache: "no-store",
-    })
-    if (!tokenRes.ok) throw new GmailError("GmailAuth")
-    const accessToken = asString(((await tokenRes.json()) as { access_token?: unknown } | null)?.access_token)
-    if (!accessToken) throw new GmailError("GmailAuth")
+    const accessToken = await tokens.get(config, signal)
+    const secrets = [config.clientSecret, config.refreshToken, config.clientId, accessToken]
 
     const base = `${GMAIL_API}/${encodeURIComponent(config.mailbox)}`
     const get = async (url: string) => {
@@ -189,7 +322,11 @@ export function gmailLoader(fetchImpl: typeof fetch = fetch): Loader {
         signal,
         cache: "no-store",
       })
-      if (!res.ok) throw apiError(res.status)
+      if (!res.ok) {
+        // A revoked or expired access token: refresh on the next sync.
+        if (res.status === 401) tokens.invalidate()
+        throw await googleError("api", res, secrets)
+      }
       return (await res.json()) as unknown
     }
 
@@ -222,6 +359,30 @@ export function failureKind(error: unknown) {
   return "UnknownError"
 }
 
+/** What each kind means in the log, in words that tell them apart. */
+const KIND_WORDS: Record<string, string> = {
+  GmailAuth: "invalid token or grant",
+  GmailRateLimited: "rate limited",
+  GmailApi: "Gmail API error",
+}
+
+/**
+ * Google's code fields for the log, e.g. `invalid token or grant: token
+ * status=400 error=invalid_grant` or `rate limited: api status=403
+ * reason=userRateLimitExceeded`. Re-checked here, so only code-shaped
+ * values from a `GmailError` ever reach the log. `null` when there is none.
+ */
+export function failureDetail(error: unknown): string | null {
+  if (!(error instanceof GmailError) || !error.detail) return null
+  const d = error.detail
+  const code = (v: unknown) => (typeof v === "string" && SAFE_CODE.test(v) ? v : null)
+  const parts = [d.step === "token" ? "token" : "api", `status=${Number.isInteger(d.status) ? d.status : 0}`]
+  if (code(d.error)) parts.push(`error=${d.error}`)
+  if (code(d.apiStatus)) parts.push(`apiStatus=${d.apiStatus}`)
+  for (const r of d.reasons ?? []) if (code(r)) parts.push(`reason=${r}`)
+  return `${KIND_WORDS[error.type] ?? error.type}: ${parts.join(" ")}`
+}
+
 /* ------------------------------------------------------------------ cache */
 
 /** How long a good sync is served before the next request re-reads Gmail. */
@@ -248,7 +409,7 @@ export function createGmailService({
   ttlMs = CACHE_TTL_MS,
   retryMs = RETRY_AFTER_MS,
   timeoutMs = SYNC_TIMEOUT_MS,
-  log = (kind: string) => console.warn(`[gmail] sync failed: ${kind}`),
+  log = (kind: string, detail?: string) => console.warn(`[gmail] sync failed: ${kind}${detail ? ` (${detail})` : ""}`),
 }: {
   env?: () => Env
   load?: Loader
@@ -256,7 +417,7 @@ export function createGmailService({
   ttlMs?: number
   retryMs?: number
   timeoutMs?: number
-  log?: (kind: string) => void
+  log?: (kind: string, detail?: string) => void
 } = {}): GmailService {
   let lastGood: Snapshot | null = null
   let lastAttempt: { at: number; ok: boolean } | null = null
@@ -285,7 +446,9 @@ export function createGmailService({
       if (mine !== generation) return
       // Retry a minute after it failed, not after it started.
       lastAttempt = { at: clock(), ok: false }
-      log(failureKind(error))
+      const detail = failureDetail(error)
+      if (detail) log(failureKind(error), detail)
+      else log(failureKind(error))
     }
   }
 
