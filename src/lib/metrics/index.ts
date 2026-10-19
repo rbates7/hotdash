@@ -19,6 +19,7 @@ export const DEFAULT_METRIC_IDS = [
 ] as const
 
 export const EXTRA_METRIC_IDS = [
+  "active",
   "cac",
   "ltv",
   "arpu",
