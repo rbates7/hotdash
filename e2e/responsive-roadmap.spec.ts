@@ -40,6 +40,21 @@ const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, ex
 const persistence = (page: Page) =>
   page.getByRole("status", { name: NOTE_NAME, exact: true })
 
+/**
+ * On a phone, closing a sheet returns focus to the card twice: once in a
+ * layout effect (so `toBeFocused()` passes at once) and again in a
+ * `setTimeout(0)` the board schedules to win over Base UI's
+ * requestAnimationFrame focus step (roadmap-board.tsx). A test that moves
+ * focus between the two has it pulled back to the card. Resolve only
+ * after the next frame and then a later macrotask, so both have run: an
+ * event to wait on, not a fixed delay.
+ */
+async function deferredFocusSettled(page: Page) {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)))
+  )
+}
+
 async function fresh(page: Page) {
   await page.goto("/product-roadmap")
   await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
@@ -315,9 +330,13 @@ test.describe("responsive Product Roadmap (phone 390)", () => {
     await page.keyboard.press("Escape")
     await expect(sheet).toBeHidden()
     await expect(card(page, who)).toBeFocused()
+    // The board's deferred refocus must run before focus moves on, or it
+    // pulls focus back to the card and Enter lands on the article (CI flake).
+    await deferredFocusSettled(page)
 
     const move = card(page, who).getByRole("button", { name: "Move down" })
     await move.focus()
+    await expect(move).toBeFocused()
     await page.keyboard.press("Enter")
     await expect(card(page, who)).not.toBeFocused()
 

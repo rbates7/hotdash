@@ -123,10 +123,17 @@ describe("postgresQuery (the default provider)", () => {
     const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ").trim()
     expect(flat).toBe(
       "select count(distinct a.user_id)::int as n from chlk.subscriptions a join chlk.plans p on p.id = a.plan_id " +
-        "where a.method = 'AppStore' and p.apple_product_id is not null and a.subscription_status in ('active','billing_retry') " +
+        "where a.method = 'AppStore' and p.apple_product_id is not null and a.subscription_status = 'active' " +
         "and not exists ( select 1 from chlk.subscriptions x where x.user_id = a.user_id and x.method in ('Stripe','invoice') " +
         "and x.subscription_status in ('active','past_due','trialing') )"
     )
+  })
+
+  it("counts active App Store rows only: billing_retry (and trialing, past_due) is not counted", () => {
+    const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ")
+    const main = flat.slice(0, flat.indexOf("not exists"))
+    expect(main).toContain("a.subscription_status = 'active'")
+    expect(main).not.toMatch(/billing_retry|trialing|past_due/)
   })
 
   it("an odd answer is an error, and the connection is still closed", async () => {

@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils"
 import { updateSettings, useSettingsSnapshot } from "@/hooks/use-settings"
 import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import { useMounted } from "@/hooks/use-mounted"
+import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
@@ -339,12 +340,14 @@ function SwitchRow({
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
   const stripe = useStripeFeed().kind === "live"
+  const posthog = usePosthogFeed().kind === "live"
   const gmail = useGmailFeed().kind === "live"
+  const figures = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
   const live =
-    stripe && gmail
-      ? "Stripe's figures and the CRM's Gmail conversations are live"
-      : stripe
-        ? "Stripe's figures are live"
+    figures && gmail
+      ? `${figures} figures and the CRM's Gmail conversations are live`
+      : figures
+        ? `${figures} figures are live`
         : gmail
           ? "The CRM's Gmail conversations are live"
           : null
@@ -396,16 +399,27 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
 
 const SOURCES = [
   { name: "Stripe", feeds: "Subscribers, revenue, churn, trials" },
-  { name: "PostHog", feeds: "Usage, active coaches, funnels" },
+  { name: "PostHog", feeds: "Active users and retention (iOS app)" },
   { name: "Sentry", feeds: "Errors, crash-free rate, bugs" },
   { name: "Gmail", feeds: "Coach conversations for CRM" },
 ] as const
 
 const STATUS_BADGE = "h-6 px-2.5"
 
-/** Stripe's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
-function StripeStatus({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+/** What a live source's row needs: Stripe's, PostHog's and Gmail's feeds all fit. */
+type SourceFeed = { kind: "loading" } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+
+/** Hooks per live source, so each row reads only its own. */
+const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
+  Stripe: { use: useStripeFeed, id: "stripe" },
+  PostHog: { use: usePosthogFeed, id: "posthog" },
+  Gmail: { use: useGmailFeed, id: "gmail" },
+}
+
+/** A live source's row: Connected (and when it last synced), Last updated (stale), or Not connected. */
+function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id } = LIVE_FEEDS[name]!
+  const feed = use()
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
@@ -417,7 +431,7 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   const when = formatWallClock(feed.lastSyncedAt, timeZone)
   if (feed.stale) {
     return (
-      <Badge variant="outline" data-testid="stripe-status" className={STATUS_BADGE}>
+      <Badge variant="outline" data-testid={`${id}-status`} className={STATUS_BADGE}>
         <AlertTriangleIcon aria-hidden className="text-danger-text" />
         {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
       </Badge>
@@ -426,7 +440,7 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   return (
     <Badge
       variant="outline"
-      data-testid="stripe-status"
+      data-testid={`${id}-status`}
       title={`Last synced ${when}`}
       className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
     >
@@ -436,50 +450,20 @@ function StripeStatus({ timeZone }: { timeZone: string }) {
   )
 }
 
-function StripeDetail({ timeZone }: { timeZone: string }) {
-  const feed = useStripeFeed()
+function SourceDetail({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
+  const { use, id } = LIVE_FEEDS[name]!
+  const feed = use()
   if (feed.kind !== "live") return null
   return (
-    <p className="text-caption text-muted-foreground" data-testid="stripe-detail">
+    <p className="text-caption text-muted-foreground" data-testid={`${id}-detail`}>
       {feed.stale
-        ? "Stripe could not be read just now, so its figures are the last good ones."
+        ? `${name} could not be read just now, so its figures are the last good ones.`
         : `Read-only · last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
     </p>
   )
 }
 
-/** Gmail's row: the same three states as Stripe's, for the CRM's support inbox. */
-function GmailStatus({ timeZone }: { timeZone: string }) {
-  const feed = useGmailFeed()
-  if (feed.kind === "loading") {
-    return (
-      <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
-        Checking…
-      </Badge>
-    )
-  }
-  if (feed.kind === "sample") return <NotConnected />
-  if (feed.stale) {
-    return (
-      <Badge variant="outline" data-testid="gmail-status" className={STATUS_BADGE}>
-        <AlertTriangleIcon aria-hidden className="text-danger-text" />
-        {lastUpdatedLabel(feed.lastSyncedAt, timeZone)}
-      </Badge>
-    )
-  }
-  return (
-    <Badge
-      variant="outline"
-      data-testid="gmail-status"
-      title={`Last synced ${formatWallClock(feed.lastSyncedAt, timeZone)}`}
-      className={cn("bg-success/10 text-success-text border-transparent", STATUS_BADGE)}
-    >
-      <CheckIcon aria-hidden />
-      Connected
-    </Badge>
-  )
-}
-
+/** Gmail's detail line names the mailbox; its status badge is `SourceStatus`. */
 function GmailDetail({ timeZone }: { timeZone: string }) {
   const feed = useGmailFeed()
   if (feed.kind !== "live") return null
@@ -505,7 +489,7 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
     <Section
       id="connected-data"
       title="Connected data"
-      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe is the first."
+      description="Where real numbers come from. Each connection needs a read-only key on the server; Stripe and PostHog are wired up so far."
     >
       <ul className="flex flex-col">
         {SOURCES.map((source, index) => (
@@ -515,16 +499,13 @@ function ConnectedDataSection({ timeZone }: { timeZone: string }) {
               <div className="min-w-0">
                 <p className="text-body font-medium">{source.name}</p>
                 <p className="text-caption text-muted-foreground">{source.feeds}</p>
-                {source.name === "Stripe" && <StripeDetail timeZone={timeZone} />}
-                {source.name === "Gmail" && <GmailDetail timeZone={timeZone} />}
+                {source.name === "Gmail" ? (
+                  <GmailDetail timeZone={timeZone} />
+                ) : (
+                  LIVE_FEEDS[source.name] && <SourceDetail name={source.name} timeZone={timeZone} />
+                )}
               </div>
-              {source.name === "Stripe" ? (
-                <StripeStatus timeZone={timeZone} />
-              ) : source.name === "Gmail" ? (
-                <GmailStatus timeZone={timeZone} />
-              ) : (
-                <NotConnected />
-              )}
+              {LIVE_FEEDS[source.name] ? <SourceStatus name={source.name} timeZone={timeZone} /> : <NotConnected />}
             </div>
           </li>
         ))}
