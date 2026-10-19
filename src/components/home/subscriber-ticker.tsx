@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { AlertTriangleIcon } from "lucide-react"
 
 import {
   CROSSFADE_MS,
@@ -337,7 +338,8 @@ function Crossfade(props: RowProps) {
 
 /**
  * The tooltip's body: the total and its three groups. Inverted colours
- * (the shared tooltip is foreground-on-background), so no muted tokens.
+ * (the shared tooltip is foreground-on-background), so no muted tokens,
+ * and a suspect row takes the inverse warning colour.
  */
 function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdownView }) {
   return (
@@ -348,13 +350,16 @@ function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdow
       </p>
       <dl className="flex flex-col gap-0.5">
         {view.rows.map((row) => (
-          <div key={row.key} className="flex items-baseline justify-between gap-4">
+          <div key={row.key} data-warning={row.warning ? "" : undefined} className="flex items-baseline justify-between gap-4">
             <dt className="opacity-75">{row.label}</dt>
-            <dd className="tabular-nums">{row.value}</dd>
+            <dd className={cn("tabular-nums", row.warning && "text-warning-text-inverse inline-flex items-center gap-1 self-center font-medium")}>
+              {row.warning && <AlertTriangleIcon role="img" aria-label={row.warning} className="size-3.5 flex-none" />}
+              {row.value}
+            </dd>
           </div>
         ))}
       </dl>
-      {view.note && <p className="opacity-75">{view.note}</p>}
+      {view.note && <p className={view.rows.some((r) => r.warning) ? "text-warning-text-inverse" : "opacity-75"}>{view.note}</p>}
     </div>
   )
 }
