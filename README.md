@@ -34,6 +34,14 @@ and checks: [docs/stripe-live.md](docs/stripe-live.md).
 `POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS"); otherwise those cards
 are sample, labelled. See [docs/posthog-live.md](docs/posthog-live.md).
 
+**Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
+open and recently merged pull requests with their CI and review state
+when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
+name the token has in Vercel). The token is fine-grained and read-only,
+for this repo only, and server only. It is a data endpoint only for now:
+no screen reads it yet, and Agent Workplace is still the design mock.
+States, cache and checks: [docs/workboard-live.md](docs/workboard-live.md).
+
 ## Getting started
 
 ```bash
@@ -49,7 +57,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key or database URL (or their env var names) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL or the GitHub token (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `GITHUB_READONLY_TOKEN`, `github_read_only`) is in client output |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
