@@ -5,11 +5,12 @@ import {
   connectingInbox,
   emptyInbox,
   liveInbox,
+  mixedInbox,
   notConnectedInbox,
   staleInbox,
 } from "../../src/test/inbox-fixture"
 
-export { connectingInbox, emptyInbox, liveInbox, notConnectedInbox, staleInbox }
+export { connectingInbox, emptyInbox, liveInbox, mixedInbox, notConnectedInbox, staleInbox }
 
 /**
  * Answer the browser's `/api/inbox` with `inbox` — the server's own route
@@ -30,6 +31,7 @@ export const INBOX_STATES = {
   connected: liveInbox,
   empty: emptyInbox,
   stale: staleInbox,
+  mixed: mixedInbox,
   not_connected: notConnectedInbox,
 } as const
 

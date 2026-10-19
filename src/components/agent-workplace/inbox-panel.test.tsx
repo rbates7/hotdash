@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import type { InboxResponse } from "@/lib/inbox-sources"
 import { configureInbox } from "@/hooks/use-inbox"
-import { connectingInbox, emptyInbox, liveInbox, notConnectedInbox, staleInbox } from "@/test/inbox-fixture"
+import { connectingInbox, emptyInbox, liveInbox, mixedInbox, notConnectedInbox, staleInbox } from "@/test/inbox-fixture"
 import { InboxPanel } from "@/components/agent-workplace/inbox-panel"
 
 const NOW = Date.now()
@@ -33,8 +33,29 @@ describe("InboxPanel (live /api/inbox)", () => {
   it("stale: keeps the rows and says when they were last updated", async () => {
     renderWith(staleInbox(NOW))
     await waitFor(() => expect(panel()).toHaveAttribute("data-state", "stale"))
-    expect(screen.getByTestId("inbox-updated")).toHaveTextContent(/^Last updated /)
+    expect(screen.getByTestId("inbox-updated")).toHaveTextContent(/^GitHub: Last updated .* · Sentry: Last updated /)
+    expect(screen.queryByText(/earlier/)).not.toBeInTheDocument()
     expect(screen.getAllByRole("listitem")).toHaveLength(5)
+  })
+
+  it("mixed (GitHub live, Sentry stale): all rows, and Sentry's last sync is shown", async () => {
+    renderWith(mixedInbox(NOW))
+    await waitFor(() => expect(panel()).toHaveAttribute("data-state", "connected"))
+    expect(screen.getByTestId("inbox-updated")).toHaveTextContent(/^Sentry: Last updated \w{3}, /)
+    expect(screen.getByTestId("inbox-updated")).not.toHaveTextContent(/GitHub/)
+    expect(screen.getAllByRole("listitem")).toHaveLength(5)
+  })
+
+  it("the Inbox tab keeps informational rows (PR needs a fix, ongoing Sentry)", async () => {
+    renderWith(liveInbox(NOW))
+    expect(await screen.findByText("PR needs a fix · CI failing")).toBeInTheDocument()
+    expect(screen.getByText("Error · Ongoing")).toBeInTheDocument()
+  })
+
+  it("connecting names only the sources that are connecting", async () => {
+    const inbox = connectingInbox(NOW)
+    renderWith({ ...inbox, sources: { ...inbox.sources, github: { status: "not_connected", fetchedAt: null } } })
+    expect(await screen.findByText("Connecting to Sentry…")).toBeInTheDocument()
   })
 
   it("connecting: placeholders, no rows", async () => {

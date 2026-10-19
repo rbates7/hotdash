@@ -150,7 +150,7 @@ describe("parseInboxResponse", () => {
 
 describe("in the browser", () => {
   it("notes every source that is not live", () => {
-    expect(sourceNotes(RESPONSE.sources)).toEqual(["Sentry: Connecting…", "Gmail: Not connected"])
+    expect(sourceNotes(RESPONSE.sources, "America/Chicago")).toEqual(["Sentry: Connecting…", "Gmail: Not connected"])
   })
 
   it("polls every 5 s while a source is connecting", () => {

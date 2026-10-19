@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic"
 
 /**
  * The Inbox: `{ fetchedAt, sources, items }` (see `InboxResponse`). Each
- * source says `connecting`, `connected`, `stale` or `not_connected`; rows
- * with `unread: true` are what Home's "Needs you" shows. Never an error
+ * source says `connecting`, `connected`, `stale` or `not_connected`.
+ * `items` is every row (the Inbox tab); Home's "Needs you" shows only the
+ * `unread: true` ones (`needsYouItems`: PRs ready for review, new,
+ * regressed or escalating Sentry issues), never "PR needs a fix" or
+ * ongoing Sentry rows. Never an error
  * body and never sample rows. Due syncs run after the response.
  */
 export async function GET() {

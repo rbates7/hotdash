@@ -46,6 +46,16 @@ export function staleInbox(nowMs: number): InboxResponse {
   }
 }
 
+/** Mixed: GitHub live, Sentry failed after a good sync 47 minutes ago. */
+export function mixedInbox(nowMs: number): InboxResponse {
+  const at = new Date(nowMs).toISOString()
+  return {
+    fetchedAt: at,
+    sources: sources(state("connected", at), state("stale", ago(nowMs, 47))),
+    items: liveInboxItems(nowMs),
+  }
+}
+
 /** Connected, nothing waiting. */
 export function emptyInbox(nowMs: number): InboxResponse {
   const at = new Date(nowMs).toISOString()

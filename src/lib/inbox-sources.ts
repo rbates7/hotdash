@@ -1,3 +1,4 @@
+import { lastUpdatedLabel } from "@/lib/live-metrics"
 import type { WorkboardItem } from "@/lib/workboard"
 import type { InboxItem } from "@/lib/workplace-fixture"
 
@@ -172,13 +173,33 @@ export function parseInboxResponse(value: unknown): InboxResponse | null {
   return ok ? (v as unknown as InboxResponse) : null
 }
 
-/** "GitHub connecting…", "Gmail not connected": one line per source that is not live. */
-export function sourceNotes(sources: InboxResponse["sources"]): string[] {
+/**
+ * One note per source that is not live: "Sentry: Connecting…", "Gmail: Not
+ * connected", or for a stale source when it last synced, on the shared
+ * clock ("Sentry: Last updated Sun, Oct 18 · 11:41 PM CDT").
+ */
+export function sourceNotes(sources: InboxResponse["sources"], timeZone: string): string[] {
   return INBOX_SOURCES.flatMap((id) => {
     const { status } = sources[id]
     if (status === "connected") return []
-    const word = status === "connecting" ? "Connecting…" : status === "stale" ? "Last updated earlier" : "Not connected"
-    return [`${SOURCE_LABEL[id]}: ${word}`]
+    if (status === "stale") {
+      const note = staleNote(id, sources[id], timeZone)
+      return note ? [note] : []
+    }
+    return [`${SOURCE_LABEL[id]}: ${status === "connecting" ? "Connecting…" : "Not connected"}`]
+  })
+}
+
+function staleNote(id: InboxSourceId, state: InboxSourceState, timeZone: string): string | null {
+  if (state.status !== "stale" || !state.fetchedAt || !Number.isFinite(Date.parse(state.fetchedAt))) return null
+  return `${SOURCE_LABEL[id]}: ${lastUpdatedLabel(new Date(state.fetchedAt), timeZone)}`
+}
+
+/** Every stale source with its last sync, whatever the overall status. */
+export function staleNotes(sources: InboxResponse["sources"], timeZone: string): string[] {
+  return INBOX_SOURCES.flatMap((id) => {
+    const note = staleNote(id, sources[id], timeZone)
+    return note ? [note] : []
   })
 }
 
@@ -251,14 +272,41 @@ export function staleSince(sources: InboxResponse["sources"]): Date | null {
  */
 export type InboxScreen = {
   status: InboxSourceStatus | "loading"
+  /** Every row, for the Inbox tab. */
   items: RealInboxItem[]
-  /** Set when some source is stale. */
+  /** Only the rows that need the founder, for Home's Needs you. */
+  needsYou: RealInboxItem[]
+  /** Set when some source is stale (oldest stale sync). */
   staleSince: Date | null
+  /** "Sentry: Last updated …" per stale source, even next to a live one. */
+  stale: string[]
+  /** Connecting / not connected notes (stale ones are in `stale`). */
   notes: string[]
+  /** The sources mid first sync, by name: "GitHub", "Sentry". */
+  connecting: string[]
 }
 
-export function inboxScreen(view: InboxView): InboxScreen {
-  if (view.phase === "loading") return { status: "loading", items: [], staleSince: null, notes: [] }
+export function inboxScreen(view: InboxView, timeZone: string): InboxScreen {
+  if (view.phase === "loading")
+    return { status: "loading", items: [], needsYou: [], staleSince: null, stale: [], notes: [], connecting: [] }
   const { sources, items } = view.inbox
-  return { status: inboxStatus(sources), items, staleSince: staleSince(sources), notes: sourceNotes(sources) }
+  return {
+    status: inboxStatus(sources),
+    items,
+    needsYou: needsYouItems(items),
+    staleSince: staleSince(sources),
+    stale: staleNotes(sources, timeZone),
+    notes: sourceNotes(
+      Object.fromEntries(
+        INBOX_SOURCES.map((id) => [id, sources[id].status === "stale" ? { status: "connected", fetchedAt: null } : sources[id]])
+      ) as InboxResponse["sources"],
+      timeZone
+    ),
+    connecting: INBOX_SOURCES.filter((id) => sources[id].status === "connecting").map((id) => SOURCE_LABEL[id]),
+  }
+}
+
+/** "GitHub and Sentry", "Sentry". */
+export function sourceList(names: readonly string[]) {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }

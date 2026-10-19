@@ -30,6 +30,7 @@ export function NeedsYouDoor({
   loading = false,
   status = "connected",
   updated = null,
+  connectingTo = "GitHub and Sentry",
   className,
 }: {
   needs: NeedsYou
@@ -39,8 +40,10 @@ export function NeedsYouDoor({
   loading?: boolean
   /** The Inbox's overall status (`inboxStatus`). */
   status?: InboxSourceStatus
-  /** "Last updated …" when stale. */
+  /** "Sentry: Last updated …" per stale source, even next to a live one. */
   updated?: string | null
+  /** The sources mid first sync, e.g. "GitHub and Sentry". */
+  connectingTo?: string
   className?: string
 }) {
   const { items, waiting, overflow } = needs
@@ -60,7 +63,7 @@ export function NeedsYouDoor({
       {busy ? (
         <div
           aria-busy="true"
-          aria-label={loading ? "Loading what needs you" : "Connecting to GitHub and Sentry"}
+          aria-label={loading ? "Loading what needs you" : `Connecting to ${connectingTo}`}
           className="flex flex-col gap-2"
         >
           {loading ? (
@@ -83,7 +86,7 @@ export function NeedsYouDoor({
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             Needs you
           </span>
-          {status === "stale" && updated ? (
+          {updated ? (
             <span data-testid="needs-you-updated" className="text-caption text-muted-foreground tracking-tight">
               {updated}
             </span>

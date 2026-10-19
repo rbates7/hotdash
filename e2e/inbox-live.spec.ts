@@ -7,8 +7,8 @@ import { setTheme } from "./support/theme"
 
 /**
  * The live Inbox (/api/inbox) on its two surfaces — Home's "Needs you"
- * door and the Workplace Inbox tab — in every state, at phone and desktop
- * widths, light and dark. e2e has no GitHub or Sentry token: "not
+ * door and the Workplace Inbox tab — in every state (mixed staleness
+ * included) at 390, 820, 1180 and 1440, light and dark. e2e has no GitHub or Sentry token: "not
  * connected" is also checked against the real server; the other states mock
  * /api/inbox in the browser with invented PRs and issues. Nothing here
  * reaches GitHub or Sentry, and no sample row may appear.
@@ -17,6 +17,9 @@ import { setTheme } from "./support/theme"
 const door = (page: Page) => page.getByRole("region", { name: "Inbox" })
 const panel = (page: Page) => page.getByTestId("inbox-panel")
 const SAMPLE = /Agent blocked|Agent finished|Daily standup summary|CHLK-41\d/
+
+/** The overall status each fixture state reads as. */
+const overall = (state: InboxStateName) => (state === "empty" || state === "mixed" ? "connected" : state)
 
 async function open(page: Page, path: string) {
   await page.goto(path)
@@ -27,11 +30,16 @@ async function open(page: Page, path: string) {
 async function expectHome(page: Page, state: InboxStateName) {
   const d = door(page)
   const busy = state === "connecting"
-  await expect(d.getByTestId("needs-you-state")).toHaveAttribute("data-state", state === "empty" ? "connected" : state)
-  if (state === "connected" || state === "stale") {
+  await expect(d.getByTestId("needs-you-state")).toHaveAttribute("data-state", overall(state))
+  if (state === "connected" || state === "stale" || state === "mixed") {
     await expect(d.getByText("3 waiting")).toBeVisible()
-    await expect(d.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(5)
-    if (state === "stale") await expect(d.getByTestId("needs-you-updated")).toHaveText(/^Last updated /)
+    // Only the rows that need the founder: never "PR needs a fix" or ongoing Sentry.
+    await expect(d.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
+    await expect(d.getByText(/needs a fix|Ongoing/)).toHaveCount(0)
+    if (state === "stale")
+      await expect(d.getByTestId("needs-you-updated")).toHaveText(/^GitHub: Last updated .* · Sentry: Last updated /)
+    if (state === "mixed") await expect(d.getByTestId("needs-you-updated")).toHaveText(/^Sentry: Last updated \w{3}, /)
+    if (state === "connected") await expect(d.getByTestId("needs-you-updated")).toHaveCount(0)
   } else {
     await expect(d.getByRole("list", { name: "Needs you" })).toHaveCount(0)
     await expect(d.getByText(/waiting/)).toHaveCount(0)
@@ -44,12 +52,16 @@ async function expectHome(page: Page, state: InboxStateName) {
 
 async function expectPanel(page: Page, state: InboxStateName) {
   const p = panel(page)
-  await expect(p).toHaveAttribute("data-state", state === "empty" ? "connected" : state)
+  await expect(p).toHaveAttribute("data-state", overall(state))
   const rows = p.getByRole("list", { name: "Inbox" }).getByRole("listitem")
-  if (state === "connected" || state === "stale") {
+  if (state === "connected" || state === "stale" || state === "mixed") {
     await expect(rows).toHaveCount(5)
+    await expect(p.getByText("PR needs a fix · CI failing")).toBeVisible()
     await expect(p.getByText("Gmail: Not connected")).toBeVisible()
-    if (state === "stale") await expect(p.getByTestId("inbox-updated")).toHaveText(/^Last updated /)
+    await expect(p.getByText(/earlier/)).toHaveCount(0)
+    if (state === "stale")
+      await expect(p.getByTestId("inbox-updated")).toHaveText(/^GitHub: Last updated .* · Sentry: Last updated /)
+    if (state === "mixed") await expect(p.getByTestId("inbox-updated")).toHaveText(/^Sentry: Last updated \w{3}, /)
   } else {
     await expect(rows).toHaveCount(0)
     if (state === "connecting") await expect(p.getByText("Connecting to GitHub and Sentry…")).toBeVisible()
@@ -86,6 +98,8 @@ test.describe("server endpoint with no GitHub or Sentry token", () => {
 
 for (const vp of [
   { width: 390, height: 844 },
+  { width: 820, height: 1180 },
+  { width: 1180, height: 820 },
   { width: 1440, height: 900 },
 ] as const) {
   test.describe(`Inbox states at ${vp.width}`, () => {

@@ -4,8 +4,8 @@ import { todayIn } from "@/lib/clock"
 import { boardPreview, needsYou, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis, numberOne } from "@/lib/home-fixture"
 import { mrrTrend, snapshotFor } from "@/lib/kpis"
-import { lastUpdatedLabel, liveKpis, liveMetric } from "@/lib/live-metrics"
-import { inboxScreen } from "@/lib/inbox-sources"
+import { liveKpis, liveMetric } from "@/lib/live-metrics"
+import { inboxScreen, sourceList } from "@/lib/inbox-sources"
 import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
@@ -47,9 +47,11 @@ export function HomeScreen() {
   // The page's instant, as the founder's calendar day: the same `today` the
   // Metrics page would compute, so the strip and door match it.
   const today = todayIn(now)
-  // Needs you: the live Inbox's unread rows (GitHub, Sentry), never sample.
-  const inbox = inboxScreen(useInboxView())
-  const needs = needsYou(inbox.items, issues)
+  // Needs you: only the live Inbox rows that need the founder (a PR ready
+  // for review, a new/regressed/escalating Sentry issue), never sample.
+  // "PR needs a fix" and ongoing Sentry rows stay in the Inbox tab only.
+  const inbox = inboxScreen(useInboxView(), timeZone)
+  const needs = needsYou(inbox.needsYou, issues)
   const board = boardPreview(issues, sprints, actors, now)
   // Until the browser's saved board is read, the Dev board door shows
   // placeholders rather than flashing the seed and then swapping.
@@ -109,7 +111,8 @@ export function HomeScreen() {
             now={now}
             loading={inbox.status === "loading"}
             status={inbox.status === "loading" ? "connecting" : inbox.status}
-            updated={inbox.staleSince ? lastUpdatedLabel(inbox.staleSince, timeZone) : null}
+            updated={inbox.stale.length > 0 ? inbox.stale.join(" · ") : null}
+            connectingTo={sourceList(inbox.connecting)}
           />
         </div>
       </div>

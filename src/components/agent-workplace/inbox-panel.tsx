@@ -1,8 +1,7 @@
 "use client"
 
 import { formatRelative, now as clockNow } from "@/lib/clock"
-import { SOURCE_LABEL, inboxScreen } from "@/lib/inbox-sources"
-import { lastUpdatedLabel } from "@/lib/live-metrics"
+import { SOURCE_LABEL, inboxScreen, sourceList } from "@/lib/inbox-sources"
 import { cn } from "@/lib/utils"
 import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
@@ -13,15 +12,16 @@ const BOX = "bg-surface border-surface-border max-w-[1100px] rounded-xl border"
 const MESSAGE = cn(BOX, "text-label text-muted-foreground px-[18px] py-6 text-center")
 
 /**
- * The founder's Inbox, live from `/api/inbox`: PRs ready for review or
+ * The founder's Inbox, live from `/api/inbox` (every row, informational
+ * ones included; Home's Needs you shows only the ones that need him): PRs ready for review or
  * needing a fix (GitHub, through the workboard) and Sentry issues. Gmail is
  * not wired in yet and says so. Never sample rows: until a source answers
  * it reads Connecting… or Not connected, and with nothing waiting it says
  * so.
  */
 export function InboxPanel() {
-  const screen = inboxScreen(useInboxView())
   const { timeZone } = useSettings()
+  const screen = inboxScreen(useInboxView(), timeZone)
   // Re-render every minute so row ages move; the instant is the browser's.
   useWallClock(timeZone)
   const now = clockNow().getTime()
@@ -31,9 +31,7 @@ export function InboxPanel() {
     <div className="flex flex-col gap-3" data-testid="inbox-panel" data-state={status}>
       <div className="text-caption text-muted-foreground -mt-1 flex flex-wrap gap-x-3 gap-y-1 tracking-tight">
         <span>Absorbs Home &ldquo;Needs you.&rdquo; Founder-only.</span>
-        {status === "stale" && screen.staleSince ? (
-          <span data-testid="inbox-updated">{lastUpdatedLabel(screen.staleSince, timeZone)}</span>
-        ) : null}
+        {screen.stale.length > 0 ? <span data-testid="inbox-updated">{screen.stale.join(" · ")}</span> : null}
         {status !== "loading" && status !== "not_connected"
           ? screen.notes.map((note) => (
               <span key={note} data-testid="inbox-source-note">
@@ -45,11 +43,13 @@ export function InboxPanel() {
       {status === "loading" || (status === "connecting" && items.length === 0) ? (
         <div
           aria-busy="true"
-          aria-label={status === "loading" ? "Loading the Inbox" : "Connecting to GitHub and Sentry"}
+          aria-label={status === "loading" ? "Loading the Inbox" : `Connecting to ${sourceList(screen.connecting)}`}
           className={cn(BOX, "flex flex-col gap-3 px-[18px] py-4")}
         >
           {status === "connecting" ? (
-            <p className="text-label text-muted-foreground tracking-tight">Connecting to GitHub and Sentry…</p>
+            <p className="text-label text-muted-foreground tracking-tight">
+              Connecting to {sourceList(screen.connecting)}…
+            </p>
           ) : null}
           {[0, 1, 2].map((n) => (
             <div key={n} className="flex items-start gap-3">

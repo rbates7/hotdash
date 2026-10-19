@@ -20,7 +20,7 @@ import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 import { configureInbox } from "@/hooks/use-inbox"
-import { emptyInbox, liveInbox, notConnectedInbox } from "@/test/inbox-fixture"
+import { emptyInbox, liveInbox, mixedInbox, notConnectedInbox } from "@/test/inbox-fixture"
 
 function renderHome() {
   return render(
@@ -176,7 +176,9 @@ describe("HomeScreen", () => {
     const door = screen.getByRole("region", { name: "Inbox" })
     expect(await within(door).findByText("3 waiting")).toBeInTheDocument()
     const rows = within(within(door).getByRole("list", { name: "Needs you" })).getAllByRole("link")
-    expect(rows).toHaveLength(5)
+    // Only rows that need the founder: not "PR needs a fix", not ongoing Sentry.
+    expect(rows).toHaveLength(3)
+    expect(within(door).queryByText(/needs a fix|Ongoing/)).not.toBeInTheDocument()
     expect(new Set(rows.map((r) => r.getAttribute("href")))).toEqual(new Set(["/agent-workplace?tab=inbox"]))
     // None of the design mock's sample rows.
     expect(within(door).queryByText(/Agent blocked|Daily standup summary/)).not.toBeInTheDocument()
@@ -205,6 +207,14 @@ describe("HomeScreen", () => {
     expect(await within(door).findByText("No sprint is running")).toBeInTheDocument()
     expect(within(door).queryByText(/agents working/)).not.toBeInTheDocument()
     expect(within(door).getByText("Sprints are planned from the Backlog tab.")).toBeInTheDocument()
+  })
+
+  it("mixed (GitHub live, Sentry stale): shows Sentry's last sync next to the rows", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(mixedInbox(Date.now())) })
+    renderHome()
+    const door = screen.getByRole("region", { name: "Inbox" })
+    expect(await within(door).findByTestId("needs-you-updated")).toHaveTextContent(/^Sentry: Last updated /)
+    configureInbox({})
   })
 
   it("shows Nothing needs you when connected and empty, and Not connected with no source", async () => {

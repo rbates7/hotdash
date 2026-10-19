@@ -15,13 +15,16 @@ import { setTheme } from "./support/theme"
  *
  *   pnpm build && CI=true SCREENSHOTS=1 SCREENSHOT_DIR=… playwright test e2e/inbox-screens.spec.ts
  *
- * INBOX_SHOTS_BEFORE=1 shoots the base branch once per surface (it has no
- * /api/inbox, so the mock is not installed and every state looks the same).
+ * INBOX_SHOT_STATES=mixed,connected limits the states shot.
+ *
+ * Before shots of a base branch without `/api/inbox` (develop 3f96a83 for
+ * #54) come from `e2e/inbox-before-shots.spec.ts`, which needs nothing from
+ * this PR: copy it into a worktree of the base, build, and run it with
+ * CI=true SCREENSHOTS=1 SCREENSHOT_DIR=….
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
 const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "test-results/inbox-shots")
-const BEFORE = Boolean(process.env.INBOX_SHOTS_BEFORE)
 const WIDTHS = [
   { width: 390, height: 844 },
   { width: 820, height: 1180 },
@@ -32,7 +35,8 @@ const SURFACES = [
   { name: "home", path: "/home" },
   { name: "inbox", path: "/agent-workplace?tab=inbox" },
 ] as const
-const STATES: (InboxStateName | "before")[] = BEFORE ? ["before"] : (Object.keys(INBOX_STATES) as InboxStateName[])
+const ONLY = process.env.INBOX_SHOT_STATES?.split(",").filter(Boolean) as InboxStateName[] | undefined
+const STATES: InboxStateName[] = ONLY ?? (Object.keys(INBOX_STATES) as InboxStateName[])
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(300)
@@ -44,16 +48,12 @@ for (const state of STATES) {
   for (const vp of WIDTHS) {
     test(`${state} at ${vp.width}`, async ({ page }) => {
       await page.setViewportSize(vp)
-      if (state !== "before") await mockInbox(page, INBOX_STATES[state](Date.now()))
+      await mockInbox(page, INBOX_STATES[state](Date.now()))
       for (const surface of SURFACES) {
         await page.goto(surface.path)
         await waitForHydration(page)
-        if (state !== "before") {
-          const target = surface.name === "home" ? page.getByTestId("needs-you-state") : page.getByTestId("inbox-panel")
-          await expect(target).toHaveAttribute("data-state", state === "empty" ? "connected" : state)
-        } else {
-          await page.waitForLoadState("networkidle")
-        }
+        const target = surface.name === "home" ? page.getByTestId("needs-you-state") : page.getByTestId("inbox-panel")
+        await expect(target).toHaveAttribute("data-state", state === "empty" || state === "mixed" ? "connected" : state)
         for (const theme of ["light", "dark"] as const) {
           await setTheme(page, theme)
           await shoot(page, `${surface.name}-${state}-${vp.width}-${theme}`)

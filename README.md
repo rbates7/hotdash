@@ -45,9 +45,20 @@ labelled. Setup (one consent, `pnpm gmail:consent`), states and checks:
 open and recently merged pull requests with their CI and review state
 when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
 name the token has in Vercel). The token is fine-grained and read-only,
-for this repo only, and server only. It is a data endpoint only for now:
-no screen reads it yet, and Agent Workplace is still the design mock.
-States, cache and checks: [docs/workboard-live.md](docs/workboard-live.md).
+for this repo only, and server only. No screen shows the workboard itself
+yet (Agent Workplace's board is still the design mock), but the Inbox reads
+its PRs. States, cache and checks: [docs/workboard-live.md](docs/workboard-live.md).
+
+**Inbox (read-only)**: `GET /api/inbox` feeds the Workplace Inbox tab and
+Home's "Needs you". It shows GitHub PRs ready for review or needing a fix
+(through the workboard above) and Sentry issues from org `chlk`, project
+`chlk-ios` (via `us.sentry.io`). Sentry needs `SENTRY_READONLY_TOKEN`: server
+only, with read-only `project:read` and `event:read` scopes. Home lists only
+what needs the founder; the tab lists everything. Each source is connecting,
+connected, stale or not connected (the #50 rule: no token is never
+connecting, and a failed first sync is not connected). There's a 5-minute
+cache with a 1-minute retry, and never sample rows. Gmail is a stub (Not
+connected). See [docs/inbox.md](docs/inbox.md).
 
 ## Getting started
 
@@ -64,7 +75,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the GitHub token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the GitHub or Sentry token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `SENTRY_READONLY_TOKEN`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
 | `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |

@@ -55,7 +55,7 @@ test.describe("Home", () => {
     await expect(doors.getByRole("region")).toHaveCount(3)
     await expect(doors.getByText("3 agents working")).toBeVisible()
     await expect(doors.getByText("3 waiting")).toBeVisible()
-    await expect(doors.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(5)
+    await expect(doors.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
   })
 
   test("a Needs-you row opens the Workplace Inbox, which lists the same live rows", async ({ page }) => {
