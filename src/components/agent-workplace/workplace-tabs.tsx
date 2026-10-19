@@ -40,6 +40,86 @@ function isTab(value: string | null): value is WorkplaceTab {
   return WORKPLACE_TABS.some((t) => t.value === value)
 }
 
+/** Pixels of tab bar left to scroll before an edge counts as "more this way". */
+const EDGE_SLACK = 2
+
+/**
+ * Seven tabs do not fit at 390, so the tab bar scrolls sideways (it always
+ * did). This makes that visible and keeps the active tab in view: a fade on
+ * whichever edge has more tabs behind it, and the active tab scrolled into
+ * the bar on load and on every change (URL, click or arrow keys). Only the
+ * bar scrolls, never the page. The fades are decoration: pointer-events
+ * none, aria-hidden, and the tabs keep their 44px targets and the tablist's
+ * own keyboard and arrow navigation.
+ */
+export function TabBarScroller({ active, children }: { active: string; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  const list = React.useCallback(
+    () => ref.current?.querySelector<HTMLElement>("[data-slot='tabs-list']") ?? null,
+    []
+  )
+
+  // The fades follow the DOM's scroll position, so they are written to the
+  // wrapper's data attributes (CSS shows them), not React state.
+  const measure = React.useCallback(() => {
+    const el = list()
+    const box = ref.current
+    if (!el || !box) return
+    const max = el.scrollWidth - el.clientWidth
+    box.toggleAttribute("data-fade-start", el.scrollLeft > EDGE_SLACK)
+    box.toggleAttribute("data-fade-end", max - el.scrollLeft > EDGE_SLACK)
+  }, [list])
+
+  // Keep the active tab inside the bar, with room for the fade beside it.
+  React.useLayoutEffect(() => {
+    const el = list()
+    const tabEl = el?.querySelector<HTMLElement>("[role='tab'][aria-selected='true']")
+    if (!el || !tabEl) return
+    const pad = 32
+    const left = tabEl.offsetLeft - el.offsetLeft
+    const right = left + tabEl.offsetWidth
+    let target = el.scrollLeft
+    if (left - pad < el.scrollLeft) target = Math.max(0, left - pad)
+    else if (right + pad > el.scrollLeft + el.clientWidth) target = right + pad - el.clientWidth
+    if (target !== el.scrollLeft) el.scrollLeft = target
+    measure()
+  }, [active, list, measure])
+
+  React.useEffect(() => {
+    const el = list()
+    if (!el) return
+    measure()
+    el.addEventListener("scroll", measure, { passive: true })
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    ro?.observe(el)
+    return () => {
+      el.removeEventListener("scroll", measure)
+      ro?.disconnect()
+    }
+  }, [list, measure])
+
+  return (
+    <div
+      ref={ref}
+      className="group/tabbar relative min-w-0"
+      data-testid="workplace-tab-bar"
+    >
+      {children}
+      <span
+        aria-hidden
+        data-testid="tab-fade-start"
+        className="from-background pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
+      />
+      <span
+        aria-hidden
+        data-testid="tab-fade-end"
+        className="from-background pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l to-transparent opacity-0 transition-opacity group-data-[fade-end]/tabbar:opacity-100"
+      />
+    </div>
+  )
+}
+
 export function WorkplaceTabs() {
   const router = useRouter()
   const params = useSearchParams()
@@ -84,13 +164,15 @@ export function WorkplaceTabs() {
       onValueChange={(value) => setParam({ tab: String(value), issue: null })}
       className="min-w-0 gap-4"
     >
-      <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
-        {WORKPLACE_TABS.map((t) => (
-          <TabsTrigger key={t.value} value={t.value} className={WORKPLACE_TAB}>
-            {t.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      <TabBarScroller active={tab}>
+        <TabsList variant="line" className={WORKPLACE_TABS_LIST}>
+          {WORKPLACE_TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value} className={WORKPLACE_TAB}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </TabBarScroller>
 
       <TabsContent value="issues" className="min-w-0">
         <IssuesBoard
