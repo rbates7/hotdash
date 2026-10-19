@@ -37,7 +37,7 @@ export async function mockStripe(page: Page, summary: StripeSummary) {
  */
 export function withSubscribers(count: number, status: "connected" | "stale" = "connected"): StripeSummary {
   const free = LIVE_METRICS.freeAccounts.value
-  const app = APP_STORE_CONNECTED.status === "not_connected" ? 0 : APP_STORE_CONNECTED.count
+  const app = "count" in APP_STORE_CONNECTED ? APP_STORE_CONNECTED.count : 0
   const metrics: StripeMetrics = {
     ...LIVE_METRICS,
     subscribers: { ...LIVE_METRICS.subscribers, value: count - free - app, today: 0 },

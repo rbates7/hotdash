@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic"
  * field (`{ status, count, asOf }` or `{ status: "not_connected" }`).
  * `?tz=` is the founder's Settings zone (one of the offered zones; anything
  * else is Central) — "today" and "this week" start at its midnight.
- * Never an error body: a failure is `stale` or `not_connected`, and the
+ * Never an error body: a failure is `stale` or `not_connected` (a source
+ * whose first read is still running is `connecting`), and the
  * two sources are read side by side, each failing on its own. Neither
  * waits for its source: a due sync runs after the response (`after`), and
  * the next poll picks it up.
