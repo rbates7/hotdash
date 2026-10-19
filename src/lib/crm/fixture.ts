@@ -7,6 +7,14 @@ import type {
   Note,
   Organization,
 } from "@/lib/crm/crm"
+import {
+  SEED_CASE_IDS,
+  SEED_CONTACT_IDS,
+  SEED_MESSAGE_IDS,
+  SEED_NOTE_IDS,
+  SEED_ORGANIZATION_IDS,
+  SEED_THREAD_IDS,
+} from "@/lib/crm/seed-ids"
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -514,12 +522,16 @@ export function seedNotes(nowMs: number): Note[] {
   ]
 }
 
-export const SEED_ORGANIZATION_IDS: ReadonlySet<string> = new Set(seedOrganizations(0).map((o) => o.id))
-export const SEED_CONTACT_IDS: ReadonlySet<string> = new Set(seedContacts(0).map((c) => c.id))
-export const SEED_CASE_IDS: ReadonlySet<string> = new Set(seedCases(0).map((c) => c.id))
-export const SEED_NOTE_IDS: ReadonlySet<string> = new Set(seedNotes(0).map((n) => n.id))
-export const SEED_MESSAGE_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.id))
-export const SEED_THREAD_IDS: ReadonlySet<string> = new Set(seedMessages(0).map((m) => m.threadId))
+// The id sets live in `seed-ids.ts` as literals (the store imports them
+// without this file); `seed-ids.test.ts` checks they match the rows above.
+export {
+  SEED_CASE_IDS,
+  SEED_CONTACT_IDS,
+  SEED_MESSAGE_IDS,
+  SEED_NOTE_IDS,
+  SEED_ORGANIZATION_IDS,
+  SEED_THREAD_IDS,
+}
 
 export function isSeedContact(id: string) {
   return SEED_CONTACT_IDS.has(id)

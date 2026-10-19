@@ -37,17 +37,13 @@ import {
 import { cleanSubject } from "@/lib/crm/rules"
 import { normalizeEmail, splitDisplayName } from "@/lib/crm/matching"
 import {
+  FIRST_AFTER_SEED,
   SEED_CASE_IDS,
   SEED_CONTACT_IDS,
   SEED_MESSAGE_IDS,
   SEED_NOTE_IDS,
   SEED_ORGANIZATION_IDS,
-  seedCases,
-  seedContacts,
-  seedMessages,
-  seedNotes,
-  seedOrganizations,
-} from "@/lib/crm/fixture"
+} from "@/lib/crm/seed-ids"
 import {
   createStorage,
   dedupe,
@@ -465,17 +461,7 @@ export function shellReducer(shell: Shell, action: Action): Shell {
  * old sample used, so a new row never takes one of theirs and a copy saved
  * before the sample was removed can still be cleaned by id.
  */
-const FIRST = (() => {
-  const cases = seedCases(0)
-  return {
-    org: highest(seedOrganizations(0), ORG_ID) + 1,
-    contact: highest(seedContacts(0), CONTACT_ID) + 1,
-    case: highest(cases, CASE_ID) + 1,
-    message: highest(seedMessages(0), /^message-(\d+)$/) + 1,
-    note: highest(seedNotes(0), NOTE_ID) + 1,
-    caseNumber: cases.reduce((max, c) => Math.max(max, c.caseNumber), 0) + 1,
-  }
-})()
+const FIRST = FIRST_AFTER_SEED
 
 /**
  * A fresh CRM when Gmail is not connected: no organizations, contacts,
