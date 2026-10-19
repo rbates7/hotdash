@@ -9,7 +9,7 @@ import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailLoadingForTest, setGmailSummaryForTest } from "@/test/gmail"
 import { STORAGE_KEY, CrmProvider } from "@/components/crm/crm-store"
-import { CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
+import { CONNECTING_LEDE, CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
 import {
   GMAIL_CONNECTING_LABEL,
   GMAIL_LIVE_LABEL,
@@ -76,6 +76,22 @@ describe("CRM while Gmail is connecting (first sync on the server)", () => {
     expect(screen.getByRole("status", { name: "Loading saved CRM" })).toBeInTheDocument()
     expect(screen.queryByText(/6 contacts/)).not.toBeInTheDocument()
     expect(within(header()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+  })
+
+  it("hides everything the sample brings: no triage count, no sample lede, no saved-edits note or Reset", () => {
+    // The not-connected sample has pending triage, so the count would show there.
+    setGmailSummaryForTest(GMAIL_NOT_CONNECTED)
+    const { unmount } = renderCrm(<OverviewScreen />)
+    expect(screen.getByRole("link", { name: /^Triage\s*\d+$/ })).toBeInTheDocument()
+    unmount()
+
+    setGmailSummaryForTest(gmailConnecting())
+    renderCrm(<OverviewScreen />)
+    expect(screen.getByRole("link", { name: "Triage" })).toBeInTheDocument()
+    expect(screen.queryByText(LEDE)).not.toBeInTheDocument()
+    expect(within(header()).getByText(CONNECTING_LEDE)).toBeInTheDocument()
+    expect(screen.queryByTestId("persistence-note")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Reset/ })).not.toBeInTheDocument()
   })
 })
 
