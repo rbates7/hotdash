@@ -7,7 +7,7 @@ import { openInboxItems, pendingInboxItems } from "@/lib/inbox"
 /** The Inbox's compact age, through the one shared formatter. */
 const formatAge = (at: string, now: Date) => formatRelative(Date.parse(at), now.getTime(), { style: "compact" })
 import { buildIssues } from "@/lib/issues-fixture"
-import { buildInbox } from "@/lib/workplace-fixture"
+import { buildInbox } from "@/test/inbox-fixture"
 import { FIXED_NOW } from "@/test/clock"
 
 const issues = buildIssues(FIXED_NOW)

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 import { expectReadable } from "./support/contrast"
+import { liveInbox, mockInbox } from "./support/inbox"
 import { setTheme } from "./support/theme"
 
 /**
@@ -44,7 +45,8 @@ test.describe("Home", () => {
     }
     await expect(kpis.getByTestId("kpi-sample-label")).toHaveCount(0)
 
-    // Doors: Metrics, Agent Workplace and Inbox all say Not connected.
+    // Doors: Metrics, Agent Workplace and Inbox all say Not connected (no
+    // Stripe key, and no GitHub or Sentry token for /api/inbox).
     const doors = page.getByRole("group", { name: "Doors" })
     await expect(doors.getByRole("region")).toHaveCount(3)
     for (const name of ["Metrics", "Agent Workplace", "Inbox"]) {
@@ -54,6 +56,23 @@ test.describe("Home", () => {
     await expect(doors.getByText(/waiting/)).toHaveCount(0)
     await expect(doors.getByRole("list", { name: "Needs you" })).toHaveCount(0)
     await expect(doors.getByRole("img")).toHaveCount(0)
+  })
+
+  test("with a live Inbox (mocked), Needs you lists only what needs Rashad and opens the Workplace Inbox", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
+    await page.goto("/home")
+    const inbox = page.getByRole("region", { name: "Inbox" })
+    await expect(inbox.getByText("3 waiting")).toBeVisible()
+    await expect(inbox.getByRole("list", { name: "Needs you" }).getByRole("link")).toHaveCount(3)
+    await expect(inbox.getByText(/needs a fix|Ongoing/)).toHaveCount(0)
+    await page.getByRole("link", { name: /#912 Roster import/ }).click()
+    await expect(page).toHaveURL(/\/agent-workplace\?tab=inbox$/)
+    const panel = page.getByRole("tabpanel", { name: "Inbox" })
+    await expect(panel.getByRole("list", { name: "Inbox" }).getByRole("listitem")).toHaveCount(5)
+    await expect(panel.getByRole("link", { name: /#912 Roster import/ })).toHaveAttribute(
+      "href",
+      "https://github.com/rbates7/hotdash/pull/912"
+    )
   })
 
   test("the Agent Workplace door still opens the board", async ({ page }) => {

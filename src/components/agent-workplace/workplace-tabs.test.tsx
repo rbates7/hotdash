@@ -2,6 +2,8 @@ import * as React from "react"
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it } from "vitest"
+import { configureInbox } from "@/hooks/use-inbox"
+import { liveInbox } from "@/test/inbox-fixture"
 
 import { FIXED_NOW_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
@@ -129,11 +131,12 @@ describe("WorkplaceTabs", () => {
     expect(within(panel).queryByRole("button", { name: /send/i })).not.toBeInTheDocument()
   })
 
-  it("inbox rows with a ticket open it", async () => {
-    const user = userEvent.setup()
+  it("the Inbox tab shows the live Inbox, not sample rows", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(liveInbox(Date.now())) })
     renderTabs("tab=inbox")
-    await user.click(screen.getByText("Agent blocked"))
-    expect(navigation.push).toHaveBeenCalledWith("?tab=inbox&issue=CHLK-412", { scroll: false })
+    expect(await screen.findByRole("link", { name: /#912 Roster import/ })).toBeInTheDocument()
+    expect(screen.queryByText("Agent blocked")).not.toBeInTheDocument()
+    configureInbox({})
   })
 
   it("autopilots lists the three assumed schedules", () => {
