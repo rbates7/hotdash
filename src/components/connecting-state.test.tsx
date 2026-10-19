@@ -270,9 +270,36 @@ describe("page-level wording unchanged when live or not connected", () => {
       expect(sampleDataSummary(flags)).not.toMatch(/every (other )?number/i)
     }
     // Only screens that still have seed rows are named: not Home, Metrics
-    // (Expenses starts empty) or System Status (seeded checks are a preview).
-    for (const name of ["Home", "Metrics", "Expenses", "System Status"]) {
+    // (Expenses starts empty), System Status (seeded checks are a preview)
+    // or the Product Roadmap (Notion, or an empty Not connected board).
+    for (const name of ["Home", "Metrics", "Expenses", "System Status", "Product Roadmap"]) {
       expect(SEEDED_SCREENS as readonly string[]).not.toContain(name)
+    }
+
+    // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
+    const ROADMAP_LIVE = "The Product Roadmap is read from Notion."
+    const ROADMAP_CONNECTING =
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+    expect(sampleDataSummary({ ...base, notion: true })).toBe(`${ROADMAP_LIVE} ${REST}`)
+    expect(sampleDataSummary({ ...base, stripe: true, notion: true })).toBe(
+      `Stripe's figures are live and carry no label. ${ROADMAP_LIVE} ${REST}`
+    )
+    expect(sampleDataSummary({ ...base, notionConnecting: true })).toBe(`${ROADMAP_CONNECTING} ${REST}`)
+    expect(sampleDataSummary({ ...base, posthog: true, notionConnecting: true })).toBe(
+      `PostHog's figures are live and carry no label. ${ROADMAP_CONNECTING} ${REST}`
+    )
+    expect(sampleDataSummary({ ...base, stripeConnecting: true, notion: true })).toBe(
+      `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${ROADMAP_LIVE} ${REST}`
+    )
+    // Gmail live with Notion (#46 × #45).
+    expect(sampleDataSummary({ ...base, notion: true, gmail: true })).toBe(
+      `The CRM's Gmail conversations are live and carry no label. ${ROADMAP_LIVE} ${REST}`
+    )
+    expect(sampleDataSummary({ ...base, notionConnecting: true, gmail: true })).toBe(
+      `The CRM's Gmail conversations are live and carry no label. ${ROADMAP_CONNECTING} ${REST}`
+    )
+    for (const flags of [{ ...base, notion: true }, { ...base, notionConnecting: true }]) {
+      expect(sampleDataSummary(flags)).not.toMatch(/sample data|every (other )?number/i)
     }
   })
 })

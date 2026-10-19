@@ -98,7 +98,7 @@ test.describe("Stripe not connected (1440)", () => {
     await expect(stripeRow(page)).toContainText("Not connected")
     await expect(
       main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    ).toHaveCount(4)
+    ).toHaveCount(5)
   })
 })
 
@@ -154,7 +154,7 @@ test.describe("Stripe connected (1440)", () => {
       "Read-only · last synced Tue, Oct 13 · 9:41 AM CDT"
     )
     const others = main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    await expect(others).toHaveCount(3)
+    await expect(others).toHaveCount(4)
   })
 
   test("a saved time zone is what the page asks Stripe's figures in", async ({ page }) => {

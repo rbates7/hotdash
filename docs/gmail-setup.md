@@ -70,7 +70,8 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 | Calls | Plain `fetch`, no SDK (`src/lib/server/gmail.ts`, `server-only`): `POST oauth2.googleapis.com/token` (refresh-token grant) → `GET gmail.googleapis.com/gmail/v1/users/{GMAIL_MAILBOX}/threads?maxResults=100&q=newer_than:90d -category:promotions -category:social` → per thread `GET …/threads/{id}?format=metadata&metadataHeaders=From,To,Subject` (5 at a time). Headers, labels and snippets only — never a body or attachment. Gmail refuses a `{mailbox}` that is not the account that granted the token, so the mailbox cannot be swapped for another. |
 | Cache | Same as Stripe: one sync per server process every 5 minutes, always **in the background** — a request never waits. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with credentials it gets `connecting` at once (the CRM says Connecting… over its skeletons, never the sample) and polls every 5 s until the sync lands. This is the Stripe rule (#50): a failed or timed-out first sync is `not_connected`, every retry after it is too until one lands, and with no credentials it is always `not_connected`. The routes hand the running sync to `after()`. A sync over 240 s is aborted (the signal reaches every `fetch`) and counts as a failure; a failed sync retries 1 minute after it failed. The last good copy is kept indefinitely. |
 | Filters | `skipReason` in `src/lib/crm/gmail-mapping.ts` drops whole threads before mapping, so they make no case, contact, triage row or message: **bounces** (mailer-daemon, postmaster, "Mail Delivery Subsystem", "Undeliverable", "Address not found" …), **billing and failed-payment notices** (from a billing sender such as Stripe or `billing@`, or opened by the mailbox with billing wording such as "we weren't able to charge" or "your free trial of", together with any customer reply to one, because the notice's greeting carries the customer's name), and **outbound-only threads** (the mailbox wrote and no customer replied). |
-| Logs | `[gmail] sync failed: <kind>` — a fixed word (`GmailAuth`, `GmailApi`, `GmailRateLimited`, `InvalidData`, `SyncTimeout`, `Aborted`, `UnknownError`), never Google's text, never a credential. |
+| Access token | One per server instance, shared by every request (`createTokenCache` in `src/lib/server/gmail.ts`): reused until 1 minute before Google's `expires_in`, at most one refresh in flight (callers that arrive meanwhile wait for it), dropped when Gmail answers 401, never reused for other credentials, and never cached when Google sends no `expires_in`. A failed refresh is not cached. Each Vercel instance still refreshes on its own; see "Sharing the access token across instances" below. |
+| Logs | `[gmail] sync failed: <kind>` — a fixed word (`GmailAuth`, `GmailApi`, `GmailRateLimited`, `InvalidData`, `SyncTimeout`, `Aborted`, `UnknownError`) — and, when Google answered with an error, its **code fields only** in brackets: which call (`token` or `api`), the HTTP `status`, the OAuth `error` (e.g. `invalid_grant`, `unauthorized_client`), and the Gmail API `apiStatus` / `reason` (e.g. `PERMISSION_DENIED`, `userRateLimitExceeded`, `insufficientPermissions`). Values are kept only if they look like a code (letters and underscores) and contain no configured credential; `error_description`, `message`, bodies and headers are never read into the log. The bracket starts with **invalid token or grant** (`GmailAuth`), **rate limited** (`GmailRateLimited`) or **Gmail API error** (`GmailApi`), e.g. `[gmail] sync failed: GmailAuth (invalid token or grant: token status=400 error=invalid_grant)` or `[gmail] sync failed: GmailRateLimited (rate limited: api status=403 reason=userRateLimitExceeded)`. A 403 with a quota reason (`rateLimitExceeded`, `userRateLimitExceeded`, `quotaExceeded`, `dailyLimitExceeded`) or `RESOURCE_EXHAUSTED`, and any 429, is `GmailRateLimited`; other 401/403s are `GmailAuth`. |
 | Bundle check | `pnpm check:bundle` fails if any `GMAIL_*` secret's value, or any `GMAIL_*` env var name, is in client output. CI builds with dummy values. |
 
 ### Endpoints
@@ -85,6 +86,19 @@ as info@chlkapp.com, remove **Chlk Dashboard** at
 - `GET /api/health/gmail` → `{"gmail":"ok"|"connecting"|"error"|"not_configured"}` and
   nothing else. `connecting` is the moment before the first sync lands;
   `error` is a failed sync. Same cache, safe to leave public.
+
+### Sharing the access token across instances
+
+The access-token cache lives in one server instance's memory, so on Vercel
+each warm instance does its own refresh (still at most one at a time, then
+reused for about an hour). The repo has no server-side shared store today,
+so this PR adds none, and no env vars. If refreshes from many instances
+ever matter (Google rate-limiting the token endpoint, say), the place to
+share the token is a server-only store with a TTL: Vercel's Runtime Cache,
+or a KV/Redis store, keyed by a hash of the client ID and refresh token
+(never the token itself as a key), holding the access token until
+`expires_in` minus the margin, behind the same `TokenCache` interface. That
+would be new infrastructure and is a separate decision.
 
 ### How threads become CRM rows
 
