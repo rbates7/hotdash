@@ -30,10 +30,11 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // e2e never talks to Stripe, PostHog, Chlk's database, GitHub or Sentry:
-    // the server it starts has no keys, tokens or database URL (so all are
-    // "not connected"), and specs mock /api/stripe/* and /api/posthog/* in
-    // the browser for the connected and stale states. This holds even on a
+    // e2e never talks to Stripe, PostHog, Chlk's database, GitHub, Sentry or
+    // Gmail: the server it starts has no keys, tokens, database URL or Gmail
+    // credentials (so all are "not connected"), and specs mock
+    // /api/stripe/*, /api/posthog/*, /api/crm/gmail and /api/inbox in the
+    // browser for the connected and stale states. This holds even on a
     // machine whose shell has any of them.
     env: {
       STRIPE_READONLY_KEY: "",
@@ -44,6 +45,10 @@ export default defineConfig({
       GITHUB_READONLY_TOKEN: "",
       github_read_only: "",
       SENTRY_READONLY_TOKEN: "",
+      GMAIL_CLIENT_ID: "",
+      GMAIL_CLIENT_SECRET: "",
+      GMAIL_REFRESH_TOKEN: "",
+      GMAIL_MAILBOX: "",
     },
   },
 })
