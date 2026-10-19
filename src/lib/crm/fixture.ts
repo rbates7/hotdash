@@ -14,9 +14,10 @@ const DAY = 24 * HOUR
 const at = (nowMs: number, offsetMs: number) => new Date(nowMs - offsetMs).toISOString()
 
 /**
- * Seed dated from the request instant so "2h ago" and "5 days ago" stay
- * true no matter when the page is opened. Football coaches and schools on
- * Monthly / Annual / Staff — the help-desk sample Rashad confirmed.
+ * The old help-desk sample (football coaches and schools on Monthly /
+ * Annual / Staff). The CRM no longer starts from it: it is kept for unit
+ * tests and so a copy saved before it was removed can be cleaned on load
+ * by id (`SEED_*_IDS`, `dropSeed` in the store). Dated from `nowMs`.
  */
 export function seedOrganizations(nowMs: number): Organization[] {
   void nowMs
@@ -513,6 +514,7 @@ export function seedNotes(nowMs: number): Note[] {
   ]
 }
 
+export const SEED_ORGANIZATION_IDS: ReadonlySet<string> = new Set(seedOrganizations(0).map((o) => o.id))
 export const SEED_CONTACT_IDS: ReadonlySet<string> = new Set(seedContacts(0).map((c) => c.id))
 export const SEED_CASE_IDS: ReadonlySet<string> = new Set(seedCases(0).map((c) => c.id))
 export const SEED_NOTE_IDS: ReadonlySet<string> = new Set(seedNotes(0).map((n) => n.id))

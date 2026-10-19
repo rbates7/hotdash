@@ -12,7 +12,6 @@ import {
   formatCrmRelative,
   type Case,
 } from "@/lib/crm/crm"
-import { isSeedCase, isSeedContact } from "@/lib/crm/fixture"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +25,6 @@ import {
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import { PlanBadge, PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { ContactEditDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
@@ -105,7 +103,6 @@ export function ContactDetail({ contactId }: { contactId: string }) {
           <div>
             <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
               {name}
-              {store.sample && isSeedContact(contact.id) ? <SampleDataTag /> : null}
             </h2>
             <p className="text-muted-foreground text-sm">{contact.email}</p>
           </div>
@@ -167,7 +164,6 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                 title={caseRow.subject}
                 status={<StatusBadge status={caseRow.status} />}
                 meta={contactCaseCardMeta(caseRow, store.nowMs)}
-                sample={store.sample && isSeedCase(caseRow.id)}
                 className={CARD}
                 onClick={() => router.push(`/crm/cases/${caseRow.id}`)}
               />
@@ -193,7 +189,6 @@ export function ContactDetail({ contactId }: { contactId: string }) {
                       className={cn("flex items-center gap-2 truncate font-medium hover:underline", CRM_ROW_44)}
                     >
                       {caseRow.subject}
-                      {store.sample && isSeedCase(caseRow.id) ? <SampleDataTag /> : null}
                     </Link>
                   </TableCell>
                   <TableCell className={CELL}>

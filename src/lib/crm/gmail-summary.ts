@@ -22,12 +22,12 @@ import { dedupe } from "@/lib/persistence"
  *                     `lastSyncedAt`.
  * - `connecting`    — credentials are set and the first sync is still
  *                     running (a fresh server, just after a deploy): no
- *                     data yet, and never the sample in its place. The
+ *                     data yet, and nothing invented in its place. The
  *                     same rule as Stripe's (`@/lib/server/stripe`).
  * - `not_connected` — no credentials, or no sync has ever succeeded (a
  *                     failed first sync, and every retry after it, is not
- *                     connecting again): no data, and the CRM keeps its
- *                     labelled sample.
+ *                     connecting again): no data; the CRM shows Not
+ *                     connected and only the contacts the founder added.
  */
 export type GmailStatus = "connected" | "stale" | "connecting" | "not_connected"
 
@@ -119,11 +119,11 @@ export type GmailView = { phase: "loading" } | { phase: "ready"; summary: GmailS
 
 /**
  * What the CRM shows:
- * - `loading` — skeletons (never sample rows that then swap for real ones);
+ * - `loading` — skeletons (never invented rows that then swap for real ones);
  *               `connecting` while the server's first sync runs, as in
  *               `StripeFeed` (Settings and the CRM header say so);
- * - `not_connected` — Gmail is not connected: the CRM keeps its seed rows,
- *               labelled Sample data (the rows, not the feed, are sample);
+ * - `not_connected` — Gmail is not connected: a Not connected panel, and
+ *               only the contacts the founder added in this browser;
  * - `live`    — the support inbox; `stale` adds "Last updated …".
  */
 export type GmailFeed =
