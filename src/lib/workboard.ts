@@ -27,16 +27,24 @@ export type WorkboardItem = {
 }
 
 /**
- * What `GET /api/workboard` returns. No token, no error text.
+ * What `GET /api/workboard` returns. No token, no error text. `status`
+ * follows the same rules as the Stripe summary (`@/lib/server/stripe`):
  *
- * - `connected: false` — no (usable) token, or GitHub has never answered
- *   yet: `items` is empty and `fetchedAt` is the time of the answer.
- * - `connected: true, stale: false` — the last sync succeeded within the
- *   cache window; `fetchedAt` is when it ran.
- * - `connected: true, stale: true` — the last sync failed; these are the
- *   last good items, as of `fetchedAt`.
+ * - `connecting`    — a usable token is set and the first sync is still
+ *                     running (a fresh server, just after a deploy):
+ *                     `connected: false`, no items yet.
+ * - `connected`     — the last sync succeeded within the cache window
+ *                     (`connected: true, stale: false`); `fetchedAt` is when
+ *                     it ran.
+ * - `stale`         — the last sync failed; these are the last good items,
+ *                     as of `fetchedAt` (`connected: true, stale: true`).
+ * - `not_connected` — no (usable) token, or no sync has ever succeeded (a
+ *                     failed first sync, and every retry after it, is not
+ *                     connecting again): `connected: false`, `items` is
+ *                     empty and `fetchedAt` is the time of the answer.
  */
 export type WorkboardResponse = {
+  status: "connected" | "stale" | "connecting" | "not_connected"
   connected: boolean
   fetchedAt: string
   stale: boolean
@@ -49,7 +57,7 @@ export const WORKBOARD_PATH = "/api/workboard"
 export const MERGED_LOOKBACK_DAYS = 14
 
 export function notConnected(now: Date): WorkboardResponse {
-  return { connected: false, fetchedAt: now.toISOString(), stale: false, items: [] }
+  return { status: "not_connected", connected: false, fetchedAt: now.toISOString(), stale: false, items: [] }
 }
 
 /* -------------------------------------------------------------------- ci */

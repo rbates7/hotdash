@@ -29,8 +29,9 @@ import {
  * nothing.
  *
  * Like the Stripe service (`@/lib/server/stripe`), a request never waits
- * for a sync: it gets the copy there is now — or `connected: false` with no
- * items before the first sync lands — and a due sync starts in the
+ * for a sync: it gets the copy there is now — or, before the first sync
+ * lands, `connecting` (with a token; `not_connected` without one, or after
+ * a first sync failed), with no items — and a due sync starts in the
  * background, one at a time, cut off after `SYNC_TIMEOUT_MS`.
  */
 
@@ -152,12 +153,6 @@ export const RETRY_AFTER_MS = 60_000
 export type WorkboardService = {
   /** Answers at once from the copy there is; never waits for a sync. */
   read(): Promise<WorkboardResponse>
-  /**
-   * True while a usable token is set and the first sync has not finished:
-   * `read()` says `connected: false`, but the board is on its way. A failed
-   * first sync is not connecting (no "connecting forever").
-   */
-  connecting(): boolean
   /** Settles when the background sync running now (if any) is done. */
   settled(): Promise<void>
   /** Tests only: forget everything. */
@@ -216,18 +211,23 @@ export function createWorkboardService({
         inflight = run
       }
       const snapshot = lastGood
-      if (!snapshot) return notConnected(new Date(clock()))
+      if (!snapshot) {
+        // The rule `@/lib/server/stripe` uses: a usable token and no sync
+        // finished yet means the first one (started above) is running. Once
+        // any sync has failed, it and every retry after it are not connected.
+        const answer = notConnected(new Date(clock()))
+        return !lastAttempt ? { ...answer, status: "connecting" } : answer
+      }
       // A refresh running behind a good copy leaves it current; only a
       // failed sync makes it stale.
+      const stale = !lastAttempt?.ok
       return {
+        status: stale ? "stale" : "connected",
         connected: true,
         fetchedAt: new Date(snapshot.syncedAt).toISOString(),
-        stale: !lastAttempt?.ok,
+        stale,
         items: snapshot.items,
       }
-    },
-    connecting() {
-      return readWorkboardConfig(env()).kind === "ok" && lastGood === null && lastAttempt === null
     },
     async settled() {
       await inflight

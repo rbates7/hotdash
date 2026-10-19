@@ -7,11 +7,12 @@ import { notConnected, type WorkboardResponse } from "@/lib/workboard"
 export const dynamic = "force-dynamic"
 
 /**
- * The workboard: `{ connected, fetchedAt, stale, items }` (see
- * `WorkboardResponse`). Never an error body: no token, or no sync landed
- * yet, is `connected: false` with no items; a failed sync is the last good
- * items with `stale: true`. A due sync runs after the response (`after`),
- * and the next poll picks it up.
+ * The workboard: `{ status, connected, fetchedAt, stale, items }` (see
+ * `WorkboardResponse`). Never an error body: with a token, before the first
+ * sync lands, it is `connecting`; no token, or a first sync that failed, is
+ * `not_connected` with no items; a failed sync after a good one is the last
+ * good items, `stale`. A due sync runs after the response (`after`), and
+ * the next poll picks it up.
  */
 export async function GET() {
   after(() => workboardService.settled())
