@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { FlaskConicalIcon, RouteIcon } from "lucide-react"
+import { InfoIcon, Loader2Icon, PlugZapIcon, RouteIcon } from "lucide-react"
 
 import {
   COLUMN_CONFIG,
   COLUMN_ORDER,
   inColumn,
+  type BoardItem,
   type RoadmapColumn,
 } from "@/lib/roadmap/roadmap"
 import { cn } from "@/lib/utils"
@@ -24,33 +25,64 @@ import {
   ROADMAP_SWITCHER,
 } from "@/components/product-roadmap/responsive"
 import { useRoadmap } from "@/components/product-roadmap/roadmap-store"
-import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile"
 
+/** The words on the Roadmap while Notion is not connected, and while it is connecting. */
+export const NOTION_NOT_CONNECTED_COPY =
+  "Notion is not connected, so the signed roadmap can\u2019t show here. Bets you add stay in this browser only."
+export const NOTION_CONNECTING_COPY = "Connecting to Notion\u2026"
+
 /**
- * The page-wide notice above the board. The shared `SampleDataNotice` is
- * worded for Metrics, so this one says what is and is not real *here*, on
- * the shared sample-data surface so the palette (and its contrast) is the
- * same everywhere.
+ * Not connected (no Notion token on the server): said plainly above this
+ * browser's own board, which starts empty. Never sample bets.
  */
-function RoadmapSampleNotice({ count }: { count: number }) {
+function NotConnectedNotice() {
   return (
     <div
       role="note"
-      aria-label={SAMPLE_DATA_LABEL}
-      data-testid="sample-data-notice"
-      className={cn(
-        "text-body flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5",
-        SAMPLE_SURFACE
-      )}
+      aria-label="Notion not connected"
+      data-testid="notion-not-connected"
+      className="border-border text-body text-muted-foreground flex items-start gap-2.5 rounded-xl border border-dashed px-3.5 py-2.5"
     >
-      <FlaskConicalIcon className="mt-0.5 size-4 flex-none" aria-hidden />
+      <PlugZapIcon className="mt-0.5 size-4 flex-none" aria-hidden />
       <p>
-        <strong className="font-semibold">{SAMPLE_DATA_LABEL}.</strong> The{" "}
-        {count === 1 ? "bet" : `${count} bets`} tagged below{" "}
-        {count === 1 ? "is an" : "are"} invented example{count === 1 ? "" : "s"} of a
-        Chlk roadmap, not signed bets. Bets you add or rewrite are yours, and they live
-        only in this browser.
+        <strong className="text-foreground font-medium">Not connected.</strong>{" "}
+        {NOTION_NOT_CONNECTED_COPY}
+      </p>
+    </div>
+  )
+}
+
+/** The server has a token and its first Notion sync is running: the skeleton, said. */
+function ConnectingNotice() {
+  return (
+    <div
+      role="status"
+      data-testid="notion-connecting"
+      className="text-body text-muted-foreground flex items-center gap-2.5 px-0.5"
+    >
+      <Loader2Icon className="size-4 flex-none animate-spin motion-reduce:animate-none" aria-hidden />
+      <p>{NOTION_CONNECTING_COPY}</p>
+    </div>
+  )
+}
+
+/**
+ * Live only: Notion rows the board could not place (no status, or one it
+ * does not know). Said, never guessed into a column.
+ */
+function UnplacedNotice({ count }: { count: number }) {
+  return (
+    <div
+      role="note"
+      aria-label="Rows not shown"
+      data-testid="notion-unplaced-notice"
+      className="border-border text-body text-muted-foreground flex items-start gap-2.5 rounded-xl border border-dashed px-3.5 py-2.5"
+    >
+      <InfoIcon className="mt-0.5 size-4 flex-none" aria-hidden />
+      <p>
+        {count === 1 ? "1 row" : `${count} rows`} in Notion {count === 1 ? "has" : "have"} no Now, Next or
+        Later status, so {count === 1 ? "it is" : "they are"} not on the board.
       </p>
     </div>
   )
@@ -168,7 +200,7 @@ function Column({
   onFocusConsumed,
 }: {
   column: RoadmapColumn
-  cards: ReturnType<typeof inColumn>
+  cards: BoardItem[]
   listed?: boolean
   onEdit: (id: string) => void
   focusRequest: FocusRequest | null
@@ -269,7 +301,9 @@ export function BoardSkeleton({
 }
 
 export function RoadmapBoard() {
-  const { items, persisted } = useRoadmap()
+  const { items: localItems, persisted, source, live, readOnly } = useRoadmap()
+  // Notion's rows when it is connected (read-only), else this browser's board.
+  const items: readonly BoardItem[] = live ? live.items : localItems
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [phoneColumn, setPhoneColumn] = React.useState<RoadmapColumn>("now")
   const [focusRequest, setFocusRequest] = React.useState<FocusRequest | null>(null)
@@ -349,10 +383,17 @@ export function RoadmapBoard() {
     return () => window.clearTimeout(id)
   }, [compact, editingId, persisted])
 
-  if (!persisted) return <BoardSkeleton layout={layout} />
+  if (source === "connecting") {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <ConnectingNotice />
+        <BoardSkeleton layout={layout} />
+      </div>
+    )
+  }
+  if (source === "loading" || (source === "local" && !persisted)) return <BoardSkeleton layout={layout} />
 
-  const sampleCount = items.filter((i) => i.sample).length
-  const editing = items.find((i) => i.id === editingId) ?? null
+  const editing = readOnly ? null : (localItems.find((i) => i.id === editingId) ?? null)
   const counts = Object.fromEntries(
     COLUMN_ORDER.map((column) => [column, inColumn(items, column).length])
   ) as Record<RoadmapColumn, number>
@@ -362,9 +403,21 @@ export function RoadmapBoard() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {sampleCount > 0 && <RoadmapSampleNotice count={sampleCount} />}
+      {source === "local" && <NotConnectedNotice />}
+      {live && live.unplaced > 0 && <UnplacedNotice count={live.unplaced} />}
 
-      {items.length === 0 && (
+      {items.length === 0 && live && (
+        <div
+          role="status"
+          aria-label="Empty board"
+          className="border-border text-body text-muted-foreground flex items-center gap-2.5 rounded-xl border border-dashed px-3.5 py-3"
+        >
+          <RouteIcon className="size-4 flex-none" aria-hidden />
+          <p>No bets on the roadmap in Notion yet.</p>
+        </div>
+      )}
+
+      {items.length === 0 && !live && (
         <div
           role="status"
           aria-label="Empty board"
@@ -372,10 +425,8 @@ export function RoadmapBoard() {
         >
           <RouteIcon className="size-4 flex-none" aria-hidden />
           <p>
-            No bets on the roadmap. Add the next signed bet with{" "}
-            <strong className="text-foreground font-medium">New bet</strong>, or{" "}
-            <strong className="text-foreground font-medium">Reset</strong> to bring the sample
-            bets back.
+            No bets here yet. Add one with{" "}
+            <strong className="text-foreground font-medium">New bet</strong>.
           </p>
         </div>
       )}

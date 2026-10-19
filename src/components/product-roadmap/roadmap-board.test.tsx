@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
 import { SPAWN_TICKET_LABEL, SPAWN_TICKET_TITLE } from "@/components/product-roadmap/item-dialog"
-import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
+import { NOTION_NOT_CONNECTED_COPY, RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
 import { SOURCE_CHIP_TITLE, TICKETS_TITLE } from "@/components/product-roadmap/roadmap-card"
-import { RoadmapProvider, STORAGE_KEY } from "@/components/product-roadmap/roadmap-store"
+import { RoadmapProvider, configureRoadmapBoard, STORAGE_KEY } from "@/components/product-roadmap/roadmap-store"
+import { seedState } from "@/lib/roadmap/fixture"
 
 const NOW = Date.parse("2026-10-07T15:00:00.000Z")
 const nativeMatchMedia = window.matchMedia
@@ -29,6 +30,8 @@ function mockDesktop() {
 // jsdom has no matchMedia; treat the suite as desktop so the three-column
 // board and the existing dialog stay (same as Feature Request #30).
 beforeEach(() => {
+  // The editing tests need bets to move: the fixture, tests only.
+  configureRoadmapBoard(seedState)
   mockDesktop()
 })
 
@@ -89,15 +92,19 @@ describe("board", () => {
     expect(card("Parent recap emails")).toHaveTextContent("2028")
   })
 
-  it("labels every seed card, the page and the notice as sample data", () => {
+  it("Notion not connected, nothing saved: says Not connected over an empty board, never sample bets", () => {
+    configureRoadmapBoard(null) // the app's own start
     render(<Screen />)
-    const tags = screen.getAllByTestId("sample-data-tag")
-    expect(tags).toHaveLength(8)
-    for (const tag of tags) expect(tag).toHaveTextContent("Sample data")
-    expect(screen.getByTestId("sample-data-badge")).toHaveTextContent("Sample data")
-    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent(
-      "8 bets tagged below are invented examples"
+    expect(screen.getByRole("note", { name: "Notion not connected" })).toHaveTextContent(
+      `Not connected. ${NOTION_NOT_CONNECTED_COPY}`
     )
+    expect(screen.getByRole("status", { name: "Empty board" })).toHaveTextContent("No bets here yet")
+    expect(screen.queryAllByRole("article")).toHaveLength(0)
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByTestId("sample-data-badge")).toBeNull()
+    expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
+    // Still this browser's board: New bet works.
+    expect(screen.getByRole("button", { name: "New bet" })).toBeEnabled()
   })
 
   it("shows skeletons, never the seed, until localStorage has been read", () => {
@@ -253,7 +260,6 @@ describe("board", () => {
     expect(within(edited).getByTitle(TICKETS_TITLE)).toHaveTextContent("No tickets")
     expect(within(edited).queryByTitle(SOURCE_CHIP_TITLE)).toBeNull()
     expect(screen.getAllByTestId("sample-data-tag")).toHaveLength(7)
-    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("7 bets")
     expect(titlesIn("Next")[0]).toBe("Import a play from a HUDL link") // same place in the sequence
 
     await user.click(within(edited).getByRole("button", { name: "Edit" }))
@@ -312,7 +318,7 @@ describe("board", () => {
   it("shows the empty board and per-column empties when nothing is saved for any column", () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: [], nextId: 1 }))
     render(<Screen />)
-    expect(screen.getByRole("status", { name: "Empty board" })).toHaveTextContent("No bets on the roadmap")
+    expect(screen.getByRole("status", { name: "Empty board" })).toHaveTextContent("No bets here yet")
     for (const name of ["Now", "Next", "Later"]) {
       expect(column(name)).toHaveTextContent(`Nothing in ${name}`)
       expect(cardsIn(name)).toHaveLength(0)

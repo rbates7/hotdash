@@ -116,8 +116,9 @@ test.describe("PostHog connected (1440)", () => {
     await open(page, "/settings")
     await expect(posthogRow(page).getByTestId("posthog-status")).toHaveText("Connected")
     await expect(posthogRow(page).getByTestId("posthog-detail")).toHaveText("Read-only · last synced Tue, Oct 13 · 9:41 AM CDT")
+    // Stripe, Sentry, Gmail and Notion (#45 adds the Notion row).
     const others = main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    await expect(others).toHaveCount(3)
+    await expect(others).toHaveCount(4)
   })
 })
 

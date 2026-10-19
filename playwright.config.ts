@@ -60,12 +60,13 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // e2e never talks to Stripe, PostHog, Chlk's database, GitHub, Sentry,
-    // Notion or Gmail: the server it starts has every secret-like variable
-    // blank (so all are "not connected"), and specs mock /api/stripe/*,
-    // /api/posthog/*, /api/crm/gmail and /api/inbox in the browser for the
-    // connected and stale states. This holds even on a machine whose shell
-    // has any of them (src/test/shot-env.test.ts).
+    // e2e never talks to Stripe, PostHog, Notion, Chlk's database, GitHub,
+    // Sentry or Gmail: the server it starts has every secret-like variable
+    // blank, KNOWN_SECRETS included (so all are "not connected"), and specs
+    // mock /api/stripe/*, /api/posthog/*, /api/notion/roadmap, /api/crm/gmail
+    // and /api/inbox in the browser for the connected and stale states. This
+    // holds even on a machine whose shell has any of them
+    // (src/test/shot-env.test.ts).
     env: serverEnv,
   },
 })
