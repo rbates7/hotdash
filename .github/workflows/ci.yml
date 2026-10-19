@@ -14,7 +14,9 @@ jobs:
   checks:
     name: Lint, typecheck, unit, build, e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # develop already ran ~17 of 20 minutes; the screens specs now assert on
+    # every run (no SCREENSHOTS skip), which adds ~120 e2e tests.
+    timeout-minutes: 30
     env:
       CI: true
       NEXT_TELEMETRY_DISABLED: 1
