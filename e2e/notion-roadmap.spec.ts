@@ -113,6 +113,11 @@ test.describe("Notion connecting (1440)", () => {
     await expect(notionRow(page).getByTestId("notion-detail")).toHaveText(
       "Read-only token found · first sync in progress, the Roadmap appears when it finishes"
     )
+    const sampleSection = main(page).getByRole("region", { name: "Sample data" })
+    await expect(sampleSection).toContainText(
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
+    )
+    await expect(sampleSection).not.toContainText("Every number on every screen")
   })
 })
 

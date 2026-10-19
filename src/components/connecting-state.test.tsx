@@ -246,14 +246,17 @@ describe("page-level wording unchanged when live or not connected", () => {
 
     // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
     expect(sampleDataSummary({ ...base, notion: true })).toBe(
-      "The Product Roadmap is read from Notion; every number on every screen is still sample data."
+      "The Product Roadmap is read from Notion; every number on the other screens is still sample data."
     )
     expect(sampleDataSummary({ ...base, stripe: true, notion: true })).toBe(
       "Stripe's figures are live and carry no label; every other number is still sample data. The Product Roadmap is read from Notion."
     )
     expect(sampleDataSummary({ ...base, notionConnecting: true })).toBe(
-      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on every screen is still sample data."
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
     )
+    // Notion connecting never claims the Roadmap is sample.
+    expect(sampleDataSummary({ ...base, notionConnecting: true })).not.toMatch(/every number on every screen/i)
+    expect(sampleDataSummary({ ...base, notion: true })).not.toMatch(/every number on every screen/i)
     expect(sampleDataSummary({ ...base, posthog: true, notionConnecting: true })).toBe(
       "PostHog's figures are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
     )

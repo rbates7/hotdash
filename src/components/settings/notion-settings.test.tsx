@@ -42,7 +42,11 @@ describe("Settings › Connected data › Notion", () => {
     expect(within(row("Notion")).getByTestId("notion-detail")).toHaveTextContent(
       "Read-only token found · first sync in progress, the Roadmap appears when it finishes"
     )
-    expect(screen.getByRole("region", { name: "Sample data" })).toHaveTextContent("Notion is connecting (first sync in progress)")
+    const sample = screen.getByRole("region", { name: "Sample data" })
+    expect(sample).toHaveTextContent(
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
+    )
+    expect(sample).not.toHaveTextContent(/every number on every screen/i)
   })
 
   it("the copy names Notion: wired up so far, the Roadmap's sentence, and no 'Product Roadmap has no label' claim", () => {

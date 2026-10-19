@@ -356,14 +356,19 @@ export function sampleDataSummary({
   notionConnecting?: boolean
 }): string {
   const nothingElse = !figures.stripe && !figures.posthog && !figures.stripeConnecting
+  // With Notion live or connecting, the Roadmap is not sample, so the
+  // sample sentence names only the other screens (as #50 does for Stripe
+  // connecting: "Every other number is still sample data").
   if (notion) {
     return nothingElse
-      ? "The Product Roadmap is read from Notion; every number on every screen is still sample data."
+      ? "The Product Roadmap is read from Notion; every number on the other screens is still sample data."
       : `${figuresSummary(figures)} The Product Roadmap is read from Notion.`
   }
   if (notionConnecting) {
     const roadmap = "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
-    return nothingElse ? `${roadmap} Every number on every screen is still sample data.` : `${figuresSummary(figures)} ${roadmap}`
+    return nothingElse
+      ? `${roadmap} Every number on the other screens is still sample data.`
+      : `${figuresSummary(figures)} ${roadmap}`
   }
   return figuresSummary(figures)
 }
