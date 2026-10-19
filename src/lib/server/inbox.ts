@@ -13,10 +13,11 @@ import { workboardService, type WorkboardService } from "@/lib/server/workboard"
 /**
  * The Inbox from its three sources, read side by side, each failing on its
  * own. GitHub comes through the workboard's cache (no second set of GitHub
- * calls); Sentry has its own; Gmail is a stub until #46.
+ * calls); Sentry has its own; Gmail is still a stub
+ * (the #46 Gmail source feeds the CRM only, for now).
  */
 
-/** Gmail: Not connected until the read-only Gmail source (#46) lands. */
+/** Gmail: Not connected. #46's Gmail source feeds the CRM; the Inbox wiring is a follow-up. */
 export function gmailInbox(): InboxSourceState {
   return { status: "not_connected", fetchedAt: null }
 }

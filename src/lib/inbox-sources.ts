@@ -13,7 +13,8 @@ import type { InboxItem } from "@/lib/workplace-fixture"
  * - **Sentry** (org `chlk`, project `chlk-ios`): unresolved error/fatal
  *   issues. New, regressed or escalating ones need you; others seen in the
  *   last 24 hours are informational.
- * - **Gmail**: Not connected until the read-only Gmail source (#46) lands.
+ * - **Gmail**: a stub, always Not connected. The read-only Gmail source
+ *   (#46) feeds the CRM; wiring its threads into the Inbox is a follow-up.
  */
 
 export type InboxSourceId = "github" | "sentry" | "gmail"
