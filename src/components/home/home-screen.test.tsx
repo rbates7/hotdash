@@ -13,6 +13,8 @@ import { truthStrip } from "@/lib/kpis"
 import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
+import { configureInbox } from "@/hooks/use-inbox"
+import { emptyInbox, liveInbox, mixedInbox, notConnectedInbox } from "@/test/inbox-fixture"
 
 function renderHome() {
   return render(
@@ -94,12 +96,41 @@ describe("HomeScreen", () => {
     expect(within(door).queryByRole("list", { name: "Columns" })).not.toBeInTheDocument()
   })
 
-  it("the Inbox door says Not connected: no rows and no waiting count", () => {
+  it("lists what needs you from the live Inbox, each row opening the Workplace Inbox", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(liveInbox(Date.now())) })
     renderHome()
     const door = screen.getByRole("region", { name: "Inbox" })
-    expect(within(door).getByTestId("door-not-connected")).toHaveTextContent("Not connected")
+    expect(await within(door).findByText("3 waiting")).toBeInTheDocument()
+    const rows = within(within(door).getByRole("list", { name: "Needs you" })).getAllByRole("link")
+    // Only rows that need the founder: not "PR needs a fix", not ongoing Sentry.
+    expect(rows).toHaveLength(3)
+    expect(within(door).queryByText(/needs a fix|Ongoing/)).not.toBeInTheDocument()
+    expect(new Set(rows.map((r) => r.getAttribute("href")))).toEqual(new Set(["/agent-workplace?tab=inbox"]))
+    // None of the design mock's sample rows.
+    expect(within(door).queryByText(/Agent blocked|Daily standup summary/)).not.toBeInTheDocument()
+    expect(within(door).getByText("Needs you lives here.")).toBeInTheDocument()
+    configureInbox({})
+  })
+
+  it("mixed (GitHub live, Sentry stale): shows Sentry's last sync next to the rows", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(mixedInbox(Date.now())) })
+    renderHome()
+    const door = screen.getByRole("region", { name: "Inbox" })
+    expect(await within(door).findByTestId("needs-you-updated")).toHaveTextContent(/^Sentry: Last updated /)
+    configureInbox({})
+  })
+
+  it("shows Nothing needs you when connected and empty, and Not connected with no source", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(emptyInbox(Date.now())) })
+    const first = renderHome()
+    expect(await within(screen.getByRole("region", { name: "Inbox" })).findByText("Nothing needs you")).toBeInTheDocument()
+    first.unmount()
+    configureInbox({ fetcher: () => Promise.resolve(notConnectedInbox(Date.now())) })
+    renderHome()
+    const door = screen.getByRole("region", { name: "Inbox" })
+    expect(await within(door).findByTestId("door-not-connected")).toHaveTextContent("Not connected")
     expect(within(door).queryByText(/waiting/)).not.toBeInTheDocument()
-    expect(within(door).queryByRole("list", { name: "Needs you" })).not.toBeInTheDocument()
+    configureInbox({})
   })
 
   it("the Metrics door has no sample series with Stripe not connected", async () => {
@@ -140,10 +171,10 @@ describe("Not connected door states", () => {
     expect(screen.queryByText(/Backlog tab/)).not.toBeInTheDocument()
   })
 
-  it("NeedsYouDoor notConnected ignores any rows it is handed", () => {
+  it("NeedsYouDoor not connected ignores any rows it is handed", () => {
     render(
       <NeedsYouDoor
-        notConnected
+        status="not_connected"
         now={FIXED_NOW}
         needs={{
           items: [{ id: "x", title: "Row", snippet: "", at: FIXED_NOW.toISOString(), unread: true }],

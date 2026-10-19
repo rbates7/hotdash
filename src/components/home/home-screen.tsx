@@ -2,10 +2,12 @@
 
 import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { todayIn } from "@/lib/clock"
-import { notConnectedKpis, pulseLabel } from "@/lib/home"
+import { needsYou, notConnectedKpis, pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis } from "@/lib/home-fixture"
 import { snapshotFor } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
+import { inboxScreen, sourceList } from "@/lib/inbox-sources"
+import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
@@ -40,6 +42,11 @@ export function HomeScreen() {
   // The page's instant, as the founder's calendar day: the same `today` the
   // Metrics page would compute, so the strip and door match it.
   const today = todayIn(now)
+  // Needs you: only the live Inbox rows that need the founder (a PR ready
+  // for review, a new/regressed/escalating Sentry issue), never sample.
+  // "PR needs a fix" and ongoing Sentry rows stay in the Inbox tab only.
+  const inbox = inboxScreen(useInboxView(), timeZone)
+  const needs = needsYou(inbox.needsYou, [])
   // Stripe's figures where it feeds them; every other card says Not
   // connected. No sample numbers, rows or priorities on Home.
   const feed = useStripeFeed()
@@ -96,14 +103,18 @@ export function HomeScreen() {
             }
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
-          {/* The Workplace board and Inbox are design mocks with no live
-              source yet, so their doors say Not connected. */}
+          {/* The Workplace board is a design mock with no live source yet,
+              so its door says Not connected. The Inbox door is live
+              (/api/inbox). */}
           <DevBoardDoor preview={null} notConnected />
           <NeedsYouDoor
             className={HOME_INBOX_DOOR}
-            needs={{ items: [], waiting: 0, overflow: 0 }}
+            needs={needs}
             now={now}
-            notConnected
+            loading={inbox.status === "loading"}
+            status={inbox.status === "loading" ? "connecting" : inbox.status}
+            updated={inbox.stale.length > 0 ? inbox.stale.join(" · ") : null}
+            connectingTo={sourceList(inbox.connecting)}
           />
         </div>
       </div>
