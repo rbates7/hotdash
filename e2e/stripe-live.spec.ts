@@ -67,18 +67,18 @@ test.describe("server endpoints with no key", () => {
 test.describe("Stripe not connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Home: the Stripe tiles show sample figures, labelled", async ({ page }) => {
+  test("Home: the Stripe tiles and ticker say Not connected, with no figures", async ({ page }) => {
     await open(page, "/home")
     for (const name of ["Subscribers", "Cash this week"]) {
-      await expect(kpi(page, name)).toHaveAttribute("data-source", "sample")
-      await expect(kpi(page, name).getByTestId("sample-data-tag")).toBeVisible()
+      await expect(kpi(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(kpi(page, name).getByTestId("not-connected")).toBeVisible()
+      await expect(kpi(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    await expect(strip(page).getByTestId("kpi-sample-label")).toBeVisible()
-    await expect(ticker(page).getByTestId("sample-data-tag")).toBeVisible()
+    await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
+    await expect(ticker(page)).toHaveAttribute("data-state", "not_connected")
+    await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(main(page).getByText(/Last updated/)).toHaveCount(0)
-    // Sample, as before: no breakdown, and the ticker has nothing to describe.
     await expect(kpi(page, "Subscribers").getByTestId("subscriber-breakdown")).toHaveCount(0)
-    await expect(ticker(page).getByRole("link")).not.toHaveAttribute("aria-describedby")
   })
 
   test("Metrics: every card is sample, labelled", async ({ page }) => {

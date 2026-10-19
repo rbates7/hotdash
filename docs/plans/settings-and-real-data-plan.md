@@ -16,7 +16,7 @@
 |---|---|---|
 | **Account** | Your name, email, sign-out | Comes with adding sign-in (step 0) |
 | **Connected data** | One row each for Stripe, PostHog, Sentry, and Gmail: connected or not, plus "last synced 4 min ago" | It's how you'll know which numbers are real |
-| **Sample data on/off** | One switch: hide placeholder numbers once real data is connected | Stops sample numbers getting mixed up with real ones |
+| **Connecting and empty states** | No sample numbers anywhere: a tile whose source is still loading shows "Connecting…", and a tile with no real source shows an empty "Not connected" state | Real numbers never get mixed up with made-up ones |
 | **Appearance** | Light, dark, or match your device | Already half built in the app, so it's cheap |
 | **Time zone** | Central by default | The app already has a shared clock setup, so it's cheap |
 | **Goals and targets** | Monthly revenue goal, trial-to-paid target, churn limit | Lets Home and Metrics show on track or behind once Stripe is live |
@@ -63,7 +63,7 @@ Note: in v1, settings would be saved in the browser, the same way the app saves 
 ### Suggested order
 1. **Step 0:** sign-in lock. *Was required before any real data; superseded, see the decision below. Sign-in must come back before anyone else is given access.*
 2. **Stripe → Home ticker + KPIs** (your top ask; one key powers a lot)
-3. **Settings v1** (Connected data and Sample data switch, so you can tell what's real)
+3. **Settings v1** (Connected data, plus "Connecting…" and empty "Not connected" states instead of sample numbers, so you can tell what's real)
 4. **Sentry → System Status + Bugs**
 5. **PostHog + Stripe → Metrics**
 6. **Gmail → CRM, then Sales**
@@ -95,3 +95,7 @@ The sign-in lock shipped in #38 and was then reverted at Rashad's request (via C
 ## Decision: Gmail in the CRM, customer emails on the public link
 
 **Decision: show the customer emails publicly. Rashad on 2026-10-16 at 9:45 PM CT: "Yes, show the customer emails publicly." Then on 2026-10-18 at 7:50 PM CT, to Coulson: "ship everything", which covers Gmail on the public link, previews included (the `GMAIL_*` variables are on Production and Preview). This is [row 5](#screen-by-screen) (CRM ← Gmail) and [order item 6](#suggested-order) (Gmail → CRM). It follows the Oct 13 decision above to keep the dashboard public with real data. Sign-in must come back before anyone else is given access.**
+
+## Decision: no sample data on the dashboard
+
+**Decision (Rashad, 2026-10-16, relayed by Simmons): no sample data on the dashboard. Any tile without a real source shows "Not connected". While a connected source is still loading, the tile shows "Connecting…". No screen shows made-up numbers. This replaces the earlier "Sample data on/off" idea in [Settings v1](#recommended-v1-small-and-it-supports-the-real-data-work) and [order item 3](#suggested-order).**

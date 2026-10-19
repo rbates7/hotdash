@@ -1,5 +1,5 @@
 import type { IsoDay } from "@/lib/clock"
-import type { Kpi, NumberOne } from "@/lib/home"
+import type { Kpi } from "@/lib/home"
 import { growthStrip, truthStrip } from "@/lib/kpis"
 
 /**
@@ -9,11 +9,6 @@ import { growthStrip, truthStrip } from "@/lib/kpis"
  * and the Dev board preview are not here either: they read the Agent
  * Workplace store.
  */
-
-export const numberOne: NumberOne = {
-  title: "Call Aledo before Friday",
-  note: "Dummy · Friday walk-through",
-}
 
 /* ------------------------------------------------------------ KPI strip */
 
