@@ -3,17 +3,19 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
 import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 
-// Stripe and PostHog start not connected in every test (no fetch to a
-// server that is not there): screens show their sample figures, labelled.
+// Stripe, PostHog and Gmail start not connected in every test (no fetch to
+// a server that is not there): screens show their sample figures, labelled.
 // A test that wants live figures configures them itself (see
-// src/test/stripe.ts and src/test/posthog.ts).
+// src/test/stripe.ts, src/test/posthog.ts and src/test/gmail.ts).
 beforeEach(() => {
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
@@ -24,6 +26,11 @@ beforeEach(() => {
     fetcher: async () => POSTHOG_NOT_CONNECTED,
   })
   configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
+  // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
+  configureGmailSummary({
+    initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },
+    fetcher: async () => GMAIL_NOT_CONNECTED,
+  })
 })
 
 afterEach(() => {

@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW_MS } from "@/test/clock"
+import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
 import { navigation } from "@/test/setup"
 import {
   APP_STORE_OFF,
@@ -352,6 +353,20 @@ describe("Settings › Connected data", () => {
     expect(row("Stripe")).toHaveTextContent("Not connected")
     expect(within(row("Stripe")).queryByTestId("stripe-detail")).toBeNull()
     expect(screen.getByRole("region", { name: "Sample data" })).toHaveTextContent("Nothing is connected yet")
+  })
+
+  it("Gmail connected: Connected, the inbox and when it last synced; stale: Last updated", () => {
+    setGmailSummaryForTest(liveGmailSummary(FIXED_NOW_MS))
+    const { unmount } = render(<SettingsScreen />)
+    expect(within(row("Gmail")).getByTestId("gmail-status")).toHaveTextContent("Connected")
+    expect(within(row("Gmail")).getByTestId("gmail-detail")).toHaveTextContent(/^info@chlkapp\.com, read-only · last synced /)
+    expect(row("Stripe")).toHaveTextContent("Not connected")
+    expect(screen.getByRole("region", { name: "Sample data" })).toHaveTextContent("The CRM's Gmail conversations are live")
+    unmount()
+    setGmailSummaryForTest({ ...liveGmailSummary(FIXED_NOW_MS), status: "stale" })
+    render(<SettingsScreen />)
+    expect(within(row("Gmail")).getByTestId("gmail-status")).toHaveTextContent(/^Last updated /)
+    expect(within(row("Gmail")).getByTestId("gmail-detail")).toHaveTextContent("last good threads")
   })
 
   it("loading: Checking…", () => {
