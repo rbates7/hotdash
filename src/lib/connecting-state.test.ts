@@ -47,8 +47,8 @@ describe("feedOf", () => {
     expect(feedOf({ phase: "ready", summary: CONNECTING })).toEqual({ kind: "loading", connecting: true })
   })
 
-  it("no key is still sample (Not connected)", () => {
-    expect(feedOf({ phase: "ready", summary: NOT_CONNECTED })).toEqual({ kind: "sample" })
+  it("no key is not_connected, never sample", () => {
+    expect(feedOf({ phase: "ready", summary: NOT_CONNECTED })).toEqual({ kind: "not_connected" })
   })
 
   it("the page's own first load is loading, not connecting", () => {
