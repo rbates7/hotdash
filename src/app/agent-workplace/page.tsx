@@ -1,10 +1,6 @@
 import { Suspense } from "react"
 
-import { ExternalLinkIcon } from "lucide-react"
-
 import { now } from "@/lib/clock"
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import {
   WORKPLACE_DUMMY,
@@ -14,8 +10,6 @@ import {
 } from "@/components/agent-workplace/responsive"
 import { WorkplacePersistenceNote } from "@/components/agent-workplace/workplace-persistence-note"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
-
-const PLAYBOOK_URL = "https://app.notion.com/p/3fc91ff1f7b081b9a8dad75102fe4a99"
 
 export const metadata = {
   title: "Agent Workplace · Chlk",
@@ -35,15 +29,6 @@ export default function AgentWorkplacePage() {
           <div className={WORKPLACE_HEADER_META}>
             <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
             <span className={WORKPLACE_DUMMY}>Dummy / design mock</span>
-            <a
-              href={PLAYBOOK_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 xl:min-h-0")}
-            >
-              Engineering playbook
-              <ExternalLinkIcon aria-hidden />
-            </a>
           </div>
         </header>
         {/* WorkplaceTabs reads the tab and open ticket from the URL, so it

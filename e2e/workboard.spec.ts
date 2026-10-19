@@ -101,13 +101,10 @@ test("our endpoint down from the start reads as Not connected, never an empty bo
   await expect(board(page).getByTestId("workboard-empty")).toHaveCount(0)
 })
 
-test("engineering playbook link opens Notion in a new tab", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+test("no Engineering playbook link on the page (not approved for a public page)", async ({ page }) => {
   await page.goto("/agent-workplace")
   await waitForHydration(page)
-  const link = page.getByRole("link", { name: "Engineering playbook" })
-  await expect(link).toHaveAttribute("href", "https://app.notion.com/p/3fc91ff1f7b081b9a8dad75102fe4a99")
-  await expect(link).toHaveAttribute("target", "_blank")
-  await expect(link).toHaveAttribute("rel", "noopener noreferrer")
-  expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(page.getByRole("heading", { level: 1, name: "Agent Workplace" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Engineering playbook" })).toHaveCount(0)
+  await expect(page.locator('a[href*="notion.com"]')).toHaveCount(0)
 })
