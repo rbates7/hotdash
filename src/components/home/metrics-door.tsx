@@ -3,14 +3,12 @@ import { ChartColumnIcon } from "lucide-react"
 import { formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { compactDollars, sparklinePoints } from "@/lib/home"
 import { Door } from "@/components/home/door"
-import { SampleDataTag } from "@/components/sample-data"
 import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 
 const W = 240
 const H = 56
 
 const CAPTION = {
-  sample: "Sample series — the same MRR card as /metrics.",
   live: "From Stripe — the same MRR card as /metrics.",
   loading: "The same MRR card as /metrics.",
   not_connected: "MRR comes from Stripe once it is connected.",
@@ -20,24 +18,24 @@ const CAPTION = {
 /**
  * Preview of the Metrics page: the MRR card's own series of six 28-day
  * windows, so the door and the page can never show different numbers —
- * Stripe's when connected, the sample (labelled) when not.
+ * Stripe's when connected; Not connected (no series) when it has no key.
  */
 export function MetricsDoor({
   trend,
   today,
-  state = "sample",
+  state = "not_connected",
   updated = null,
 }: {
   trend: number[]
   today: IsoDay
-  state?: "sample" | "live" | "loading" | "connecting" | "not_connected"
+  state?: "live" | "loading" | "connecting" | "not_connected"
   /** "Last updated …" when Stripe's figures are stale. */
   updated?: string | null
 }) {
   const first = trend[0]
   const last = trend[trend.length - 1]
   const points = sparklinePoints(trend, W, H)
-  const hasTrend = trend.length > 1 && (state === "live" || state === "sample")
+  const hasTrend = trend.length > 1 && state === "live"
   const span = formatWindowSpan(windowsEnding(today, trend.length))
 
   return (
@@ -47,7 +45,6 @@ export function MetricsDoor({
           <span className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
             {state === "not_connected" || state === "connecting" ? "MRR" : `MRR · ${trend.length} × 28 days`}
           </span>
-          {state === "sample" && <SampleDataTag />}
           {state === "not_connected" && <NotConnectedBadge />}
           {state === "connecting" && <ConnectingBadge />}
         </div>

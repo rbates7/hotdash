@@ -163,7 +163,7 @@ function TimeZoneSection({ timeZone }: { timeZone: string }) {
     <Section
       id="time-zone"
       title="Time zone"
-      description="Central by default. Home's clock and weekday follow this choice, and so do Stripe's “today” and “this week” (from Monday 00:00). Sample figures are still dated in Central."
+      description="Central by default. Home's clock and weekday follow this choice, and so do Stripe's “today” and “this week” (from Monday 00:00). Seed rows are still dated in Central."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         <span id={labelId} className="sr-only">
@@ -338,7 +338,7 @@ function SwitchRow({
   )
 }
 
-/** The Sample data section's first sentence: what is live, what is connecting, and that the rest is sample. */
+/** The Sample data section's first sentence: what is live, what is connecting, and where sample rows remain. */
 export function sampleDataSummary({
   stripe,
   posthog,
@@ -351,15 +351,16 @@ export function sampleDataSummary({
   appStoreConnecting: boolean
 }): string {
   const live = stripe ? (posthog ? "Stripe's and PostHog's" : "Stripe's") : posthog ? "PostHog's" : null
-  if (!live && !stripeConnecting) return "Nothing is connected yet, so every number on every screen is sample data."
-  if (!live) return "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+  // Home and Metrics never show an invented figure: a card with no source says Not connected.
+  const rest = "Home and Metrics show no invented figures (a card with no source says Not connected); the screens still built on seed rows keep their sample labels."
+  if (!live && !stripeConnecting) return `Nothing is connected yet. ${rest}`
+  if (!live) return `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${rest}`
   const connecting = stripeConnecting
     ? " Stripe is connecting (first sync in progress)."
     : appStoreConnecting
       ? " App Store payers from Chlk\u2019s database are connecting, first read in progress."
       : ""
-  if (!connecting) return `${live} figures are live and carry no label; every other number is still sample data.`
-  return `${live} figures are live and carry no label;${connecting} Every other number is still sample data.`
+  return `${live} figures are live and carry no label.${connecting} ${rest}`
 }
 
 function SampleDataSection({ sampleData }: { sampleData: boolean }) {
@@ -378,7 +379,7 @@ function SampleDataSection({ sampleData }: { sampleData: boolean }) {
         <>
           {summary}{" "}
           Turning this off hides the amber {SAMPLE_DATA_LABEL} labels and notices only — the
-          placeholder figures stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
+          seed rows they sit on stay, and some screens (Agent Workplace, Product Roadmap, CRM rows) have
           no label to hide.
         </>
       }
@@ -424,7 +425,7 @@ const SOURCES = [
 const STATUS_BADGE = "h-6 px-2.5"
 
 /** What a live source's row needs: Stripe's and PostHog's feeds both fit. */
-type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "sample" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
+type SourceFeed = { kind: "loading"; connecting?: boolean } | { kind: "not_connected" } | { kind: "live"; stale: boolean; lastSyncedAt: Date }
 
 /** Hooks per live source, so each row reads only its own. */
 const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => SourceFeed; id: string }>> = {
@@ -448,7 +449,7 @@ function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZ
       </Badge>
     )
   }
-  if (feed.kind === "sample") return <NotConnected />
+  if (feed.kind === "not_connected") return <NotConnected />
   const when = formatWallClock(feed.lastSyncedAt, timeZone)
   if (feed.stale) {
     return (

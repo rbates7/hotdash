@@ -1,8 +1,7 @@
 "use client"
 
-import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { todayIn } from "@/lib/clock"
-import { notConnectedKpis, pulseLabel } from "@/lib/home"
+import { pulseLabel } from "@/lib/home"
 import { kpiStripTitle, kpis } from "@/lib/home-fixture"
 import { snapshotFor } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
@@ -43,17 +42,11 @@ export function HomeScreen() {
   // Stripe's figures where it feeds them; every other card says Not
   // connected. No sample numbers, rows or priorities on Home.
   const feed = useStripeFeed()
-  // #50's connecting state: Stripe has a key and its first sync is running
-  // (or, with Stripe live, App Store payers are on their first read, which
-  // holds Subscribers back). Those cards stay placeholders and say so.
-  const stripeConnecting = feed.kind === "loading" && Boolean(feed.connecting)
-  const appStoreConnecting = feed.kind === "live" && isAppStoreConnecting(feed.appStore)
-  const strip = notConnectedKpis(liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)).map(
-    (kpi) =>
-      kpi.source === "loading" && (stripeConnecting || (appStoreConnecting && kpi.id === "subscribers"))
-        ? { ...kpi, connecting: true }
-        : kpi
-  )
+  // #50's connecting state comes through liveKpis / liveMetric: a Stripe
+  // card whose source has a key and is on its first sync (or Subscribers,
+  // while App Store payers are on their first read) is a placeholder marked
+  // `connecting`. With no key, every card is Not connected.
+  const strip = liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)
   const mrr = liveMetric("mrr", feed, timeZone)
 
   return (
@@ -87,13 +80,7 @@ export function HomeScreen() {
             // MRR always has a value (a sum, never a ratio), so no point is null.
             trend={mrr.kind === "live" ? (mrr.metric.series as number[]) : []}
             today={today}
-            state={
-              mrr.kind === "sample"
-                ? "not_connected"
-                : mrr.kind === "loading" && stripeConnecting
-                  ? "connecting"
-                  : mrr.kind
-            }
+            state={mrr.kind === "loading" && mrr.connecting ? "connecting" : mrr.kind}
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
           {/* The Workplace board and Inbox are design mocks with no live

@@ -30,7 +30,6 @@ import {
   METRICS_TOUCH,
 } from "@/components/metrics/responsive"
 import { useMetricsSheetTabTrap } from "@/components/metrics/sheet-tab-trap"
-import { SampleDataTag } from "@/components/sample-data"
 
 function PickerChoices({
   onPick,
@@ -47,16 +46,11 @@ function PickerChoices({
 
   return (
     <>
-      {chrome ? (
+      {chrome && (
         <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1.5">
           <p className="text-micro text-muted-foreground font-semibold tracking-[0.06em] uppercase">
             Add a metric
           </p>
-          <SampleDataTag />
-        </div>
-      ) : (
-        <div className="flex justify-end px-2.5 pb-1.5">
-          <SampleDataTag />
         </div>
       )}
       {choices.length === 0 ? (
@@ -68,12 +62,17 @@ function PickerChoices({
           {choices.map((id) => {
             const snap = snapshotFor(id, { today, expenses })
             const live = liveCard(id, feed, posthog, timeZone)
+            // A live figure, the founder's own entries, or a plain word: never a fixture number.
             const figure =
               live.kind === "live"
                 ? liveValueText(live.metric, snap.unit)
                 : live.kind === "loading"
-                  ? "–"
-                  : formatMetricValue(snap.value, snap.unit)
+                  ? live.connecting
+                    ? "Connecting…"
+                    : "–"
+                  : live.kind === "entries"
+                    ? formatMetricValue(snap.value, snap.unit)
+                    : "Not connected"
             return (
               <li key={id}>
                 <button
@@ -99,8 +98,8 @@ function AddMetric() {
   const phone = useIsMobile()
   const [open, setOpen] = React.useState(false)
   const triggerRef = React.useRef<HTMLButtonElement>(null)
-  // Stripe or PostHog live: some choices carry real figures, so the sheet
-  // cannot call them all sample.
+  // Stripe or PostHog live: some choices carry real figures; the sheet
+  // says which way the rest go.
   const stripeFeed = useStripeFeed()
   const stripeLive = stripeFeed.kind === "live"
   const stripeConnecting = stripeFeed.kind === "loading" && Boolean(stripeFeed.connecting)
@@ -141,10 +140,10 @@ function AddMetric() {
               <SheetDescription>
                 Extra metrics and any card you have removed.{" "}
                 {anyLive
-                  ? "Live where connected; the rest are sample figures."
+                  ? "Live where connected; the rest say Not connected."
                   : stripeConnecting
-                    ? "Stripe is connecting (first sync in progress); the rest are sample figures."
-                    : "Sample figures."}
+                    ? "Stripe is connecting (first sync in progress); the rest say Not connected."
+                    : "No source is connected yet, so none has a figure."}
               </SheetDescription>
             </SheetHeader>
             <PickerChoices onPick={pick} chrome={false} />

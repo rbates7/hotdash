@@ -311,6 +311,7 @@ export function ExpensesPanel() {
           chart={charts.expenses ?? METRIC_DEFS.expenses.defaultChart}
           onChartChange={(chart) => setChart("expenses", chart)}
           className="w-full max-w-[420px]"
+          live={{ kind: "entries" }}
         />
         <AddExpenseDialog />
       </div>

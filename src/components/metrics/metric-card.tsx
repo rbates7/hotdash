@@ -17,10 +17,12 @@ import {
 import { MRR_NOTE } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
-import { liveValueText, type LiveState } from "@/lib/live-metrics"
+import { liveValueText, notConnected, notConnectedText, sourceFor, type LiveState } from "@/lib/live-metrics"
 import { MetricChart } from "@/components/metrics/metric-chart"
 import { useMetrics } from "@/components/metrics/metrics-store"
 import { METRICS_ICON, METRICS_PRESSED } from "@/components/metrics/responsive"
+import { ConnectingBadge } from "@/components/connecting-badge"
+import { NotConnectedBadge } from "@/components/home/not-connected"
 import { SampleDataTag } from "@/components/sample-data"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
 
@@ -75,15 +77,13 @@ export function TrendPill({
   )
 }
 
-const SAMPLE: LiveState = { kind: "sample" }
-
 export function MetricCard({
   snapshot,
   chart,
   onChartChange,
   onRemove,
   className,
-  live = SAMPLE,
+  live: given,
 }: {
   snapshot: MetricSnapshot
   chart: ChartType
@@ -91,14 +91,22 @@ export function MetricCard({
   /** Omit to hide the × (the Expenses tab's card is not removable). */
   onRemove?: () => void
   className?: string
-  /** Stripe's or PostHog's figures for this card, when one feeds it (`liveCard`). */
+  /**
+   * What the card shows (`liveCard`). Omitted: Not connected, naming the
+   * source that would feed it. Never a fixture figure.
+   */
   live?: LiveState
 }) {
   const { today } = useMetrics()
+  const live = given ?? notConnected(sourceFor(snapshot.id))
   const loading = live.kind === "loading"
+  const connecting = live.kind === "loading" && Boolean(live.connecting)
+  const off = live.kind === "not_connected"
   const figure = live.kind === "live" ? live.metric : null
-  // Live figures replace the sample ones wholesale; a null is shown as one.
-  const shown = figure ?? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series }
+  // Only a live source or the founder's own entries (Expenses) put a number
+  // on the card; the snapshot's fixture figures never do.
+  const entries = live.kind === "entries"
+  const shown = figure ?? (entries ? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series } : { value: null, previous: null, series: [] as (number | null)[] })
   const trendable = !loading && shown.value !== null && shown.previous !== null
   const trend = trendable
     ? trendFor(shown.value!, shown.previous!, snapshot.trendKind, {
@@ -106,13 +114,22 @@ export function MetricCard({
         unit: snapshot.unit,
       })
     : null
-  const valueText = loading ? "–" : figure ? liveValueText(figure, snapshot.unit) : formatMetricValue(snapshot.value, snapshot.unit)
+  const valueText = loading
+    ? "–"
+    : figure
+      ? liveValueText(figure, snapshot.unit)
+      : entries
+        ? formatMetricValue(snapshot.value, snapshot.unit)
+        : "\u2014"
   const charted = !loading && shown.series.some((v) => v !== null)
+  const offText = off ? notConnectedText(live.source) : null
   // Key facts once: label, headline, delta. Inner copy is the same words,
   // so the article name is the aria-label rather than a concatenation.
   const name = loading
-    ? `${snapshot.label} loading`
-    : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
+    ? `${snapshot.label} ${connecting ? "connecting" : "loading"}`
+    : off
+      ? `${snapshot.label} not connected`
+      : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
   return (
     <article
       aria-label={name}
@@ -127,7 +144,9 @@ export function MetricCard({
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
-          {live.kind === "sample" && <SampleDataTag />}
+          {entries && <SampleDataTag />}
+          {off && <NotConnectedBadge className="h-5 px-2" />}
+          {connecting && <ConnectingBadge className="h-5 px-2" />}
         </div>
         <div
           className="flex flex-none items-center gap-1"
@@ -166,12 +185,13 @@ export function MetricCard({
             data-testid="metric-value"
             className={cn(
               "text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
-              loading && "text-muted-foreground"
+              (loading || off) && "text-muted-foreground"
             )}
           >
-            {valueText}
+            {off ? <span aria-label="No figure">{valueText}</span> : valueText}
           </p>
-          {snapshot.note && (
+          {/* The illustrative-derivation note describes a fixture figure: only with one on the card. */}
+          {snapshot.note && !off && !loading && (
             <p className="text-micro text-muted-foreground mt-1.5 font-medium tracking-tight">
               {snapshot.note}
             </p>
@@ -204,6 +224,10 @@ export function MetricCard({
           ) : figure ? (
             <p className="text-caption text-muted-foreground mt-2.5 tracking-tight">
               {figure.empty ?? `No reading for the previous 28 days`}
+            </p>
+          ) : offText ? (
+            <p data-testid="metric-not-connected" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+              {offText}
             </p>
           ) : null}
         </div>

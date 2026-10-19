@@ -26,7 +26,7 @@ import { useSettings } from "@/hooks/use-settings"
  * - **Polls** every `SUMMARY_POLL_MS` while anything listens (the server
  *   caches Stripe for 5 minutes, so this is cheap), backing off on failure.
  * - **Our own endpoint unreachable** keeps the last figures and marks them
- *   stale; with none yet, it reads as not connected (sample, labelled).
+ *   stale; with none yet, it reads as not connected (no figures).
  */
 
 export type { StripeView }
