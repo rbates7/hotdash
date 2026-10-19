@@ -19,7 +19,7 @@ import {
 } from "@/lib/home-fixture"
 import { activeSprint, daysUntil } from "@/lib/issues"
 import { actors, buildIssues, buildSprints } from "@/lib/issues-fixture"
-import { buildInbox } from "@/lib/workplace-fixture"
+import { buildInbox } from "@/test/inbox-fixture"
 import type { InboxItem } from "@/lib/workplace-fixture"
 import { FIXED_NOW } from "@/test/clock"
 

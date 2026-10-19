@@ -43,12 +43,13 @@ jobs:
       # Dummies, only for the build and the scan below: they prove the
       # values never land in client code. The Stripe key, the Notion token and
       # the GitHub token have hyphens, which the server refuses; the PostHog
-      # dummy key contains dots, so the server refuses it as a key too; and the
+      # dummy key contains dots, so the server refuses it as a key too; the
+      # Sentry dummy has colons, which the Sentry token check refuses; and the
       # database URL points at a closed loopback port, so even an accidental
-      # build-time call cannot go to Stripe, PostHog, Notion, GitHub or a
-      # database. The steps that run the app have none of them, nor the Gmail
+      # build-time call cannot go to Stripe, PostHog, Notion, GitHub, Sentry or
+      # a database. The steps that run the app have none of them, nor the Gmail
       # credentials.
-      - name: Build (with dummy Stripe and PostHog keys, database URL, Notion token, GitHub token and Gmail credentials)
+      - name: Build (with dummy Stripe and PostHog keys, database URL, Notion token, GitHub token, Sentry token and Gmail credentials)
         run: pnpm build
         env:
           STRIPE_READONLY_KEY: rk_test_CI-DUMMY-not-a-real-key-7f3a9c
@@ -60,6 +61,7 @@ jobs:
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
+          SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
 
       - name: Client bundle holds no secret and no secret's env var name
         run: pnpm check:bundle
@@ -72,6 +74,7 @@ jobs:
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
+          SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
@@ -94,6 +97,7 @@ jobs:
           GMAIL_REFRESH_TOKEN: ""
           GITHUB_READONLY_TOKEN: ""
           github_read_only: ""
+          SENTRY_READONLY_TOKEN: ""
 
       # Every run, pass or fail, so a green run's report can be checked too.
       - name: Upload Playwright report
