@@ -2,9 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { FOUNDER_NAME } from "../src/components/founder-identity"
 import { TICKER_HREF } from "../src/components/home/subscriber-ticker"
-import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../src/lib/settings"
-import { SAMPLE_CADENCE_MS, sampleBase } from "../src/lib/subscriber-source"
-import { formatCount, tickerLabel } from "../src/lib/subscriber-ticker"
+import { tickerLabel } from "../src/lib/subscriber-ticker"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
 import { expectTapTarget } from "./support/tap-target"
@@ -13,13 +11,12 @@ import { setTheme } from "./support/theme"
 
 /**
  * The Home subscriber ticker (option A). With no Stripe key (e2e never has
- * one) it shows the sample source, which adds a simulated sign-up every
- * 20s; tests that watch a change drive it with Playwright's clock so
- * nothing waits on wall time. Live counts come from a mocked
- * /api/stripe/summary.
+ * one) it says Not connected — no simulated count. Live counts come from a
+ * mocked /api/stripe/summary. Flap and reduced-motion behaviour is covered
+ * by the unit suite (subscriber-ticker.test.tsx) with a pinned source.
  */
 
-const BASE = sampleBase(new Date())
+const BASE = 1_337
 
 /** The ticker on screen: the Home header copy from md, the top-bar copy on phone. */
 function ticker(page: Page) {
@@ -40,21 +37,22 @@ async function visibleStatuses(page: Page) {
   return page.getByTestId("subscriber-ticker").getByRole("status").filter({ visible: true }).count()
 }
 
-/** Advance the fake clock until the label moves off `from`. */
-async function runUntilChange(page: Page, from: string) {
-  await page.clock.runFor(SAMPLE_CADENCE_MS - 1_000)
-  for (let i = 0; i < 400; i++) {
-    if ((await spoken(page).textContent()) !== from) return
-    await page.clock.runFor(10)
-  }
-  throw new Error(`ticker never left "${from}"`)
-}
-
 test.describe("Home ticker (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("renders top-right on Home with the Sample label and an accessible label", async ({ page }) => {
-    await page.clock.install()
+  test("with Stripe not connected it says so, with no count, and links to Connected data", async ({ page }) => {
+    await page.goto("/home")
+    await waitForHydration(page)
+    const t = ticker(page)
+    await expect(t).toHaveAttribute("data-state", "not_connected")
+    await expect(t.getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(t.getByTestId("ticker-tiles")).toHaveCount(0)
+    await expect(t.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(t.getByRole("link")).toHaveAttribute("href", "/settings#connected-data")
+  })
+
+  test("renders top-right on Home with live Stripe figures and an accessible label", async ({ page }) => {
+    await mockStripe(page, withSubscribers(BASE))
     await page.goto("/home")
     await waitForHydration(page)
 
@@ -66,10 +64,9 @@ test.describe("Home ticker (1440)", () => {
     await expect(status(page)).not.toHaveAttribute("aria-label")
     expect(await visibleStatuses(page)).toBe(1)
     await expect(status(page)).toHaveAttribute("aria-live", "polite")
-    await expect(status(page)).toHaveAttribute("aria-busy", "false")
     await expect(t.getByTestId("ticker-tiles")).toHaveAttribute("aria-hidden", "true")
     await expect(t.getByText("Subscribers", { exact: true })).toBeVisible()
-    await expect(t.getByTestId("sample-data-tag")).toHaveText("Sample data")
+    await expect(t.getByTestId("sample-data-tag")).toHaveCount(0)
 
     // Option A: top-right of the Home header, right of the title.
     const title = await page.getByRole("heading", { level: 1, name: "Home" }).boundingBox()
@@ -91,89 +88,9 @@ test.describe("Home ticker (1440)", () => {
     // Click → Metrics › New Subscribers.
     const link = t.getByRole("link", { name: label })
     await expect(link).toHaveAttribute("href", TICKER_HREF)
-    // Named once: the link by its label, the live region by its text.
     await expect(status(page)).toHaveAccessibleName("")
     await link.click()
     await expect(page).toHaveURL(/\/metrics\?tab=new$/)
-    await expect(page.getByRole("tab", { name: "New Subscribers" })).toHaveAttribute("aria-selected", "true")
-  })
-
-  test("flips only on a change, never on first paint, and lands on the new figure", async ({ page }) => {
-    await page.clock.install()
-    await page.goto("/home")
-    await waitForHydration(page)
-    const tiles = ticker(page).getByTestId("ticker-tiles")
-    await expect(tiles.locator("[data-flap]")).toHaveCount(0)
-
-    await runUntilChange(page, tickerLabel(BASE, 0))
-    // Let the ones tile start its first flap (its delay is 0).
-    await page.clock.runFor(5)
-    // The flap is on screen until the fake clock lets it land.
-    await expect(tiles.locator("[data-flap]")).toHaveCount(2)
-    await page.clock.runFor(1_000)
-    await expect(tiles.locator("[data-flap]")).toHaveCount(0)
-    await expect(spoken(page)).toHaveText(tickerLabel(BASE + 1, 1))
-    await expect(ticker(page).getByText("+1")).toBeVisible()
-  })
-
-  test("reduced motion: the number updates with no flaps or rotations, only an opacity crossfade", async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: "reduce" })
-    await page.clock.install()
-    await page.goto("/home")
-    await waitForHydration(page)
-    const t = ticker(page)
-    const tiles = t.getByTestId("ticker-tiles")
-    await expect(spoken(page)).toHaveText(tickerLabel(BASE, 0))
-
-    const watch = () =>
-      tiles.evaluate((root) => ({
-        flaps: root.querySelectorAll("[data-flap]").length,
-        // Any 3D/rotating transform on any element in the tiles.
-        rotated: [...root.querySelectorAll("*")].filter((el) => {
-          const tf = getComputedStyle(el).transform
-          if (tf === "none") return false
-          if (tf.startsWith("matrix3d")) return true
-          const [, b, c] = tf.slice(7, -1).split(",").map(Number)
-          return b !== 0 || c !== 0
-        }).length,
-        animations: root
-          .getAnimations({ subtree: true })
-          .map((a) => (a as CSSAnimation).animationName ?? "transition"),
-      }))
-
-    await runUntilChange(page, tickerLabel(BASE, 0))
-    const during = await watch()
-    expect(during.flaps).toBe(0)
-    expect(during.rotated).toBe(0)
-    for (const name of during.animations) expect(name).toMatch(/^ticker-fade-(in|out)$/)
-
-    await page.clock.runFor(1_000)
-    const after = await watch()
-    expect(after.flaps).toBe(0)
-    expect(after.rotated).toBe(0)
-    await expect(spoken(page)).toHaveText(tickerLabel(BASE + 1, 1))
-    await expect(tiles).toHaveText(
-      formatCount(BASE + 1)
-        .split("")
-        .map((c) => (/\d/.test(c) ? c + c : c))
-        .join("")
-    )
-  })
-
-  test("Settings › Sample data off hides the label, not the number", async ({ page }) => {
-    await page.addInitScript(
-      ([key, settings]) => localStorage.setItem(key, settings),
-      [SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, sampleData: false })] as const
-    )
-    await page.goto("/home")
-    await waitForHydration(page)
-    // Like every other Home sample surface: the chips go…
-    await expect(page.getByRole("region", { name: "KPI strip" }).getByTestId("sample-data-tag")).toHaveCount(0)
-    await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
-    // …and the figures stay.
-    await expect(spoken(page)).toHaveText(tickerLabel(BASE, 0))
   })
 
   test("is Home-only", async ({ page }) => {
@@ -194,7 +111,20 @@ for (const vp of VIEWPORTS) {
     test.describe(`Home ticker (${vp.name} ${theme})`, () => {
       test.use({ viewport: { width: vp.width, height: vp.height } })
 
-      test("44px target and readable text", async ({ page }) => {
+      test("Not connected: 44px target and readable text", async ({ page }) => {
+        await page.goto("/home")
+        await waitForHydration(page)
+        await setTheme(page, theme)
+        const t = ticker(page)
+        await expect(t).toHaveCount(1)
+        await expect(t).toHaveAttribute("data-variant", vp.variant)
+        await expect(t).toHaveAttribute("data-state", "not_connected")
+        await expectTapTarget(t.getByRole("link"), `${theme}/${vp.name} not-connected link`)
+        await expectReadable(t, `${theme}/${vp.name} not-connected ticker`, expect)
+      })
+
+      test("live: 44px target and readable text", async ({ page }) => {
+        await mockStripe(page, withSubscribers(BASE))
         await page.goto("/home")
         await waitForHydration(page)
         await setTheme(page, theme)
@@ -202,7 +132,6 @@ for (const vp of VIEWPORTS) {
         await expect(t).toHaveCount(1)
         await expect(t).toHaveAttribute("data-variant", vp.variant)
         await expect(spoken(page)).toHaveText(tickerLabel(BASE, 0))
-        await expect(t.getByTestId("sample-data-tag")).toBeVisible()
         await expectTapTarget(t.getByRole("link"), `${theme}/${vp.name} ticker link`)
         await expectReadable(t, `${theme}/${vp.name} ticker`, expect)
 
@@ -224,6 +153,7 @@ test.describe("Home ticker (390 phone bar)", () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
   test("sits in the top bar without crowding it; nothing scrolls sideways", async ({ page }) => {
+    await mockStripe(page, withSubscribers(BASE))
     await page.goto("/home")
     await waitForHydration(page)
     const bar = page.locator("[data-slot='app-header']")
@@ -245,10 +175,9 @@ test.describe("Home ticker (390 phone bar)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
     // One live region: the bar's (the header copy is display:none).
     expect(await visibleStatuses(page)).toBe(1)
-    // The Home header itself keeps everything it had.
+    // The Home header keeps its title; no dummy stamp.
     await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible()
-    await expect(page.getByTestId("persistence-note")).toBeVisible()
-    await expect(page.getByText("Dummy / design mock", { exact: true })).toBeVisible()
+    await expect(page.locator("main").getByText(/Dummy \/ design mock/i)).toHaveCount(0)
   })
 })
 

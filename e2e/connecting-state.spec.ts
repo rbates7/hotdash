@@ -52,6 +52,13 @@ test.describe("Stripe connecting (1440)", () => {
     await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
     await expect(ticker(page)).toHaveAttribute("data-state", "loading")
     await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    // Home's own copy of the connecting state: Connecting…, never Not connected.
+    for (const name of ["Subscribers", "Cash this week"]) {
+      await expect(kpi(page, name).getByTestId("connecting")).toHaveText("Connecting…")
+    }
+    await expect(ticker(page).getByTestId("connecting")).toBeVisible()
+    await expect(page.getByRole("region", { name: "Metrics" }).getByTestId("connecting")).toBeVisible()
+    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(2) // Workplace + Inbox doors
   })
 
   test("Metrics: the Stripe cards carry no Sample label", async ({ page }) => {
@@ -98,11 +105,13 @@ test.describe("Stripe connecting (1440)", () => {
 test.describe("no key at all (the real server)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("is still the honest Not connected, with the labelled sample", async ({ page }) => {
+  test("is still the honest Not connected (Settings and Home)", async ({ page }) => {
     await open(page, "/settings")
     await expect(stripeRow(page)).toContainText("Not connected")
     await open(page, "/home")
-    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "sample")
+    // Home carries no sample data: no key reads as Not connected there.
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "not_connected")
+    await expect(kpi(page, "Subscribers").getByTestId("not-connected")).toBeVisible()
   })
 })
 

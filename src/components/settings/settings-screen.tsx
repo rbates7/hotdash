@@ -43,6 +43,7 @@ import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
 import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
+import { ConnectingBadge } from "@/components/connecting-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -453,13 +454,7 @@ const LIVE_FEEDS: Partial<Record<(typeof SOURCES)[number]["name"], { use: () => 
 function SourceStatus({ name, timeZone }: { name: keyof typeof LIVE_FEEDS; timeZone: string }) {
   const { use, id } = LIVE_FEEDS[name]!
   const feed = use()
-  if (feed.kind === "loading" && feed.connecting) {
-    return (
-      <Badge variant="outline" aria-busy data-testid={`${id}-status`} className={cn("text-muted-foreground!", STATUS_BADGE)}>
-        Connecting…
-      </Badge>
-    )
-  }
+  if (feed.kind === "loading" && feed.connecting) return <ConnectingBadge testId={`${id}-status`} className={STATUS_BADGE} />
   if (feed.kind === "loading") {
     return (
       <Badge variant="outline" aria-busy className={cn("text-muted-foreground!", STATUS_BADGE)}>
