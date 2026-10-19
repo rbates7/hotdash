@@ -124,9 +124,12 @@ export function computeMrrCash(data: StripeData, { now, timeZone }: { now: Date;
  */
 export type MrrCashStatus = "connecting" | "connected" | "stale" | "not_connected"
 
-export type MrrCashSummary =
-  | ({ status: "connected" | "stale"; lastSyncedAt: string } & MrrCash)
-  | { status: "connecting" | "not_connected"; lastSyncedAt: null }
+export type LiveMrrCashSummary = { status: "connected" | "stale"; lastSyncedAt: string } & MrrCash
+export type MrrCashSummary = LiveMrrCashSummary | { status: "connecting" | "not_connected"; lastSyncedAt: null }
+
+export function isLiveMrrCash(summary: MrrCashSummary): summary is LiveMrrCashSummary {
+  return summary.status === "connected" || summary.status === "stale"
+}
 
 export const MRR_CASH_PATH = "/api/stripe/mrr-cash"
 export const MRR_CASH_NOT_CONNECTED: MrrCashSummary = { status: "not_connected", lastSyncedAt: null }
@@ -189,8 +192,7 @@ export type MrrCashPanelState =
 export function panelStateOf(view: MrrCashView): MrrCashPanelState {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.status === "connecting") return { kind: "connecting" }
-  if (summary.status === "not_connected") return { kind: "not_connected" }
+  if (!isLiveMrrCash(summary)) return { kind: summary.status }
   return {
     kind: "live",
     stale: summary.status === "stale",
@@ -213,7 +215,7 @@ export function nextPollMs(view: MrrCashView) {
  * with none yet (loading or connecting) it reads as not connected.
  */
 export function onFetchFailure(view: MrrCashView): MrrCashView {
-  if (view.phase === "ready" && (view.summary.status === "connected" || view.summary.status === "stale")) {
+  if (view.phase === "ready" && isLiveMrrCash(view.summary)) {
     return { phase: "ready", summary: { ...view.summary, status: "stale" } }
   }
   if (view.phase === "ready" && view.summary.status === "not_connected") return view
