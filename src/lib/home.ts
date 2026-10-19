@@ -182,15 +182,3 @@ export function compactDollars(n: number) {
   if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`
   return `$${n}`
 }
-
-/**
- * Any KPI still on the sample fixture becomes Not connected: an em dash, no
- * delta, no invented figure. Live (Stripe) and loading cards pass through.
- */
-export function notConnectedKpis(kpis: readonly Kpi[]): Kpi[] {
-  return kpis.map((kpi): Kpi =>
-    !kpi.source || kpi.source === "sample"
-      ? { id: kpi.id, label: kpi.label, value: "\u2014", delta: "", direction: "flat", source: "not_connected" }
-      : kpi
-  )
-}

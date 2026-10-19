@@ -7,7 +7,7 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { HomeScreen } from "@/components/home/home-screen"
 import { KPI_SET_TITLES, kpiSets } from "@/lib/home-fixture"
-import { notConnectedKpis } from "@/lib/home"
+import { notConnectedKpi } from "@/lib/live-metrics"
 import { todayIn } from "@/lib/clock"
 import { truthStrip } from "@/lib/kpis"
 import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
@@ -65,8 +65,8 @@ describe("HomeScreen", () => {
     expect(within(strip).queryByText("figures are invented, not live", { exact: false })).not.toBeInTheDocument()
   })
 
-  it("the growth set run through notConnectedKpis is four Not connected cards, no chips", () => {
-    render(<KpiStrip kpis={notConnectedKpis(kpiSets("2026-08-21").growth)} title={KPI_SET_TITLES.growth} />)
+  it("the growth set with no source (notConnectedKpi, as liveKpis does without a key) is four Not connected cards, no chips", () => {
+    render(<KpiStrip kpis={kpiSets("2026-08-21").growth.map(notConnectedKpi)} title={KPI_SET_TITLES.growth} />)
     const cards = screen.getAllByRole("article")
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["MRR", "ARR", "Subscribers", "Churn Rate"])
     expect(screen.getAllByText("Not connected")).toHaveLength(4)

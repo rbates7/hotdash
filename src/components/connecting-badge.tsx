@@ -15,8 +15,10 @@ export function ConnectingBadge({
   testId?: string
 }) {
   return (
-    <Badge variant="outline" aria-busy data-testid={testId} className={cn("text-muted-foreground! h-6 px-2.5", className)}>
-      Connecting…
+    <Badge variant="outline" aria-busy="true" data-testid={testId} className={cn("text-muted-foreground! h-6 px-2.5", className)}>
+      {/* Own span, as in NotConnectedBadge: the text inherits the badge colour,
+          so the contrast probe's sabotage can still reach it. */}
+      <span>Connecting…</span>
     </Badge>
   )
 }

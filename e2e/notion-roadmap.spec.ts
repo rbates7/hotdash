@@ -115,7 +115,7 @@ test.describe("Notion connecting (1440)", () => {
     )
     const sampleSection = main(page).getByRole("region", { name: "Sample data" })
     await expect(sampleSection).toContainText(
-      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Home and Metrics show no invented figures"
     )
     await expect(sampleSection).not.toContainText("Every number on every screen")
   })

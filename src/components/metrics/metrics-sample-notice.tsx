@@ -1,9 +1,11 @@
 "use client"
 
+import { PlugZapIcon } from "lucide-react"
+
 import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { isSuspectAppStore } from "@/lib/app-store-summary"
-import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
+import { cn } from "@/lib/utils"
 
 export const PARTLY_LIVE_LABEL = "Partly live"
 /** The notice's label while Stripe's first sync runs and nothing is live yet. */
@@ -17,15 +19,43 @@ export const STRIPE_CARDS_CONNECTING_TEXT =
 /** Stripe is live, Chlk's database (App Store payers) is still on its first read. */
 export const APP_STORE_CONNECTING_NOTE = "Subscribers waits for App Store payers from Chlk’s database, first read in progress"
 
+export const NOT_CONNECTED_LABEL = "Not connected"
+
+/** Every Metrics card with no live source, in the notice's words. */
+export const OTHER_CARDS_TEXT =
+  "Every other card says Not connected until its source is wired up; none shows an invented figure"
+
+/**
+ * The notice's frame: neutral (not the amber sample surface, since nothing
+ * on the page is sample any more), readable in both themes.
+ */
+function ConnectionNotice({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      role="note"
+      aria-label={label}
+      data-testid="metrics-connection-notice"
+      className={cn(
+        "text-body bg-surface border-surface-border text-foreground flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5"
+      )}
+    >
+      <PlugZapIcon className="text-muted-foreground mt-0.5 size-4 flex-none" aria-hidden />
+      <p>
+        <strong className="font-semibold">{label}.</strong> {children}
+      </p>
+    </div>
+  )
+}
+
 /**
  * The Metrics notice, honest about what is live: with Stripe feeding the
  * MRR, Churn Rate, Trial Conversions and Subscribers cards, and/or PostHog
- * feeding Retention and Active Users, it leads with "Partly live", says
- * which cards from where, and that the rest is still illustrative.
+ * feeding Retention and Active Users, it leads with "Partly live" and says
+ * which cards from where. Every other card is Not connected (no figure).
  * Subscribers also counts App Store payers when Chlk's database answers
  * — but not when it answers 0 (suspect: a blocked read), which it says.
  * While Stripe (or the App Store count) is still on its first read it says
- * so ("connecting"), never "nothing is connected".
+ * so ("Connecting"), never "nothing is connected".
  */
 export function MetricsSampleNotice() {
   const stripe = useStripeFeed()
@@ -35,12 +65,19 @@ export function MetricsSampleNotice() {
   // A key is set and the first sync is running: not "nothing is connected".
   const stripeConnecting = stripe.kind === "loading" && Boolean(stripe.connecting)
   if (!fromStripe && !fromPosthog) {
-    if (!stripeConnecting) return <SampleDataNotice />
+    if (!stripeConnecting) {
+      return (
+        <ConnectionNotice label={NOT_CONNECTED_LABEL}>
+          Stripe, PostHog and Chlk&rsquo;s database are not connected yet, so no card has a figure. Only the cards
+          you add or remove and the expenses you enter are yours, and those live in this browser.
+        </ConnectionNotice>
+      )
+    }
     return (
-      <SampleDataNotice label={CONNECTING_LABEL}>
-        {STRIPE_CONNECTING_TEXT}. Every other number on this page is illustrative — PostHog is not connected yet,
-        and the expenses you enter live in this browser.
-      </SampleDataNotice>
+      <ConnectionNotice label={CONNECTING_LABEL}>
+        {STRIPE_CONNECTING_TEXT}. PostHog is not connected yet. {OTHER_CARDS_TEXT}; the expenses you enter live in
+        this browser.
+      </ConnectionNotice>
     )
   }
   const suspect = fromStripe && isSuspectAppStore(stripe.appStore)
@@ -48,23 +85,8 @@ export function MetricsSampleNotice() {
   const appStore =
     fromStripe && (stripe.appStore.status === "connected" || stripe.appStore.status === "stale") && !suspect
   const appStoreConnecting = fromStripe && stripe.appStore.status === "connecting"
-  const rest = fromStripe
-    ? fromPosthog
-      ? appStore
-        ? "Supabase is connected only for that count"
-        : appStoreConnecting
-          ? "Supabase is connecting only for that count"
-          : "Supabase is not connected yet"
-      : appStore
-        ? "PostHog is not connected yet, and Supabase only for that count"
-        : appStoreConnecting
-          ? "PostHog is not connected yet, and Supabase is connecting only for that count"
-          : "Supabase and PostHog are not connected yet"
-    : stripeConnecting
-      ? "Supabase is not connected yet beyond the App Store count"
-      : "Stripe and Supabase are not connected yet"
   return (
-    <SampleDataNotice label={PARTLY_LIVE_LABEL}>
+    <ConnectionNotice label={PARTLY_LIVE_LABEL}>
       {fromStripe && (
         <>
           MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe (read-only)
@@ -81,23 +103,8 @@ export function MetricsSampleNotice() {
           {posthog.stale ? ", as of their last update" : ""}
         </>
       )}
-      {stripeConnecting && `; ${STRIPE_CARDS_CONNECTING_TEXT}`}
-      . Every other number on this page is illustrative — {rest}, and the expenses you enter live in this
-      browser.
-    </SampleDataNotice>
+      {stripeConnecting && `; ${STRIPE_CARDS_CONNECTING_TEXT}`}. {OTHER_CARDS_TEXT}; the expenses you enter live in
+      this browser.
+    </ConnectionNotice>
   )
-}
-
-/**
- * The page-level Sample chip in the Metrics header. With Stripe or PostHog
- * live the page is not all sample, so the chip goes: the notice says
- * "Partly live" and every sample card keeps its own chip.
- */
-export function MetricsHeaderSampleTag({ className }: { className?: string }) {
-  const stripe = useStripeFeed()
-  const posthog = usePosthogFeed()
-  // Connecting: the Stripe cards are placeholders, not sample, so the page is not all sample either.
-  if (stripe.kind === "live" || posthog.kind === "live") return null
-  if (stripe.kind === "loading" && stripe.connecting) return null
-  return <SampleDataTag className={className} />
 }

@@ -26,7 +26,7 @@ const main = (page: Page) => page.getByRole("main")
 const pageHeader = (page: Page) => page.locator("main header").first()
 const list = (page: Page) => page.getByRole("region", { name: "Bug list", exact: true })
 const bug = (page: Page, key: string) => list(page).getByRole("link", { name: new RegExp(`\\b${key}\\b`) })
-const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes", exact: true })
+const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes: not connected", exact: true })
 const props = (page: Page) => page.getByRole("complementary", { name: "Ticket properties" })
 const emptyStatus = (page: Page) => list(page).getByRole("status", { name: "Empty bug list" })
 const TITLE_419 = "Crash opening a shared playbook on iPad"

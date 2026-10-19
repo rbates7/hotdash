@@ -80,18 +80,20 @@ export type StripeView = { phase: "loading" } | { phase: "ready"; summary: Strip
  * What a Stripe-backed number shows:
  * - `loading` — a placeholder; `connecting` when the server has a key and
  *               its first sync is still running (Settings says so);
- * - `sample`  — Stripe is not connected: the sample figure, labelled;
+ * - `not_connected` — Stripe has no key (or never answered): no figure at
+ *               all, never a sample one in its place; the screen says
+ *               Not connected;
  * - `live`    — Stripe's figure, no label; `stale` adds "Last updated …".
  */
 export type StripeFeed =
   | { kind: "loading"; connecting?: boolean }
-  | { kind: "sample" }
+  | { kind: "not_connected" }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; metrics: StripeMetrics; appStore: AppStoreSummary }
 
 export function feedOf(view: StripeView): StripeFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.metrics === null) return summary.status === "connecting" ? { kind: "loading", connecting: true } : { kind: "sample" }
+  if (summary.metrics === null) return summary.status === "connecting" ? { kind: "loading", connecting: true } : { kind: "not_connected" }
   return {
     kind: "live",
     stale: summary.status === "stale",

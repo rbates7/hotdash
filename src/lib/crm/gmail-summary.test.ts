@@ -44,7 +44,7 @@ describe("parseGmailSummary", () => {
 describe("gmailFeedOf", () => {
   it("loading, sample when not connected, live (stale or not) otherwise", () => {
     expect(gmailFeedOf({ phase: "loading" })).toEqual({ kind: "loading" })
-    expect(gmailFeedOf({ phase: "ready", summary: GMAIL_NOT_CONNECTED })).toEqual({ kind: "sample", mailbox: "info@chlkapp.com" })
+    expect(gmailFeedOf({ phase: "ready", summary: GMAIL_NOT_CONNECTED })).toEqual({ kind: "not_connected", mailbox: "info@chlkapp.com" })
     // Connecting is loading, as in StripeFeed: never the sample.
     expect(gmailFeedOf({ phase: "ready", summary: gmailConnecting() })).toEqual({ kind: "loading", connecting: true })
     expect(gmailFeedOf({ phase: "ready", summary: { ...LIVE, status: "stale" } })).toMatchObject({

@@ -101,12 +101,12 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
           kpi.value
         )}
       </p>
-      {/* A Not connected card keeps the note's room (hidden) so the strip does not shift. */}
+      {/* With no figure (Not connected, loading or Connecting…) the note keeps its room, hidden, so the strip does not shift. */}
       {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
         <p
           data-testid="kpi-note"
-          aria-hidden={notConnected || undefined}
-          className={cn("text-caption text-muted-foreground mt-1.5 tracking-tight", notConnected && "invisible")}
+          aria-hidden={notConnected || loading || undefined}
+          className={cn("text-caption text-muted-foreground mt-1.5 tracking-tight", (notConnected || loading) && "invisible")}
         >
           {kpi.id === "mrr" ? MRR_NOTE : CASH_NOTE}
         </p>

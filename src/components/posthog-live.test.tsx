@@ -9,7 +9,7 @@ import { APP_STORE_OFF, LIVE_METRICS, liveSummary, setStripeSummaryForTest } fro
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "@/lib/settings"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { MetricsHeaderSampleTag, MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
+import { MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 
 /**
@@ -38,9 +38,9 @@ function renderMetrics() {
   navigation.params = new URLSearchParams()
   return render(
     <MetricsProvider nowMs={FIXED_NOW_MS}>
-      <header data-testid="metrics-header">
-        <MetricsHeaderSampleTag />
-      </header>
+      {/* The header carries no Sample chip any more; the empty header keeps
+          the "no chip" checks meaningful. */}
+      <header data-testid="metrics-header" />
       <MetricsSampleNotice />
       <MetricsTabs />
     </MetricsProvider>
@@ -82,11 +82,12 @@ describe("Metrics with PostHog connected", () => {
     expect(within(active).getByRole("img").getAttribute("aria-label")).toMatch(/no data, .*no data, .*610/)
   })
 
-  it("Stripe's cards stay sample while Stripe is not connected", () => {
+  it("Stripe's cards say Not connected while Stripe is not connected, with no figure", () => {
     renderMetrics()
     for (const name of [/^MRR\b/, /^Churn Rate\b/, /^Subscribers\b/, /^ARR\b/]) {
-      expect(card(name)).toHaveAttribute("data-source", "sample")
-      expect(within(card(name)).getByTestId("sample-data-tag")).toBeInTheDocument()
+      expect(card(name)).toHaveAttribute("data-source", "not_connected")
+      expect(within(card(name)).queryByTestId("sample-data-tag")).toBeNull()
+      expect(within(card(name)).getByTestId("metric-value")).toHaveTextContent("\u2014")
     }
   })
 
@@ -94,8 +95,9 @@ describe("Metrics with PostHog connected", () => {
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
     expect(notice).toHaveTextContent(
-      /^Partly live\. Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other number on this page is illustrative — Stripe and Supabase are not connected yet/
+      /^Partly live\. Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other card says Not connected until its source is wired up; none shows an invented figure/
     )
+    expect(notice).not.toHaveTextContent(/illustrative|sample/i)
     expect(notice).not.toHaveTextContent("from Stripe")
     expect(within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")).toBeNull()
   })
@@ -105,16 +107,18 @@ describe("Metrics with PostHog connected", () => {
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
     expect(notice).toHaveTextContent(
-      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other number on this page is illustrative — Supabase is not connected yet,/
+      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other card says Not connected/
     )
     expect(card(/^MRR\b/)).toHaveAttribute("data-source", "stripe")
     expect(card(/^Retention\b/)).toHaveAttribute("data-source", "posthog")
   })
 
-  it("with Stripe and the App Store live, Supabase is described as connected for that count only", () => {
+  it("with Stripe and the App Store live, the App Store count is named as live from Chlk's database", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
-    expect(screen.getByRole("note", { name: "Partly live" })).toHaveTextContent("Supabase is connected only for that count")
+    expect(screen.getByRole("note", { name: "Partly live" })).toHaveTextContent(
+      "Subscribers also counts App Store payers from Chlk’s database (read-only)"
+    )
   })
 })
 
@@ -163,15 +167,17 @@ describe("Metrics with too little PostHog history", () => {
 })
 
 describe("Metrics with PostHog not connected or loading", () => {
-  it("not connected: Retention and Active Users are sample, labelled", async () => {
+  it("not connected: Retention and Active Users say Not connected, with no figure", async () => {
     renderMetrics()
-    expect(card(/^Retention\b/)).toHaveAttribute("data-source", "sample")
-    expect(within(card(/^Retention\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(card(/^Retention\b/)).toHaveAttribute("data-source", "not_connected")
+    expect(within(card(/^Retention\b/)).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(card(/^Retention\b/)).queryByTestId("metric-live-note")).toBeNull()
     await addActiveUsers()
-    expect(within(card(/^Active Users\b/)).getByTestId("sample-data-tag")).toBeInTheDocument()
-    expect(within(card(/^Active Users\b/)).getByTestId("metric-value")).toHaveTextContent("731")
-    expect(screen.getByRole("note", { name: "Sample data" })).toBeInTheDocument()
+    expect(card(/^Active Users\b/)).toHaveAttribute("data-source", "not_connected")
+    expect(within(card(/^Active Users\b/)).getByTestId("metric-value")).toHaveTextContent("\u2014")
+    expect(within(card(/^Active Users\b/)).getByTestId("metric-value")).not.toHaveTextContent("731")
+    expect(screen.getByRole("note", { name: "Not connected" })).toBeInTheDocument()
+    expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
   })
 
   it("loading: a placeholder, never a sample number that then swaps", () => {

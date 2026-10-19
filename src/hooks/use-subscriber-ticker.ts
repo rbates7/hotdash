@@ -68,7 +68,7 @@ export function useSubscriberTicker(source?: SubscriberSource): {
   if (source) {
     return { state: sampleState, refresh: store.refresh, sample: source.sample, notConnected: false, timeZone, breakdown: null }
   }
-  if (feed.kind === "sample") {
+  if (feed.kind === "not_connected") {
     return { state: LOADING_STATE, refresh: IDLE.refresh, sample: false, notConnected: true, timeZone, breakdown: null }
   }
   // Still connecting (Stripe, or App Store for its group): no total yet.

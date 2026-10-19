@@ -43,7 +43,7 @@ export function CrmSourceBadge({ feed, className }: { feed: GmailFeed; className
     )
   }
   if (feed.kind === "loading") return null
-  if (feed.kind === "sample") {
+  if (feed.kind === "not_connected") {
     return (
       <Badge
         variant="outline"

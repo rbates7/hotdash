@@ -122,19 +122,20 @@ export type GmailView = { phase: "loading" } | { phase: "ready"; summary: GmailS
  * - `loading` — skeletons (never sample rows that then swap for real ones);
  *               `connecting` while the server's first sync runs, as in
  *               `StripeFeed` (Settings and the CRM header say so);
- * - `sample`  — Gmail is not connected: the sample CRM, labelled;
+ * - `not_connected` — Gmail is not connected: the CRM keeps its seed rows,
+ *               labelled Sample data (the rows, not the feed, are sample);
  * - `live`    — the support inbox; `stale` adds "Last updated …".
  */
 export type GmailFeed =
   | { kind: "loading"; connecting?: boolean }
-  | { kind: "sample"; mailbox: string }
+  | { kind: "not_connected"; mailbox: string }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; mailbox: string; data: CrmLiveData }
 
 export function gmailFeedOf(view: GmailView): GmailFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
   if (summary.status === "connecting") return { kind: "loading", connecting: true }
-  if (summary.status === "not_connected") return { kind: "sample", mailbox: summary.mailbox }
+  if (summary.status === "not_connected") return { kind: "not_connected", mailbox: summary.mailbox }
   return {
     kind: "live",
     stale: summary.status === "stale",

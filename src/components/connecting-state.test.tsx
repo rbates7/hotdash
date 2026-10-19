@@ -12,8 +12,14 @@ import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { HomeScreen } from "@/components/home/home-screen"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { MetricsHeaderSampleTag, MetricsSampleNotice } from "@/components/metrics/metrics-sample-notice"
-import { SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
+import {
+  APP_STORE_CONNECTING_NOTE,
+  OTHER_CARDS_TEXT,
+  STRIPE_CARDS_CONNECTING_TEXT,
+  STRIPE_CONNECTING_TEXT,
+  MetricsSampleNotice,
+} from "@/components/metrics/metrics-sample-notice"
+import { SEEDED_SCREENS, SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
 
 /**
  * The server has a key but its first sync is still running: every
@@ -85,9 +91,7 @@ describe("Stripe connecting", () => {
     navigation.params = new URLSearchParams()
     render(
       <MetricsProvider nowMs={FIXED_NOW_MS}>
-        <header data-testid="metrics-header">
-          <MetricsHeaderSampleTag />
-        </header>
+        <header data-testid="metrics-header" />
         <MetricsSampleNotice />
         <MetricsTabs />
       </MetricsProvider>
@@ -95,13 +99,11 @@ describe("Stripe connecting", () => {
     for (const name of [/^MRR/, /^Churn Rate/, /^Trial Conversions/, /^Subscribers/]) {
       expect(within(card(name)).queryByTestId("sample-data-tag")).toBeNull()
     }
-    // The page notice is its own Connecting state, and the header chip is hidden.
-    const note = screen.getByTestId("sample-data-notice")
+    // The page notice is its own Connecting state; no header chip, nothing "illustrative".
+    const note = screen.getByTestId("metrics-connection-notice")
     expect(note).toHaveAttribute("aria-label", "Connecting")
-    expect(note).toHaveTextContent(
-      "Connecting. Stripe’s first sync is in progress; MRR, Churn Rate, Trial Conversions and Subscribers will appear when it finishes. Every other number on this page is illustrative"
-    )
-    expect(note).not.toHaveTextContent(/nothing is connected/i)
+    expect(note).toHaveTextContent(`Connecting. ${STRIPE_CONNECTING_TEXT}. PostHog is not connected yet. ${OTHER_CARDS_TEXT}`)
+    expect(note).not.toHaveTextContent(/nothing is connected|illustrative|sample/i)
     expect(within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
@@ -130,7 +132,7 @@ describe("Stripe live, App Store still connecting", () => {
   it("the Metrics notice does not claim App Store payers are counted", () => {
     render(<MetricsSampleNotice />)
     expect(screen.getByRole("note")).not.toHaveTextContent("also counts App Store payers")
-    expect(screen.getByRole("note")).toHaveTextContent("PostHog is not connected yet, and Supabase is connecting only for that count")
+    expect(screen.getByRole("note")).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
   })
 
   it("with PostHog live too: PostHog's wording stays, App Store is not claimed", () => {
@@ -140,7 +142,7 @@ describe("Stripe live, App Store still connecting", () => {
     expect(note).toHaveTextContent("Retention and Active Users are live from PostHog")
     expect(note).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
     expect(note).not.toHaveTextContent("also counts App Store payers")
-    expect(note).toHaveTextContent("Supabase is connecting only for that count")
+    expect(note).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
   })
 })
 
@@ -154,15 +156,14 @@ describe("No key at all", () => {
 
 /* ------------------------------------------- page-level wording while connecting */
 
-const notice = () => screen.getByTestId("sample-data-notice")
+const notice = () => screen.getByTestId("metrics-connection-notice")
 const sampleSection = () => screen.getByRole("region", { name: "Sample data" })
+const REST = `Home and Metrics show no invented figures (a card with no source says Not connected). Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
 
 function renderMetricsHeader() {
   return render(
     <>
-      <header data-testid="metrics-header">
-        <MetricsHeaderSampleTag />
-      </header>
+      <header data-testid="metrics-header" />
       <MetricsSampleNotice />
     </>
   )
@@ -174,17 +175,16 @@ describe("page-level wording: Stripe connecting, PostHog not connected", () => {
   it("Metrics notice says Stripe is connecting, never 'Nothing is connected'; the header chip goes", () => {
     renderMetricsHeader()
     expect(notice()).toHaveAttribute("aria-label", "Connecting")
-    expect(notice()).toHaveTextContent("Stripe’s first sync is in progress; MRR, Churn Rate, Trial Conversions and Subscribers will appear when it finishes")
-    expect(notice()).toHaveTextContent("Every other number on this page is illustrative — PostHog is not connected yet")
+    expect(notice()).toHaveTextContent(STRIPE_CONNECTING_TEXT)
+    expect(notice()).toHaveTextContent("PostHog is not connected yet")
+    expect(notice()).not.toHaveTextContent(/illustrative|sample/i)
     expect(notice()).not.toHaveTextContent(/nothing is connected/i)
     expect(within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("Settings › Sample data says Stripe is connecting, never 'Nothing is connected'", () => {
     render(<SettingsScreen />)
-    expect(sampleSection()).toHaveTextContent(
-      "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
-    )
+    expect(sampleSection()).toHaveTextContent(`Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${REST}`)
     expect(sampleSection()).not.toHaveTextContent(/nothing is connected/i)
   })
 })
@@ -199,14 +199,14 @@ describe("page-level wording: Stripe connecting, PostHog live", () => {
     renderMetricsHeader()
     expect(notice()).toHaveAttribute("aria-label", "Partly live")
     expect(notice()).toHaveTextContent("Retention and Active Users are live from PostHog")
-    expect(notice()).toHaveTextContent("the Stripe cards (MRR, Churn Rate, Trial Conversions and Subscribers) are connecting")
+    expect(notice()).toHaveTextContent(STRIPE_CARDS_CONNECTING_TEXT)
     expect(notice()).not.toHaveTextContent("Stripe and Supabase are not connected yet")
     expect(within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("Settings › Sample data: PostHog live, Stripe connecting", () => {
     render(<SettingsScreen />)
-    expect(sampleSection()).toHaveTextContent("PostHog's figures are live and carry no label; Stripe is connecting (first sync in progress). Every other number is still sample data.")
+    expect(sampleSection()).toHaveTextContent(`PostHog's figures are live and carry no label. Stripe is connecting (first sync in progress). ${REST}`)
   })
 })
 
@@ -216,83 +216,90 @@ describe("page-level wording: Stripe live, App Store connecting", () => {
   it("Metrics notice keeps the Stripe wording, says App Store is on its first read, and does not say Supabase is not connected", () => {
     renderMetricsHeader()
     expect(notice()).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
-    expect(notice()).toHaveTextContent("Subscribers waits for App Store payers from Chlk’s database, first read in progress")
-    expect(notice()).toHaveTextContent("PostHog is not connected yet, and Supabase is connecting only for that count")
-    expect(notice()).not.toHaveTextContent("Supabase and PostHog are not connected yet")
+    expect(notice()).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
+    expect(notice()).not.toHaveTextContent("also counts App Store payers")
   })
 
   it("Settings › Sample data says App Store is connecting", () => {
     render(<SettingsScreen />)
-    expect(sampleSection()).toHaveTextContent("Stripe's figures are live and carry no label; App Store payers from Chlk’s database are connecting")
+    expect(sampleSection()).toHaveTextContent("Stripe's figures are live and carry no label. App Store payers from Chlk’s database are connecting")
   })
 })
 
 describe("page-level wording unchanged when live or not connected", () => {
-  it("no key: the original 'Nothing is connected' notice, chip and Settings text", () => {
+  it("no key: the notice says Not connected, no card has a figure, and there is no Sample chip", () => {
     renderMetricsHeader()
-    expect(notice()).toHaveTextContent("Nothing is connected to Stripe, Supabase or PostHog yet")
-    expect(within(screen.getByTestId("metrics-header")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(notice()).toHaveAttribute("aria-label", "Not connected")
+    expect(notice()).toHaveTextContent("Stripe, PostHog and Chlk’s database are not connected yet, so no card has a figure")
+    expect(notice()).not.toHaveTextContent(/illustrative|sample/i)
+    expect(within(screen.getByTestId("metrics-header")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("Stripe + App Store live: #48's wording, no connecting text", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetricsHeader()
     expect(notice()).toHaveTextContent("Subscribers also counts App Store payers from Chlk’s database (read-only)")
-    expect(notice()).toHaveTextContent("PostHog is not connected yet, and Supabase only for that count")
+    expect(notice()).toHaveTextContent(OTHER_CARDS_TEXT)
     expect(notice()).not.toHaveTextContent(/connecting/i)
   })
 
-  it("sampleDataSummary covers every case", () => {
+  it("sampleDataSummary covers every case: what is live, what is connecting, never 'every number is sample'", () => {
     const base = { stripe: false, posthog: false, stripeConnecting: false, appStoreConnecting: false }
-    expect(sampleDataSummary(base)).toBe("Nothing is connected yet, so every number on every screen is sample data.")
-    expect(sampleDataSummary({ ...base, stripe: true })).toBe(
-      "Stripe's figures are live and carry no label; every other number is still sample data."
-    )
+    expect(sampleDataSummary(base)).toBe(`Nothing is connected yet. ${REST}`)
+    expect(sampleDataSummary({ ...base, stripe: true })).toBe(`Stripe's figures are live and carry no label. ${REST}`)
     expect(sampleDataSummary({ ...base, stripe: true, posthog: true })).toBe(
-      "Stripe's and PostHog's figures are live and carry no label; every other number is still sample data."
+      `Stripe's and PostHog's figures are live and carry no label. ${REST}`
     )
     expect(sampleDataSummary({ ...base, stripeConnecting: true })).toBe(
-      "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+      `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${REST}`
     )
     expect(sampleDataSummary({ ...base, posthog: true, stripeConnecting: true })).toBe(
-      "PostHog's figures are live and carry no label; Stripe is connecting (first sync in progress). Every other number is still sample data."
+      `PostHog's figures are live and carry no label. Stripe is connecting (first sync in progress). ${REST}`
     )
     expect(sampleDataSummary({ ...base, stripe: true, appStoreConnecting: true })).toBe(
-      "Stripe's figures are live and carry no label; App Store payers from Chlk\u2019s database are connecting, first read in progress. Every other number is still sample data."
+      `Stripe's figures are live and carry no label. App Store payers from Chlk\u2019s database are connecting, first read in progress. ${REST}`
     )
-    expect(sampleDataSummary({ ...base, gmail: true })).toBe(
-      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data."
-    )
+    expect(sampleDataSummary({ ...base, gmail: true })).toBe(`The CRM's Gmail conversations are live and carry no label. ${REST}`)
     expect(sampleDataSummary({ ...base, stripe: true, posthog: true, gmail: true })).toBe(
-      "Stripe's and PostHog's figures and the CRM's Gmail conversations are live and carry no label; every other number is still sample data."
+      `Stripe's and PostHog's figures and the CRM's Gmail conversations are live and carry no label. ${REST}`
     )
     expect(sampleDataSummary({ ...base, gmail: true, stripeConnecting: true })).toBe(
-      "The CRM's Gmail conversations are live and carry no label; Stripe is connecting (first sync in progress). Every other number is still sample data."
+      `The CRM's Gmail conversations are live and carry no label. Stripe is connecting (first sync in progress). ${REST}`
     )
+    for (const flags of [base, { ...base, stripe: true }, { ...base, stripeConnecting: true }]) {
+      expect(sampleDataSummary(flags)).not.toMatch(/every (other )?number/i)
+    }
+    // Only screens that still have seed rows are named: not Home, Metrics
+    // (Expenses starts empty), System Status (seeded checks are a preview)
+    // or the Product Roadmap (Notion, or an empty Not connected board).
+    for (const name of ["Home", "Metrics", "Expenses", "System Status", "Product Roadmap"]) {
+      expect(SEEDED_SCREENS as readonly string[]).not.toContain(name)
+    }
 
     // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
-    expect(sampleDataSummary({ ...base, notion: true })).toBe(
-      "The Product Roadmap is read from Notion; every number on the other screens is still sample data."
-    )
+    const ROADMAP_LIVE = "The Product Roadmap is read from Notion."
+    const ROADMAP_CONNECTING =
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+    expect(sampleDataSummary({ ...base, notion: true })).toBe(`${ROADMAP_LIVE} ${REST}`)
     expect(sampleDataSummary({ ...base, stripe: true, notion: true })).toBe(
-      "Stripe's figures are live and carry no label; every other number is still sample data. The Product Roadmap is read from Notion."
+      `Stripe's figures are live and carry no label. ${ROADMAP_LIVE} ${REST}`
     )
-    expect(sampleDataSummary({ ...base, notionConnecting: true })).toBe(
-      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
-    )
-    // Notion connecting never claims the Roadmap is sample.
-    expect(sampleDataSummary({ ...base, notionConnecting: true })).not.toMatch(/every number on every screen/i)
-    expect(sampleDataSummary({ ...base, notion: true })).not.toMatch(/every number on every screen/i)
+    expect(sampleDataSummary({ ...base, notionConnecting: true })).toBe(`${ROADMAP_CONNECTING} ${REST}`)
     expect(sampleDataSummary({ ...base, posthog: true, notionConnecting: true })).toBe(
-      "PostHog's figures are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+      `PostHog's figures are live and carry no label. ${ROADMAP_CONNECTING} ${REST}`
     )
-
-    // Gmail live with Notion: Gmail is not "every number … sample" either (#46 × #45).
+    expect(sampleDataSummary({ ...base, stripeConnecting: true, notion: true })).toBe(
+      `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then. ${ROADMAP_LIVE} ${REST}`
+    )
+    // Gmail live with Notion (#46 × #45).
     expect(sampleDataSummary({ ...base, notion: true, gmail: true })).toBe(
-      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data. The Product Roadmap is read from Notion."
+      `The CRM's Gmail conversations are live and carry no label. ${ROADMAP_LIVE} ${REST}`
     )
     expect(sampleDataSummary({ ...base, notionConnecting: true, gmail: true })).toBe(
-      "The CRM's Gmail conversations are live and carry no label; every other number is still sample data. Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then."
+      `The CRM's Gmail conversations are live and carry no label. ${ROADMAP_CONNECTING} ${REST}`
     )
+    for (const flags of [{ ...base, notion: true }, { ...base, notionConnecting: true }]) {
+      expect(sampleDataSummary(flags)).not.toMatch(/sample data|every (other )?number/i)
+    }
   })
 })

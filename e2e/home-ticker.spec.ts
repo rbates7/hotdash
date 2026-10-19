@@ -2,7 +2,9 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { FOUNDER_NAME } from "../src/components/founder-identity"
 import { TICKER_HREF } from "../src/components/home/subscriber-ticker"
-import { tickerLabel } from "../src/lib/subscriber-ticker"
+import { CONNECTING_POLL_MS, SUMMARY_POLL_MS } from "../src/hooks/use-stripe-summary"
+import { FLAP_MS, tickerLabel } from "../src/lib/subscriber-ticker"
+import { connectingSummary } from "../src/test/stripe-fixture"
 import { expectReadable } from "./support/contrast"
 import { pageOverflowX, waitForHydration } from "./support/shell"
 import { expectTapTarget } from "./support/tap-target"
@@ -12,8 +14,9 @@ import { setTheme } from "./support/theme"
 /**
  * The Home subscriber ticker (option A). With no Stripe key (e2e never has
  * one) it says Not connected — no simulated count. Live counts come from a
- * mocked /api/stripe/summary. Flap and reduced-motion behaviour is covered
- * by the unit suite (subscriber-ticker.test.tsx) with a pinned source.
+ * mocked /api/stripe/summary. The flap test drives that mock and
+ * Playwright's clock (no wall-clock sleeps); reduced motion is covered by
+ * the unit suite (subscriber-ticker.test.tsx) with a pinned source.
  */
 
 const BASE = 1_337
@@ -97,6 +100,54 @@ test.describe("Home ticker (1440)", () => {
     await page.goto("/metrics")
     await expect(page.getByRole("heading", { level: 1, name: "Metrics" })).toBeVisible()
     await expect(page.getByTestId("subscriber-ticker")).toHaveCount(0)
+  })
+
+  /*
+   * Was flaky on the sample ticker (0 [data-flap] found): it stepped the
+   * clock until the spoken text changed, then ran 5 ms and expected the
+   * flap — but the 60 ms flap could start and land inside those steps.
+   * Now Stripe's feed is mocked (connecting, then live, then +1) and every
+   * wait is web-first: the link's name changes the moment the new figure
+   * is committed (no timer), then the clock moves 1 ms at a time until the
+   * flap is on screen, which it stays until the clock moves again.
+   */
+  test("flips only on a change, never on first paint, and lands on the new figure", async ({ page }) => {
+    let summary = connectingSummary()
+    await mockStripe(page, () => summary)
+    await page.clock.install()
+    await page.goto("/home")
+    await waitForHydration(page)
+    const t = ticker(page)
+    const flaps = t.getByTestId("ticker-tiles").locator("[data-flap]")
+
+    // Connecting: placeholder tiles and the badge, no count.
+    await expect(t.getByTestId("connecting")).toHaveText("Connecting…")
+    await expect(t).toHaveAttribute("data-state", "loading")
+
+    // The first figure lands on the next connecting poll: settled, no flap.
+    summary = withSubscribers(BASE)
+    await page.clock.runFor(CONNECTING_POLL_MS)
+    await expect(t.getByRole("link", { name: tickerLabel(BASE, 0) })).toBeVisible()
+    await expect(t.getByTestId("connecting")).toHaveCount(0)
+    for (let ms = 0; ms < FLAP_MS * 3; ms += 10) {
+      await page.clock.runFor(10)
+      await expect(flaps).toHaveCount(0)
+    }
+
+    // A sign-up: the next 60 s poll brings 1,338, +1 today.
+    summary = withSubscribers(BASE + 1, "connected", 1)
+    await page.clock.runFor(SUMMARY_POLL_MS)
+    await expect(t.getByRole("link", { name: tickerLabel(BASE + 1, 1) })).toBeVisible()
+    // The ones tile flaps (its delay is 0); the flap holds until the clock moves on.
+    await expect(async () => {
+      await page.clock.runFor(1)
+      await expect(flaps).toHaveCount(2, { timeout: 250 })
+    }).toPass()
+    await expect(flaps).toHaveCount(2)
+    await page.clock.runFor(1_000)
+    await expect(flaps).toHaveCount(0)
+    await expect(spoken(page)).toHaveText(tickerLabel(BASE + 1, 1))
+    await expect(t.getByText("+1", { exact: true })).toBeVisible()
   })
 })
 

@@ -47,7 +47,7 @@ describe("Settings › Connected data › Notion", () => {
     )
     const sample = screen.getByRole("region", { name: "Sample data" })
     expect(sample).toHaveTextContent(
-      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Every number on the other screens is still sample data."
+      "Notion is connecting (first sync in progress); the Product Roadmap shows a placeholder until then. Home and Metrics show no invented figures"
     )
     expect(sample).not.toHaveTextContent(/every number on every screen/i)
   })
@@ -60,7 +60,8 @@ describe("Settings › Connected data › Notion", () => {
     )
     const sample = screen.getByRole("region", { name: "Sample data" })
     expect(sample).toHaveTextContent("The Product Roadmap is read from Notion")
-    expect(sample).toHaveTextContent("some screens (Agent Workplace, CRM rows) have no label to hide")
+    expect(sample).toHaveTextContent("carries the amber Sample data label, always: there is no switch to hide it")
+    expect(within(sample).queryByRole("switch")).toBeNull()
   })
 
   it("loading: Checking…", () => {

@@ -22,7 +22,7 @@ import {
  * - **Polls** every `POSTHOG_POLL_MS` while anything listens, backing off
  *   on failure (the server caches PostHog for 5 minutes).
  * - **Our own endpoint unreachable** keeps the last figures as stale; with
- *   none yet, it reads as not connected (sample, labelled).
+ *   none yet, it reads as not connected (no figures).
  */
 
 export const POSTHOG_LOADING_VIEW: PosthogView = { phase: "loading" }

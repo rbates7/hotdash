@@ -8,7 +8,9 @@ export function NotConnectedBadge({ className }: { className?: string }) {
   return (
     <Badge variant="outline" data-testid="not-connected" className={cn("text-muted-foreground! h-6 px-2.5", className)}>
       <PlugZapIcon aria-hidden />
-      Not connected
+      {/* Own span: the badge colour is a layered !important (it must beat the
+          outline variant), so the text sits in a child that inherits it. */}
+      <span>Not connected</span>
     </Badge>
   )
 }

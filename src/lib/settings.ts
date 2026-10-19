@@ -12,7 +12,7 @@
 
 import { DEFAULT_TIME_ZONE, isTimeZoneId, type TimeZoneId } from "@/lib/clock"
 import { HOME_HREF, navItems, type NavItem } from "@/lib/nav"
-import { createStorage, dedupe, isBoolean } from "@/lib/persistence"
+import { createStorage, dedupe } from "@/lib/persistence"
 
 /* ---------------------------------------------------------------- types */
 
@@ -50,8 +50,6 @@ export type SidebarPrefs = {
 export type Settings = {
   timeZone: TimeZoneId
   goals: Goals
-  /** Show the amber Sample data labels and notices. */
-  sampleData: boolean
   sidebar: SidebarPrefs
 }
 
@@ -217,7 +215,6 @@ export const DEFAULT_GOALS: Goals = { monthlyRevenue: null, trialToPaid: null, c
 export const DEFAULT_SETTINGS: Settings = {
   timeZone: DEFAULT_TIME_ZONE,
   goals: DEFAULT_GOALS,
-  sampleData: true,
   sidebar: defaultSidebar(),
 }
 
@@ -242,7 +239,9 @@ function parseGoal(field: GoalField, v: unknown): number | null | undefined {
 export function parseSettings(value: unknown): Settings | null {
   if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
-  if (!isTimeZoneId(v.timeZone) || !isBoolean(v.sampleData)) return null
+  // An older copy may still carry `sampleData` (the dropped "Show Sample data
+  // labels" switch); it is read past, not rejected, and goes on the next save.
+  if (!isTimeZoneId(v.timeZone)) return null
 
   const g = v.goals as Record<string, unknown> | null
   if (!g || typeof g !== "object") return null
@@ -259,7 +258,6 @@ export function parseSettings(value: unknown): Settings | null {
   return {
     timeZone: v.timeZone,
     goals,
-    sampleData: v.sampleData,
     sidebar: normalizeSidebar({ order: s.order, hidden: s.hidden }),
   }
 }
