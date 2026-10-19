@@ -17,7 +17,8 @@ import { expect, test, type Page } from "@playwright/test"
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
-const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "screenshots/workboard")
+// Review shots live on the box, never in the repo: the default is gitignored.
+const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "test-results/workboard-shots")
 const TAG = process.env.SCREENSHOT_TAG ?? "after"
 const REPLAY = process.env.WORKBOARD_REPLAY
 
