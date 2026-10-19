@@ -60,25 +60,76 @@ describe("readWorkboardConfig", () => {
   })
 })
 
+const NOT_CONNECTED = { status: "not_connected", connected: false, fetchedAt: NOW.toISOString(), stale: false, items: [] }
+
 describe("not connected", () => {
-  it("no token (or an unusable one): connected false, no items, nothing loaded", async () => {
+  it("no token (or an unusable one): not_connected, never connecting, no items, nothing loaded", async () => {
     const load = vi.fn<Loader>(async () => [ITEM])
-    for (const env of [{}, { GITHUB_READONLY_TOKEN: "not a token" }]) {
+    for (const env of [{}, { GITHUB_READONLY_TOKEN: "not a token" }, { github_read_only: "short" }]) {
       const { svc } = service(load, env)
-      expect(await svc.read()).toEqual({ connected: false, fetchedAt: NOW.toISOString(), stale: false, items: [] })
+      expect(await svc.read()).toEqual({ ...NOT_CONNECTED, fetchedAt: new Date().toISOString() })
+      // Still not connecting on a later read, or after time passes.
+      vi.advanceTimersByTime(RETRY_AFTER_MS)
+      expect((await svc.read()).status).toBe("not_connected")
     }
     expect(load).not.toHaveBeenCalled()
   })
 })
 
+describe("status (the Stripe rule, src/lib/server/stripe.ts)", () => {
+  it("cold start with a token is connecting, then connected once the first sync lands", async () => {
+    let land!: (items: WorkboardItem[]) => void
+    const load = vi.fn<Loader>(() => new Promise((r) => (land = r)))
+    const { svc } = service(load)
+    expect(await svc.read()).toEqual({ ...NOT_CONNECTED, status: "connecting" })
+    expect((await svc.read()).status).toBe("connecting")
+    land([ITEM])
+    await svc.settled()
+    expect(await svc.read()).toEqual({ status: "connected", connected: true, fetchedAt: NOW.toISOString(), stale: false, items: [ITEM] })
+  })
+
+  it("a 401 on the first sync is not_connected, and the retry is never connecting again", async () => {
+    const load = vi.fn<Loader>(() => Promise.reject(Object.assign(new Error("401"), { type: "GitHubHttpError" })))
+    const { svc } = service(load)
+    expect((await svc.read()).status).toBe("connecting")
+    await svc.settled()
+    expect(await svc.read()).toEqual(NOT_CONNECTED)
+
+    // The retry is running (load called again) and its answer is still not_connected.
+    let land!: (items: WorkboardItem[]) => void
+    load.mockImplementation(() => new Promise((r) => (land = r)))
+    vi.advanceTimersByTime(RETRY_AFTER_MS)
+    expect((await svc.read()).status).toBe("not_connected")
+    expect(load).toHaveBeenCalledTimes(2)
+    expect((await svc.read()).status).toBe("not_connected")
+
+    // Once a retry lands it is connected.
+    land([ITEM])
+    await svc.settled()
+    expect((await svc.read()).status).toBe("connected")
+  })
+
+  it("a failed sync after a good one is stale", async () => {
+    const load = vi.fn<Loader>(async () => [ITEM])
+    const { svc } = service(load)
+    await svc.read()
+    await svc.settled()
+    load.mockRejectedValue(Object.assign(new Error("503"), { type: "GitHubHttpError" }))
+    vi.advanceTimersByTime(CACHE_TTL_MS)
+    await svc.read()
+    await svc.settled()
+    expect(await svc.read()).toMatchObject({ status: "stale", connected: true, stale: true, items: [ITEM] })
+  })
+})
+
 describe("cache", () => {
-  it("cold start answers not connected at once, then connected once the background sync lands", async () => {
+  it("cold start answers connecting at once, then connected once the background sync lands", async () => {
     const load = vi.fn<Loader>(() => new Promise((r) => setTimeout(() => r([ITEM]), 10_000)))
     const { svc } = service(load)
-    expect(await svc.read()).toMatchObject({ connected: false, items: [] })
+    expect(await svc.read()).toMatchObject({ status: "connecting", connected: false, items: [] })
     expect(load).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(await svc.read()).toEqual({ connected: true, fetchedAt: NOW.toISOString(), stale: false, items: [ITEM] })
+    expect(await svc.read()).toEqual({ status: "connected", connected: true, fetchedAt: NOW.toISOString(), stale: false, items: [ITEM] })
   })
 
   it("serves one sync for 5 minutes, single flight, then reads GitHub again", async () => {
@@ -108,7 +159,7 @@ describe("cache", () => {
     await svc.read()
     await svc.settled()
     expect(log).toHaveBeenCalledWith("GitHubHttpError")
-    expect(await svc.read()).toEqual({ connected: true, fetchedAt: NOW.toISOString(), stale: true, items: [ITEM] })
+    expect(await svc.read()).toEqual({ status: "stale", connected: true, fetchedAt: NOW.toISOString(), stale: true, items: [ITEM] })
 
     vi.advanceTimersByTime(RETRY_AFTER_MS - 1)
     await svc.read()
@@ -128,12 +179,12 @@ describe("cache", () => {
     expect(await svc.read()).toMatchObject({ connected: true, stale: false, items: [] })
   })
 
-  it("a sync over the time limit is a failure; cold, it leaves not connected", async () => {
+  it("a sync over the time limit is a failure; cold, it goes from connecting to not_connected", async () => {
     const { svc, log } = service(() => new Promise(() => {}))
-    await svc.read()
+    expect((await svc.read()).status).toBe("connecting")
     await vi.advanceTimersByTimeAsync(SYNC_TIMEOUT_MS)
     expect(log).toHaveBeenCalledWith("SyncTimeout")
-    expect(await svc.read()).toMatchObject({ connected: false, items: [] })
+    expect(await svc.read()).toMatchObject({ status: "not_connected", connected: false, items: [] })
   })
 
   it("logs a fixed word, never the error's message", () => {

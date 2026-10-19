@@ -192,8 +192,8 @@ describe("toWorkboardItem", () => {
 })
 
 describe("notConnected", () => {
-  it("is not connected, not stale, no items", () => {
+  it("is not_connected, not stale, no items", () => {
     const now = new Date("2026-10-16T12:00:00Z")
-    expect(notConnected(now)).toEqual({ connected: false, fetchedAt: now.toISOString(), stale: false, items: [] })
+    expect(notConnected(now)).toEqual({ status: "not_connected", connected: false, fetchedAt: now.toISOString(), stale: false, items: [] })
   })
 })

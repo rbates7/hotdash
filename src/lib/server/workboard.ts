@@ -29,8 +29,9 @@ import {
  * nothing.
  *
  * Like the Stripe service (`@/lib/server/stripe`), a request never waits
- * for a sync: it gets the copy there is now — or `connected: false` with no
- * items before the first sync lands — and a due sync starts in the
+ * for a sync: it gets the copy there is now — or, before the first sync
+ * lands, `connecting` (with a token; `not_connected` without one, or after
+ * a first sync failed), with no items — and a due sync starts in the
  * background, one at a time, cut off after `SYNC_TIMEOUT_MS`.
  */
 
@@ -210,13 +211,21 @@ export function createWorkboardService({
         inflight = run
       }
       const snapshot = lastGood
-      if (!snapshot) return notConnected(new Date(clock()))
+      if (!snapshot) {
+        // The rule `@/lib/server/stripe` uses: a usable token and no sync
+        // finished yet means the first one (started above) is running. Once
+        // any sync has failed, it and every retry after it are not connected.
+        const answer = notConnected(new Date(clock()))
+        return !lastAttempt ? { ...answer, status: "connecting" } : answer
+      }
       // A refresh running behind a good copy leaves it current; only a
       // failed sync makes it stale.
+      const stale = !lastAttempt?.ok
       return {
+        status: stale ? "stale" : "connected",
         connected: true,
         fetchedAt: new Date(snapshot.syncedAt).toISOString(),
-        stale: !lastAttempt?.ok,
+        stale,
         items: snapshot.items,
       }
     },
