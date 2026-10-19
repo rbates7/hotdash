@@ -48,6 +48,36 @@ behind the server's own `begin read only` transaction.
   `{ status: "connected" | "stale", count, asOf }` or
   `{ status: "not_connected" }`. The two are read side by side and fail
   independently. Never an error body, never made-up zeros.
+- `GET /api/stripe/mrr-cash?tz=<zone>` → the Metrics › Overview panel "MRR
+  and cash this week". Live:
+  `{ status: "connected" | "stale", lastSyncedAt, mrr: { points: [{ month: "YYYY-MM", value, partial }] }, cash: { since, value, previous, days: [{ date: "YYYY-MM-DD", value, previous }] } }`
+  — 12 calendar months of MRR in the zone (the last is this month so far,
+  `partial: true`, and equals the MRR card), and Cash this week Monday to
+  Sunday in the zone, each day beside the same day last week (days still
+  ahead are `null`; `value`/`previous` equal Home's Cash this week).
+  Otherwise `{ status: "connecting" | "not_connected", lastSyncedAt: null }`
+  with no figures, never sample ones. The statuses follow the same rule as
+  the summary (#50's connecting rule, from the shared `read()` in
+  `src/lib/server/stripe.ts`):
+  - `connected` — the last good sync is within 5 minutes;
+  - `stale` — Stripe failed after a good sync: the last good figures and
+    their `lastSyncedAt` (the panel shows "Last updated <time>");
+  - `connecting` — a key is set and the first sync has not finished yet;
+  - `not_connected` — no key, or the first sync failed (also while it
+    retries: a failed first sync never goes back to `connecting`; no key is
+    never `connecting`).
+  It reads the same 5-minute server cache as `/api/stripe/summary`
+  (`CACHE_TTL_MS`, single-flight, last-good copy): no extra Stripe calls, and
+  the per-zone result is memoised until the next good sync. `?tz=` as for
+  the summary (an unknown zone falls back to the default). `no-store`,
+  force-dynamic, never an error body (a failure reads as `not_connected`).
+  The browser polls it at the summary's pace (`CONNECTING_POLL_MS` while
+  connecting, then `SUMMARY_POLL_MS`), and our endpoint failing keeps the
+  last figures as stale.
+  **Caveat:** MRR history is computed from today's prices, quantities and
+  items. Stripe keeps no price history, so past price or plan changes are
+  not reflected in earlier months; the chart caption says "USD, past months
+  at today's prices".
 - `GET /api/health/stripe` → `{"stripe":"ok"|"unavailable"|"not_configured"}`
   only. Same cache, safe to leave public.
 
