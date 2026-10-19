@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
+import { APP_STORE_CONNECTING, APP_STORE_NOT_CONNECTED } from "@/lib/app-store-summary"
 import {
   APP_STORE_PAYERS_SQL,
   CACHE_TTL_MS,
@@ -123,10 +123,17 @@ describe("postgresQuery (the default provider)", () => {
     const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ").trim()
     expect(flat).toBe(
       "select count(distinct a.user_id)::int as n from chlk.subscriptions a join chlk.plans p on p.id = a.plan_id " +
-        "where a.method = 'AppStore' and p.apple_product_id is not null and a.subscription_status in ('active','billing_retry') " +
+        "where a.method = 'AppStore' and p.apple_product_id is not null and a.subscription_status = 'active' " +
         "and not exists ( select 1 from chlk.subscriptions x where x.user_id = a.user_id and x.method in ('Stripe','invoice') " +
         "and x.subscription_status in ('active','past_due','trialing') )"
     )
+  })
+
+  it("counts active App Store rows only: billing_retry (and trialing, past_due) is not counted", () => {
+    const flat = APP_STORE_PAYERS_SQL.replace(/\s+/g, " ")
+    const main = flat.slice(0, flat.indexOf("not exists"))
+    expect(main).toContain("a.subscription_status = 'active'")
+    expect(main).not.toMatch(/billing_retry|trialing|past_due/)
   })
 
   it("an odd answer is an error, and the connection is still closed", async () => {
@@ -176,11 +183,24 @@ describe("createAppStoreSource", () => {
     let release!: (n: number) => void
     const query = vi.fn(() => new Promise<number>((r) => (release = r)))
     const { src } = source(query)
-    expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_NOT_CONNECTED, APP_STORE_NOT_CONNECTED])
+    expect(await Promise.all([src.read(), src.read()])).toEqual([APP_STORE_CONNECTING, APP_STORE_CONNECTING])
     release(53)
     await src.settled()
     expect((await src.read()).status).toBe("connected")
     expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it("a first count that fails goes from connecting to not connected, and stays so on the retry", async () => {
+    const query = vi.fn(async (): Promise<number> => {
+      throw new TypeError("refused")
+    })
+    const { src, tick } = source(query)
+    expect(await src.read()).toEqual(APP_STORE_CONNECTING)
+    await src.settled()
+    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    tick(RETRY_AFTER_MS)
+    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    expect(query).toHaveBeenCalledTimes(2)
   })
 
   it("a provider error with no good count is not connected — never a 0, never a throw", async () => {
@@ -241,11 +261,11 @@ describe("createAppStoreSource never waits for the database", () => {
     vi.useRealTimers()
   })
 
-  it("a slow first count: not connected at once, connected once it lands", async () => {
+  it("a slow first count: connecting at once, connected once it lands", async () => {
     vi.useFakeTimers({ now: T0 })
     const src = createAppStoreSource({ env: () => ENV, query: () => new Promise((r) => setTimeout(() => r(53), 200_000)) })
     const started = wallClock()
-    expect(await src.read()).toEqual(APP_STORE_NOT_CONNECTED)
+    expect(await src.read()).toEqual(APP_STORE_CONNECTING)
     expect(wallClock() - started).toBeLessThan(1_000)
     await vi.advanceTimersByTimeAsync(200_000)
     expect(await src.read()).toEqual({ status: "connected", count: 53, asOf: new Date(T0).toISOString() })

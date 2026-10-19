@@ -64,6 +64,8 @@
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
   --color-danger-text: var(--danger-text);
+  /* The same, on an inverted surface (the tooltip: foreground-on-background). */
+  --color-warning-text-inverse: var(--warning-text-inverse);
   /* Role-named type scale, after Multica: name sizes by what they are for,
      not how big they are. `text-body` is the workhorse. */
   --text-micro: 11px;
@@ -148,6 +150,7 @@
   /* Status text on --surface (white): green-800 / amber-800 / red-700 territory. */
   --success-text: oklch(0.45 0.14 145);
   --warning-text: oklch(0.47 0.12 70);
+  --warning-text-inverse: oklch(0.86 0.15 85);
   --danger-text: oklch(0.50 0.19 28);
 
   /* Chlk brand — the blue on the founder avatar and the active nav item. */
@@ -211,6 +214,7 @@
   /* Status text on --surface (oklch 0.21): green-300 / amber-300 / red-300 territory. */
   --success-text: oklch(0.82 0.16 145);
   --warning-text: oklch(0.86 0.15 85);
+  --warning-text-inverse: oklch(0.47 0.12 70);
   --danger-text: oklch(0.80 0.14 25);
 
   --brand: oklch(0.588 0.166 253);

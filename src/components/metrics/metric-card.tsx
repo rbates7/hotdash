@@ -91,14 +91,14 @@ export function MetricCard({
   /** Omit to hide the × (the Expenses tab's card is not removable). */
   onRemove?: () => void
   className?: string
-  /** Stripe's figures for this card, when Stripe feeds it (`liveMetric`). */
+  /** Stripe's or PostHog's figures for this card, when one feeds it (`liveCard`). */
   live?: LiveState
 }) {
   const { today } = useMetrics()
   const loading = live.kind === "loading"
-  const stripe = live.kind === "live" ? live.metric : null
+  const figure = live.kind === "live" ? live.metric : null
   // Live figures replace the sample ones wholesale; a null is shown as one.
-  const shown = stripe ?? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series }
+  const shown = figure ?? { value: snapshot.value, previous: snapshot.previous, series: snapshot.series }
   const trendable = !loading && shown.value !== null && shown.previous !== null
   const trend = trendable
     ? trendFor(shown.value!, shown.previous!, snapshot.trendKind, {
@@ -106,19 +106,19 @@ export function MetricCard({
         unit: snapshot.unit,
       })
     : null
-  const valueText = loading ? "–" : stripe ? liveValueText(stripe, snapshot.unit) : formatMetricValue(snapshot.value, snapshot.unit)
+  const valueText = loading ? "–" : figure ? liveValueText(figure, snapshot.unit) : formatMetricValue(snapshot.value, snapshot.unit)
   const charted = !loading && shown.series.some((v) => v !== null)
   // Key facts once: label, headline, delta. Inner copy is the same words,
   // so the article name is the aria-label rather than a concatenation.
   const name = loading
     ? `${snapshot.label} loading`
-    : [snapshot.label, valueText, trend?.text ?? stripe?.empty].filter(Boolean).join(" ")
+    : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
   return (
     <article
       aria-label={name}
       aria-busy={loading || undefined}
       data-metric={snapshot.id}
-      data-source={live.kind === "live" ? "stripe" : live.kind}
+      data-source={live.kind === "live" ? live.metric.source : live.kind}
       className={cn(
         "group/metric bg-surface border-surface-border flex min-h-[176px] flex-col rounded-xl border px-5 pt-5 pb-[18px]",
         className
@@ -181,12 +181,17 @@ export function MetricCard({
               {MRR_NOTE}
             </p>
           )}
-          {stripe?.updated && (
-            <p data-testid="metric-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
-              {stripe.updated}
+          {figure?.note && (
+            <p data-testid="metric-live-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+              {figure.note}
             </p>
           )}
-          {stripe?.breakdown && <SubscriberBreakdown breakdown={stripe.breakdown} className="mt-2.5 max-w-64" />}
+          {figure?.updated && (
+            <p data-testid="metric-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+              {figure.updated}
+            </p>
+          )}
+          {figure?.breakdown && <SubscriberBreakdown breakdown={figure.breakdown} className="mt-2.5 max-w-64" />}
           {trend ? (
             <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
               <TrendPill
@@ -196,9 +201,9 @@ export function MetricCard({
                 {VS_PREVIOUS_WINDOW}
               </span>
             </div>
-          ) : stripe ? (
+          ) : figure ? (
             <p className="text-caption text-muted-foreground mt-2.5 tracking-tight">
-              {stripe.empty ?? `No reading for the previous 28 days`}
+              {figure.empty ?? `No reading for the previous 28 days`}
             </p>
           ) : null}
         </div>
