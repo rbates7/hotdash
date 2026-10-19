@@ -5,6 +5,8 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { gmailConnecting } from "../src/lib/crm/gmail-summary"
 
+import { settleAnimations } from "./support/contrast"
+import { CRM_STORAGE_KEY, expectGmailPanel, gmailPanel } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 
 /**
@@ -13,9 +15,10 @@ import { liveGmailSummary, mockGmail } from "./support/gmail"
  * from the fixture inbox (never real mail), GMAIL=connecting with the
  * first-sync answer (no rows). The develop "before" set was
  * shot with the same spec minus the Gmail import. Production build,
- * no credentials in the server env.
+ * no credentials in the server env. The walk and its assertions run in
+ * every e2e run; the PNGs are written only with SCREENSHOTS=1.
  */
-test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
+const CAPTURE = Boolean(process.env.SCREENSHOTS)
 
 const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "test-results/crm-settings-shots")
 const TAG = process.env.SCREENSHOT_TAG ?? "after"
@@ -30,17 +33,20 @@ const WIDTHS = [
 ] as const
 
 async function shoot(page: Page, name: string) {
-  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
-  await page.waitForTimeout(400)
+  if (!CAPTURE) return
+  await settleAnimations(page)
   fs.mkdirSync(OUT, { recursive: true })
   await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true })
 }
 
 async function forceTheme(page: Page, theme: "light" | "dark") {
-  await page.evaluate((t) => {
-    localStorage.setItem("theme", t)
-    localStorage.removeItem("hotdash.crm.v1")
-  }, theme)
+  await page.evaluate(
+    ([t, key]) => {
+      localStorage.setItem("theme", t)
+      localStorage.removeItem(key)
+    },
+    [theme, CRM_STORAGE_KEY] as const
+  )
   await page.reload()
   await expect(page.locator("html")).toHaveClass(theme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
@@ -65,6 +71,22 @@ for (const name of PAGES) {
           if (GMAIL === "connecting") await expect(page.getByTestId("gmail-status")).toHaveText("Connecting…")
         } else {
           await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
+          if (name === "crm") {
+            const source = page.getByRole("main").locator("header").first().getByTestId("crm-source")
+            if (GMAIL === "connected") {
+              await expect(source).toHaveText("Live from Gmail")
+              await expect(page.getByText("3 contacts · 3 open conversations")).toBeVisible()
+              await expect(gmailPanel(page)).toHaveCount(0)
+            } else if (GMAIL === "connecting") {
+              await expect(source).toHaveText("Connecting…")
+              await expect(page.getByRole("main").getByRole("status", { name: "Loading saved CRM" })).toBeVisible()
+              await expect(gmailPanel(page)).toHaveCount(0)
+            } else {
+              await expect(source).toHaveText("Gmail not connected")
+              await expectGmailPanel(page, "overview")
+            }
+            await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
+          }
         }
         const suffix = GMAIL === "not-connected" ? "" : `-gmail-${GMAIL}`
         await shoot(page, `${name}-${vp.width}-${theme}-${TAG}${suffix}`)
