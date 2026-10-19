@@ -5,14 +5,10 @@ import {
   HOME_BOARD_TILE,
   HOME_BOARD_TILE_LABEL,
   HOME_DOORS,
-  HOME_DUMMY,
   HOME_HEADER,
-  HOME_HEADER_META,
   HOME_INBOX_DOOR,
   HOME_KPI_HEAD,
   HOME_NEED_ROW,
-  HOME_NOTE,
-  HOME_RESET,
   HOME_TOUCH,
 } from "@/components/home/responsive"
 
@@ -22,14 +18,6 @@ describe("Home responsive layout", () => {
     expect(HOME_HEADER).toContain("max-md:w-full")
     expect(HOME_HEADER).toContain("xl:flex-row")
     expect(HOME_HEADER).toContain("xl:justify-between")
-    expect(HOME_HEADER_META).toContain("flex-wrap")
-    expect(HOME_HEADER_META).toContain("w-full")
-    expect(HOME_HEADER_META).toContain("xl:w-auto")
-    expect(HOME_DUMMY).toContain("shrink-0")
-    expect(HOME_DUMMY).toContain("whitespace-nowrap")
-    expect(HOME_DUMMY).not.toContain("truncate")
-    expect(HOME_NOTE).toBe("max-w-full shrink-0 flex-wrap")
-    expect(HOME_RESET).toBe("max-xl:h-11! max-xl:px-2.5!")
   })
 
   it("puts doors 1-up on phone, 2+1 on tablet, 3-up on desktop", () => {

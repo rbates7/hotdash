@@ -31,6 +31,8 @@ test.describe("Home", () => {
     // #1: the honest empty state.
     const one = page.getByRole("region", { name: "Number one" })
     await expect(one.getByRole("heading", { level: 2, name: "No #1 yet" })).toBeVisible()
+    await expect(one.getByText("Your #1 will come from My Desk once it\u2019s connected.")).toBeVisible()
+    await expect(one.getByText(/Pick one on My Desk/)).toHaveCount(0)
     await expect(one.getByRole("link", { name: "My Desk" })).toHaveAttribute("href", "/my-desk")
 
     // Truth strip: both cards Not connected, no figures.

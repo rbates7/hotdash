@@ -32,11 +32,14 @@ describe("HomeScreen", () => {
     expect(screen.queryByTestId("persistence-note")).not.toBeInTheDocument()
   })
 
-  it("has no placeholder #1: the honest empty state, pointing at My Desk", () => {
+  it("has no placeholder #1: the honest empty state, saying it will come from My Desk", () => {
     renderHome()
     const strip = screen.getByRole("region", { name: "Number one" })
     expect(within(strip).getByText("#1")).toBeInTheDocument()
     expect(within(strip).getByRole("heading", { level: 2, name: "No #1 yet" })).toBeInTheDocument()
+    // My Desk is not connected and has no picker: say where it will come from, not "pick one".
+    expect(within(strip).getByText("Your #1 will come from My Desk once it\u2019s connected.")).toBeInTheDocument()
+    expect(within(strip).queryByText(/Pick one on My Desk/)).not.toBeInTheDocument()
     expect(within(strip).queryByText(/Aledo/)).not.toBeInTheDocument()
     expect(within(strip).getByRole("link", { name: "My Desk" })).toHaveAttribute("href", "/my-desk")
   })

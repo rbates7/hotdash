@@ -428,7 +428,7 @@ export function SubscriberTicker({
   /** Pins the ticker to one source (tests); by default it follows Stripe. */
   source?: SubscriberSource
 }) {
-  const { state, refresh, sample, timeZone, breakdown } = useSubscriberTicker(source)
+  const { state, refresh, sample, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
   // #50: a key is set and the first sync (Stripe, or App Store's group) is
   // running. The row stays the loading placeholder and says Connecting….
   const feed = useStripeFeed()
@@ -457,9 +457,9 @@ export function SubscriberTicker({
   const mode = reading ? "value" : state.status
   const header = variant === "header"
 
-  // Stripe not connected (and no source pinned by a test): no simulated
-  // count. Say so plainly instead of ticking a sample number.
-  if (!source && sample) {
+  // Stripe not connected: no count at all. Say so plainly instead of
+  // ticking a number.
+  if (notConnected) {
     return (
       <div
         data-testid="subscriber-ticker"
