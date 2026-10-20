@@ -52,11 +52,6 @@ export const RESET_DESCRIPTION =
 
 export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
 
-/**
- * Screens with no sample data (My Desk, CRM) offer "Clear my entries"
- * instead of Reset: the same confirm and the same store call, worded for
- * what it does there — there is no demo data to bring back.
- */
 /** The confirm dialog's footer buttons: a 44px hit below 1280, like every control. */
 export const CONFIRM_FOOTER_BUTTON = "max-xl:h-11! max-xl:min-w-11!"
 
@@ -67,6 +62,11 @@ export const CONFIRM_FOOTER_BUTTON = "max-xl:h-11! max-xl:min-w-11!"
  */
 export const CONFIRM_DESTRUCTIVE = "text-danger-text!"
 
+/**
+ * Screens with no sample data (My Desk, CRM) offer "Clear my entries"
+ * instead of Reset: the same confirm and the same store call, worded for
+ * what it does there — there is no demo data to bring back.
+ */
 export const CLEAR_COPY = {
   button: "Clear my entries",
   title: "Clear my entries?",

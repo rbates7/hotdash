@@ -12,14 +12,14 @@ toggle, pinned footer, and active-state highlighting.
 Issues board (five columns, All/Members/Agents/New, "agents working" pill),
 Backlog with sprints, ticket view, Agents roster, Autopilots, Inbox, and a
 Chat door. Board edits are saved to the browser's localStorage until a real
-datastore exists; use "Reset" in the page header to restore the demo data.
+datastore exists; use "Clear my entries" in the page header to remove what you added.
 
 **Phase 3 — Home** is built against the `home-v0` mock: the #1 strip, four
 KPI cards, and three doors (Metrics with an MRR trend, Agent Workplace with a
 live dev-board preview, Inbox with the "Needs you" rows). The two Workplace
 doors read the same browser-saved board state, so closing tickets or
 completing the sprint there changes Home. The Home requirements are still
-open; figures are dummy.
+open. Cards with no live source say Not connected.
 
 The other 11 routes are intentional stubs; each gets its own build phase.
 
