@@ -62,14 +62,14 @@ describe("pickSubscribers", () => {
   })
 })
 
-function setup(status: "connected" | "stale" | "connecting" | "not_connected" = "connected") {
+function setup(status: "connected" | "stale" | "connecting" | "not_connected" = "connected", opts: { customerMax?: number } = {}) {
   let now = NOW.getTime()
   const snapshot = vi.fn(async () =>
     status === "connected" || status === "stale" ? { status, syncedAt: NOW.getTime(), data: DATA } : { status }
   )
   const lookup = vi.fn(async (id: string) => ({ name: `Coach ${id}`, email: `${id}@example.test` }))
   const log = vi.fn()
-  const lists = createSubscriberLists({ service: { snapshot }, lookup, clock: () => now, log })
+  const lists = createSubscriberLists({ service: { snapshot }, lookup, clock: () => now, log, ...opts })
   return { lists, lookup, log, snapshot, tick: (ms: number) => (now += ms) }
 }
 
@@ -100,6 +100,24 @@ describe("subscriber lists service", () => {
     await lists.read("new", "America/Chicago")
     await lists.read("new", "UTC")
     expect(lookup).toHaveBeenCalledTimes(2)
+  })
+
+  it("prunes expired customers and caps the cache size", async () => {
+    const { lists, tick } = setup("connected", { customerMax: 1 })
+    await lists.read("new", "UTC") // two customers looked up
+    expect(lists.customerCacheSize()).toBe(1) // capped: the oldest dropped
+    tick(3 * 60_000)
+    await lists.read("churned", "UTC") // one fresh lookup; expired ones evicted
+    expect(lists.customerCacheSize()).toBe(1)
+  })
+
+  it("evicts expired customers on the next lookup even under the cap", async () => {
+    const { lists, tick } = setup()
+    await lists.read("new", "UTC")
+    expect(lists.customerCacheSize()).toBe(2)
+    tick(3 * 60_000)
+    await lists.read("churned", "UTC")
+    expect(lists.customerCacheSize()).toBe(1) // only the churned customer remains
   })
 
   it("a failed lookup leaves the name and email null and logs a word, never PII or the message", async () => {

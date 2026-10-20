@@ -206,6 +206,27 @@ describe("trialsStartedPerDay", () => {
   })
 })
 
+describe("trialsStartedPerDay across DST (Nov 1, 2026, Central)", () => {
+  it("each day keeps its own trials on both sides of the fall-back change", () => {
+    const now = new Date("2026-11-03T18:00:00Z") // Tue 3 Nov, 12:00 CST
+    const trial = (iso: string) => sub({ status: "trialing", trial_start: sec(iso), trial_end: sec(iso) + 14 * DAY, first_paid_at: null })
+    const subs = [
+      trial("2026-11-01T04:30:00Z"), // 23:30 CDT Sat 31 Oct
+      trial("2026-11-01T05:30:00Z"), // 00:30 CDT Sun 1 Nov
+      trial("2026-11-01T06:30:00Z"), // 01:30 CDT, first pass
+      trial("2026-11-01T07:30:00Z"), // 01:30 CST, second pass: same day
+      trial("2026-11-02T05:30:00Z"), // 23:30 CST Sun 1 Nov (not the 2nd)
+      trial("2026-11-02T06:30:00Z"), // 00:30 CST Mon 2 Nov
+    ]
+    const series = trialsStartedByDay(subs, now, CENTRAL)
+    expect(series).toHaveLength(28)
+    expect(series.at(-1)!.date).toBe("2026-11-03")
+    const day = (d: string) => series.find((x) => x.date === d)!.count
+    expect([day("2026-10-31"), day("2026-11-01"), day("2026-11-02"), day("2026-11-03")]).toEqual([1, 4, 1, 0])
+    expect(series.reduce((a, d) => a + d.count, 0)).toBe(6)
+  })
+})
+
 describe("parseStripeSummary with the Oct 20 figures", () => {
   it("reads a full summary back", () => {
     const s = liveSummary("connected")
