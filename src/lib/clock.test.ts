@@ -27,7 +27,7 @@ import {
   toDay,
   todayIn,
 } from "@/lib/clock"
-import { MOCK_DAY } from "@/lib/kpis"
+import { MOCK_DAY } from "@/lib/kpis-fixture"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 
 afterEach(() => {

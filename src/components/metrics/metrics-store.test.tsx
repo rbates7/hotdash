@@ -3,7 +3,7 @@ import { act, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { DEFAULT_METRIC_IDS } from "@/lib/metrics"
-import { MOCK_DAY, seedExpenses } from "@/lib/kpis"
+import { MOCK_DAY, seedExpenses } from "@/lib/kpis-fixture"
 import type { LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import { formatPeriod, periodEnding } from "@/lib/clock"

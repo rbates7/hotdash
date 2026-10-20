@@ -19,7 +19,7 @@ import {
   TABLET_PORTRAIT_QUERY,
   TABLET_QUERY,
 } from "@/hooks/use-mobile"
-import { MOCK_DAY } from "@/lib/kpis"
+import { MOCK_DAY } from "@/lib/kpis-fixture"
 import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis-fixture"
 
 const TODAY = MOCK_DAY

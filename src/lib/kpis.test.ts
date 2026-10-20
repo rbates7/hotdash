@@ -25,7 +25,7 @@ import {
   weekEnding,
   SAMPLE_CHURNED_SUBSCRIBERS,
   SAMPLE_NEW_SUBSCRIBERS,
-} from "@/lib/kpis"
+} from "@/lib/kpis-fixture"
 import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis-fixture"
 import { expensesTotal, formatMetricValue, trendFor } from "@/lib/metrics"
 

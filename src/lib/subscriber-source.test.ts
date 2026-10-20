@@ -1,25 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { snapshotFor } from "@/lib/kpis"
+import { snapshotFor } from "@/lib/kpis-fixture"
 import {
   LOADING_STATE,
   POLL_MS,
   RETRY_MS,
-  SAMPLE_CADENCE_MS,
-  SAMPLE_PATTERN,
-  createSampleSource,
   createTickerStore,
   failuresOf,
   initialState,
   retryDelay,
-  sampleBase,
-  sampleReadingAt,
   staleLabel,
   tickerReducer,
   type SubscriberReading,
   type SubscriberSource,
   type TickerState,
 } from "@/lib/subscriber-source"
+import {
+  SAMPLE_CADENCE_MS,
+  SAMPLE_PATTERN,
+  createSampleSource,
+  sampleBase,
+  sampleReadingAt,
+} from "@/lib/subscriber-source-fixture"
 
 const AT = new Date("2026-10-13T14:41:00Z") // 9:41 AM CDT
 const reading = (total: number, today = 0, at = AT): SubscriberReading => ({ total, today, at })
