@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  FlaskConicalIcon,
   HardDriveIcon,
   AlertTriangleIcon,
   CheckIcon,
@@ -43,7 +42,6 @@ import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
 import { PERSISTENCE_COPY } from "@/components/persistence-note"
-import { SAMPLE_DATA_LABEL, SAMPLE_SURFACE } from "@/components/sample-data"
 import { ConnectingBadge } from "@/components/connecting-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -86,7 +84,8 @@ function Section({
   id: string
   title: string
   description: React.ReactNode
-  children: React.ReactNode
+  /** Optional: a card that is only its description has no body. */
+  children?: React.ReactNode
   action?: React.ReactNode
 }) {
   const headingId = `settings-${id}`
@@ -104,7 +103,7 @@ function Section({
           </div>
           {action}
         </CardHeader>
-        <CardContent className="min-w-0">{children}</CardContent>
+        {children != null && <CardContent className="min-w-0">{children}</CardContent>}
       </Card>
     </section>
   )
@@ -341,20 +340,14 @@ function SwitchRow({
 }
 
 /**
- * The screens that still render seed rows. Home, Metrics (the Expenses tab
- * starts empty), Bugs (Sentry plus the founder's own bug tickets), CRM
- * (Gmail, or the founder's own contacts), My Desk (starts empty), System
- * Status (real page only; seeded checks are unit-test-only) and the
- * Product Roadmap (Notion, or an empty board under Not connected) have
- * none; keep this list to screens that really do.
+ * The Sample data card's last sentence. No screen renders seed rows any
+ * more (Rashad's Oct 16 rule): Home and Metrics never show an invented
+ * figure; Bugs, CRM, My Desk, Agent Workplace, Feature Requests, Clinics,
+ * Community Development and Sales Opportunities start empty and hold only
+ * what the founder enters; the Product Roadmap is Notion or an empty board
+ * under Not connected; System Status has no checks on the real page.
  */
-export const SEEDED_SCREENS = [
-  "Agent Workplace",
-  "Feature Requests",
-  "Clinics",
-  "Community Development",
-  "Sales Opportunities",
-] as const
+export const NO_SAMPLE_DATA = "No screen uses sample data."
 
 /**
  * The Sample data section's first sentence: what is live, what is
@@ -410,8 +403,7 @@ function figuresSummary(
         : gmail
           ? "The CRM's Gmail conversations are"
           : null
-  // Home and Metrics never show an invented figure; Bugs, CRM and My Desk never an invented row.
-  const rest = `Home, Metrics, Bugs, CRM and My Desk show nothing invented. Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
+  const rest = NO_SAMPLE_DATA
   const then = roadmap ? ` ${roadmap} ${rest}` : ` ${rest}`
   if (!live && !stripeConnecting) return roadmap ? `${roadmap} ${rest}` : `Nothing is connected yet. ${rest}`
   if (!live) return `Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then.${then}`
@@ -439,31 +431,9 @@ function SampleDataSection() {
     <Section
       id="sample-data"
       title="Sample data"
-      description={
-        <>
-          {summary}{" "}
-          Every screen still on seed rows carries the amber {SAMPLE_DATA_LABEL} label, always:
-          there is no switch to hide it. Some seed screens (Agent Workplace, CRM rows) have
-          no label yet.
-        </>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <p className="text-caption flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground">Labels look like</span>
-          <span
-            className={cn(
-              "text-micro inline-flex h-5 items-center gap-1 rounded-full border px-1.5 font-semibold tracking-tight",
-              SAMPLE_SURFACE
-            )}
-          >
-            <FlaskConicalIcon className="size-3" aria-hidden />
-            {SAMPLE_DATA_LABEL}
-          </span>
-          <span className="text-muted-foreground">and are always shown.</span>
-        </p>
-      </div>
-    </Section>
+      // Ends at "No screen uses sample data": no label preview, no list.
+      description={summary}
+    />
   )
 }
 

@@ -13,6 +13,7 @@ import { STORAGE_KEY, CrmProvider, initialState, reducer, saveState } from "@/co
 import { CONNECTING_LEDE, CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
+import { ContactNewDialog, NEW_CONTACT_LIVE, NEW_CONTACT_PENDING } from "@/components/crm/contact-dialogs"
 import {
   GMAIL_CONNECTING_LABEL,
   GMAIL_LIVE_LABEL,
@@ -207,5 +208,30 @@ describe("CRM live from Gmail", () => {
     expect(screen.getByTestId("crm-not-connected")).toHaveTextContent(GMAIL_PANEL_TITLES.overview)
     expect(screen.queryAllByTestId("sample-data-tag")).toHaveLength(0)
     expect(within(header()).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
+  })
+})
+
+describe("New contact dialog names Gmail as pending only while it is not live (item 10)", () => {
+  async function openDialog() {
+    const user = userEvent.setup()
+    render(
+      <CrmProvider nowMs={NOW}>
+        <ContactNewDialog />
+      </CrmProvider>
+    )
+    await user.click(screen.getByRole("button", { name: "New contact" }))
+    return screen.findByRole("dialog", { name: "New contact" })
+  }
+
+  it("Gmail live: no 'once Gmail is connected'", async () => {
+    setGmailSummaryForTest(liveGmailSummary(NOW))
+    const dialog = await openDialog()
+    expect(dialog).toHaveAccessibleDescription(NEW_CONTACT_LIVE)
+    expect(dialog).not.toHaveTextContent(/once Gmail is connected/)
+  })
+
+  it("Gmail not connected: says Gmail is still to come", async () => {
+    const dialog = await openDialog()
+    expect(dialog).toHaveAccessibleDescription(NEW_CONTACT_PENDING)
   })
 })

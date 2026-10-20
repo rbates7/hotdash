@@ -18,7 +18,7 @@ export const FR_HEADER =
 export const FR_HEADER_TITLE_ROW =
   "flex min-w-0 flex-1 items-start justify-between gap-3 md:contents"
 
-/** Persistence + sample + (md+) New idea. Full width under the title on phone. */
+/** Persistence + (md+) New idea. Full width under the title on phone. */
 export const FR_HEADER_ACTIONS = "flex flex-wrap items-center gap-2.5 max-md:w-full"
 
 /** Passed to PersistenceNote so Reset is 44px below 1280. */

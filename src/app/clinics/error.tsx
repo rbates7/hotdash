@@ -34,8 +34,8 @@ export default function ClinicsError({
       </div>
       <p className="text-body text-muted-foreground">
         Something in this browser’s saved copy of the Clinics list could not be read.
-        Nothing is stored on a server; resetting discards the saved copy and shows the
-        sample clinics again.
+        Nothing is stored on a server; clearing discards the saved copy and starts an
+        empty list.
       </p>
       {error.digest && (
         <p className="text-micro text-muted-foreground font-mono">ref {error.digest}</p>

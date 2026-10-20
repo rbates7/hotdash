@@ -2,7 +2,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { ROW_COLLAPSE_SLOT } from "../src/components/responsive-table"
 import { expectReadable } from "./support/contrast"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { founderClinicsState } from "../src/lib/clinics-fixture"
+import { now, todayIn } from "../src/lib/clock"
+import { NOTE, persistenceNote, storeFounderCopy } from "./support/persistence"
 import { pageOverflowX, waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
@@ -23,18 +25,17 @@ const table = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
 const cards = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
   region(page, name).locator(`[data-slot='${ROW_COLLAPSE_SLOT}']:visible`)
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add clinic", exact: true })
-const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
 const TYPE_ATTEND = ["Clinic", "Zoom", "Staff meeting", "Planned", "Attended", "Skipped"] as const
 
+/** The founder's own clinics (no sample ships), stored before the page loads. */
 async function freshClinics(page: Page) {
+  await storeFounderCopy(page, STORAGE_KEY, founderClinicsState(todayIn(now())))
   await page.goto("/clinics")
   await waitForHydration(page)
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
-  await waitForHydration(page)
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 }
 
 async function expectMinHit(locator: Locator, label: string, min = 44) {
@@ -126,14 +127,13 @@ async function expectFormTouch(form: Locator, label: string) {
 
 async function expectClinicsReadable(page: Page, theme: "light" | "dark") {
   await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/h1`, expect)
-  await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
+  await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
   const card = cards(page, "Upcoming clinics").first()
   if ((await card.count()) > 0) {
     await expectReadable(card, `${theme}/upcoming card`, expect)
   }
   const surface = cards(page, "Upcoming clinics").or(table(page, "Upcoming clinics"))
   await expectReadable(surface.getByTestId("status-pill").first(), `${theme}/upcoming status`, expect)
-  await expectReadable(surface.getByTestId("sample-data-tag").first(), `${theme}/upcoming sample`, expect)
 }
 
 test.describe("responsive Clinics (phone 390)", () => {
@@ -147,7 +147,7 @@ test.describe("responsive Clinics (phone 390)", () => {
     await expect(cards(page, "Past clinics")).toHaveCount(4)
     await expect(table(page, "Upcoming clinics")).toHaveCount(0)
     await expectMinHit(addButton(page), "phone Add clinic")
-    await expectMinHit(resetButton(page), "phone Reset")
+    await expectMinHit(clearButton(page), "phone Clear my entries")
     await expectMinHit(cards(page, "Upcoming clinics").first(), "phone card")
     await expectNoPageOverflowX(page)
 
@@ -227,9 +227,6 @@ test.describe("responsive Clinics (phone 390)", () => {
   test("empty state Add is 44px and does not overflow", async ({ page }) => {
     await page.goto("/clinics")
     await waitForHydration(page)
-    await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ clinics: [], nextId: 9 })), STORAGE_KEY)
-    await page.reload()
-    await waitForHydration(page)
     const empty = page.getByRole("status", { name: "No clinics", exact: true })
     await expect(empty).toBeVisible()
     await expectMinHit(empty.getByRole("button", { name: "Add clinic", exact: true }), "empty Add clinic")
@@ -258,7 +255,7 @@ test.describe("responsive Clinics (tablet portrait 820)", () => {
       "Status",
     ])
     await expectMinHit(addButton(page), "tablet Add clinic")
-    await expectMinHit(resetButton(page), "tablet Reset")
+    await expectMinHit(clearButton(page), "tablet Clear my entries")
     const menu = table(page, "Upcoming clinics").getByRole("button", {
       name: "Actions for Houston Offensive Staff Clinic",
       exact: true,
@@ -326,7 +323,7 @@ test.describe("responsive Clinics (tablet landscape 1180)", () => {
       "Status",
     ])
     await expectMinHit(addButton(page), "1180 Add clinic")
-    await expectMinHit(resetButton(page), "1180 Reset")
+    await expectMinHit(clearButton(page), "1180 Clear my entries")
     const menu = table(page, "Upcoming clinics").getByRole("button", {
       name: "Actions for Houston Offensive Staff Clinic",
       exact: true,
@@ -366,9 +363,9 @@ test.describe("responsive Clinics (desktop 1440)", () => {
     expect(box, "desktop Add").toBeTruthy()
     expect(box!.height, "desktop Add stays Nova sm, not 44").toBeLessThan(44)
     await expect(add).toHaveCSS("height", "28px")
-    const resetBox = await resetButton(page).boundingBox()
-    expect(resetBox, "desktop Reset").toBeTruthy()
-    expect(resetBox!.height, "desktop Reset stays PersistenceNote h-6").toBeLessThan(44)
+    const clearBox = await clearButton(page).boundingBox()
+    expect(clearBox, "desktop Clear my entries").toBeTruthy()
+    expect(clearBox!.height, "desktop Clear stays PersistenceNote h-6").toBeLessThan(44)
     const houston = table(page, "Upcoming clinics").getByRole("row", { name: /Houston Offensive/ })
     await expect(houston).toContainText("in 15 days")
     await expect(houston.getByRole("cell").nth(2)).toHaveText("Houston")

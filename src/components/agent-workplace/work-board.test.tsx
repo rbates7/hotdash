@@ -75,6 +75,18 @@ describe("WorkBoardView", () => {
     expect(screen.queryByTestId("workboard-stale")).toBeNull()
   })
 
+  it("a missing or unparseable date renders nothing: no time, no raw string", () => {
+    const bad = [
+      { ...LIVE_ITEMS[2], number: 801, title: "Bad date", mergedAt: null, updatedAt: "not-a-date" },
+      { ...LIVE_ITEMS[2], number: 802, title: "No date", mergedAt: null, updatedAt: "" },
+    ]
+    render(<WorkBoardView view={ready("connected", bad)} />)
+    for (const card of screen.getAllByTestId("work-card")) {
+      expect(card.querySelector("time")).toBeNull()
+      expect(card).not.toHaveTextContent(/not-a-date|Updated|Merged|Invalid Date/)
+    }
+  })
+
   it("a column with no rows says None, never a placeholder card", () => {
     render(<WorkBoardView view={ready("connected", [LIVE_ITEMS[2]])} />)
     expect(within(screen.getByRole("region", { name: "Working" })).getByText("None")).toBeInTheDocument()
@@ -145,7 +157,7 @@ describe("WorkBoardView live region", () => {
     ["stale and empty", ready("stale", []), "GitHub could not be read just now. Showing the last good copy, from Oct 16, 7:45 PM CDT."],
   ] as const)("%s announces %j", (_name, view, text) => {
     render(<WorkBoardView view={view} />)
-    expect(region()).toHaveTextContent(text)
+    expect(region()).toHaveTextContent(`Work board: ${text}`)
     expect(screen.getAllByRole("status")).toHaveLength(1)
   })
 
@@ -157,7 +169,7 @@ describe("WorkBoardView live region", () => {
     expect(node).toHaveTextContent("4 PRs updated Oct 16, 7:45 PM CDT")
     rerender(<WorkBoardView view={ready("stale")} />)
     expect(region()).toBe(node)
-    expect(node).toHaveTextContent(/^GitHub could not be read just now/)
+    expect(node).toHaveTextContent(/^Work board: GitHub could not be read just now/)
   })
 })
 

@@ -16,7 +16,6 @@ import {
   matchesFilters,
   normalizeInput,
   sameInitiative,
-  seedInitiatives,
   sortInitiatives,
   stripInitiative,
   summarize,
@@ -24,6 +23,7 @@ import {
   type Initiative,
   type InitiativeInput,
 } from "@/lib/community-development"
+import { seedInitiatives } from "@/lib/community-development-fixture"
 import { addDays, formatDate, formatRelativeDay, todayIn } from "@/lib/clock"
 import { LATE_EVENING_CT } from "@/test/clock"
 

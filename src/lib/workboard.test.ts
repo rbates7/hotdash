@@ -202,4 +202,13 @@ describe("publicWorkboardResponse", () => {
     const res = publicWorkboardResponse({ ...notConnected(new Date("2026-10-16T12:00:00Z")), items: [item] })
     expect(JSON.stringify(res)).not.toMatch(/Description text|proof\.png|feat\/seven|body|proofLinks|branch/)
   })
+
+  it("allow-lists the top-level keys too: an extra field on the response never leaves", () => {
+    const res = publicWorkboardResponse({
+      ...notConnected(new Date("2026-10-16T12:00:00Z")),
+      token: "ghp_x",
+      error: "boom",
+    } as unknown as Parameters<typeof publicWorkboardResponse>[0])
+    expect(Object.keys(res).sort()).toEqual(["connected", "fetchedAt", "items", "stale", "status"])
+  })
 })
