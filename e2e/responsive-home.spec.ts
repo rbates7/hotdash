@@ -140,6 +140,13 @@ for (const { vp, answer } of SETTLE_CASES) {
       await page.goto("/home")
       const doors = page.getByRole("group", { name: "Doors" })
       await expect(page.getByRole("article", { name: "Subscribers" })).toHaveAttribute("data-source", "loading")
+      // Only Stripe is held. The Paying coaches tile in the same strip has
+      // its own fetch (/api/paying-coaches, not connected on the e2e
+      // server); a Not connected card is shorter than its loading
+      // placeholder (Deke, #67), so if it lands after `before` the doors
+      // move up for a reason that is not Stripe's. Let it settle first.
+      await expect(page.getByRole("article", { name: "Paying coaches" })).not.toHaveAttribute("data-source", "loading")
+      await page.evaluate(() => document.fonts.ready)
       const before = await doors.boundingBox()
       release()
       await stripeSettled(page)
