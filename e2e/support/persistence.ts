@@ -109,3 +109,21 @@ export async function expectWritesSettled(page: Page, key: string, expected: num
     )
     .toBe("flat")
 }
+
+/**
+ * Screens with no sample data start empty, so a spec that needs rows stores
+ * the founder's own copy (a test-only fixture, ids past the old seed's) before
+ * the page's scripts run. Written once per origin (a flag beside the key), so
+ * a reload, a second tab or a Clear is never undone by the helper.
+ */
+export async function storeFounderCopy(target: Pick<Page, "addInitScript">, key: string, state: unknown) {
+  await target.addInitScript(
+    ([k, json]) => {
+      const flag = `${k}.e2e-founder`
+      if (localStorage.getItem(flag)) return
+      localStorage.setItem(flag, "1")
+      localStorage.setItem(k, json)
+    },
+    [key, JSON.stringify(state)] as const
+  )
+}
