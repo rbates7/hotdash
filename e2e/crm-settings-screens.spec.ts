@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { gmailConnecting } from "../src/lib/crm/gmail-summary"
 
 import { settleAnimations } from "./support/contrast"
-import { CRM_STORAGE_KEY, expectGmailPanel, gmailPanel } from "./support/crm"
+import { CRM_STORAGE_KEY, LIVE_OPEN_TILE, expectGmailPanel, gmailPanel } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 
 /**
@@ -75,11 +75,11 @@ for (const name of PAGES) {
             const source = page.getByRole("main").locator("header").first().getByTestId("crm-source")
             if (GMAIL === "connected") {
               await expect(source).toHaveText("Live from Gmail")
-              await expect(page.getByText("3 contacts · 3 open conversations")).toBeVisible()
+              await expect(page.getByRole("main").getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
               await expect(gmailPanel(page)).toHaveCount(0)
             } else if (GMAIL === "connecting") {
               await expect(source).toHaveText("Connecting…")
-              await expect(page.getByRole("main").getByRole("status", { name: "Loading saved CRM" })).toBeVisible()
+              await expect(page.getByRole("main").getByTestId("crm-connecting").first()).toBeVisible()
               await expect(gmailPanel(page)).toHaveCount(0)
             } else {
               await expect(source).toHaveText("Gmail not connected")

@@ -4,6 +4,7 @@ import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
+import { configureCrmSummary } from "@/hooks/use-crm-summary"
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
@@ -11,6 +12,7 @@ import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
 import { configureWorkboard } from "@/hooks/use-workboard"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
+import { CRM_NOT_CONNECTED } from "@/lib/crm/types.ours"
 import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
 import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
@@ -43,6 +45,13 @@ beforeEach(() => {
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },
     fetcher: async () => GMAIL_NOT_CONNECTED,
+  })
+  // The rebuilt CRM screens read the same endpoint through their own store
+  // (src/test/crm.ts for live, connecting, stale and unauthorized).
+  configureCrmSummary({
+    initial: { phase: "ready", summary: CRM_NOT_CONNECTED },
+    fetcher: async () => ({ kind: "ok", data: CRM_NOT_CONNECTED }),
+    threadFetcher: async () => ({ kind: "ok", data: [] }),
   })
   // The workboard too (src/test/workboard.ts for live rows, connecting, stale).
   configureWorkboard({

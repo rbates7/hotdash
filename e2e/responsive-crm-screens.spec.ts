@@ -7,7 +7,9 @@ import { settleAnimations } from "./support/contrast"
 import {
   CRM_STORAGE_KEY as STORAGE_KEY,
   LIVE_CASES,
+  LIVE_OPEN_TILE,
   LIVE_TRIAGE,
+  NO_CASES,
   expectGmailPanel,
   liveCase,
   openWithOwnContacts,
@@ -132,31 +134,23 @@ for (const theme of ["light", "dark"] as const) {
       await mockGmail(page, liveGmailSummary(Date.now()))
       await visit(page, "/crm")
       await expect(source(page)).toHaveText("Live from Gmail")
-      await expect(main(page).getByText("3 contacts · 3 open conversations")).toBeVisible()
+      await expect(main(page).getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
       await shoot(page, name("overview"))
 
       await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-      await expect(main(page).getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
+      await expect(main(page).getByRole("heading", { level: 2, name: /^Cases/ })).toBeVisible()
       await shoot(page, name("cases"))
 
-      // Row actions: phone opens the card's sheet; tablet the row "…".
-      if (!desktop) {
-        if (phone) {
-          await cardList(page).getByRole("button", { name: new RegExp(`^${LIVE_CASES.roster}`) }).click()
-          await expect(page.getByRole("dialog", { name: LIVE_CASES.roster, exact: true })).toBeVisible()
-        } else {
-          await main(page)
-            .getByRole("button", { name: `More actions for #${ROSTER.caseNumber} ${LIVE_CASES.roster}` })
-            .click()
-          await expect(page.getByRole("menu")).toBeVisible()
-        }
-        await shoot(page, name("cases-actions"), { fullPage: false })
-        await closeAll(page)
-      }
+      // Old Cases row actions (phone sheet, tablet "…") removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
-      await visit(page, `/crm/cases/${ROSTER.id}`)
-      await expect(main(page).getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
-      await shoot(page, name("case-detail"))
+      // The case panel (beside the list at 1440, a sheet below 1280), where the old detail page was.
+      await visit(page, `/crm/cases?case=${ROSTER.id}`)
+      const panel = page.getByTestId("case-panel")
+      await expect(panel).toBeVisible()
+      await expect(panel).toContainText(LIVE_CASES.roster)
+      await expect(panel.getByRole("list", { name: "Thread" })).toBeVisible()
+      await shoot(page, name("case-panel"), { fullPage: desktop })
+      await closeAll(page)
 
       await visit(page, "/crm/triage")
       await expect(main(page).getByText(LIVE_TRIAGE.sam)).toBeVisible()
@@ -169,7 +163,7 @@ for (const theme of ["light", "dark"] as const) {
         data: { ...inbox.data, cases: [], messages: inbox.data.messages.filter((m) => m.caseId === null) },
       })
       await visit(page, "/crm/cases")
-      await expect(main(page).getByRole("status", { name: "No cases" })).toBeVisible()
+      await expect(main(page).getByText(NO_CASES, { exact: true })).toBeVisible()
       await shoot(page, name("cases-empty"))
     })
   }

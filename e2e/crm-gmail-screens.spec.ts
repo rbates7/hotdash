@@ -4,7 +4,7 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { settleAnimations } from "./support/contrast"
-import { CRM_STORAGE_KEY as STORAGE_KEY, expectGmailPanel, gmailPanel } from "./support/crm"
+import { CRM_STORAGE_KEY as STORAGE_KEY, LIVE_OPEN_TILE, expectGmailPanel, gmailPanel } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
@@ -52,7 +52,7 @@ for (const state of ["not-connected", "connected"] as const) {
         await setTheme(page, theme)
         if (state === "connected") {
           await expect(source(page)).toHaveText("Live from Gmail")
-          await expect(page.getByText("3 contacts · 3 open conversations")).toBeVisible()
+          await expect(page.getByRole("main").getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
           await expect(gmailPanel(page)).toHaveCount(0)
         } else {
           await expect(source(page)).toHaveText("Gmail not connected")

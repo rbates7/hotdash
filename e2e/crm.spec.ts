@@ -16,6 +16,7 @@ import {
   LIVE_CASES,
   LIVE_PEOPLE,
   LIVE_TRIAGE,
+  NO_CASES,
   OWN_CONTACTS,
   OWN_ID_BASE,
   emptyLiveSummary,
@@ -28,7 +29,7 @@ import {
   withPlans,
   type CrmScreen,
 } from "./support/crm"
-import { liveGmailSummary, mockGmail } from "./support/gmail"
+import { GMAIL_ROUTE, liveGmailSummary, mockGmail } from "./support/gmail"
 import { CLEAR_CONFIRM_NAME, NOTE, clearMyEntries, persistenceNote } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
@@ -60,6 +61,7 @@ const stored = (page: Page) => page.evaluate((key) => localStorage.getItem(key),
 const TABS: Array<[string | RegExp, CrmScreen]> = [
   ["Overview", "overview"],
   ["Cases", "cases"],
+  ["Accounts", "accounts"],
   ["Contacts", "contacts"],
   [/Triage/, "triage"],
 ]
@@ -115,6 +117,10 @@ test.describe("CRM, Gmail not connected", () => {
     await expect(source(page)).toHaveText("Gmail not connected")
     await expect(source(page)).toHaveAttribute("data-source", "not_connected")
     await expectGmailPanel(page, "overview")
+    // The four count tiles say Not connected, never 0.
+    const counts = page.getByRole("main").getByTestId("crm-count")
+    await expect(counts).toHaveCount(4)
+    for (const count of await counts.all()) await expect(count.getByTestId("not-connected")).toHaveText("Not connected")
     await expect(page.getByText(/open conversations/)).toHaveCount(0)
     await expect(page.getByRole("link", { name: /from unknown senders/ })).toHaveCount(0)
     await expect(page.getByRole("link", { name: /you added/ })).toHaveCount(0)
@@ -183,9 +189,10 @@ test.describe("CRM, Gmail not connected", () => {
 
   test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
     await freshCrm(page)
-    await expectProbeCatchesSabotage(gmailPanel(page), "Not connected panel", expect)
+    // Overview has two panels (its two list cards): probe the first.
+    await expectProbeCatchesSabotage(gmailPanel(page).first(), "Not connected panel", expect)
     await setTheme(page, "dark")
-    await expectProbeCatchesSabotage(gmailPanel(page), "Not connected panel (dark)", expect)
+    await expectProbeCatchesSabotage(gmailPanel(page).first(), "Not connected panel (dark)", expect)
     await setTheme(page, "light")
   })
 
@@ -368,29 +375,18 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     expect(await paddingLeft(palette.getByLabel("Search cases and contacts"))).toBeGreaterThanOrEqual(32)
   })
 
-  test("open a case, change status and priority, add a note, promote triage: on the page only, never saved", async ({
+  test("promote triage: on the page only, never saved; the read-only note is for Contacts and Triage", async ({
     page,
   }) => {
     await liveCrm(page)
-    await expect(header(page).getByTestId("crm-read-only")).toHaveText("Read-only · edits here aren't saved")
+    // Overview, Cases and Accounts say where their own edits live; the header note is not shown there.
+    await expect(header(page).getByTestId("crm-read-only")).toHaveCount(0)
     await expect(clearButton(page)).toHaveCount(0)
 
-    await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    await expect(page).toHaveURL(/\/crm\/cases$/)
-    await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
-    await expect(page).toHaveURL(new RegExp(`/crm/cases/${ROSTER.id}$`))
-    await expect(page.getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
-
-    await page.getByRole("button", { name: "Waiting on customer" }).click()
-    await expect(page.getByText(/Status changed to Waiting on customer/)).toBeVisible()
-    await page.getByRole("combobox", { name: "Priority" }).click()
-    await page.getByRole("option", { name: "Urgent", exact: true }).click()
-    await expect(page.getByRole("combobox", { name: "Priority" })).toContainText("Urgent")
-    await page.getByLabel("Internal note").fill("Asked Dana for the CSV.")
-    await page.getByRole("button", { name: "Add note", exact: true }).click()
-    await expect(page.getByText("Asked Dana for the CSV.")).toBeVisible()
+    // Old case detail UI (status path, priority, notes) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
     await crmNav(page).getByRole("link", { name: /Triage/ }).click()
+    await expect(header(page).getByTestId("crm-read-only")).toHaveText("Read-only · edits here aren't saved")
     const sam = triageCards(page).filter({ hasText: LIVE_TRIAGE.sam })
     await sam.getByRole("button", { name: "Promote to case", exact: true }).click()
     await expect(page.getByText(LIVE_TRIAGE.sam)).toHaveCount(0)
@@ -401,46 +397,33 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await page.reload()
     await expect(source(page)).toHaveText("Live from Gmail")
     await expect(triageCards(page).filter({ hasText: LIVE_TRIAGE.sam })).toBeVisible()
-    await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
-    await expect(page.getByRole("combobox", { name: "Priority" })).toContainText("High")
-    await expect(page.getByText("Asked Dana for the CSV.")).toHaveCount(0)
     expect(await stored(page)).toBeNull()
   })
 
-  test("cmd-K searches cases and contacts", async ({ page }) => {
+  test("cmd-K searches contacts and cases; a case opens in the Cases panel", async ({ page }) => {
     await liveCrm(page)
     await page.keyboard.press("Control+k")
     const palette = dialog(page, "Search CRM")
     await expect(palette).toBeVisible()
-    await palette.getByLabel("Search cases and contacts").fill(`#${ROSTER.caseNumber}`)
-    await expect(palette.getByText(LIVE_CASES.roster)).toBeVisible()
-    await palette.getByRole("button", { name: new RegExp(LIVE_CASES.roster) }).click()
-    await expect(page).toHaveURL(new RegExp(`/crm/cases/${ROSTER.id}$`))
-
-    await page.keyboard.press("Control+k")
     await palette.getByLabel("Search cases and contacts").fill("ortiz")
     await palette.getByRole("button", { name: new RegExp(LIVE_PEOPLE.dana.email) }).click()
     await expect(page).toHaveURL(new RegExp(`/crm/contacts/${DANA.id}$`))
+
+    await page.keyboard.press("Control+k")
+    await expect(palette).toBeVisible()
+    await palette.getByLabel("Search cases and contacts").fill(`#${ROSTER.caseNumber}`)
+    await expect(palette.getByText(LIVE_CASES.roster)).toBeVisible()
+    await palette.getByRole("button", { name: new RegExp(LIVE_CASES.roster) }).click()
+    // The old case route redirects to the Cases panel.
+    await expect(page).toHaveURL(new RegExp(`/crm/cases\\?case=${ROSTER.id}$`))
+    await expect(page.getByTestId("case-panel")).toContainText(LIVE_CASES.roster)
   })
 
-  test("delete a case and a contact: Keep keeps it, Delete removes it; an empty inbox shows every empty state", async ({
+  // Old case detail UI (Delete case and its confirm) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+  test("delete a contact: Keep keeps them, Delete removes them; an empty inbox shows every empty state", async ({
     page,
   }) => {
     await liveCrm(page)
-    await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-    await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
-    await page.getByRole("button", { name: /Delete case/ }).click()
-    const caseConfirm = dialog(page, "Delete this case?")
-    await expect(caseConfirm).toBeVisible()
-    await caseConfirm.getByRole("button", { name: "Keep it", exact: true }).click()
-    await expect(caseConfirm).toBeHidden()
-    await expect(page.getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
-
-    await page.getByRole("button", { name: /Delete case/ }).click()
-    await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(page.getByRole("status", { name: "Case not found" })).toBeVisible()
-
     const dana = LIVE_PEOPLE.dana.name
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
     await page.getByRole("link", { name: new RegExp(dana) }).click()
@@ -459,13 +442,11 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     expect(await stored(page)).toBeNull()
 
     // An inbox with nothing in it: every screen's empty state.
-    await page.unroute("**/api/crm/gmail")
+    await page.unroute(GMAIL_ROUTE)
     await mockGmail(page, emptyLiveSummary())
     await page.goto("/crm/cases")
     await expect(source(page)).toHaveText("Live from Gmail")
-    await expect(page.getByRole("status", { name: "No cases" })).toContainText(
-      "No conversations the inbox has replied to yet. Promote a triage thread to open a case."
-    )
+    await expect(page.getByRole("main").getByText(NO_CASES, { exact: true })).toBeVisible()
     await page.goto("/crm/contacts")
     await expect(page.getByRole("status", { name: "No contacts" })).toContainText(
       "Nobody the inbox has replied to yet. Add someone by hand, or promote a triage thread."
@@ -473,14 +454,13 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await page.goto("/crm/triage")
     await expect(page.getByRole("status", { name: "Triage is clear" })).toBeVisible()
     await page.goto("/crm")
-    await expect(page.getByRole("status", { name: "No CRM data" })).toContainText(
-      "No conversations in info@chlkapp.com in the last 90 days."
-    )
+    await expect(page.getByRole("main").getByText("No cases waiting on you", { exact: true })).toBeVisible()
+    await expect(page.getByRole("main").getByText("No recent activity", { exact: true })).toBeVisible()
     await expect(gmailPanel(page)).toHaveCount(0)
     expect(await stored(page)).toBeNull()
   })
 
-  test("contrast is ≥ 4.5:1 in light and dark on Contacts, triage, case detail, and Overview", async ({ page }) => {
+  test("contrast is ≥ 4.5:1 in light and dark on Contacts, triage, and the Overview banner", async ({ page }) => {
     await liveCrm(page, "/crm", withPlans(liveGmailSummary(Date.now())))
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
@@ -503,27 +483,11 @@ test.describe("CRM, Gmail connected (mocked)", () => {
         await expectReadable(card, `${theme}/triage card`, expect)
       }
 
-      await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-      await expect(page.getByRole("table", { name: "Cases" }).locator("tbody tr")).toHaveCount(LIVE.data.cases.length)
-      for (const pill of await page.getByTestId("status-pill").all()) {
-        await expectReadable(pill, `${theme}/status`, expect)
-      }
-      for (const pill of await page.getByTestId("priority-pill").all()) {
-        await expectReadable(pill, `${theme}/priority`, expect)
-      }
-      await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
-      await expectReadable(page.getByRole("group", { name: "Case status" }), `${theme}/status path`, expect)
-      // A note on the case, so the note card has something to measure (live
-      // edits belong to this page, so it is added here, in each theme).
-      await page.getByLabel("Internal note").fill("Asked Dana for the CSV.")
-      await page.getByRole("button", { name: "Add note", exact: true }).click()
-      await expect(page.getByText("Asked Dana for the CSV.")).toBeVisible()
-      const noteCard = page.getByText("Asked Dana for the CSV.").locator("..")
-      await expectReadable(noteCard, `${theme}/note card`, expect)
+      // Old Cases pills, case detail status path and note card removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
       await crmNav(page).getByRole("link", { name: "Overview", exact: true }).click()
       await expectReadable(page.getByRole("link", { name: /from unknown senders/ }), `${theme}/banner`, expect)
-      await expectReadable(page.getByRole("link", { name: "1 New" }), `${theme}/stat`, expect)
+      // Old Overview "1 New" stat removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
     }
     await setTheme(page, "light")
   })

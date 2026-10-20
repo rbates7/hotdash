@@ -21,32 +21,49 @@ export const CRM_CONNECTING_LEDE = "Conversations, contacts, and triage"
 /** Mirrored from `@/components/crm/gmail-not-connected`. */
 export const GMAIL_HINT =
   "Connect the support inbox (Gmail) in Settings › Connected data and its conversations show here."
+/** One panel per screen; Overview has two (`OVERVIEW_PANEL_TITLES`). */
 export const GMAIL_PANEL_TITLES = {
-  overview: "Support inbox conversations",
   cases: "Cases from the support inbox",
+  accounts: "Accounts from the support inbox",
   contacts: "People who email the support inbox",
   triage: "Unknown senders from the support inbox",
 } as const
 
-export type CrmScreen = keyof typeof GMAIL_PANEL_TITLES
+/** The rebuilt Overview's two list cards, each its own panel (in DOM order). */
+export const OVERVIEW_PANEL_TITLES = ["Cases waiting on you", "Recent support inbox activity"] as const
 
-/** The Not connected panel a CRM screen shows while Gmail is not connected. */
+export type CrmScreen = "overview" | keyof typeof GMAIL_PANEL_TITLES
+
+/** The Not connected panel(s) a CRM screen shows while Gmail is not connected. */
 export function gmailPanel(page: Page) {
   return page.getByRole("main").getByTestId("crm-not-connected")
 }
 
-/** The panel for `screen`: its title, the hint and the Not connected badge. */
+/**
+ * The panel(s) for `screen`: title, the hint and the Not connected badge.
+ * Returns the (first) panel.
+ */
 export async function expectGmailPanel(page: Page, screen: CrmScreen) {
-  const panel = gmailPanel(page)
-  await expect(panel).toHaveCount(1)
-  await expect(panel).toBeVisible()
-  await expect(panel).toHaveAttribute("data-source", "not_connected")
-  await expect(panel).toHaveAccessibleName(`${GMAIL_PANEL_TITLES[screen]}: not connected`)
-  await expect(panel.getByTestId("not-connected")).toHaveText("Not connected")
-  await expect(panel.getByText(GMAIL_PANEL_TITLES[screen], { exact: true })).toBeVisible()
-  await expect(panel.getByText(GMAIL_HINT, { exact: true })).toBeVisible()
-  return panel
+  const titles: readonly string[] = screen === "overview" ? OVERVIEW_PANEL_TITLES : [GMAIL_PANEL_TITLES[screen]]
+  const panels = gmailPanel(page)
+  await expect(panels).toHaveCount(titles.length)
+  for (const [i, title] of titles.entries()) {
+    const panel = panels.nth(i)
+    await expect(panel).toBeVisible()
+    await expect(panel).toHaveAttribute("data-source", "not_connected")
+    await expect(panel).toHaveAccessibleName(`${title}: not connected`)
+    await expect(panel.getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(panel.getByText(title, { exact: true })).toBeVisible()
+    await expect(panel.getByText(GMAIL_HINT, { exact: true })).toBeVisible()
+  }
+  return panels.first()
 }
+
+/** Mirrored from `NO_CASES` in `@/components/crm/cases-screen`: Cases, connected with no cases. */
+export const NO_CASES = "No cases yet. Conversations from the support inbox show here."
+
+/** The fixture inbox's Overview "Open" tile: three cases not closed (roster, invoice, assistants). */
+export const LIVE_OPEN_TILE = "3 Open"
 
 /* --------------------------------------------------- the fixture inbox */
 

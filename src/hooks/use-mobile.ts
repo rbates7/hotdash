@@ -45,6 +45,13 @@ export function useIsTablet() {
   return useMediaQuery(TABLET_QUERY)
 }
 
+export const DESKTOP_QUERY = `(min-width: ${TABLET_MAX_WIDTH + 1}px)`
+
+/** ≥1280: the CRM case panel sits beside the list instead of in a sheet. */
+export function useIsDesktop() {
+  return useMediaQuery(DESKTOP_QUERY)
+}
+
 export function useIsTabletPortrait() {
   return useMediaQuery(TABLET_PORTRAIT_QUERY)
 }

@@ -11,7 +11,6 @@ import {
   OWN_ID_BASE,
   expectGmailPanel,
   gmailPanel,
-  keepCases,
   liveCase,
   liveContact,
   openWithOwnContacts,
@@ -20,14 +19,7 @@ import {
 } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 import { NOTE, persistenceNote } from "./support/persistence"
-import {
-  expectFocusTrapped,
-  expectNoOverflowX,
-  expectScrollLock,
-  pageOverflowX,
-  sheetOverlay,
-  waitForHydration,
-} from "./support/shell"
+import { expectFocusTrapped, expectNoOverflowX, pageOverflowX, waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
 /**
@@ -36,8 +28,9 @@ import { setTheme } from "./support/theme"
  * keeps ≤5-column tables with one "…" per row; desktop (≥1280) is unchanged
  * apart from the pressed status filter. There is no sample: contacts and
  * the header's Clear my entries are measured with the founder's own
- * contacts saved (Gmail not connected, the CI state); cases, case detail
- * and triage with the fixture inbox from a mocked /api/crm/gmail.
+ * contacts saved (Gmail not connected, the CI state); cases, the case panel
+ * and triage with the fixture inbox from a mocked /api/crm/gmail. The
+ * rebuilt Cases screen's own layout is covered by e2e/crm-rebuild.spec.ts.
  */
 
 const VIEWPORTS = {
@@ -55,10 +48,8 @@ const TOUCH_SIZES = [
 
 const LIVE = liveGmailSummary(Date.now())
 const ROSTER = liveCase(LIVE, LIVE_CASES.roster)
-const INVOICE = liveCase(LIVE, LIVE_CASES.invoice)
 const DANA = liveContact(LIVE, LIVE_PEOPLE.dana.email)
 const ROSTER_SUBJECT = LIVE_CASES.roster
-const ROSTER_MENU = `More actions for #${ROSTER.caseNumber} ${ROSTER_SUBJECT}`
 const DANA_NAME = LIVE_PEOPLE.dana.name
 
 /** The founder's own contacts (OWN_CONTACTS): sorted by name, Lee Morgan comes before Pat Reyes. */
@@ -72,7 +63,8 @@ const NOT_CONNECTED_ROUTES = ["/crm", "/crm/cases", "/crm/contacts", `/crm/conta
 const LIVE_ROUTES = [
   "/crm",
   "/crm/cases",
-  `/crm/cases/${ROSTER.id}`,
+  // The old case page redirects here: the case panel (a sheet below 1280).
+  `/crm/cases?case=${ROSTER.id}`,
   "/crm/contacts",
   `/crm/contacts/${DANA.id}`,
   "/crm/triage",
@@ -83,7 +75,7 @@ const header = (page: Page) => main(page).locator("header").first()
 const source = (page: Page) => header(page).getByTestId("crm-source")
 const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
-const statusFilter = (page: Page) => page.getByRole("navigation", { name: "Case status filter", exact: true })
+const statusFilter = (page: Page) => main(page).getByRole("group", { name: "Status filter", exact: true })
 const cardList = (page: Page) => main(page).locator("[data-slot='responsive-table']").getByRole("list")
 const cards = (page: Page) => cardList(page).locator("[data-slot='row-collapse']")
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -94,7 +86,6 @@ const sheetActions = (page: Page, title: string, group: string) =>
   sheet(page, title).getByRole("group", { name: group, exact: true }).locator("a, button")
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const table = (page: Page, name: string) => main(page).getByRole("table", { name, exact: true })
-const listHeading = (page: Page, name: string) => main(page).getByRole("heading", { level: 2, name, exact: true })
 
 /** Go to `path` keeping storage and routes, and wait for the source to answer and the rows to load. */
 async function visit(page: Page, path: string) {
@@ -181,73 +172,6 @@ async function expectDialog44(d: Locator, label: string, { close = true } = {}) 
   await expect(d, `${label} fits the screen`).toBeInViewport({ ratio: 1 })
 }
 
-/** Background contrast between two controls, each composited over its painted ancestors. */
-async function backgroundContrast(a: Locator, b: Locator) {
-  return a.evaluate((elA, elB) => {
-    // Any CSS colour (rgb, lab, oklch…) to sRGB through a 1×1 canvas.
-    const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", {
-      willReadFrequently: true,
-    })!
-    const parse = (c: string) => {
-      ctx.clearRect(0, 0, 1, 1)
-      ctx.fillStyle = "rgba(0, 0, 0, 0)"
-      ctx.fillStyle = c
-      ctx.fillRect(0, 0, 1, 1)
-      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
-      return { r, g, b, a: a / 255 }
-    }
-    const over = (top: ReturnType<typeof parse>, under: { r: number; g: number; b: number }) => ({
-      r: top.r * top.a + under.r * (1 - top.a),
-      g: top.g * top.a + under.g * (1 - top.a),
-      b: top.b * top.a + under.b * (1 - top.a),
-    })
-    const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
-      const f = (c: number) => {
-        const v = c / 255
-        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
-      }
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
-    }
-    const painted = (el: Element) => {
-      const layers: ReturnType<typeof parse>[] = []
-      let node: Element | null = el
-      while (node) {
-        const bg = parse(getComputedStyle(node).backgroundColor)
-        if (bg.a > 0) layers.push(bg)
-        if (bg.a >= 1) break
-        node = node.parentElement
-      }
-      let backdrop = { r: 255, g: 255, b: 255 }
-      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
-      return backdrop
-    }
-    const [l1, l2] = [lum(painted(elA)), lum(painted(elB as Element))].sort((x, y) => y - x)
-    return (l1 + 0.05) / (l2 + 0.05)
-  }, await b.elementHandle())
-}
-
-/**
- * Make a case's detail page (`path`) throw while rendering (its "Opened …"
- * Central date-time), so the CRM error state shows. Init script: applies to
- * every later navigation on this page.
- */
-async function breakCaseDetail(page: Page, path: string) {
-  await page.addInitScript((broken) => {
-    const proto = Intl.DateTimeFormat.prototype
-    const format = Object.getOwnPropertyDescriptor(proto, "format")!
-    Object.defineProperty(proto, "format", {
-      ...format,
-      get(this: Intl.DateTimeFormat) {
-        const o = this.resolvedOptions()
-        if (location.pathname === broken && o.timeZone === "America/Chicago" && o.year && o.minute) {
-          throw new Error("e2e: CRM render failure")
-        }
-        return format.get!.call(this)
-      },
-    })
-  }, path)
-}
-
 /* --------------------------------------------------------- every route */
 
 for (const [name, viewport] of Object.entries(VIEWPORTS)) {
@@ -285,11 +209,11 @@ test.describe("44px sweep (negative control)", () => {
     await live(page)
     expect((await smallTargets(main(page))).small).toEqual([])
     await statusFilter(page)
-      .getByRole("link", { name: "Open", exact: true })
+      .getByRole("button", { name: "Open", exact: true })
       .evaluate((el) => el.setAttribute("style", "min-height: 0 !important; height: 43px !important"))
     const { small } = await smallTargets(main(page))
     expect(small).toHaveLength(1)
-    expect(small[0]).toMatch(/^a "Open" \d+\.\d×43\.0$/)
+    expect(small[0]).toMatch(/^button "Open" \d+\.\d×43\.0$/)
   })
 })
 
@@ -318,49 +242,7 @@ test.describe("responsive CRM (phone 390)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
-  test("Cases (live): tabs, search and filter strip per Deke 8:2; cards instead of the table", async ({ page }) => {
-    // Ben without an organization, so his card shows his email instead.
-    const inbox = liveGmailSummary(Date.now())
-    const noOrgBen: LiveGmailSummary = {
-      ...inbox,
-      data: {
-        ...inbox.data,
-        contacts: inbox.data.contacts.map((c) => (c.email === LIVE_PEOPLE.ben.email ? { ...c, organizationId: null } : c)),
-      },
-    }
-    await live(page, "/crm/cases", noOrgBen)
-    // Header: the read-only note sits under the lede, where the saved-edits note would.
-    const lede = (await header(page).locator("p").first().boundingBox())!
-    expect((await header(page).getByTestId("crm-read-only").boundingBox())!.y).toBeGreaterThan(lede.y + lede.height)
-
-    // Section tabs: one full-width row of equal 44px segments.
-    const navBox = (await crmNav(page).boundingBox())!
-    const mainBox = (await listHeading(page, "Cases").locator("..").boundingBox())!
-    expect(Math.abs(navBox.width - mainBox.width)).toBeLessThanOrEqual(1)
-    for (const tab of await crmNav(page).getByRole("link").all()) await expectTapTarget(tab, "section tab")
-
-    // Full-width 44px search above one strip holding status + priority, which scrolls, not the page.
-    const input = main(page).getByRole("textbox", { name: "Search cases" })
-    await expect(input).toHaveCSS("height", "44px")
-    expect(Math.abs((await input.boundingBox())!.width - mainBox.width)).toBeLessThanOrEqual(1)
-    const strip = main(page).locator("[data-slot='cases-filter-strip']")
-    expect((await strip.boundingBox())!.y).toBeGreaterThan((await input.boundingBox())!.y)
-    await expect(strip.getByRole("combobox", { name: "Priority filter" })).toHaveCount(1)
-    expect(await strip.evaluate((el) => el.scrollWidth > el.clientWidth), "strip scrolls sideways").toBe(true)
-    await strip.evaluate((el) => el.scrollTo({ left: el.scrollWidth }))
-    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
-
-    // Cards (Deke 7:47): Subject, Status, "#N · Contact · Org", "Priority priority · last activity".
-    await expect(cards(page)).toHaveCount(LIVE.data.cases.length)
-    await expect(table(page, "Cases")).toBeHidden()
-    const roster = card(page, ROSTER_SUBJECT)
-    await expect(roster.getByTestId("status-pill")).toHaveText("Open")
-    await expect(roster).toContainText(`#${ROSTER.caseNumber} · ${DANA_NAME} · example.org`)
-    await expect(roster).toContainText(/High priority · \d+[mhd] ago/)
-    await expect(cardList(page).getByTestId("sample-data-tag")).toHaveCount(0)
-    await expect(card(page, LIVE_CASES.refund)).toContainText(`${LIVE_PEOPLE.ben.name} · ${LIVE_PEOPLE.ben.email}`)
-    expect((await roster.boundingBox())!.height).toBeGreaterThanOrEqual(64)
-  })
+  // Old Cases phone UI (full-width segmented tabs, filter strip, RowCollapse case cards) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
   test("Contacts: the panel, then cards with Name, Plan, Email, 'Organization · N open cases'", async ({ page }) => {
     await own(page)
@@ -382,88 +264,7 @@ test.describe("responsive CRM (phone 390)", () => {
     await expect(card(page, DANA_NAME)).toContainText(/example\.org · 2 open cases/)
   })
 
-  test("the Cases sheet: summary, 48px actions, ×/backdrop/Escape close, focus trapped and returned, scroll locked", async ({ page }) => {
-    await live(page)
-    await card(page, ROSTER_SUBJECT).click()
-    const s = sheet(page, ROSTER_SUBJECT)
-    await expect(s).toBeVisible()
-    await expect(s).toHaveAttribute("data-side", "bottom")
-    await expect(s.getByTestId("status-pill")).toHaveText("Open")
-    await expect(s).toContainText(`#${ROSTER.caseNumber} · ${DANA_NAME} · example.org`)
-    await expect(s).toContainText(/High priority · /)
-    const actions = sheetActions(page, ROSTER_SUBJECT, "Case actions")
-    await expect(actions).toHaveText(["Open case", "Delete case"])
-    for (const action of await actions.all()) expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(48)
-    await settle(s)
-    await expectAllTargets44(s, "390 case sheet")
-    await expectScrollLock(page, true)
-    await expectFocusTrapped(page, s)
-
-    // The stock ×, a 44×44 hit clear of the title.
-    const close = s.getByRole("button", { name: "Close", exact: true })
-    const box = (await close.boundingBox())!
-    expect(Math.round(box.width)).toBe(44)
-    expect(Math.round(box.height)).toBe(44)
-    const titleBox = (await s.getByRole("heading", { name: ROSTER_SUBJECT }).boundingBox())!
-    expect(titleBox.x + titleBox.width, "title clear of the ×").toBeLessThanOrEqual(box.x)
-    await close.click()
-    await expect(s).toBeHidden()
-    await expect(card(page, ROSTER_SUBJECT)).toBeFocused()
-    await expectScrollLock(page, false)
-
-    // Backdrop tap.
-    await card(page, ROSTER_SUBJECT).click()
-    await expect(s).toBeVisible()
-    await sheetOverlay(page).click({ position: { x: 195, y: 40 } })
-    await expect(s).toBeHidden()
-    await expect(card(page, ROSTER_SUBJECT)).toBeFocused()
-    await expectScrollLock(page, false)
-
-    // Escape.
-    await card(page, ROSTER_SUBJECT).click()
-    await expect(s).toBeVisible()
-    await page.keyboard.press("Escape")
-    await expect(s).toBeHidden()
-    await expect(card(page, ROSTER_SUBJECT)).toBeFocused()
-
-    // Open case → the detail page, where status, priority and notes live.
-    await card(page, ROSTER_SUBJECT).click()
-    await sheetActions(page, ROSTER_SUBJECT, "Case actions").filter({ hasText: "Open case" }).click()
-    await expect(page).toHaveURL(new RegExp(`/crm/cases/${ROSTER.id}$`))
-    await expect(main(page).getByRole("heading", { level: 2, name: ROSTER_SUBJECT })).toBeVisible()
-  })
-
-  test("Delete from the Cases sheet: focus moves to the card now in its place, then to the heading", async ({ page }) => {
-    await live(page)
-    // evaluateAll does not auto-wait: wait for the inbox's list before taking
-    // the index of the card to delete.
-    await expect(cards(page)).toHaveCount(LIVE.data.cases.length)
-    const titles = await cards(page).evaluateAll((els) => els.map((el) => el.textContent ?? ""))
-    const i = titles.findIndex((t) => t.startsWith(ROSTER_SUBJECT))
-    expect(i, "the list includes the case to delete").toBeGreaterThanOrEqual(0)
-    const next = titles[i + 1]
-    expect(next, "a card follows it").toBeTruthy()
-    await card(page, ROSTER_SUBJECT).click()
-    await sheetActions(page, ROSTER_SUBJECT, "Case actions").filter({ hasText: "Delete case" }).click()
-    const confirm = dialog(page, "Delete this case?")
-    await expect(confirm).toBeVisible()
-    await expect(sheet(page, ROSTER_SUBJECT)).toBeHidden()
-    await confirm.getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(card(page, ROSTER_SUBJECT)).toHaveCount(0)
-    await expect(cards(page)).toHaveCount(LIVE.data.cases.length - 1)
-    await expect(cards(page).nth(i)).toBeFocused()
-    await expect(cards(page).nth(i)).toHaveText(next!)
-
-    // The last case: focus lands on the list heading.
-    await live(page, "/crm/cases", keepCases(liveGmailSummary(Date.now()), [INVOICE.id]))
-    await expect(cards(page)).toHaveCount(1)
-    await cards(page).first().click()
-    const only = page.getByRole("dialog").filter({ has: page.getByRole("group", { name: "Case actions" }) })
-    await only.getByRole("button", { name: "Delete case" }).click()
-    await dialog(page, "Delete this case?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(main(page).getByRole("status", { name: "No cases" })).toBeVisible()
-    await expect(listHeading(page, "Cases")).toBeFocused()
-  })
+  // Old Cases row sheet (Open case / Delete case, focus after delete) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
   test("the Contacts sheet: Open, Edit (existing form) and Delete (existing confirm); focus returns", async ({ page }) => {
     await own(page)
@@ -510,7 +311,9 @@ test.describe("responsive CRM (phone 390)", () => {
     await expect(table(page, `Cases for ${DANA_NAME}`)).toBeHidden()
     await expect(cards(page)).toHaveCount(2)
     await card(page, ROSTER_SUBJECT).click()
-    await expect(page).toHaveURL(new RegExp(`/crm/cases/${ROSTER.id}$`))
+    // The old case route redirects to the Cases panel (a sheet at 390).
+    await expect(page).toHaveURL(new RegExp(`/crm/cases\\?case=${ROSTER.id}$`))
+    await expect(page.getByTestId("case-panel")).toContainText(ROSTER_SUBJECT)
   })
 })
 
@@ -520,60 +323,7 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
   test.describe(`responsive CRM (${name} ${VIEWPORTS[name].width})`, () => {
     test.use({ viewport: VIEWPORTS[name] })
 
-    test("Cases: ≤5 data columns plus one 44×44 '…' per row; toolbar per Deke 8:665", async ({ page }) => {
-      await live(page)
-      await expect(cardList(page)).toBeHidden()
-      const t = table(page, "Cases")
-      await expect(t.getByRole("columnheader")).toHaveText(["Subject", "Contact", "Status", "Priority", "Actions"])
-      const row = t.getByRole("row", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) })
-      await expect(row.getByText(new RegExp(`^#${ROSTER.caseNumber} · \\d+[mhd] ago$`))).toBeVisible()
-      await expect(t.getByTestId("sample-data-tag")).toHaveCount(0)
-      const menus = t.getByRole("button", { name: /^More actions for / })
-      await expect(menus).toHaveCount(LIVE.data.cases.length)
-      for (const more of await menus.all()) {
-        await more.scrollIntoViewIfNeeded()
-        const b = (await more.boundingBox())!
-        expect(Math.round(b.width)).toBe(44)
-        expect(Math.round(b.height)).toBe(44)
-        // On screen, not scrolled off inside the table.
-        const hit = await page.evaluate(
-          ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label") ?? null,
-          { x: b.x + b.width / 2, y: b.y + b.height / 2 }
-        )
-        expect(hit).toBe(await more.getAttribute("aria-label"))
-      }
-
-      // Toolbar: status segment, priority select, search — all 44 tall, one line.
-      const seg = statusFilter(page).getByRole("link", { name: "All", exact: true })
-      const select = main(page).getByRole("combobox", { name: "Priority filter" })
-      const input = main(page).getByRole("textbox", { name: "Search cases" })
-      const tops = []
-      for (const el of [seg, select, input]) {
-        const b = (await el.boundingBox())!
-        expect(b.height).toBeGreaterThanOrEqual(44)
-        tops.push(Math.round(b.y + b.height / 2))
-      }
-      expect(Math.max(...tops) - Math.min(...tops), "toolbar on one line").toBeLessThanOrEqual(2)
-
-      // The "…" menu: the phone sheet's actions, 44px rows.
-      const more = t.getByRole("button", { name: ROSTER_MENU })
-      await more.click()
-      const menu = page.getByRole("menu")
-      await expect(menu.getByRole("menuitem")).toHaveText(["Open case", "Delete case"])
-      await settle(menu)
-      await expectAllTargets44(menu, `${VIEWPORTS[name].width} case menu`)
-      await menu.getByRole("menuitem", { name: "Delete case" }).click()
-      const confirm = dialog(page, "Delete this case?")
-      await expectDialog44(confirm, `${VIEWPORTS[name].width} delete case`)
-      await confirm.getByRole("button", { name: "Delete", exact: true }).click()
-      await expect(t.getByRole("row", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) })).toHaveCount(0)
-      // Focus moves to the "…" of the row now in its place.
-      await expect(t.getByRole("button", { name: /^More actions for / }).first()).toBeFocused()
-
-      await t.getByRole("button", { name: new RegExp(`^More actions for #${INVOICE.caseNumber} `) }).click()
-      await page.getByRole("menu").getByRole("menuitem", { name: "Open case" }).click()
-      await expect(page).toHaveURL(new RegExp(`/crm/cases/${INVOICE.id}$`))
-    })
+    // Old Cases tablet table ("…" row menus, Delete case, segmented toolbar) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
     test("Contacts: the panel above; Email folds under Name; one 44×44 '…' with Open / Edit / Delete", async ({ page }) => {
       await own(page)
@@ -647,7 +397,7 @@ for (const [size, viewport] of TOUCH_SIZES) {
         await expect(d).toBeHidden()
       }
 
-      // Cases (live): priority filter options; Delete case from the sheet / "…".
+      // Cases (live): priority filter options, then a row's priority picker options.
       await live(page)
       await main(page).getByRole("combobox", { name: "Priority filter" }).click()
       const options = page.getByRole("listbox")
@@ -656,28 +406,14 @@ for (const [size, viewport] of TOUCH_SIZES) {
       await expectAllTargets44(options, `${size} priority filter options`)
       await page.keyboard.press("Escape")
       await expect(options).toBeHidden()
-      if (phone) {
-        await card(page, ROSTER_SUBJECT).click()
-        await sheetActions(page, ROSTER_SUBJECT, "Case actions").filter({ hasText: "Delete case" }).click()
-      } else {
-        await table(page, "Cases").getByRole("button", { name: ROSTER_MENU }).click()
-        await page.getByRole("menu").getByRole("menuitem", { name: "Delete case" }).click()
-      }
-      const delCase = dialog(page, "Delete this case?")
-      await expectDialog44(delCase, `${size} delete case`)
+      // The row's picker (table at 820/1180, card at 390: whichever is on screen).
+      await main(page).getByRole("combobox", { name: `Priority: ${ROSTER_SUBJECT}`, exact: true }).click()
+      await expect(options).toBeVisible()
+      await settle(options)
+      await expectAllTargets44(options, `${size} case priority options`)
       await page.keyboard.press("Escape")
-      await expect(delCase).toBeHidden()
-
-      // Case detail: priority options and the Delete confirm.
-      await visit(page, `/crm/cases/${ROSTER.id}`)
-      await main(page).getByRole("combobox", { name: "Priority" }).click()
-      await expect(page.getByRole("listbox")).toBeVisible()
-      await settle(page.getByRole("listbox"))
-      await expectAllTargets44(page.getByRole("listbox"), `${size} case priority options`)
-      await page.keyboard.press("Escape")
-      await main(page).getByRole("button", { name: `Delete case #${ROSTER.caseNumber}` }).click()
-      await expectDialog44(dialog(page, "Delete this case?"), `${size} detail delete case`)
-      await page.keyboard.press("Escape")
+      await expect(options).toBeHidden()
+      // Old Cases "Delete case" (row sheet / "…" and case detail) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
       // Command palette, with results.
       await header(page).getByRole("button", { name: /^Search/ }).click()
@@ -708,24 +444,7 @@ for (const [size, viewport] of TOUCH_SIZES) {
 
 /* ------------------------------------------------------------- textarea */
 
-for (const [size, viewport] of TOUCH_SIZES) {
-  test.describe(`note composer (${size})`, () => {
-    test.use({ viewport })
-
-    test("multi-line text is never clipped: the field grows", async ({ page }) => {
-      await live(page, `/crm/cases/${ROSTER.id}`)
-      const note = main(page).getByRole("textbox", { name: "Internal note" })
-      const before = (await note.boundingBox())!.height
-      await note.fill(Array.from({ length: 8 }, (_, i) => `Line ${i + 1} of a long internal note`).join("\n"))
-      const { scrollHeight, clientHeight } = await note.evaluate((el) => ({
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight,
-      }))
-      expect(scrollHeight, "no clipped lines").toBeLessThanOrEqual(clientHeight + 1)
-      expect((await note.boundingBox())!.height, "grew with the text").toBeGreaterThan(before)
-    })
-  })
-}
+// Old case detail UI (the note composer) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
 /* ---------------------------------------------------------------- desktop */
 
@@ -745,67 +464,18 @@ test.describe("responsive CRM (desktop 1440)", () => {
     ])
     await expect(main(page).getByRole("button", { name: /^More actions for / })).toHaveCount(0)
     await expect(cardList(page)).toBeHidden()
-
-    // Live: the Cases table, its toolbar and a case.
-    await live(page)
-    await expect(cardList(page)).toBeHidden()
-    const t = table(page, "Cases")
-    await expect(t.getByRole("columnheader")).toHaveText(["#", "Subject", "Contact", "Status", "Priority", "Last activity"])
-    await expect(t.getByRole("button", { name: /^More actions for / })).toHaveCount(0)
-    await expect(t.getByText(new RegExp(`^#${ROSTER.caseNumber} · \\d+[mhd] ago$`))).toBeHidden()
-    // develop's 28px: Nova's unlayered `size-sm` wins over the button's `h-9`.
+    // The shared header and tabs: develop's 28px: Nova's unlayered `size-sm` wins over the button's `h-9`.
     await expect(header(page).getByRole("button", { name: /^Search/ })).toHaveCSS("height", "28px")
     await expect(header(page).getByText("⌘K")).toBeVisible()
-    await expect(main(page).getByRole("textbox", { name: "Search cases" })).toHaveCSS("height", "32px")
-    await expect(main(page).getByRole("combobox", { name: "Priority filter" })).toHaveCSS("height", "28px")
     expect((await crmNav(page).getByRole("link", { name: "Cases", exact: true }).boundingBox())!.height).toBeLessThan(44)
-    expect((await statusFilter(page).getByRole("link", { name: "All", exact: true }).boundingBox())!.height).toBeLessThan(44)
-
-    await visit(page, `/crm/cases/${ROSTER.id}`)
-    // A note, so its Delete is there to measure.
-    await main(page).getByLabel("Internal note").fill("Asked Dana for the CSV.")
-    await main(page).getByRole("button", { name: "Add note", exact: true }).click()
-    await expect(main(page).getByText("Asked Dana for the CSV.")).toBeVisible()
-    await expect(main(page).getByRole("group", { name: "Case status" }).getByRole("button").first()).toHaveCSS("height", "32px")
-    await expect(main(page).getByRole("button", { name: `Delete case #${ROSTER.caseNumber}` })).toHaveCSS("height", "28px")
-    await expect(main(page).getByRole("button", { name: "Delete note" }).first()).toHaveCSS("height", "24px")
-    await main(page).getByRole("button", { name: `Delete case #${ROSTER.caseNumber}` }).click()
-    const confirm = dialog(page, "Delete this case?")
-    await expect(confirm).toBeVisible()
-    await settle(confirm)
-    await expect(confirm.getByRole("button", { name: "Delete", exact: true })).toHaveCSS("height", "32px")
-    await expect(confirm.getByRole("button", { name: "Close", exact: true })).toHaveCSS("height", "28px")
+    // Old desktop Cases table/toolbar and case detail sizes removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
 
 /* ------------------------------------------------------ filter contrast */
 
-for (const theme of ["light", "dark"] as const) {
-  for (const [size, viewport] of [...TOUCH_SIZES, ["1440", VIEWPORTS.desktop]] as const) {
-    test.describe(`CRM status filter pressed contrast (${size} ${theme})`, () => {
-      test.use({ viewport })
-
-      test(`the picked status is ≥3:1 against the rest in ${theme}`, async ({ page }) => {
-        await live(page)
-        await setTheme(page, theme)
-        for (const name of ["All", "Open", "Closed"]) {
-          await statusFilter(page).getByRole("link", { name, exact: true }).click()
-          const pressed = statusFilter(page).locator("[aria-current='page']")
-          await expect(pressed).toHaveText(name)
-          await settle(pressed)
-          const others = statusFilter(page).locator("a:not([aria-current])")
-          expect(await others.count()).toBe(4)
-          for (const other of await others.all()) {
-            const ratio = await backgroundContrast(pressed, other)
-            expect(ratio, `${theme}/${size} ${name} pressed vs ${await other.textContent()} ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
-          }
-          await expectReadable(pressed, `${theme}/${size} ${name} pressed`, expect)
-        }
-      })
-    })
-  }
-}
+// Old Cases status filter (segmented links with aria-current) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
 /* --------------------------------------------------------------- readable */
 
@@ -866,37 +536,10 @@ for (const theme of ["light", "dark"] as const) {
         await page.keyboard.press("Escape")
         await expect(add).toBeHidden()
 
-        // Live: the Cases toolbar, cards / table, the sheet or "…", Delete's confirm.
-        await live(page)
-        await expectReadable(statusFilter(page), `${label}/status filter`, expect)
-        await expectReadable(main(page).getByRole("combobox", { name: "Priority filter" }), `${label}/priority filter`, expect)
-        if (phone) {
-          await expectReadable(cardList(page), `${label}/case cards`, expect)
-          await card(page, ROSTER_SUBJECT).click()
-          const s = sheet(page, ROSTER_SUBJECT)
-          await expect(s).toBeVisible()
-          await settle(s)
-          await expectReadable(s, `${label}/case sheet`, expect)
-          await expectReadable(s.getByRole("button", { name: "Close", exact: true }), `${label}/sheet ×`, expect)
-          await sheetActions(page, ROSTER_SUBJECT, "Case actions").filter({ hasText: "Delete case" }).click()
-        } else {
-          await expectReadable(table(page, "Cases"), `${label}/cases table`, expect)
-          await table(page, "Cases").getByRole("button", { name: ROSTER_MENU }).click()
-          const menu = page.getByRole("menu")
-          await settle(menu)
-          await expectReadable(menu, `${label}/case menu`, expect)
-          await menu.getByRole("menuitem", { name: "Delete case" }).click()
-        }
-        const confirm = dialog(page, "Delete this case?")
-        await expect(confirm).toBeVisible()
-        await settle(confirm)
-        await expectReadable(confirm, `${label}/delete case`, expect)
-        await expectReadable(confirm.getByRole("button", { name: "Delete", exact: true }), `${label}/Delete`, expect)
-        await page.keyboard.press("Escape")
-        await expect(confirm).toBeHidden()
+        // Old Cases toolbar, cards / table, row sheet or "…" and Delete case confirm removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
-        // Triage: the touch-sized More menu (Always ignore is destructive text).
-        await visit(page, "/crm/triage")
+        // Triage (live): the touch-sized More menu (Always ignore is destructive text).
+        await live(page, "/crm/triage")
         await page.locator("[data-slot=triage-card]", { hasText: LIVE_TRIAGE.sam }).getByRole("button", { name: "More actions" }).click()
         const triageMenu = page.getByRole("menu")
         await settle(triageMenu)
@@ -904,15 +547,7 @@ for (const theme of ["light", "dark"] as const) {
         await page.keyboard.press("Escape")
         await expect(triageMenu).toBeHidden()
 
-        // The error state: 44px buttons, readable destructive text.
-        const broken = `/crm/cases/${ROSTER.id}`
-        await breakCaseDetail(page, broken)
-        await page.goto(broken)
-        const alert = main(page).getByRole("alert").filter({ hasText: "CRM couldn’t render" })
-        await expect(alert).toBeVisible()
-        await settle(alert)
-        await expectAllTargets44(alert, `${label}/error state`)
-        await expectReadable(alert, `${label}/error state`, expect)
+        // Old case detail render-failure error state removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
         expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
       })
     })
@@ -1020,55 +655,20 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expectTableFits(page, "Contacts", `${size} Contacts`)
     })
 
-    test("Cases: the renamed contacts (name, and email with no org) wrap; every '…' is reachable", async ({ page }) => {
-      await live(page, "/crm/cases", longNamesInbox())
-      const t = table(page, "Cases")
-      await expect(t).toBeVisible()
-      await expect(t.getByText(LONG_NAME_TEXT, { exact: true })).toHaveCount(2)
-      await expect(t.getByText(LONG_NAME_NO_ORG.firstName, { exact: false })).toBeVisible()
-      await expect(t.getByText(LONG_EMAIL_NO_ORG, { exact: true })).toBeVisible()
-      await expectTableFits(page, "Cases", `${size} Cases`)
-    })
+    // Old Cases tablet table (one "…" per row) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
   })
 }
 
 /* ------------------------- round 2, B2: breadcrumb back keeps your place */
 
 const RETURN_KEY = "hotdash.crm.from-list"
-const HOUR = 60 * 60 * 1000
 
 const scrollY = (page: Page) => page.evaluate(() => window.scrollY)
 const historyLength = (page: Page) => page.evaluate(() => window.history.length)
 const recorded = (page: Page) => page.evaluate((key) => sessionStorage.getItem(key), RETURN_KEY)
-const crumb = (page: Page, list: "Cases" | "Contacts") =>
-  main(page).locator("p", { hasText: new RegExp(`^${list} /`) }).getByRole("link", { name: list, exact: true })
-const contactCrumb = (page: Page) => crumb(page, "Contacts")
-
-/**
- * Twelve more open/high cases on Dana, each an hour older than the last and
- * all older than the roster case (itself open/high), so the filtered phone
- * list scrolls and ends on one of them.
- */
-function manyOpenHighCases(): LiveGmailSummary {
-  const inbox = liveGmailSummary(Date.now())
-  const base = liveCase(inbox, LIVE_CASES.roster)
-  const at = Date.parse(base.lastActivityAt ?? base.createdAt)
-  const extra = Array.from({ length: 12 }, (_, n) => {
-    const i = n + 1
-    const when = new Date(at - i * HOUR).toISOString()
-    return {
-      ...base,
-      id: `case-${100 + i}`,
-      caseNumber: 200 + i,
-      subject: `Scoreboard feed ${i} drops mid-game`,
-      status: "open" as const,
-      priority: "high" as const,
-      lastActivityAt: when,
-      lastInboundAt: when,
-    }
-  })
-  return { ...inbox, data: { ...inbox.data, cases: [...inbox.data.cases, ...extra] } }
-}
+// Contacts only: the old case detail page (and its "Cases /" breadcrumb) is gone.
+const contactCrumb = (page: Page) =>
+  main(page).locator("p", { hasText: /^Contacts \// }).getByRole("link", { name: "Contacts", exact: true })
 
 /** Sixteen Westfield contacts of the founder's own, so `?q=westfield` scrolls on a phone. */
 const WESTFIELD: OwnContact[] = [
@@ -1110,31 +710,7 @@ async function expectPlaceBack(page: Page, before: { y: number; top: number }, l
 test.describe("CRM phone: the breadcrumb takes you back to your place in the list (390)", () => {
   test.use({ viewport: VIEWPORTS.phone })
 
-  test("Cases: from ?status=open&priority=high at the bottom, 'Cases' restores scroll, filters and history", async ({ page }) => {
-    const LIST = "/crm/cases?status=open&priority=high"
-    await live(page, LIST, manyOpenHighCases())
-    await expect(cards(page)).toHaveCount(13)
-    const before = await scrollToBottom(page)
-    expect(before.y, "the filtered list scrolls").toBeGreaterThan(300)
-    const h0 = await historyLength(page)
-
-    await cards(page).last().click()
-    const open = page.getByRole("dialog").getByRole("group", { name: "Case actions" }).getByRole("link", { name: "Open case" })
-    await open.click()
-    await expect(page).toHaveURL(/\/crm\/cases\/case-1\d\d$/)
-    await expect(crumb(page, "Cases")).toBeVisible()
-    expect(await historyLength(page)).toBe(h0 + 1)
-    expect(await recorded(page)).not.toBeNull()
-
-    await crumb(page, "Cases").click()
-    await expect(page).toHaveURL((url) => url.pathname + url.search === LIST)
-    await expect(cards(page)).toHaveCount(13)
-    await expectPlaceBack(page, before, "Cases")
-    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("Open")
-    await expect(main(page).getByRole("combobox", { name: "Priority filter" })).toHaveText(/High/)
-    expect(await historyLength(page), "Back, not a new entry").toBe(h0 + 1)
-    expect(await recorded(page)).toBeNull()
-  })
+  // Old case detail breadcrumb back to a filtered Cases list removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
   test("Contacts: from ?q=westfield at the bottom, 'Contacts' restores scroll, search and history", async ({ page }) => {
     const LIST = "/crm/contacts?q=westfield"
@@ -1162,22 +738,11 @@ test.describe("CRM phone: the breadcrumb takes you back to your place in the lis
   })
 
   test("deep links (and stale records) keep the plain link to the unfiltered list", async ({ page }) => {
-    // Cases: record a way back for one case, then land on another by URL.
-    await live(page, "/crm/cases?status=open&priority=high", manyOpenHighCases())
-    await cards(page).first().click()
-    await page.getByRole("dialog").getByRole("group", { name: "Case actions" }).getByRole("link", { name: "Open case" }).click()
-    await expect(page).toHaveURL(/\/crm\/cases\/case-/)
-    await visit(page, `/crm/cases/${INVOICE.id}`)
-    await expect.poll(() => recorded(page)).toBeNull()
-    let h = await historyLength(page)
-    await crumb(page, "Cases").click()
-    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases")
-    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("All")
-    expect(await historyLength(page), "a plain link adds an entry").toBe(h + 1)
+    // Old Cases half (case detail breadcrumb) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
     // Contacts: straight to a contact by URL.
-    await visit(page, `/crm/contacts/${DANA.id}`)
-    h = await historyLength(page)
+    await live(page, `/crm/contacts/${DANA.id}`)
+    let h = await historyLength(page)
     await contactCrumb(page).click()
     await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/contacts")
     await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveValue("")
@@ -1203,17 +768,9 @@ test.describe("CRM phone: the breadcrumb takes you back to your place in the lis
 test.describe("CRM desktop: the breadcrumb keeps the list's filters (1440)", () => {
   test.use({ viewport: VIEWPORTS.desktop })
 
-  test("Cases and Contacts round-trip by history from a filtered list; deep links stay plain", async ({ page }) => {
-    await live(page, "/crm/cases?status=open&priority=high")
-    const h0 = await historyLength(page)
-    await table(page, "Cases").getByRole("link", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) }).click()
-    await expect(page).toHaveURL(new RegExp(`/crm/cases/${ROSTER.id}$`))
-    await crumb(page, "Cases").click()
-    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases?status=open&priority=high")
-    await expect(statusFilter(page).locator("[aria-current='page']")).toHaveText("Open")
-    expect(await historyLength(page)).toBe(h0 + 1)
-
-    await visit(page, "/crm/contacts?q=ortiz")
+  test("Contacts round-trips by history from a searched list", async ({ page }) => {
+    // Old Cases half (case detail breadcrumb, deep link) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+    await live(page, "/crm/contacts?q=ortiz")
     const h1 = await historyLength(page)
     await table(page, "Contacts").getByRole("link", { name: new RegExp(DANA_NAME) }).click()
     await expect(page).toHaveURL(new RegExp(`/crm/contacts/${DANA.id}$`))
@@ -1221,9 +778,5 @@ test.describe("CRM desktop: the breadcrumb keeps the list's filters (1440)", () 
     await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/contacts?q=ortiz")
     await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveValue("ortiz")
     expect(await historyLength(page)).toBe(h1 + 1)
-
-    await visit(page, `/crm/cases/${ROSTER.id}`)
-    await crumb(page, "Cases").click()
-    await expect(page).toHaveURL((url) => url.pathname + url.search === "/crm/cases")
   })
 })

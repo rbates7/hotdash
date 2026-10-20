@@ -7,10 +7,10 @@ import { seedCases, seedContacts, seedMessages, seedNotes, seedOrganizations } f
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
+import { setCrmSummaryForTest } from "@/test/crm"
+import { toCrmSummary } from "@/lib/crm/adapter"
 import { CLEAR_COPY, CLEAR_DESCRIPTION, PERSISTENCE_COPY } from "@/components/persistence-note"
 import { CrmProvider, STORAGE_KEY, initialState, reducer, saveState, type State } from "@/components/crm/crm-store"
-import { CaseDetail } from "@/components/crm/case-detail"
-import { CasesScreen } from "@/components/crm/cases-screen"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
 import { CrmShell, LEDE } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
@@ -61,29 +61,32 @@ beforeEach(() => {
 })
 
 describe("CRM overview", () => {
-  it("Gmail not connected: the Not connected panel, no counts, no sample conversations", () => {
+  it("Gmail not connected: the Not connected panels, no counts, no sample conversations", () => {
     saveOldSample()
     renderCrm(<OverviewScreen />)
-    expect(panel()).toHaveTextContent(GMAIL_PANEL_TITLES.overview)
-    expect(panel()).toHaveTextContent(GMAIL_HINT)
+    const panels = screen.getAllByTestId("crm-not-connected")
+    expect(panels).toHaveLength(2)
+    for (const p of panels) expect(p).toHaveTextContent(GMAIL_HINT)
+    for (const count of screen.getAllByTestId("crm-count")) expect(count).toHaveTextContent("Not connected")
     expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /conversations from unknown senders/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/contacts you added/)).not.toBeInTheDocument()
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
-  it("Gmail not connected with a contact the founder added: the panel plus a link to them", () => {
+  it("Gmail not connected with a contact the founder added: the panels plus a link to them", () => {
     saveMine()
     renderCrm(<OverviewScreen />)
-    expect(panel()).toBeInTheDocument()
+    expect(screen.getAllByTestId("crm-not-connected").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "1 contact you added" })).toHaveAttribute("href", "/crm/contacts")
   })
 
   it("live: the inbox's counts, triage banner and conversations", () => {
     setGmailSummaryForTest(LIVE)
+    setCrmSummaryForTest(toCrmSummary(LIVE, NOW))
     renderCrm(<OverviewScreen />)
     expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
-    expect(screen.getByText(/3 contacts · 3 open conversations/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "3 Open" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /2 conversations from unknown senders/ })).toBeInTheDocument()
     expect(screen.getAllByText("Roster import fails on a CSV with accents").length).toBeGreaterThan(0)
     expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
@@ -139,44 +142,7 @@ describe("CRM shell", () => {
   })
 })
 
-describe("Cases", () => {
-  it("Gmail not connected: the heading and the panel, no table, even with an old sample copy saved", () => {
-    saveOldSample()
-    renderCrm(<CasesScreen />)
-    expect(screen.getByRole("heading", { level: 2, name: "Cases" })).toBeInTheDocument()
-    expect(panel()).toHaveTextContent(GMAIL_PANEL_TITLES.cases)
-    expect(screen.queryByRole("table", { name: "Cases" })).not.toBeInTheDocument()
-    expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
-  })
-
-  it("live: lists the inbox's cases with no sample tags", () => {
-    setGmailSummaryForTest(LIVE)
-    renderCrm(<CasesScreen />)
-    const table = screen.getByRole("table", { name: "Cases" })
-    expect(within(table).getAllByRole("row")).toHaveLength(LIVE.data.cases.length + 1)
-    expect(within(table).getByText("Roster import fails on a CSV with accents")).toBeInTheDocument()
-    expect(within(table).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
-  })
-
-  it("live: opens a case, changes status and priority, and adds a note", async () => {
-    const user = userEvent.setup()
-    setGmailSummaryForTest(LIVE)
-    const roster = LIVE.data.cases.find((c) => c.subject === "Roster import fails on a CSV with accents")!
-    renderCrm(<CaseDetail caseId={roster.id} />)
-    expect(screen.getByRole("heading", { level: 2, name: /Roster import fails/ })).toBeInTheDocument()
-    expect(screen.getByRole("group", { name: "Case status" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Waiting on customer" }))
-    expect(screen.getByText(/Status changed to Waiting on customer/)).toBeInTheDocument()
-    await user.click(screen.getByRole("combobox", { name: "Priority" }))
-    await user.click(await screen.findByRole("option", { name: "Urgent" }))
-    expect(screen.getByRole("combobox", { name: "Priority" })).toHaveTextContent("Urgent")
-    await user.type(screen.getByLabelText("Internal note"), "Called Dana back")
-    await user.click(screen.getByRole("button", { name: "Add note" }))
-    expect(screen.getByText("Called Dana back")).toBeInTheDocument()
-    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-  })
-})
+// Cases and the case panel: cases-screen.test.tsx (rebuilt on useCrmData).
 
 describe("Contacts", () => {
   it("Gmail not connected: the panel above an empty list; a contact added by hand lists, untagged, and is saved", async () => {
