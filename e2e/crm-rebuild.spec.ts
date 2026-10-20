@@ -348,7 +348,8 @@ test.describe("phone (390)", () => {
     test(`${path} never scrolls sideways`, async ({ page }) => {
       await mockGmail(page, LIVE)
       await open(page, path)
-      await expect(liveRegion(page)).not.toContainText("Connecting")
+      // Triage and Contacts have no live region; wait for the rows to replace "Connecting…" instead.
+      await expect(main(page)).not.toContainText("Connecting")
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
     })
