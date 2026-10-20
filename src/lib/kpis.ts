@@ -15,12 +15,10 @@ import {
   formatMetricValue,
   trendFor,
   valuationFromArr,
-  type ChurnedSubscriber,
   type Expense,
   type MetricDef,
   type MetricId,
   type MetricSnapshot,
-  type NewSubscriber,
 } from "@/lib/metrics"
 
 /**
@@ -147,16 +145,17 @@ export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
 
 /* ------------------------------------------------- derived from the seed */
 
-/** Net adds this window: the sign-ups table less the churn table. */
-export function netSubscribers(today: IsoDay | Date) {
-  return seedNewSubscribers(today).length - seedChurnedSubscribers(today).length
+/** Net adds this window: the sign-up count less the churn count. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function netSubscribers(_today: IsoDay | Date) {
+  return SAMPLE_NEW_SUBSCRIBERS - SAMPLE_CHURNED_SUBSCRIBERS
 }
 
-/** Churn this window: the churn table over last window's subscriber count, in %. */
+/** Churn this window: the churn count over last window's subscriber count, in %. */
 export function churnRate(today: IsoDay | Date) {
   const current = SERIES.subscribers[SERIES.subscribers.length - 1]
   const previous = current - netSubscribers(today)
-  return (seedChurnedSubscribers(today).length / previous) * 100
+  return (SAMPLE_CHURNED_SUBSCRIBERS / previous) * 100
 }
 
 /**
@@ -284,31 +283,13 @@ export const SEED_EXPENSE_IDS: ReadonlySet<string> = new Set(seedExpenses(MOCK_D
 
 /* ---------------------------------------------------------- subscribers */
 
-/** Eight sign-ups, newest first, all inside the period. */
-export function seedNewSubscribers(today: IsoDay | Date): NewSubscriber[] {
-  const d = (offset: number) => addDays(today, offset)
-  return [
-    { id: "ns-1", name: "Alisha Patel", email: "apatel@example.com", plan: "Monthly", signupDate: d(-3) },
-    { id: "ns-2", name: "Jamal Reeves", email: "jreeves@example.com", plan: "Staff", signupDate: d(-10) },
-    { id: "ns-3", name: "Priya Shah", email: "priya.shah@example.org", plan: "Annual", signupDate: d(-15) },
-    { id: "ns-4", name: "Marcus Hale", email: "mhale@example.org", plan: "Annual", signupDate: d(-18) },
-    { id: "ns-5", name: "Colin Brooks", email: "cbrooks@example.com", plan: "Monthly", signupDate: d(-21) },
-    { id: "ns-6", name: "Denise Okonkwo", email: "denise.o@example.com", plan: "Monthly", signupDate: d(-24) },
-    { id: "ns-7", name: "Elena Vasquez", email: "elena.v@example.org", plan: "Annual", signupDate: d(-26) },
-    { id: "ns-8", name: "Troy Nguyen", email: "troy.nguyen@example.org", plan: "Annual", signupDate: d(-27) },
-  ]
-}
-
-/** Five churns inside the period; their sign-ups are months earlier, as churn is. */
-export function seedChurnedSubscribers(today: IsoDay | Date): ChurnedSubscriber[] {
-  const d = (offset: number) => addDays(today, offset)
-  return [
-    { id: "cs-1", name: "Brett Holloway", email: "b.holloway@example.org", signupDate: d(-221), churnDate: d(-13), lifetimeValue: 199 },
-    { id: "cs-2", name: "Nina Cho", email: "nina.cho@example.org", signupDate: d(-351), churnDate: d(-19), lifetimeValue: 398 },
-    { id: "cs-3", name: "Derek Fontaine", email: "dfontaine@example.com", signupDate: d(-155), churnDate: d(-23), lifetimeValue: 79 },
-    { id: "cs-4", name: "Tamara Ellis", email: "tellis@example.com", signupDate: d(-287), churnDate: d(-25), lifetimeValue: 199 },
-    { id: "cs-5", name: "Omar Siddiqui", email: "omar.s@example.org", signupDate: d(-200), churnDate: d(-27), lifetimeValue: 398 },
-  ]
-}
+/**
+ * How many sign-ups and churns the invented Metrics window holds. Only the
+ * counts ship: they set the Subscribers delta and the churn rate. The
+ * invented names behind them live in `@/lib/kpis-fixture` (tests only), so
+ * no made-up person is in the browser bundle.
+ */
+export const SAMPLE_NEW_SUBSCRIBERS = 8
+export const SAMPLE_CHURNED_SUBSCRIBERS = 5
 
 export { inPeriod }

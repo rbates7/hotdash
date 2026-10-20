@@ -98,8 +98,8 @@ export function HomeScreen() {
             }
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
-          {/* The Workplace board is a design mock with no live source yet,
-              so its door says Not connected. The Inbox door is live
+          {/* The Workplace board has no live source on Home yet, so its
+              door says Not connected. The Inbox door is live
               (/api/inbox). */}
           <DevBoardDoor preview={null} notConnected />
           <NeedsYouDoor
