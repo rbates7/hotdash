@@ -8,6 +8,7 @@ Store, Stripe, invoice), and the total. Scope: Radcliffe via Simmons, Oct 19 202
 |---|---|
 | Route | `GET /api/subscriptions/paying`: server only, `no-store`, counts only (no names, ids or URL). Never an error body. `maxDuration` is 30 s (see below). |
 | Access | Behind the #64 login gate like every `/api/*` route: **401** without the gate cookie when `DASHBOARD_LOGIN_EMAIL` and `DASHBOARD_GATE_SECRET` are set. Pinned by the opt-in `e2e/dashboard-gate.spec.ts` (throwaway values only). With the gate off, the route is public. |
+| Public number | **Rashad, Oct 19 2026, 10:00 PM CT** (via Piper, relayed by Simmons): showing the paying-coaches number publicly is OK. The route is still **not** exempt from the gate; it is behind login like every other route, and #67 ships no earlier than the gate. |
 | Source | Chlk's Supabase Postgres, `chlk.subscriptions` (schema owner: **Radcliffe**). |
 | Setting | `SUPABASE_READONLY_DB_URL`: the **same** server-only, read-only URL the App Store count already uses (see [stripe-live.md](./stripe-live.md)). No new env var. Already covered by `scripts/check-client-bundle.mjs`. |
 | Cache | One read per 5 minutes in the background, keeping the last good counts. Retry after 60 s on failure. Connect 10 s, statement 10 s, the whole read 20 s (`PAYING_SYNC_TIMEOUT_MS`). `read only` transaction, TLS required. |
@@ -68,7 +69,9 @@ So the two cards measure different things, and their figures will differ.
 - **Not connected** cards, including the KPI cards, are only as tall as
   their content: the badge, the dash and one muted line ("Connect the
   database to see this" here, "Connect Stripe to see this" on the Stripe
-  cards). Loading and Connecting… cards keep their room so they don't jump.
+  cards). Loading and Connecting… cards keep their room. So when the answer
+  is "connected" nothing moves, but when it is "not connected" the strip can
+  shrink and the doors move up. It never grows and pushes them down.
 - **Numbers:** tabular figures.
 
 ## States (#50)
