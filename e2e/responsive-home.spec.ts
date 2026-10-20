@@ -145,7 +145,11 @@ for (const { vp, answer } of SETTLE_CASES) {
       await stripeSettled(page)
       const after = await doors.boundingBox()
       expect(before && after, "doors painted").toBeTruthy()
-      expect(after!.y, "placeholders hold the loaded height").toBe(before!.y)
+      if (answer === "connected") expect(after!.y, "placeholders hold the loaded height").toBe(before!.y)
+      // Deke (#67): a Not connected card is only as tall as its content, so
+      // when the answer is "not connected" the strip may shrink (the doors
+      // move up), but it never grows and pushes them down.
+      else expect(after!.y, "Not connected never pushes the doors down").toBeLessThanOrEqual(before!.y)
     })
   })
 }

@@ -1,3 +1,4 @@
+import * as React from "react"
 import { CASH_NOTE, MRR_NOTE } from "@/lib/live-metrics"
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
@@ -49,6 +50,14 @@ function HeadReserve() {
   return <span aria-hidden data-testid="kpi-sample-reserve" className="h-6 w-[282px] max-w-full" />
 }
 
+/** Stripe feeds these cards; anything else has no source yet. */
+const STRIPE_KPIS = new Set(["subscribers", "cash-this-week", "mrr", "arr", "churn", "revenue", "trials"])
+
+/** The one muted line under a Not connected card's dash (Deke, #67). */
+export function notConnectedHint(id: string) {
+  return STRIPE_KPIS.has(id) ? "Connect Stripe to see this" : "No source connected yet"
+}
+
 export function KpiCard({ kpi }: { kpi: Kpi }) {
   const loading = kpi.source === "loading"
   const notConnected = kpi.source === "not_connected"
@@ -57,7 +66,12 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
       aria-label={kpi.label}
       aria-busy={loading || undefined}
       data-source={kpi.source}
-      className="bg-surface border-surface-border flex min-h-[124px] flex-col rounded-xl border px-[18px] pt-[18px] pb-4"
+      className={cn(
+        "bg-surface border-surface-border flex flex-col rounded-xl border px-[18px] pt-[18px] pb-4",
+        // Deke (#67): a Not connected card is only as tall as its content.
+        // and does not stretch to the row's height (self-start).
+        notConnected ? "self-start" : "min-h-[124px]"
+      )}
     >
       {/* min-h-5: a badge's height, held when there is none. */}
       <div className="flex min-h-5 items-start justify-between gap-2">
@@ -87,12 +101,19 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
           kpi.value
         )}
       </p>
-      {/* With no figure (Not connected, loading or Connecting…) the note keeps its room, hidden, so the strip does not shift. */}
-      {(kpi.id === "cash-this-week" || kpi.id === "mrr") && (
+      {/* Not connected (Deke, #67): one muted line, nothing reserved, so the
+          card is only as tall as its content. Loading keeps the note's room,
+          hidden, so the strip does not shift when the figures land. */}
+      {notConnected && (
+        <p data-testid="kpi-not-connected-hint" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+          {notConnectedHint(kpi.id)}
+        </p>
+      )}
+      {!notConnected && (kpi.id === "cash-this-week" || kpi.id === "mrr") && (
         <p
           data-testid="kpi-note"
-          aria-hidden={notConnected || loading || undefined}
-          className={cn("text-caption text-muted-foreground mt-1.5 tracking-tight", (notConnected || loading) && "invisible")}
+          aria-hidden={loading || undefined}
+          className={cn("text-caption text-muted-foreground mt-1.5 tracking-tight", loading && "invisible")}
         >
           {kpi.id === "mrr" ? MRR_NOTE : CASH_NOTE}
         </p>
@@ -103,25 +124,30 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
         </p>
       )}
       {/* The total's three groups; a loading or Not connected card keeps their room. */}
-      {kpi.id === "subscribers" && (
+      {kpi.id === "subscribers" && !notConnected && (
         <SubscriberBreakdown breakdown={kpi.breakdown} reserve={!kpi.breakdown} className="mt-2.5" />
       )}
       {/* Always a pill's height: a loading card or one with no comparison
           keeps the row, so the strip does not grow when the figures land. */}
-      <p className="mt-auto pt-3">
-        {kpi.delta ? (
-          <DeltaPill kpi={kpi} />
-        ) : (
-          <span aria-hidden className="invisible">
-            <DeltaPill kpi={{ ...kpi, delta: "\u00a0" }} />
-          </span>
-        )}
-      </p>
+      {!notConnected && (
+        <p className="mt-auto pt-3">
+          {kpi.delta ? (
+            <DeltaPill kpi={kpi} />
+          ) : (
+            <span aria-hidden className="invisible">
+              <DeltaPill kpi={{ ...kpi, delta: "\u00a0" }} />
+            </span>
+          )}
+        </p>
+      )}
     </article>
   )
 }
 
-export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
+/** `children`: extra cards in the same grid (Home's Paying coaches tile, #67). */
+export function KpiStrip({ kpis, title, children }: { kpis: Kpi[]; title: string; children?: React.ReactNode }) {
+  const extra = React.Children.count(children)
+  const cards = kpis.length + extra
   return (
     <section aria-label="KPI strip" className="flex shrink-0 flex-col gap-2.5">
       <div className={HOME_KPI_HEAD}>
@@ -133,13 +159,25 @@ export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
       <div
         className={cn(
           "grid grid-cols-1 gap-4 sm:grid-cols-2",
+          // Deke (#67): matched heights on desktop only; below 1024px each
+          // card is as tall as its own content.
+          extra > 0 && "items-start lg:items-stretch",
           // Two cards split the row; three or more fan out to four columns.
-          kpis.length > 2 && "xl:grid-cols-4"
+          // With extra cards (#67) the row holds exactly that many at xl, so
+          // Home stays one strip high and still fits 1440×900.
+          extra === 0 && kpis.length > 2 && "xl:grid-cols-4",
+          // Deke (#67): three even columns from 1024px; below that the last
+          // card spans the two-column row, so there is no empty slot.
+          extra > 0 && cards === 3 && "lg:grid-cols-3",
+          extra > 0 && cards === 3 && "sm:[&>*:last-child]:col-span-2 lg:[&>*:last-child]:col-span-1",
+          extra > 0 && cards === 4 && "lg:grid-cols-4",
+          extra > 0 && cards > 4 && "xl:grid-cols-5"
         )}
       >
         {kpis.map((kpi) => (
           <KpiCard key={kpi.id} kpi={kpi} />
         ))}
+        {children}
       </div>
     </section>
   )

@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "@/lib/settings"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
 import { connectingSummary } from "@/test/stripe-fixture"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
+import { KpiCard } from "@/components/home/kpi-strip"
 import { HomeScreen } from "@/components/home/home-screen"
 import { MetricsProvider } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
@@ -351,12 +352,18 @@ describe("Subscribers total and its breakdown", () => {
     expect(within(c).getByTestId("trend")).toHaveTextContent("+30")
   })
 
-  it("sample and loading cards keep the breakdown's room but show nothing in it", () => {
-    renderHome()
-    const reserve = within(kpi("Subscribers")).getByTestId("subscriber-breakdown-reserve")
+  it("a loading card keeps the breakdown's room but shows nothing in it; Not connected reserves nothing (Deke, #67)", () => {
+    const { unmount } = render(
+      <KpiCard kpi={{ id: "subscribers", label: "Subscribers", value: "\u2014", delta: "", direction: "flat", source: "loading" }} />
+    )
+    const reserve = within(screen.getByRole("article", { name: "Subscribers" })).getByTestId("subscriber-breakdown-reserve")
     expect(reserve).toHaveAttribute("aria-hidden", "true")
     expect(reserve).toHaveClass("invisible")
+    unmount()
+    renderHome()
+    expect(within(kpi("Subscribers")).queryByTestId("subscriber-breakdown-reserve")).toBeNull()
     expect(within(kpi("Subscribers")).queryByTestId("subscriber-breakdown")).toBeNull()
+    expect(within(kpi("Subscribers")).getByTestId("kpi-not-connected-hint")).toHaveTextContent("Connect Stripe to see this")
     renderMetrics()
     expect(within(card(/^Subscribers\b/)).queryByTestId("subscriber-breakdown")).toBeNull()
   })

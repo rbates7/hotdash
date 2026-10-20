@@ -66,6 +66,13 @@ describe("shot-env", () => {
     ])
   })
 
+  it("liveDataPaths flags /api/subscriptions/paying when it has read the database (#67)", () => {
+    expect(liveDataPaths({ status: "not_connected" })).toEqual([])
+    expect(liveDataPaths({ status: "connecting" })).toEqual([])
+    expect(liveDataPaths({ status: "connected", counts: { total: 1 }, asOf: "x" })).toEqual(["$.status", "$.counts"])
+    expect(liveDataPaths({ counts: { appStore: 1, stripe: 2, invoice: 3, other: 0, total: 6 } })).toEqual(["$.counts"])
+  })
+
   it("liveDataPaths flags live statuses and rows, never a key-less answer", () => {
     expect(liveDataPaths({ sources: { github: { status: "not_connected" } }, items: [] })).toEqual([])
     expect(liveDataPaths({ sources: { sentry: { status: "connected" } }, items: [{}] })).toEqual([
