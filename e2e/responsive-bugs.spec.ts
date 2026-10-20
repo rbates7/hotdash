@@ -360,9 +360,9 @@ test.describe("responsive Bugs (desktop 1440)", () => {
     const note = await box(persistenceNote(page))
     expect(note.x).toBeGreaterThan(Math.max(title.x + title.width, lede.x + lede.width))
     expect(note.y).toBeLessThan(lede.y + lede.height)
-    // Reset keeps its desktop size: the 44px override stops below xl.
-    const reset = await box(pageHeader(page).getByRole("button", { name: "Reset", exact: true }))
-    expect(reset.height).toBeLessThan(44)
+    // Clear my entries keeps its desktop size: the 44px override stops below xl.
+    const clear = await box(pageHeader(page).getByRole("button", { name: "Clear my entries", exact: true }))
+    expect(clear.height).toBeLessThan(44)
     await expectNoOverflow(page)
   })
 

@@ -1,6 +1,14 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import { founderBoard } from "../src/test/workplace"
 import { expectReadable } from "./support/contrast"
+import { storeFounderCopy } from "./support/persistence"
+
+// The board ships empty: every test here stores the founder's own board (the
+// old demo's content under CHLK-9xx keys) before the page loads.
+test.beforeEach(async ({ page }) => {
+  await storeFounderCopy(page, "hotdash.agent-workplace.v2", founderBoard(new Date()))
+})
 
 const STATUSES = ["To Do", "In Progress", "In Review", "Done", "Blocked"] as const
 
@@ -74,7 +82,7 @@ test.describe("responsive Agent Workplace (phone)", () => {
     await expect(main(page).getByRole("region", { name: "In Progress" })).toBeVisible()
     await expect(main(page).getByRole("region", { name: "To Do" })).toBeHidden()
     await page.getByRole("button", { name: /Undo stack for iPad canvas/ }).click()
-    await expect(page).toHaveURL(/issue=CHLK-404/)
+    await expect(page).toHaveURL(/issue=CHLK-904/)
     await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
@@ -139,40 +147,21 @@ test.describe("responsive Agent Workplace (phone)", () => {
     ).toBeVisible()
   })
 
-  test("Schedule and Next-run cells stay hidden and the ok pill sits on the name row", async ({
-    page,
-  }) => {
+  test("Autopilots says Not connected, with no rows, and does not scroll sideways", async ({ page }) => {
     await page.goto("/agent-workplace?tab=autopilots")
-    const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
-    await expect(row).toBeVisible()
-    const cells = row.locator("td")
-    await expect(cells).toHaveCount(4)
-    expect(await cells.nth(1).evaluate((el) => getComputedStyle(el).display), "Schedule display").toBe(
-      "none"
-    )
-    expect(await cells.nth(2).evaluate((el) => getComputedStyle(el).display), "Next run display").toBe(
-      "none"
-    )
-    const name = cells.nth(0).locator("p").first()
-    const pill = row.getByText("ok", { exact: true })
-    const nameBox = await name.boundingBox()
-    const pillBox = await pill.boundingBox()
-    expect(nameBox, "name painted").toBeTruthy()
-    expect(pillBox, "ok pill painted").toBeTruthy()
-    expect(pillBox!.y, "ok pill top sits in the name row").toBeGreaterThanOrEqual(nameBox!.y - 2)
-    expect(pillBox!.y, "ok pill top sits in the name row").toBeLessThan(nameBox!.y + nameBox!.height)
+    await expect(page.getByTestId("autopilots-not-connected")).toContainText("Not connected")
+    await expect(page.getByRole("row")).toHaveCount(0)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
-  test("B7: Bugs Reset and Workplace Reset are 44px", async ({ page }) => {
-    // Bugs Reset was held compact while Bugs was out of #27's scope; the Bugs
-    // responsive pass (#31) makes it a 44px target too.
+  test("B7: Bugs and Workplace Clear my entries are 44px", async ({ page }) => {
     await page.goto("/bugs")
-    const bugsReset = page.getByRole("button", { name: "Reset" })
-    await expect(bugsReset).toBeVisible()
-    await expectTapTarget(bugsReset, "Bugs Reset")
+    const bugsClear = page.getByRole("button", { name: "Clear my entries" })
+    await expect(bugsClear).toBeVisible()
+    await expectTapTarget(bugsClear, "Bugs Clear my entries")
 
     await page.goto("/agent-workplace")
-    await expectTapTarget(page.getByRole("button", { name: "Reset" }), "Workplace Reset")
+    await expectTapTarget(page.getByRole("button", { name: "Clear my entries" }), "Workplace Clear my entries")
   })
 })
 
@@ -194,7 +183,7 @@ test.describe("responsive Agent Workplace (tablet-portrait)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
     await page.getByRole("button", { name: /Undo stack for iPad canvas/ }).click()
-    await expect(page).toHaveURL(/issue=CHLK-404/)
+    await expect(page).toHaveURL(/issue=CHLK-904/)
     await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
@@ -221,30 +210,10 @@ test.describe("responsive Agent Workplace (tablet-portrait)", () => {
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
-  test("B5: Schedule and Next run fold into the first Autopilot cell", async ({ page }) => {
+  test("Autopilots says Not connected at 820, with no overflow", async ({ page }) => {
     await page.goto("/agent-workplace?tab=autopilots")
-    await expect(page.getByRole("tab", { name: "Autopilots" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
-    await expect(page.getByRole("columnheader", { name: "Autopilot" })).toBeVisible()
-    await expect(page.getByRole("columnheader", { name: "Last run" })).toBeVisible()
-    await expect(page.getByRole("columnheader", { name: "Schedule" })).toBeHidden()
-    await expect(page.getByRole("columnheader", { name: "Next run" })).toBeHidden()
-    const folded = page.locator("p").filter({ hasText: /^Next run / })
-    await expect(folded).toHaveCount(3)
-    await expect(folded.first()).toBeVisible()
-    const row = page.getByRole("row").filter({ hasText: "Daily standup summary" })
-    const cells = row.locator("td")
-    await expect(cells).toHaveCount(4)
-    expect(
-      await cells.nth(1).evaluate((el) => getComputedStyle(el).display),
-      "Schedule display at 820"
-    ).toBe("none")
-    expect(
-      await cells.nth(2).evaluate((el) => getComputedStyle(el).display),
-      "Next run display at 820"
-    ).toBe("none")
+    await expect(page.getByRole("tab", { name: "Autopilots" })).toHaveAttribute("aria-selected", "true")
+    await expect(page.getByTestId("autopilots-not-connected")).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
@@ -296,10 +265,10 @@ test.describe("responsive Agent Workplace (desktop 1440)", () => {
     expect(box!.height, "md:min-h-10").toBeGreaterThanOrEqual(40)
   })
 
-  test("B5: Autopilots show Schedule and Next run as columns", async ({ page }) => {
+  test("Autopilots says Not connected at 1440, with no table", async ({ page }) => {
     await page.goto("/agent-workplace?tab=autopilots")
-    await expect(page.getByRole("columnheader", { name: "Schedule" })).toBeVisible()
-    await expect(page.getByRole("columnheader", { name: "Next run" })).toBeVisible()
+    await expect(page.getByTestId("autopilots-not-connected")).toBeVisible()
+    await expect(page.getByRole("columnheader")).toHaveCount(0)
   })
 })
 

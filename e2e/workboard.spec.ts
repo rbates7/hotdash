@@ -44,14 +44,14 @@ test("connecting turns into live rows on a later poll", async ({ page }) => {
   const region = board(page).getByRole("status")
   await expect(region).toHaveCount(1)
   await expect(region).toHaveAttribute("aria-live", "polite")
-  await expect(region).toHaveText("Connecting…")
+  await expect(region).toHaveText("Work board: Connecting…")
   const node = await region.elementHandle()
   answer = workboardSummary("connected")
   await expect(board(page).getByTestId("work-card")).toHaveCount(LIVE_ITEMS.length, { timeout: 15_000 })
   // The same polite region, now saying how many PRs and when.
-  await expect(region).toHaveText(/^4 PRs updated Oct 16, 7:45\sPM CDT$/)
+  await expect(region).toHaveText(/^Work board: 4 PRs updated Oct 16, 7:45\sPM CDT$/)
   expect(await node!.evaluate((el) => el.isConnected)).toBe(true)
-  expect(await node!.textContent()).toMatch(/^4 PRs updated/)
+  expect(await node!.textContent()).toMatch(/^Work board: 4 PRs updated/)
 })
 
 test("connected and empty: No open pull requests", async ({ page }) => {
