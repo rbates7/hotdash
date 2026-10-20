@@ -1,0 +1,9 @@
+{
+  "rows": [
+    { "method": "AppStore", "n": 40 },
+    { "method": "Stripe", "n": 900 },
+    { "method": "invoice", "n": 60 },
+    { "method": "__total__", "n": 1000 }
+  ],
+  "counts": { "appStore": 40, "stripe": 900, "invoice": 60, "other": 0, "total": 1000 }
+}
