@@ -19,6 +19,7 @@ import {
   type Loader,
 } from "@/lib/server/gmail"
 import { SYNC_TIMEOUT_MS, SyncTimeoutError } from "@/lib/server/time-limit"
+import { createGmailGate } from "@/lib/server/gmail-limit"
 import { gmailApiThread, gmailFixtureThreads } from "@/test/gmail-fixture"
 
 /** Fake credentials: shaped like Google's, valid nowhere. */
@@ -360,7 +361,7 @@ describe("gmailLoader (fetch faked, never real Google)", () => {
   ])("a %i from Gmail is %s", async (status, kind) => {
     vi.useRealTimers()
     const { fetchImpl } = fakeGoogle({ thread: () => Response.json({ error: { message: "nope" } }, { status }) })
-    expect(failureKind(await gmailLoader(fetchImpl)(CONFIG).catch((e: unknown) => e))).toBe(kind)
+    expect(failureKind(await gmailLoader(fetchImpl, undefined, createGmailGate({ sleep: async () => {} }))(CONFIG).catch((e: unknown) => e))).toBe(kind)
   })
 
   it("an empty inbox is no threads; odd ids are never requested", async () => {
