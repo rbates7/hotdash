@@ -19,7 +19,7 @@ import {
   STRIPE_CONNECTING_TEXT,
   MetricsSampleNotice,
 } from "@/components/metrics/metrics-sample-notice"
-import { SEEDED_SCREENS, SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
+import { NO_SAMPLE_DATA, SettingsScreen, sampleDataSummary } from "@/components/settings/settings-screen"
 
 /**
  * The server has a key but its first sync is still running: every
@@ -158,7 +158,7 @@ describe("No key at all", () => {
 
 const notice = () => screen.getByTestId("metrics-connection-notice")
 const sampleSection = () => screen.getByRole("region", { name: "Sample data" })
-const REST = `Home, Metrics, Bugs, CRM and My Desk show nothing invented. Still built on seed rows: ${SEEDED_SCREENS.join(", ")}.`
+const REST = NO_SAMPLE_DATA
 
 function renderMetricsHeader() {
   return render(
@@ -269,20 +269,12 @@ describe("page-level wording unchanged when live or not connected", () => {
     for (const flags of [base, { ...base, stripe: true }, { ...base, stripeConnecting: true }]) {
       expect(sampleDataSummary(flags)).not.toMatch(/every (other )?number/i)
     }
-    // Only screens that still have seed rows are named: not Home, Metrics
-    // (Expenses starts empty), System Status (seeded checks are a preview),
-    // the Product Roadmap (Notion, or an empty Not connected board), Bugs
-    // (Sentry plus the founder's bug tickets), CRM or My Desk (start empty).
-    for (const name of ["Home", "Metrics", "Expenses", "System Status", "Product Roadmap", "Bugs", "CRM", "My Desk"]) {
-      expect((SEEDED_SCREENS as readonly string[]).some((s) => s === name || s.includes(`${name} `) || s.includes(` ${name}`))).toBe(false)
+    // No screen is named as still on seed rows: the card ends at "No screen uses sample data".
+    expect(REST).toBe("No screen uses sample data.")
+    for (const flags of [base, { ...base, stripe: true }, { ...base, notion: true }]) {
+      expect(sampleDataSummary(flags).endsWith(REST)).toBe(true)
+      expect(sampleDataSummary(flags)).not.toMatch(/seed rows|Agent Workplace|Feature Requests|Clinics|Community Development|Sales Opportunities/)
     }
-    expect(SEEDED_SCREENS).toEqual([
-      "Agent Workplace",
-      "Feature Requests",
-      "Clinics",
-      "Community Development",
-      "Sales Opportunities",
-    ])
 
     // Notion feeds the Product Roadmap (bets, not numbers): its own sentence.
     const ROADMAP_LIVE = "The Product Roadmap is read from Notion."
@@ -307,7 +299,8 @@ describe("page-level wording unchanged when live or not connected", () => {
       `The CRM's Gmail conversations are live and carry no label. ${ROADMAP_CONNECTING} ${REST}`
     )
     for (const flags of [{ ...base, notion: true }, { ...base, notionConnecting: true }]) {
-      expect(sampleDataSummary(flags)).not.toMatch(/sample data|every (other )?number/i)
+      // Beyond the closing "No screen uses sample data", nothing calls a figure sample.
+      expect(sampleDataSummary(flags).replace(REST, "")).not.toMatch(/sample data|every (other )?number/i)
     }
   })
 })
