@@ -162,9 +162,9 @@ test.describe("Settings (desktop 1440)", () => {
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/)
     await expect(appearance(page).getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "true")
     await expect(section(page, "Goals and targets").getByLabel("Trial-to-paid target")).toHaveValue("18")
-    // The Sample data card has no switch (the labels are always on).
+    // The Sample data card has no switch, and ends at "No screen uses sample data."
     await expect(section(page, "Sample data").getByRole("switch")).toHaveCount(0)
-    await expect(section(page, "Sample data")).toContainText("there is no switch to hide it")
+    await expect(section(page, "Sample data")).toContainText(/No screen uses sample data\.$/)
     await expect(section(page, "Time zone").getByRole("combobox")).toContainText("Pacific")
     await expect(sidebar.getByRole("switch", { name: "Show Bugs" })).not.toBeChecked()
     await expect.poll(() => navLabels(page)).toEqual(
