@@ -86,10 +86,9 @@ export function HomeScreen() {
       <div className="flex flex-1 flex-col gap-4">
         {/* No source for the #1 yet (My Desk is not wired), so the honest empty state. */}
         <NumberOneStrip item={null} />
-        <KpiStrip kpis={strip} title={kpiStripTitle} />
-        <section aria-label="Paying coaches" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiStrip kpis={strip} title={kpiStripTitle}>
           <PayingCoachesCard view={paying} />
-        </section>
+        </KpiStrip>
         <div role="group" aria-label="Doors" className={HOME_DOORS}>
           <MetricsDoor
             // MRR always has a value (a sum, never a ratio), so no point is null.

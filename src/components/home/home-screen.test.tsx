@@ -53,7 +53,7 @@ describe("HomeScreen", () => {
     const strip = screen.getByRole("region", { name: "KPI strip" })
     expect(within(strip).getByRole("heading", { level: 2, name: "Truth strip" })).toBeInTheDocument()
     const cards = within(strip).getAllByRole("article")
-    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Subscribers", "Cash this week"])
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["Subscribers", "Cash this week", "Paying coaches"])
     for (const card of cards) {
       expect(await within(card).findByText("Not connected")).toBeInTheDocument()
       expect(card).toHaveAttribute("data-source", "not_connected")

@@ -40,7 +40,8 @@ export function PayingCoachesCard({ view }: { view: PayingCoachesView }) {
           view.total
         ) : (
           <span data-testid="paying-placeholder">
-            <span aria-hidden>–</span>
+            {/* As KpiCard: an em dash when not connected, an en dash while loading. */}
+            <span aria-hidden>{loading ? "–" : "\u2014"}</span>
             <span className="sr-only">{loading ? "Loading" : "No figure"}</span>
           </span>
         )}

@@ -95,7 +95,7 @@ export function blankSecretLike(source, known = []) {
 /**
  * Where a JSON body from the app's own /api/* looks like live data: a
  * `status`/`state` of connected, stale or live, or a non-empty `items` or
- * `rows` list. A key-less server can only answer "not connected", so any hit
+ * `rows` list, or a `counts` object (#67's paying coaches). A key-less server can only answer "not connected", so any hit
  * means a credential reached it. Returns JSON paths, never values.
  * @param {unknown} body @param {string} [at]
  * @returns {string[]}
@@ -109,6 +109,8 @@ export function liveDataPaths(body, at = "$") {
     const here = `${at}.${key}`
     if ((key === "status" || key === "state") && ["connected", "stale", "live"].includes(String(value))) hits.push(here)
     else if ((key === "items" || key === "rows") && Array.isArray(value) && value.length > 0) hits.push(here)
+    // /api/subscriptions/paying (#67): any counts object is a database read.
+    else if (key === "counts" && value !== null && typeof value === "object") hits.push(here)
     else hits.push(...liveDataPaths(value, here))
   }
   return hits

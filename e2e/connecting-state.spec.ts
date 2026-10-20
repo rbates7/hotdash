@@ -59,7 +59,7 @@ test.describe("Stripe connecting (1440)", () => {
     }
     await expect(ticker(page).getByTestId("connecting")).toBeVisible()
     await expect(page.getByRole("region", { name: "Metrics" }).getByTestId("connecting")).toBeVisible()
-    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(2) // Workplace + Inbox doors
+    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(3) // Workplace + Inbox doors + Paying coaches (no database URL here)
   })
 
   test("Metrics: the Stripe cards carry no Sample label", async ({ page }) => {

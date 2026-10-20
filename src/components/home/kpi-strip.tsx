@@ -1,3 +1,4 @@
+import * as React from "react"
 import { CASH_NOTE, MRR_NOTE } from "@/lib/live-metrics"
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon } from "lucide-react"
 
@@ -121,7 +122,10 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
   )
 }
 
-export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
+/** `children`: extra cards in the same grid (Home's Paying coaches tile, #67). */
+export function KpiStrip({ kpis, title, children }: { kpis: Kpi[]; title: string; children?: React.ReactNode }) {
+  const extra = React.Children.count(children)
+  const cards = kpis.length + extra
   return (
     <section aria-label="KPI strip" className="flex shrink-0 flex-col gap-2.5">
       <div className={HOME_KPI_HEAD}>
@@ -134,12 +138,18 @@ export function KpiStrip({ kpis, title }: { kpis: Kpi[]; title: string }) {
         className={cn(
           "grid grid-cols-1 gap-4 sm:grid-cols-2",
           // Two cards split the row; three or more fan out to four columns.
-          kpis.length > 2 && "xl:grid-cols-4"
+          // With extra cards (#67) the row holds exactly that many at xl, so
+          // Home stays one strip high and still fits 1440×900.
+          extra === 0 && kpis.length > 2 && "xl:grid-cols-4",
+          extra > 0 && cards === 3 && "xl:grid-cols-3",
+          extra > 0 && cards === 4 && "xl:grid-cols-4",
+          extra > 0 && cards > 4 && "xl:grid-cols-5"
         )}
       >
         {kpis.map((kpi) => (
           <KpiCard key={kpi.id} kpi={kpi} />
         ))}
+        {children}
       </div>
     </section>
   )
