@@ -74,10 +74,20 @@ export function PersistenceNote({
   resetClassName,
   resetDescription,
   mode = "reset",
+  canReset: canResetProp,
+  disabledHint: disabledHintProp,
 }: {
   store: PersistenceStore
   /** "clear" for screens with no sample data: Clear my entries instead of Reset. */
   mode?: "reset" | "clear"
+  /**
+   * Whether Reset / Clear is on. Defaults to "something is saved"; a screen
+   * sharing a store with another (Bugs and Agent Workplace) narrows it to
+   * its own entries.
+   */
+  canReset?: boolean
+  /** Why it is off, when `canReset` is narrowed. */
+  disabledHint?: string
   /** What Reset does, in the confirm. Defaults to the sample screens' wording. */
   resetDescription?: string
   /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
@@ -87,10 +97,11 @@ export function PersistenceNote({
 }) {
   const [confirming, setConfirming] = React.useState(false)
   const copy = persistenceCopy(store)
-  const canReset = store.persisted && store.saved
+  const canReset = store.persisted && store.saved && (canResetProp ?? true)
   const hintId = React.useId()
   const clear = mode === "clear"
-  const disabledHint = clear ? CLEAR_COPY.disabledHint : RESET_DISABLED_HINT
+  const disabledHint =
+    store.persisted && store.saved && disabledHintProp ? disabledHintProp : clear ? CLEAR_COPY.disabledHint : RESET_DISABLED_HINT
   const description = resetDescription ?? (clear ? CLEAR_DESCRIPTION : RESET_DESCRIPTION)
 
   return (

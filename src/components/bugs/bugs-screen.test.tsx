@@ -17,8 +17,8 @@ import {
 } from "@/components/agent-workplace/issues-store"
 import { TicketView } from "@/components/agent-workplace/ticket-view"
 import { IssuesBoard } from "@/components/agent-workplace/issues-board"
-import { activeSprint, issuesInSprint } from "@/lib/issues"
-import { bugs } from "@/lib/bugs"
+import { buildIssues, buildSprints } from "@/lib/issues-fixture"
+import { founderIssues } from "@/test/workplace"
 import { BACK_TO_BUGS, BugsScreen } from "@/components/bugs/bugs-screen"
 import { EMPTY_BUGS, EMPTY_BUGS_HINT, bugHref } from "@/components/bugs/bugs-list"
 import { SENTRY_EMPTY } from "@/components/bugs/sentry-crashes"
@@ -35,7 +35,7 @@ vi.mock("next/navigation", async () => {
   }
 })
 
-/** A saved Workplace copy: the seed board plus the founder's own bug tickets (CHLK-9xx). */
+/** A saved Workplace copy: an old copy with the demo board plus the founder's own bug tickets (CHLK-9xx); the demo is dropped on load. */
 function saveUserBoard(nowMs = FIXED_NOW_MS) {
   const state = initialState(new Date(nowMs))
   state.issues = boardWithUserBugs(new Date(nowMs))
@@ -173,11 +173,13 @@ describe("Bugs screen", () => {
     expect(screen.queryByTestId("sample-data-tag")).toBeNull()
   })
 
-  it("lists a ticket the founder added and tagged bug, and still none of the seed's", () => {
-    const state = initialState(FIXED_NOW)
-    state.issues.push({ ...state.issues[0], key: "CHLK-999", title: "A new live bug", labels: ["bug"], status: "todo" })
-    state.nextKey = 1000
-    saveState(window.localStorage, state)
+  it("lists a ticket the founder added and tagged bug, and none of the old demo's even from a copy that held them", () => {
+    const now = new Date(FIXED_NOW_MS)
+    const mine = { ...founderIssues(now)[0], key: "CHLK-999", title: "A new live bug", labels: ["bug"], status: "todo" as const }
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ issues: [...buildIssues(now), mine], sprints: buildSprints(now), nextKey: 1000 })
+    )
 
     renderBugs()
     expect(within(list()).getByRole("link", { name: /A new live bug/ })).toBeInTheDocument()
@@ -185,15 +187,19 @@ describe("Bugs screen", () => {
     expect(within(list()).queryByRole("link", { name: /CHLK-419/ })).not.toBeInTheDocument()
   })
 
-  it("the Agent Workplace board keeps its seed tickets, bug-tagged ones included, while Bugs lists none of them", () => {
-    // PR 1 drops the seed from Bugs only; the board's seed stays until PR 2.
-    const seed = initialState(FIXED_NOW)
-    const sprint = activeSprint(seed.sprints)!
-    const onBoard = issuesInSprint(seed.issues, sprint.id)
-    expect(onBoard.length).toBeGreaterThan(5)
-    const seedBugsOnBoard = bugs(onBoard)
-    expect(seedBugsOnBoard.length).toBeGreaterThan(0)
+  it("/bugs?issue=CHLK-419 never opens the old demo ticket, even from a saved copy that held it (item 8)", () => {
+    const now = new Date(FIXED_NOW_MS)
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ issues: buildIssues(now), sprints: buildSprints(now), nextKey: 422 })
+    )
+    renderBugs("issue=CHLK-419")
+    expect(screen.getByText("Issue CHLK-419 not found")).toBeInTheDocument()
+    expect(screen.queryByText("Crash opening a shared playbook on iPad")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: BACK_TO_BUGS })).toBeInTheDocument()
+  })
 
+  it("the Agent Workplace board holds no demo tickets either: a fresh browser has no sprint and no cards", () => {
     renderBugs(
       "",
       FIXED_NOW_MS,
@@ -202,8 +208,8 @@ describe("Bugs screen", () => {
       </section>
     )
     const board = screen.getByRole("region", { name: "Workplace board" })
-    for (const issue of onBoard) expect(within(board).getAllByText(issue.key).length).toBeGreaterThan(0)
-    for (const issue of seedBugsOnBoard) expect(within(board).getAllByText(issue.title).length).toBeGreaterThan(0)
+    expect(within(board).getByText("No sprint is running")).toBeInTheDocument()
+    expect(within(board).queryByText(/CHLK-4\d\d/)).toBeNull()
     expect(within(list()).queryAllByRole("link")).toHaveLength(0)
   })
 

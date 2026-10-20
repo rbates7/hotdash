@@ -1,4 +1,4 @@
-import { SEED_ISSUE_KEYS } from "@/lib/issues-fixture"
+import { SEED_ISSUE_KEYS } from "@/lib/issues-seed-ids"
 import type { InboxSourceStatus, InboxView, RealInboxItem } from "@/lib/inbox-sources"
 import {
   STATUS_ORDER,
@@ -47,10 +47,10 @@ export function bugs(issues: readonly Issue[]) {
 }
 
 /**
- * The founder's own bug tickets: tagged `bug` and not one of the Agent
- * Workplace demo board's seed tickets. Bugs never lists the seed (the
- * board keeps it until it goes too); a ticket the founder adds or tags on
- * the board shows here.
+ * The founder's own bug tickets: tagged `bug` and not one of the old Agent
+ * Workplace demo board's keys. The store already drops those from an old
+ * saved copy; this keeps Bugs honest even if one slipped through. A ticket
+ * the founder adds or tags on the board shows here.
  */
 export function userBugs(issues: readonly Issue[]) {
   return bugs(issues).filter((i) => !SEED_ISSUE_KEYS.has(i.key))
