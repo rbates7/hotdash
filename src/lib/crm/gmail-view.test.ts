@@ -35,6 +35,7 @@ const THREADS: GmailThreadMeta[] = [
   // Archived after the customer wrote: closed, this week. Personal domain: no account.
   {
     id: "a3",
+    // gmail.com on purpose: it exercises the personal-domain rule (crm.ts lists gmail/yahoo/outlook literally), so the account must be null. Never sent anywhere.
     messages: [msg("6", 50 * H, "cy@gmail.com", ME, []), msg("7", 49 * H, ME, "cy@gmail.com", ["SENT"])],
   },
   // Unanswered first contact: triage, not a case.
@@ -142,14 +143,47 @@ describe("parseFullThread", () => {
       from: { name: "Ana", email: "ana@example.com" },
       cc: [{ name: "Bo", email: "bo@example.com" }],
       bodyText: "Plain body",
-      bodyHtml: "<b>Html body</b>",
       attachments: [{ name: "shot.png", size: 2048, mimeType: "image/png" }],
     })
   })
 
   it("falls back to the HTML as text, without scripts", () => {
     expect(messages[1]!.bodyText).toBe("Thanks Ana")
-    expect(messages[1]!.bodyHtml).toContain("<script>")
+  })
+
+  it("never returns HTML: no bodyHtml key and no tags in bodyText, even for hostile mail", () => {
+    const hostile = [
+      '<p>Hi<script>alert(1)</script></p><img src="https://evil.example.com/t.gif" onerror="alert(2)">',
+      '<a href="javascript:alert(3)">click</a> <img src=x onerror=alert(4)>',
+      "<style>p{}</style><!-- c --><iframe src='https://evil.example.com'></iframe>&lt;script&gt;x&lt;/script&gt;",
+    ]
+    const b64 = (s: string) => Buffer.from(s).toString("base64url")
+    const thread = {
+      messages: hostile.map((h, i) => ({
+        labelIds: ["INBOX"],
+        internalDate: String(NOW - (10 - i) * 1000),
+        payload: { mimeType: "text/html", headers: [{ name: "From", value: "x@example.com" }], body: { data: b64(h) } },
+      })),
+    }
+    const plainScript = {
+      messages: [{
+        labelIds: ["INBOX"],
+        internalDate: String(NOW),
+        payload: { mimeType: "text/plain", headers: [{ name: "From", value: "x@example.com" }], body: { data: b64("ok <script>alert(5)</script>") } },
+      }],
+    }
+    const all = [
+      ...parseFullThread(thread, { mailbox: ME, threadId: "thread-9" }),
+      ...parseFullThread(plainScript, { mailbox: ME, threadId: "thread-9" }),
+    ]
+    expect(all).toHaveLength(4)
+    for (const m of all) {
+      expect(Object.keys(m)).not.toContain("bodyHtml")
+      expect(m.bodyText).not.toMatch(/<[a-z!/]/i)
+      expect(m.bodyText).not.toMatch(/onerror|javascript:|evil\.example|alert\(/i)
+    }
+    expect(all[0]!.bodyText).toBe("Hi")
+    expect(all[1]!.bodyText).toBe("click")
   })
 
   it("is empty for junk", () => {

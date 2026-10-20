@@ -200,12 +200,27 @@ function walk(part: Part, out: { text: string | null; html: string | null; attac
   if (Array.isArray(part.parts)) for (const p of part.parts as Part[]) if (p && typeof p === "object") walk(p, out)
 }
 
+/** Elements whose content is code, not text. */
+const BLOCKS = /<(script|style|head|title|noscript|template)\b[\s\S]*?(<\/\1\s*>|$)/gi
+
+/** Anything tag-like (incl. comments), so no markup survives into text. */
+const TAG = /<!--[\s\S]*?(-->|$)|<\/?[a-z!?][^>]*(>|$)/gi
+
+/** Text with every tag removed; entity-decoded text is stripped again. */
+export function stripTags(text: string) {
+  let out = text.replace(BLOCKS, "")
+  for (let i = 0; i < 3 && TAG.test(out); i++) out = out.replace(TAG, "")
+  return out.replace(TAG, "")
+}
+
 export function htmlToText(html: string) {
-  return decodeEntities(
-    html
-      .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, "")
-      .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
+  return stripTags(
+    decodeEntities(
+      html
+        .replace(BLOCKS, "")
+        .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
+        .replace(TAG, "")
+    )
   )
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -231,8 +246,9 @@ export function parseFullThread(raw: unknown, { mailbox, threadId }: { mailbox: 
     const body = { text: null as string | null, html: null as string | null, attachments: [] as CrmAttachment[] }
     walk(payload, body)
     const html = body.html ? body.html.slice(0, MAX_BODY_CHARS) : null
-    const text =
+    const text = stripTags(
       body.text?.trim() || (html ? htmlToText(html) : "") || decodeEntities(typeof m.snippet === "string" ? m.snippet : "")
+    ).trim()
     out.push({
       at,
       id: "",
@@ -242,7 +258,6 @@ export function parseFullThread(raw: unknown, { mailbox, threadId }: { mailbox: 
       to: parseAddressList(headerOf(payload, "to")).map(person),
       cc: parseAddressList(headerOf(payload, "cc")).map(person),
       sentAt: iso(at),
-      bodyHtml: html,
       bodyText: text.slice(0, MAX_BODY_CHARS),
       attachments: body.attachments,
     })

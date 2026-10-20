@@ -52,9 +52,10 @@ export type CrmMessage = {
   to: CrmPerson[]
   cc: CrmPerson[]
   sentAt: string
-  /** Raw HTML part as Gmail sent it, or null. NOT sanitized: the UI must sanitize before rendering. */
-  bodyHtml: string | null
-  /** The text/plain part, or the HTML with tags stripped, or the snippet. */
+  /**
+   * Plain text only: the text/plain part, or the HTML part reduced to text, or
+   * the snippet, with any tags removed on the server. No HTML is ever sent.
+   */
   bodyText: string
   /** Metadata only; no attachment bytes are ever fetched. */
   attachments: CrmAttachment[]

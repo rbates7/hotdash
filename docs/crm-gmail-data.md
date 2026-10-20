@@ -12,7 +12,14 @@ Never an error body and never a secret: Gmail failures show as `stale` (last goo
 
 ## Freshness
 
-The list is read from Gmail at most every 5 minutes (last-good cache; a failed read keeps the last good copy and reports `stale`, retrying after 1 minute). A request never waits for Gmail. A thread's full bodies are fetched on demand and cached for 5 minutes per thread.
+## Caching
+
+- **List (`GET /api/crm/gmail`):** read from Gmail at most every 5 minutes into a last-good cache. A failed read keeps the last good copy and reports `stale`, and retries after 1 minute. A request never waits for Gmail; a due sync runs after the response.
+- **One case (`?caseId=case-<n>`):** that thread's full messages are fetched on demand and cached 5 minutes per thread. The Gmail call is cut off after 8 seconds; on a timeout or failure the last cached copy (or the list's snippets) is returned as `stale`.
+
+## Message bodies are plain text only
+
+No HTML is ever sent. `CrmMessage` has no `bodyHtml`; `bodyText` is the text/plain part, or the HTML part reduced to text on the server (script/style/head dropped, every tag and comment removed, entities decoded and stripped again), or the snippet. Scripts, `on*` attributes, `javascript:` links and remote images never reach the browser, so the UI has nothing to sanitize.
 
 ## How fields are derived
 

@@ -573,7 +573,6 @@ export function createGmailService({
             to: m.toEmails.map((email) => ({ name: null, email })),
             cc: [],
             sentAt: m.sentAt,
-            bodyHtml: null,
             bodyText: m.bodyText,
             attachments: [],
           }))
