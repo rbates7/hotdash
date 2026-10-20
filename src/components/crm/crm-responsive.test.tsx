@@ -7,9 +7,8 @@ import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
-import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactDetail } from "@/components/crm/contact-detail"
-import { CARD_PLAN_PILL, ContactsScreen, contactCardMeta } from "@/components/crm/contacts-screen"
+import { ContactsScreen, contactCardMeta } from "@/components/crm/contacts-screen"
 import { CrmErrorAlert } from "@/components/crm/crm-error-alert"
 import { CrmShell } from "@/components/crm/crm-shell"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
@@ -96,23 +95,17 @@ describe("phone (<768): loading cards", () => {
 })
 
 describe("phone (<768): Contacts cards and sheet (the founder's own contacts)", () => {
-  it("maps Name / Email / 'Organization · N open cases'; no plan pill without a plan, no sample tag", () => {
+  it("maps Name / Email / 'Organization · N open cases'; no plan pill (no Gmail source), no sample tag", () => {
     saveMine()
     renderCrm(<ContactsScreen />)
     expect(within(list()).getAllByRole("listitem")).toHaveLength(2)
     const pat = card("Pat Reyes")
     expect(pat).toHaveTextContent("pat@example.org")
     expect(pat).toHaveTextContent(/Katy ISD · 0 open cases/)
-    expect(within(pat).queryByTestId(CARD_PLAN_PILL)).not.toBeInTheDocument()
+    expect(within(pat).queryByTestId("card-plan-pill")).not.toBeInTheDocument()
     expect(screen.queryAllByTestId("plan-pill")).toHaveLength(0)
     expect(within(list()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     expect(card("Tom Alvarez")).toHaveTextContent(/No organization · 0 open cases/)
-  })
-
-  it("the plan pill renders under the id a card passes, so the table's `plan-pill` count stays its own", () => {
-    render(<PlanBadge plan="Monthly" planStatus="active" testId={CARD_PLAN_PILL} />)
-    expect(screen.getByTestId(CARD_PLAN_PILL)).toHaveTextContent("Monthly")
-    expect(screen.queryByTestId("plan-pill")).not.toBeInTheDocument()
   })
 
   it("says one open case in the singular", () => {

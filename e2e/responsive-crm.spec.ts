@@ -364,7 +364,7 @@ test.describe("responsive CRM (phone 390)", () => {
 
   // Old Cases phone UI (full-width segmented tabs, filter strip, RowCollapse case cards) removed by the CRM rebuild; the filters are covered by e2e/crm-rebuild.spec.ts.
 
-  test("Contacts: the panel, then cards with Name, Plan, Email, 'Organization · N open cases'", async ({ page }) => {
+  test("Contacts: the panel, then cards with Name, Email, 'Organization · N open cases'", async ({ page }) => {
     await own(page)
     await expectGmailPanel(page, "contacts")
     await expect(cards(page)).toHaveCount(OWN_CONTACTS.length)
@@ -378,9 +378,9 @@ test.describe("responsive CRM (phone 390)", () => {
     await expectTapTarget(main(page).getByRole("button", { name: "New contact", exact: true }), "New contact")
     await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveCSS("height", "44px")
 
-    // A plan, when there is one, shows as the card's pill (live, with plans).
+    // No plan pill on the cards, even with plans in the data (no Gmail source).
     await live(page, "/crm/contacts", withPlans(liveGmailSummary(Date.now())))
-    await expect(card(page, DANA_NAME).getByTestId("card-plan-pill")).toHaveText("Annual")
+    await expect(card(page, DANA_NAME).getByTestId("card-plan-pill")).toHaveCount(0)
     await expect(card(page, DANA_NAME)).toContainText(/example\.org · 2 open cases/)
   })
 

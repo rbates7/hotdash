@@ -591,7 +591,7 @@ test.describe("CRM, Gmail connected (mocked)", () => {
 
       await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
       await expect(page.getByRole("table", { name: "Contacts" })).toBeVisible()
-      // The table has no Plan column any more (follow-up to #71); the phone cards keep the pill.
+      // No Plan column or card pill any more (follow-up to #71): plans have no Gmail source.
       await expect(page.getByTestId("plan-pill")).toHaveCount(0)
 
       await crmNav(page).getByRole("link", { name: /Triage/ }).click()
