@@ -56,6 +56,7 @@ test.describe("dashboard login gate", () => {
     await page.getByLabel("Email").fill(email)
     await page.getByLabel("Password").fill(password)
     await page.getByRole("button", { name: "Sign in" }).click()
-    await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/)
+    // Lands on the dashboard root (which itself redirects to /home), never off-site.
+    await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/(home)?$/)
   })
 })
