@@ -20,7 +20,7 @@ Values are set in Vercel through Coulson with Rashad's OK. Agents never set them
 ## What it does
 
 - `src/proxy.ts` (Next 16's middleware) runs on every request except Next's own assets and the favicon (#38's matcher), so new routes are locked by default.
-- A page without a valid cookie → **307** to `/unlock?next=<path>`. `next` must be a same-origin relative path; anything else lands on `/`.
+- A page without a valid cookie → **307** to `/unlock?next=<path>`. `next` must be a same-origin relative path; anything else (other hosts, `//`, `/\`, dot-segment or encoded tricks) lands on `/home`.
 - `/api/*` without a valid cookie → **401** JSON. Health routes (`/api/health/*`) are locked too.
 - Open while locked: `/unlock`, `POST /api/gate/login`, `POST /api/gate/logout`, and root static files like `/icon.svg`. `/unlock` renders without the sidebar and header.
 - Login: email and password are each compared in constant time, both always checked. A wrong login gets one generic message. After 5 wrong tries from one IP in 15 minutes that IP is refused for a while (in memory, per server instance; a cold start resets it).

@@ -44,9 +44,31 @@ describe("POST /api/gate/login", () => {
     expect(cookie).not.toContain(SECRET)
   })
 
-  it("never redirects off-site", async () => {
-    const res = await login(post({ email: EMAIL, password: SECRET, next: "//evil.example" }))
-    expect(res.headers.get("location")).toBe(`${ORIGIN}/`)
+  it.each([
+    "//evil.example",
+    "/..//evil.example",
+    "/%2e%2e//evil.example",
+    "/./\\/evil.example",
+    "/%2F%2Fevil.example",
+    "/%5Cevil.example",
+    "/\t//evil.example",
+    "https://evil.example/",
+  ])("never redirects off-site, even with a cookie already set (next=%j)", async (next) => {
+    const res = await login(
+      post({ email: EMAIL, password: SECRET, next }, { cookie: "hotdash_gate=v1.1.junk; other=1" })
+    )
+    expect(res.status).toBe(303)
+    const location = new URL(res.headers.get("location")!)
+    expect(location.origin).toBe(ORIGIN)
+    expect(location.pathname).toBe("/home")
+    expect(res.headers.get("set-cookie")).toContain(`${GATE_COOKIE}=v1.`)
+  })
+
+  it("a wrong login with a hostile next keeps it out of the unlock link", async () => {
+    const res = await login(post({ email: EMAIL, password: "wrong", next: "/..//evil.example" }))
+    const location = new URL(res.headers.get("location")!)
+    expect(location.origin).toBe(ORIGIN)
+    expect(location.searchParams.get("next")).toBeNull()
   })
 
   it("gives one generic error for a wrong email or password, with no cookie", async () => {

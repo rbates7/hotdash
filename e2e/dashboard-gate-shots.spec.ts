@@ -22,6 +22,9 @@ import { vetUnmockedApi } from "./support/shots"
 test.skip(!process.env.SCREENSHOTS || !process.env.SHOT_PHASE, "set SCREENSHOTS=1 and SHOT_PHASE")
 
 const PHASE = process.env.SHOT_PHASE as "before" | "after"
+/** SHOT_ONLY=lockout: just the "Too many tries" stills (390 and 1440, light and dark). */
+const ONLY_LOCKOUT = process.env.SHOT_ONLY === "lockout"
+const LOCKOUT_WIDTHS = [390, 1440]
 const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? `test-results/gate-shots-${PHASE}`)
 const WIDTHS = [
   { width: 390, height: 844 },
@@ -43,6 +46,7 @@ test.beforeAll(() => {
       `served ${process.env.SHOT_SERVER_SHA ?? head}`,
       `spec checkout ${head}`,
       "build production (next build && next start); nextjs-portal not hidden",
+      ONLY_LOCKOUT ? "set: lockout only (error=limited after 5 wrong tries), 390 and 1440" : "set: unlock, locked redirect, wrong login",
       PHASE === "after" ? "gate values: throwaway test values only (@example.invalid / TEST-ONLY-)" : "gate: not in this build",
       "",
     ].join("\n")
@@ -72,6 +76,7 @@ async function shoot(page: Page, name: string) {
 
 for (const vp of WIDTHS) {
   for (const theme of ["light", "dark"] as const) {
+    if (ONLY_LOCKOUT) continue
     test(`${PHASE} at ${vp.width} ${theme}`, async ({ browser }) => {
       // Its own client key, so the wrong-login still never trips the rate limit.
       const context = await browser.newContext({
@@ -104,6 +109,42 @@ for (const vp of WIDTHS) {
         await page.waitForTimeout(300)
         await shoot(page, `unlock-error-${PHASE}-${tag}`)
       }
+      noLiveData()
+      await context.close()
+    })
+  }
+}
+
+// Lockout ("Too many tries"): 5 real wrong logins from one client key, then
+// the 6th lands on /unlock?error=limited. Runs with the after set, or alone
+// with SHOT_ONLY=lockout.
+for (const vp of WIDTHS.filter((w) => LOCKOUT_WIDTHS.includes(w.width))) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`${PHASE} lockout at ${vp.width} ${theme}`, async ({ browser, baseURL }) => {
+      test.skip(PHASE !== "after", "the lockout exists only with the gate")
+      const key = `10.65.${vp.width % 256}.${theme === "dark" ? 1 : 2}`
+      const context = await browser.newContext({ viewport: vp, extraHTTPHeaders: { "x-forwarded-for": key } })
+      const page = await context.newPage()
+      const noLiveData = await vetUnmockedApi(page)
+      await page.route("**/api/gate/**", (route) => route.continue())
+      for (let i = 0; i < 5; i++) {
+        const res = await context.request.post("/api/gate/login", {
+          form: { email: "someone@example.invalid", password: `not-the-password-${i}`, next: "/crm" },
+          headers: { origin: baseURL! },
+          maxRedirects: 0,
+        })
+        expect(res.status()).toBe(303)
+      }
+      await open(page, "/unlock?next=%2Fcrm", theme)
+      await page.getByLabel("Email").fill("someone@example.invalid")
+      await page.getByLabel("Password").fill("not-the-password")
+      await page.getByRole("button", { name: "Sign in" }).click()
+      await expect(page).toHaveURL(/error=limited/)
+      await expect(page.getByRole("alert").filter({ hasText: "Too many tries" })).toBeVisible()
+      expect((await context.cookies()).some((c) => c.name === "hotdash_gate")).toBe(false)
+      await expectFormReadable(page)
+      await page.waitForTimeout(300)
+      await shoot(page, `unlock-lockout-${PHASE}-${vp.width}-${theme}`)
       noLiveData()
       await context.close()
     })

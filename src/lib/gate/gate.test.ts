@@ -96,27 +96,73 @@ describe("credentials", () => {
   })
 })
 
-describe("safeNext", () => {
+describe("safeNext (B1: same-origin paths only, fallback /home)", () => {
+  const ORIGIN = "https://dash.example.test"
   it.each([
+    // kept
     ["/crm?tab=cases", "/crm?tab=cases"],
     ["/metrics#mrr", "/metrics#mrr"],
-    ["https://evil.example", "/"],
-    ["//evil.example", "/"],
-    ["/\\evil.example", "/"],
-    ["/%0a//evil", "/%0a//evil"],
-    ["/\tfoo", "/"],
-    ["crm", "/"],
-    ["/unlock", "/"],
-    ["/unlock?next=/x", "/"],
-    ["/api/gate/login", "/"],
-    [undefined, "/"],
-    ["", "/"],
-  ])("%s → %s", (input, out) => {
+    ["/crm/../metrics", "/metrics"],
+    ["/./crm", "/crm"],
+    ["/", "/"],
+    // off-site or host-like
+    ["https://evil.example", "/home"],
+    ["//evil.example", "/home"],
+    ["///evil.example", "/home"],
+    ["/..//evil.example", "/home"],
+    ["/../..//evil.example", "/home"],
+    ["/./..//evil.example", "/home"],
+    ["/x/../..//evil.example", "/home"],
+    ["/%2e%2e//evil.example", "/home"],
+    ["/%2E%2E//evil.example", "/home"],
+    ["/.%2e//evil.example", "/home"],
+    ["/%2F%2Fevil.example", "/home"],
+    ["/%2f/evil.example", "/home"],
+    ["/%5Cevil.example", "/home"],
+    ["/%5c%5cevil.example", "/home"],
+    ["/\\evil.example", "/home"],
+    ["/\\/evil.example", "/home"],
+    ["/./\\/evil.example", "/home"],
+    ["/crm\\x", "/home"],
+    ["\\\\evil.example", "/home"],
+    ["/\tfoo", "/home"],
+    ["/\t/evil.example", "/home"],
+    ["/\n/evil.example", "/home"],
+    ["/\r\n//evil.example", "/home"],
+    ["/%E0%A4%A", "/home"],
+    ["crm", "/home"],
+    ["javascript:alert(1)", "/home"],
+    // the gate itself (no loop)
+    ["/unlock", "/home"],
+    ["/UNLOCK", "/home"],
+    ["/unlock?next=/x", "/home"],
+    ["/api/gate/login", "/home"],
+    [undefined, "/home"],
+    ["", "/home"],
+  ])("%j → %s", (input, out) => {
+    expect(safeNext(input, ORIGIN)).toBe(out)
     expect(safeNext(input)).toBe(out)
+  })
+
+  it("every kept result resolves to the request origin", () => {
+    for (const input of ["/crm", "/a/../b", "/%2e/x", "/x?y=//evil.example", "/x#//evil.example"]) {
+      expect(new URL(safeNext(input, ORIGIN), ORIGIN).origin).toBe(ORIGIN)
+    }
   })
 })
 
 describe("rate limiter", () => {
+  it("stays locked through the window: 6th, 10th attempt refused, retry time shrinks", () => {
+    const limiter = createRateLimiter()
+    for (let i = 0; i < 5; i++) limiter.fail("ip", NOW)
+    const first = limiter.check("ip", NOW + 60_000)
+    const later = limiter.check("ip", NOW + 10 * 60_000)
+    expect(first.allowed).toBe(false)
+    expect(later.allowed).toBe(false)
+    if (!first.allowed && !later.allowed) expect(later.retryAfterMs).toBeLessThan(first.retryAfterMs)
+    for (let i = 0; i < 5; i++) expect(limiter.fail("ip", NOW + 1000 + i).allowed).toBe(false)
+  })
+
   it("locks after 5 failures in 15 minutes, then frees", () => {
     const limiter = createRateLimiter()
     for (let i = 0; i < 4; i++) expect(limiter.fail("ip", NOW + i).allowed).toBe(true)

@@ -8,6 +8,11 @@
 #
 #   scripts/gate-reshoot.sh <head-ref> [base-ref] [out-root]
 #   defaults:  (required)  origin/develop  /workspace/hotdash-shots/dashboard-gate-64
+#
+#   SHOT_ONLY=lockout scripts/gate-reshoot.sh <head-ref>
+#     one production build (the head, throwaway values) and only the
+#     "Too many tries" stills at 390 and 1440, light and dark, into
+#     <out-root>/<head>-lockout/after; no before set, no gate e2e.
 set -euo pipefail
 # shellcheck source=scripts/shot-server.sh
 source "$(dirname "${BASH_SOURCE[0]}")/shot-server.sh"
@@ -29,7 +34,8 @@ if [ "${avail:-0}" -lt 4 ]; then echo "only ${avail} GB available (< 4): wait an
 git -C "$REPO" fetch origin
 HEAD_SHA=$(git -C "$REPO" rev-parse "$HEAD_REF")
 BASE_SHA=$(git -C "$REPO" rev-parse "$BASE_REF")
-OUT="$OUT_ROOT/${HEAD_SHA:0:7}-vs-develop-${BASE_SHA:0:7}"
+SHOT_ONLY=${SHOT_ONLY:-}
+if [ "$SHOT_ONLY" = lockout ]; then OUT="$OUT_ROOT/${HEAD_SHA:0:7}-lockout"; else OUT="$OUT_ROOT/${HEAD_SHA:0:7}-vs-develop-${BASE_SHA:0:7}"; fi
 mkdir -p "$OUT/before" "$OUT/after"
 WT_HEAD=/tmp/gateshots-head-${HEAD_SHA:0:7}
 WT_BASE=/tmp/gateshots-base-${BASE_SHA:0:7}
@@ -71,9 +77,21 @@ serve() { # dir port [NAME=VALUE…]: production build, then start in the backgr
 }
 
 shoot() { # phase port served-sha
-  (cd "$WT_HEAD" && PORT="$2" SHOT_SERVER_ENV_FILE="$SERVER_ENV" SCREENSHOTS=1 SHOT_PHASE="$1" SCREENSHOT_DIR="$OUT/$1" \
+  (cd "$WT_HEAD" && SHOT_ONLY="$SHOT_ONLY" PORT="$2" SHOT_SERVER_ENV_FILE="$SERVER_ENV" SCREENSHOTS=1 SHOT_PHASE="$1" SCREENSHOT_DIR="$OUT/$1" \
     SHOT_SERVER_SHA="$3" pnpm exec playwright test e2e/dashboard-gate-shots.spec.ts --workers=1)
 }
+
+if [ "$SHOT_ONLY" = lockout ]; then
+  rmdir "$OUT/before" 2>/dev/null || true
+  serve "$WT_HEAD" "$PORT_HEAD" "DASHBOARD_LOGIN_EMAIL=$GATE_EMAIL" "DASHBOARD_GATE_SECRET=$GATE_PASSWORD"
+  shoot after "$PORT_HEAD" "$HEAD_SHA"
+  stop_server
+  printf 'head %s\nlockout stills only (error=limited), 390 and 1440, light and dark\nproduction build (next build && next start), nextjs-portal not hidden\ngate values: throwaway test values only\n' \
+    "$HEAD_SHA" > "$OUT/SHAS.txt"
+  ls "$OUT/after" | grep -c png
+  echo "shots in $OUT"
+  exit 0
+fi
 
 serve "$WT_BASE" "$PORT_BASE"; shoot before "$PORT_BASE" "$BASE_SHA"; stop_server
 serve "$WT_HEAD" "$PORT_HEAD" "DASHBOARD_LOGIN_EMAIL=$GATE_EMAIL" "DASHBOARD_GATE_SECRET=$GATE_PASSWORD"

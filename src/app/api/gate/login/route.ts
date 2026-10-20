@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { getGateConfig } from "@/lib/gate/config"
 import { GATE_COOKIE, gateCookieOptions, signGateCookie } from "@/lib/gate/cookie"
 import { credentialsMatch } from "@/lib/gate/credentials"
-import { UNLOCK_PATH } from "@/lib/gate/paths"
+import { DEFAULT_NEXT, UNLOCK_PATH } from "@/lib/gate/paths"
 import { clientKey, loginLimiter } from "@/lib/gate/rate-limit"
 import { safeNext } from "@/lib/gate/safe-next"
 import { isSameOrigin } from "@/lib/gate/same-origin"
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 function backToUnlock(request: Request, error: "invalid" | "limited" | "misconfigured", next: string) {
   const url = new URL(UNLOCK_PATH, request.url)
   url.searchParams.set("error", error)
-  if (next !== "/") url.searchParams.set("next", next)
+  if (next !== DEFAULT_NEXT) url.searchParams.set("next", next)
   return NextResponse.redirect(url, 303)
 }
 
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
   try {
     form = await request.formData()
   } catch {
-    return backToUnlock(request, "invalid", "/")
+    return backToUnlock(request, "invalid", DEFAULT_NEXT)
   }
-  const next = safeNext(form.get("next"))
+  const next = safeNext(form.get("next"), new URL(request.url).origin)
   if (config.mode === "misconfigured") return backToUnlock(request, "misconfigured", next)
 
   const key = clientKey(request.headers)

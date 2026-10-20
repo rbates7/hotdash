@@ -8,10 +8,10 @@ const EMAIL = "founder@example.test"
 const SECRET = "test-only-gate-password-1"
 const ORIGIN = "https://dash.example.test"
 
-function req(path: string, cookie?: string) {
-  const headers = new Headers()
+function req(path: string, cookie?: string, init: { method?: string; headers?: Record<string, string> } = {}) {
+  const headers = new Headers(init.headers)
   if (cookie) headers.set("cookie", `${GATE_COOKIE}=${cookie}`)
-  return new NextRequest(new URL(path, ORIGIN), { headers })
+  return new NextRequest(new URL(path, ORIGIN), { headers, method: init.method })
 }
 
 function setGate(email?: string, secret?: string) {
@@ -48,9 +48,31 @@ describe("proxy, gate on", () => {
     expect(location.searchParams.get("next")).toBe("/crm/contacts?tab=all")
   })
 
-  it("redirects / without a next", async () => {
-    const res = await proxy(req("/"))
+  it("redirects /home without a next (it is the default)", async () => {
+    const res = await proxy(req("/home"))
     expect(new URL(res.headers.get("location")!).search).toBe("")
+  })
+
+  it.each(["HEAD", "OPTIONS", "POST", "DELETE"])("401s %s on an API", async (method) => {
+    expect((await proxy(req("/api/inbox", undefined, { method }))).status).toBe(401)
+  })
+
+  it("locks trailing-slash and case variants", async () => {
+    expect((await proxy(req("/api/inbox/"))).status).toBe(401)
+    expect((await proxy(req("/api/health/stripe/"))).status).toBe(401)
+    expect((await proxy(req("/crm/"))).status).toBe(307)
+    for (const path of ["/API/inbox", "/Api/Inbox", "/%61pi/inbox", "/UNLOCK/x", "/Unlock"]) {
+      const res = await proxy(req(path))
+      expect([307, 401], path).toContain(res.status)
+    }
+  })
+
+  it("a locked deep link carries an encoded path back safely", async () => {
+    const res = await proxy(req("/..//evil.example"))
+    const location = new URL(res.headers.get("location")!)
+    expect(location.origin).toBe(ORIGIN)
+    const next = location.searchParams.get("next")
+    if (next) expect(new URL(next, ORIGIN).origin).toBe(ORIGIN)
   })
 
   it.each(["/api/inbox", "/api/stripe/mrr-cash", "/api/crm/gmail", "/api/health/stripe", "/api/health/gmail", "/api"])(
@@ -77,6 +99,37 @@ describe("proxy, gate on", () => {
     for (const path of ["/unlock", "/api/gate/login", "/api/gate/logout", "/icon.svg"]) {
       expect(passes(await proxy(req(path)))).toBe(true)
     }
+  })
+})
+
+describe("proxy, client-sent x-hotdash-bare", () => {
+  const forwarded = (res: Response) => res.headers.get("x-middleware-request-x-hotdash-bare")
+  const overridden = (res: Response) => res.headers.get("x-middleware-override-headers") ?? ""
+
+  it("is stripped when the gate is off", async () => {
+    setGate()
+    const res = await proxy(req("/crm", undefined, { headers: { "x-hotdash-bare": "1" } }))
+    expect(passes(res)).toBe(true)
+    // Next replaces the request headers with this list; the bare one is not in it.
+    expect(res.headers.has("x-middleware-override-headers")).toBe(true)
+    expect(overridden(res)).not.toContain("x-hotdash-bare")
+    expect(forwarded(res)).toBeNull()
+  })
+
+  it("is stripped for a signed-in page", async () => {
+    setGate(EMAIL, SECRET)
+    const cookie = await signGateCookie(EMAIL, SECRET)
+    const res = await proxy(req("/crm", cookie, { headers: { "x-hotdash-bare": "1" } }))
+    expect(passes(res)).toBe(true)
+    expect(res.headers.has("x-middleware-override-headers")).toBe(true)
+    expect(overridden(res)).not.toContain("x-hotdash-bare")
+    expect(forwarded(res)).toBeNull()
+  })
+
+  it("is set by the proxy itself only on /unlock", async () => {
+    setGate(EMAIL, SECRET)
+    const res = await proxy(req("/unlock"))
+    expect(forwarded(res)).toBe("1")
   })
 })
 

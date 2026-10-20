@@ -39,19 +39,27 @@ function bare(request: NextRequest) {
   return NextResponse.next({ request: { headers } })
 }
 
+/** Through, minus any client-sent copy of the internal shell-hiding header. */
+function through(request: NextRequest) {
+  if (!request.headers.has(BARE_HEADER)) return NextResponse.next()
+  const headers = new Headers(request.headers)
+  headers.delete(BARE_HEADER)
+  return NextResponse.next({ request: { headers } })
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
   const config = getGateConfig()
-  if (config.mode === "off") return NextResponse.next()
+  if (config.mode === "off") return through(request)
 
   if (pathname === UNLOCK_PATH) return bare(request)
-  if (isPublicPath(pathname)) return NextResponse.next()
+  if (isPublicPath(pathname)) return through(request)
 
   if (
     config.mode === "on" &&
     (await verifyGateCookie(request.cookies.get(GATE_COOKIE)?.value, config.email, config.secret))
   ) {
-    return NextResponse.next()
+    return through(request)
   }
 
   if (isApiPath(pathname)) {
@@ -59,7 +67,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const unlock = new URL(UNLOCK_PATH, request.url)
-  const next = safeNext(`${pathname}${search}`)
+  const next = safeNext(`${pathname}${search}`, request.nextUrl.origin)
   if (next !== DEFAULT_NEXT) unlock.searchParams.set("next", next)
   return NextResponse.redirect(unlock, 307)
 }
