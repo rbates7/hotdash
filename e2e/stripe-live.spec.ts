@@ -198,10 +198,10 @@ test.describe("Stripe stale (1440)", () => {
   test("Metrics: the live cards say Last updated", async ({ page }) => {
     await mockStripe(page, liveSummary("stale"))
     await open(page, "/metrics")
-    for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers"]) {
+    // ARR is #77's real figure now, so it says Last updated too.
+    for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers", "ARR"]) {
       await expect(metricCard(page, name).getByTestId("metric-updated")).toHaveText("Last updated Tue, Oct 13 · 9:41 AM CDT")
     }
-    await expect(metricCard(page, "ARR").getByTestId("metric-updated")).toHaveCount(0)
     await expect(page.getByRole("note", { name: "Partly live" })).toContainText("as of their last update")
     await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
