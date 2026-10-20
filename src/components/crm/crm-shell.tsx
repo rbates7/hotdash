@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   SearchIcon,
   TriangleAlertIcon,
+  ChevronRightIcon,
 } from "lucide-react"
 
 import { countTriagePending } from "@/lib/crm/crm"
@@ -24,7 +25,9 @@ export const FIND_CONTACT = "Find a contact…"
 
 export const LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
 /** While Gmail's first sync runs. */
-export const CONNECTING_LEDE = "Conversations, contacts, and triage"
+export const CONNECTING_LEDE = "Loading your cases…"
+/** The login gate's 401: the session ran out, Gmail is still connected. */
+export const EXPIRED_LEDE = "Sign in again to see your cases"
 
 export function liveLede(mailbox: string) {
   return `Conversations, contacts, and triage from ${mailbox}`
@@ -143,13 +146,16 @@ function CrmTabs({ pathname, triageCount }: { pathname: string; triageCount: num
       <span
         aria-hidden
         data-testid="crm-tab-fade-start"
-        className="from-background pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
+        className="from-background via-background/80 pointer-events-none absolute inset-y-0 left-0 w-12 rounded-l-lg bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
       />
       <span
         aria-hidden
         data-testid="crm-tab-fade-end"
-        className="from-background pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l to-transparent opacity-0 transition-opacity group-data-[fade-end]/tabbar:opacity-100"
-      />
+        className="from-background via-background/80 pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end rounded-r-lg bg-gradient-to-l to-transparent pr-1 opacity-0 transition-opacity group-data-[fade-end]/tabbar:opacity-100"
+      >
+        {/* Scroll cue: more tabs (Triage, Contacts) sit past the edge on a phone. */}
+        <ChevronRightIcon className="text-muted-foreground size-4" />
+      </span>
     </div>
   )
 }
@@ -180,7 +186,13 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 flex-1 basis-60">
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
-            {gmail.kind === "live" ? liveLede(gmail.mailbox) : connecting ? CONNECTING_LEDE : LEDE}
+            {unauthorized
+              ? EXPIRED_LEDE
+              : gmail.kind === "live"
+                ? liveLede(gmail.mailbox)
+                : connecting
+                  ? CONNECTING_LEDE
+                  : LEDE}
           </p>
         </div>
         <div className="mt-1 flex shrink-0 items-center gap-2">

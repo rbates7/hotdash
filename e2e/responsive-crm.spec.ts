@@ -523,10 +523,10 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expectGmailPanel(page, "contacts")
       await expect(cardList(page)).toBeHidden()
       const t = table(page, "Contacts")
-      await expect(t.getByRole("columnheader")).toHaveText(["Name", "Organization", "Plan", "Open cases", "Actions"])
+      await expect(t.getByRole("columnheader")).toHaveText(["Name", "Organization", "Open cases", "Actions"])
       const row = t.getByRole("row", { name: new RegExp(PAT) })
       await expect(row.getByRole("cell").first().getByText("pat.reyes@example.org")).toBeVisible()
-      await expect(row.getByRole("cell")).toHaveCount(5)
+      await expect(row.getByRole("cell")).toHaveCount(4)
       const more = row.getByRole("button", { name: `More actions for ${PAT}` })
       await expectTapTarget(more, "contact …")
       await more.click()
@@ -677,7 +677,6 @@ test.describe("responsive CRM (desktop 1440)", () => {
       "Name",
       "Email",
       "Organization",
-      "Plan",
       "Open cases",
     ])
     await expect(main(page).getByRole("button", { name: /^More actions for / })).toHaveCount(0)

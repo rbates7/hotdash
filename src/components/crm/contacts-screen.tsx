@@ -326,7 +326,6 @@ export function ContactsScreen() {
                 <TableHead className={HEAD}>Name</TableHead>
                 <TableHead className={cn(HEAD, TABLET_HIDE)}>Email</TableHead>
                 <TableHead className={HEAD}>Organization</TableHead>
-                <TableHead className={HEAD}>Plan</TableHead>
                 <TableHead className={`${HEAD} text-right`}>Open cases</TableHead>
                 <TableHead className={cn(HEAD, TABLET_ONLY, "w-14")}>
                   <span className="sr-only">Actions</span>
@@ -365,9 +364,6 @@ export function ContactsScreen() {
                     </TableCell>
                     <TableCell className={`${CELL} text-muted-foreground`}>
                       {org?.name ?? "—"}
-                    </TableCell>
-                    <TableCell className={CELL}>
-                      <PlanBadge plan={contact.plan} planStatus={contact.planStatus} />
                     </TableCell>
                     <TableCell className={`${CELL} text-right`}>
                       {openCaseCount(store.cases, contact.id) || (

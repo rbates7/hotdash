@@ -159,9 +159,9 @@ describe("tablet (768–1279): Contacts table", () => {
     renderCrm(<ContactsScreen />)
     const table = screen.getByRole("table", { name: "Contacts" })
     const heads = within(table).getAllByRole("columnheader")
-    expect(heads.map((h) => h.textContent)).toEqual(["Name", "Email", "Organization", "Plan", "Open cases", "Actions"])
+    expect(heads.map((h) => h.textContent)).toEqual(["Name", "Email", "Organization", "Open cases", "Actions"])
     expect(heads[1]).toHaveClass("md:max-xl:hidden")
-    expect(heads[5]).toHaveClass("hidden", "md:max-xl:table-cell")
+    expect(heads[4]).toHaveClass("hidden", "md:max-xl:table-cell")
     await user.click(screen.getByRole("button", { name: "More actions for Pat Reyes" }))
     const menu = await screen.findByRole("menu")
     expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
