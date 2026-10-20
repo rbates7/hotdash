@@ -18,7 +18,7 @@ import {
 } from "@/lib/crm/gmail-summary"
 import { buildCrmList, emptyCrmList, parseFullThread } from "@/lib/crm/gmail-view"
 import type { CrmFeedStatus, CrmListResponse, CrmThreadResponse } from "@/lib/crm/types"
-import { GMAIL_CONCURRENCY, sharedGmailGate, type GmailGate } from "@/lib/server/gmail-limit"
+import { GMAIL_CONCURRENCY, RETRY_REASONS, parseRetryAfter, sharedGmailGate, type GmailGate } from "@/lib/server/gmail-limit"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
@@ -120,6 +120,8 @@ export type GoogleErrorDetail = {
   apiStatus?: string
   /** Gmail API `error.errors[].reason`, e.g. userRateLimitExceeded. */
   reasons?: string[]
+  /** Google's `Retry-After`, as a wait in ms (a number we parsed, never the header text). */
+  retryAfterMs?: number
 }
 
 /** A failure with a fixed word for the log; never a message from Google. */
@@ -139,7 +141,8 @@ const asString = (v: unknown) => (typeof v === "string" ? v : null)
 const SAFE_CODE = /^[A-Za-z][A-Za-z_]{0,47}$/
 
 /** Gmail's 403 reasons (and status) that mean slow down, not "not allowed". */
-const RATE_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "dailyLimitExceeded"])
+/** The short-term ones (`RETRY_REASONS`) are retried by the gate; the quota ones are not. */
+const RATE_REASONS = new Set([...RETRY_REASONS, "quotaExceeded", "dailyLimitExceeded"])
 
 /**
  * Google's error fields from a failed response, code-shaped values only.
@@ -187,6 +190,8 @@ export function classifyGoogleError(detail: GoogleErrorDetail): Exclude<GmailErr
 async function googleError(step: GoogleErrorDetail["step"], res: Response, secrets: readonly string[]) {
   const body = await res.json().catch(() => null)
   const detail = googleErrorDetail(step, res.status, body, secrets)
+  const retryAfterMs = parseRetryAfter(res.headers?.get?.("retry-after"))
+  if (retryAfterMs !== undefined) detail.retryAfterMs = retryAfterMs
   return new GmailError(classifyGoogleError(detail), detail)
 }
 
