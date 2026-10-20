@@ -89,3 +89,22 @@ describe("connecting in the browser (#50's pattern)", () => {
     })
   })
 })
+
+describe("parseGmailSummary with #69's CrmListResponse only", () => {
+  it("builds Contacts rows from the cases instead of failing to Not connected", async () => {
+    const { crmFixtureSummary } = await import("@/test/crm-fixture")
+    const body = crmFixtureSummary(Date.parse("2026-10-20T06:00:00Z"))
+    const parsed = parseGmailSummary(JSON.parse(JSON.stringify(body)))
+    expect(parsed?.status).toBe("connected")
+    if (!parsed || !parsed.data) throw new Error("no data")
+    expect(parsed.lastSyncedAt).toBe(body.lastUpdated)
+    const emails = new Set(body.cases.map((c) => c.contact.email.toLowerCase()))
+    expect(parsed.data.contacts.map((c) => c.email).sort()).toEqual([...emails].sort())
+    expect(parsed.data.cases).toHaveLength(body.cases.length)
+    expect(parsed.data.messages).toEqual([])
+  })
+
+  it("still rejects a connected body with neither data nor a list", () => {
+    expect(parseGmailSummary({ status: "connected", lastUpdated: "2026-10-20T06:00:00Z" })).toBeNull()
+  })
+})
