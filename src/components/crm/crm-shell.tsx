@@ -26,6 +26,24 @@ export const FIND_CONTACT = "Find a contact…"
 export const LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
 /** While Gmail's first sync runs. */
 export const CONNECTING_LEDE = "Loading your cases…"
+
+/** What each CRM section lists, for the loading and session-expired subtitles. */
+export function sectionNoun(pathname: string) {
+  if (pathname.startsWith("/crm/contacts")) return "contacts"
+  if (pathname.startsWith("/crm/triage")) return "triage"
+  if (pathname.startsWith("/crm/accounts")) return "accounts"
+  return "cases"
+}
+
+export function loadingLede(pathname: string) {
+  const noun = sectionNoun(pathname)
+  return noun === "triage" ? "Loading triage…" : `Loading your ${noun}…`
+}
+
+export function expiredLede(pathname: string) {
+  const noun = sectionNoun(pathname)
+  return noun === "triage" ? "Sign in again to see triage" : `Sign in again to see your ${noun}`
+}
 /** The login gate's 401: the session ran out, Gmail is still connected. */
 export const EXPIRED_LEDE = "Sign in again to see your cases"
 
@@ -190,11 +208,11 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
             {unauthorized
-              ? EXPIRED_LEDE
+              ? expiredLede(pathname)
               : gmail.kind === "live"
                 ? liveLede(gmail.mailbox)
                 : loading
-                  ? CONNECTING_LEDE
+                  ? loadingLede(pathname)
                   : LEDE}
           </p>
         </div>

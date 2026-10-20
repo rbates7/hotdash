@@ -97,7 +97,6 @@ const source = crmSource
 const clearButton = clearMenuItem
 const casePanel = (page: Page) => page.getByTestId("case-panel")
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
-const statusFilter = (page: Page) => main(page).getByRole("group", { name: "Status filter", exact: true })
 const cardList = (page: Page) => main(page).locator("[data-slot='responsive-table']").getByRole("list")
 const cards = (page: Page) => cardList(page).locator("[data-slot='row-collapse']")
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -249,12 +248,14 @@ test.describe("44px sweep (negative control)", () => {
   test("a single 43px target fails the sweep", async ({ page }) => {
     await live(page)
     expect((await smallTargets(main(page))).small).toEqual([])
-    await statusFilter(page)
-      .getByRole("button", { name: "Open", exact: true })
+    // On a phone the status filter lives in the Filters sheet; shrink the search box
+    // (a plain input whose style React never rewrites) instead.
+    await main(page)
+      .getByRole("searchbox", { name: "Search cases" })
       .evaluate((el) => el.setAttribute("style", "min-height: 0 !important; height: 43px !important"))
     const { small } = await smallTargets(main(page))
     expect(small).toHaveLength(1)
-    expect(small[0]).toMatch(/^button "Open" \d+\.\d×43\.0$/)
+    expect(small[0]).toMatch(/^input "Search cases" \d+\.\d×43\.0$/)
   })
 })
 
@@ -600,13 +601,19 @@ for (const [size, viewport] of TOUCH_SIZES) {
 
       // Cases (live): priority filter options, then a row's priority picker options.
       await live(page)
-      await main(page).getByRole("combobox", { name: "Priority filter" }).click()
+      // Phone: the priority filter is inside the Filters sheet.
+      if (viewport.width < 768) await main(page).getByTestId("crm-filters-trigger").click()
+      await page.getByRole("combobox", { name: "Priority filter" }).filter({ visible: true }).click()
       const options = page.getByRole("listbox")
       await expect(options).toBeVisible()
       await settle(options)
       await expectAllTargets44(options, `${size} priority filter options`)
       await page.keyboard.press("Escape")
       await expect(options).toBeHidden()
+      if (viewport.width < 768) {
+        await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click()
+        await expect(page.getByRole("dialog", { name: "Filters" })).toBeHidden()
+      }
       // The case's priority picker, in the case panel at every width (the
       // list rows below 820 have no pickers; the table's Priority column is
       // 1180 up), and the panel's 44px status segments.
