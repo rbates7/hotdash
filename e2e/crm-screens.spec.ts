@@ -7,13 +7,22 @@ import { settleAnimations } from "./support/contrast"
 import {
   CRM_STORAGE_KEY as STORAGE_KEY,
   LIVE_CASES,
+  LIVE_OPEN_TILE,
   LIVE_TRIAGE,
+  NO_CASES,
+  clearCrmEntries,
+  clearMenuItem,
+  closeCrmMenu,
+  crmSource,
   emptyLiveSummary,
+  expectCrmNote,
+  expectCrmSource,
   expectGmailPanel,
   gmailPanel,
+  openCrmMenu,
 } from "./support/crm"
-import { liveGmailSummary, mockGmail } from "./support/gmail"
-import { CLEAR_CONFIRM_NAME, NOTE, clearMyEntries, persistenceNote } from "./support/persistence"
+import { GMAIL_ROUTE, liveGmailSummary, mockGmail } from "./support/gmail"
+import { CLEAR_CONFIRM_NAME, NOTE, persistenceNote } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 /**
@@ -43,8 +52,6 @@ async function shoot(page: Page, name: string) {
   }
 }
 
-const header = (page: Page) => page.getByRole("main").locator("header").first()
-const source = (page: Page) => header(page).getByTestId("crm-source")
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
 const triageCards = (page: Page) => page.locator("[data-slot=triage-card]")
@@ -56,10 +63,16 @@ for (const theme of ["light", "dark"] as const) {
     await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await page.reload()
     await setTheme(page, theme)
-    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-    await expect(source(page)).toHaveText("Gmail not connected")
     await expectGmailPanel(page, "overview")
     await shoot(page, `crm-overview-not-connected-${theme}`)
+
+    // The header's ⋯ menu: Gmail's state, Connect…, where edits live, Clear my entries (off).
+    await openCrmMenu(page)
+    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+    await expect(crmSource(page)).toHaveText("Gmail not connected")
+    await expect(clearMenuItem(page)).toHaveAttribute("aria-disabled", "true")
+    await shoot(page, `crm-header-menu-not-connected-${theme}`)
+    await closeCrmMenu(page)
 
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
     await expectGmailPanel(page, "cases")
@@ -85,43 +98,50 @@ for (const theme of ["light", "dark"] as const) {
     await add.getByRole("button", { name: "Create contact", exact: true }).click()
     await expect(add).toBeHidden()
     await expect(page.getByRole("table", { name: "Contacts" }).getByRole("row", { name: /Pat Reyes/ })).toBeVisible()
-    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+    await expectCrmNote(page, NOTE.saved)
     await shoot(page, `crm-contacts-own-${theme}`)
 
     await crmNav(page).getByRole("link", { name: "Overview", exact: true }).click()
     await expect(page.getByRole("link", { name: "1 contact you added", exact: true })).toBeVisible()
     await shoot(page, `crm-overview-own-${theme}`)
 
-    await header(page).getByRole("button", { name: "Clear my entries", exact: true }).click()
+    // Clear my entries, in the ⋯ menu, behind the shared confirm.
+    await openCrmMenu(page)
+    await clearMenuItem(page).click()
     await expect(dialog(page, CLEAR_CONFIRM_NAME)).toBeVisible()
     await shoot(page, `crm-clear-confirm-${theme}`)
     await dialog(page, CLEAR_CONFIRM_NAME).getByRole("button", { name: "Keep my edits", exact: true }).click()
     await expect(dialog(page, CLEAR_CONFIRM_NAME)).toBeHidden()
-    await clearMyEntries(page, header(page))
-    await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+    await clearCrmEntries(page)
+    await expectCrmNote(page, NOTE.unsaved)
     await expect(page.getByRole("link", { name: /you added/ })).toHaveCount(0)
 
     // Gmail connected: the fixture inbox, read-only.
     await mockGmail(page, liveGmailSummary(Date.now()))
     await page.goto("/crm")
-    await expect(source(page)).toHaveText("Live from Gmail")
-    await expect(page.getByText("3 contacts · 3 open conversations")).toBeVisible()
+    await expectCrmSource(page, "Live from Gmail")
+    await expect(page.getByRole("main").getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
     await expect(gmailPanel(page)).toHaveCount(0)
     await shoot(page, `crm-overview-${theme}`)
 
     await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
     await expect(page.getByRole("table", { name: "Cases" })).toBeVisible()
+    await expect(page.getByRole("main").getByTestId("crm-edits-note")).toBeVisible()
     await shoot(page, `crm-cases-list-${theme}`)
 
-    await page.getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
-    await expect(page.getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
-    await shoot(page, `crm-case-detail-${theme}`)
+    // The case opens in the panel beside the list (the old detail page is gone).
+    await page.getByRole("table", { name: "Cases" }).getByRole("link", { name: new RegExp(LIVE_CASES.roster) }).click()
+    const panel = page.getByTestId("case-panel")
+    await expect(panel.getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
+    await expect(panel.getByRole("list", { name: "Thread" })).toBeVisible()
+    await expect(panel.getByRole("radiogroup", { name: "Status" })).toBeVisible()
+    await shoot(page, `crm-case-panel-${theme}`)
 
-    await page.getByRole("button", { name: "Waiting on customer" }).click()
-    await page.getByLabel("Internal note").fill("Asked Dana for the CSV.")
-    await page.getByRole("button", { name: "Add note", exact: true }).click()
-    await expect(page.getByText("Asked Dana for the CSV.")).toBeVisible()
-    await shoot(page, `crm-case-note-added-${theme}`)
+    // Old case detail UI (status path, notes) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+
+    await crmNav(page).getByRole("link", { name: "Accounts", exact: true }).click()
+    await expect(page.getByRole("table", { name: "Accounts" })).toBeVisible()
+    await shoot(page, `crm-accounts-${theme}`)
 
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
     await expect(page.getByRole("table", { name: "Contacts" })).toBeVisible()
@@ -139,11 +159,11 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `crm-triage-empty-${theme}`)
 
     // An inbox with nothing in it: the empty Cases list.
-    await page.unroute("**/api/crm/gmail")
+    await page.unroute(GMAIL_ROUTE)
     await mockGmail(page, emptyLiveSummary())
     await page.goto("/crm/cases")
-    await expect(source(page)).toHaveText("Live from Gmail")
-    await expect(page.getByRole("status", { name: "No cases" })).toBeVisible()
+    await expectCrmSource(page, "Live from Gmail")
+    await expect(page.getByRole("main").getByText(NO_CASES, { exact: true })).toBeVisible()
     await shoot(page, `crm-empty-${theme}`)
   })
 }

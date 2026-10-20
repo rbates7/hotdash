@@ -1,6 +1,8 @@
 "use client"
 
-import { CASE_PRIORITIES, PRIORITY_LABELS, type CasePriority } from "@/lib/crm/crm"
+import { CRM_PRIORITIES, CRM_PRIORITY_LABELS, type CrmCase, type CrmPriority } from "@/lib/crm/case-view"
+import { cn } from "@/lib/utils"
+import { saveCaseEdit } from "@/hooks/use-crm-edits"
 import {
   Select,
   SelectContent,
@@ -8,35 +10,56 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useCrm } from "@/components/crm/crm-store"
-import { CRM_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
+import { BADGE_TRIGGER_CLASSES } from "@/components/crm/case-status-select"
+import { PRIORITY_TONE } from "@/components/crm/crm-badges"
+import { CRM_ROW_44 } from "@/components/crm/crm-touch"
 
+/** Urgent / High are tinted; Normal / Low are outline badges (spec §1). */
+const PRIORITY_TRIGGER: Record<CrmPriority, string> = {
+  urgent: cn("border-transparent", PRIORITY_TONE.urgent),
+  high: cn("border-transparent", PRIORITY_TONE.high),
+  normal: cn(PRIORITY_TONE.normal, "dark:bg-transparent"),
+  low: cn(PRIORITY_TONE.low, "dark:bg-transparent"),
+}
+
+const ITEMS = CRM_PRIORITIES.map((value) => ({ value, label: CRM_PRIORITY_LABELS[value] }))
+
+/** Change a case's priority in place, kept in this browser like status. */
 export function CasePrioritySelect({
-  caseId,
-  priority,
+  crmCase,
+  live,
+  variant = "badge",
 }: {
-  caseId: string
-  priority: CasePriority
+  crmCase: CrmCase
+  live: CrmCase
+  variant?: "default" | "badge"
 }) {
-  const { setPriority } = useCrm()
-
   return (
     <Select
-      value={priority}
+      items={ITEMS}
+      value={crmCase.priority}
       onValueChange={(value) => {
-        if (value && (CASE_PRIORITIES as readonly string[]).includes(value)) {
-          setPriority(caseId, value as CasePriority)
+        if ((CRM_PRIORITIES as readonly unknown[]).includes(value)) {
+          saveCaseEdit(live, { priority: value as CrmPriority })
         }
       }}
-      items={CASE_PRIORITIES.map((item) => ({ value: item, label: PRIORITY_LABELS[item] }))}
     >
-      <SelectTrigger size="sm" aria-label="Priority" className={CRM_44}>
-        <SelectValue>{PRIORITY_LABELS[priority]}</SelectValue>
+      <SelectTrigger
+        size="sm"
+        aria-label={`Priority: ${crmCase.subject}`}
+        data-priority={crmCase.priority}
+        className={cn(
+          "max-xl:h-11!",
+          variant === "badge" && BADGE_TRIGGER_CLASSES,
+          variant === "badge" && PRIORITY_TRIGGER[crmCase.priority]
+        )}
+      >
+        <SelectValue>{CRM_PRIORITY_LABELS[crmCase.priority]}</SelectValue>
       </SelectTrigger>
-      <SelectContent>
-        {CASE_PRIORITIES.map((item) => (
-          <SelectItem key={item} value={item} className={CRM_ROW_44}>
-            {PRIORITY_LABELS[item]}
+      <SelectContent align="start">
+        {ITEMS.map((item) => (
+          <SelectItem key={item.value} value={item.value} className={CRM_ROW_44}>
+            {item.label}
           </SelectItem>
         ))}
       </SelectContent>
