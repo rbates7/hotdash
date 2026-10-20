@@ -29,7 +29,6 @@ import {
   FR_CHIPS_FADE,
   FR_CHIPS_WRAP,
 } from "@/components/feature-request/responsive"
-import { SampleDataNotice } from "@/components/sample-data"
 import { useIsMobile, useIsTabletPortrait } from "@/hooks/use-mobile"
 
 function ColumnHead({ status, count }: { status: FeatureStatus; count: number }) {
@@ -228,7 +227,6 @@ export function RequestBoard() {
 
   if (!persisted) return <BoardSkeleton layout={layout} />
 
-  const sampleCount = requests.filter((r) => r.sample).length
   const open = requests.find((r) => r.id === openId) ?? null
   const counts = Object.fromEntries(
     STATUS_ORDER.map((status) => [status, byStatus(requests, status).length])
@@ -238,15 +236,6 @@ export function RequestBoard() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {sampleCount > 0 && (
-        <SampleDataNotice>
-          The {sampleCount === 1 ? "card" : `${sampleCount} cards`} tagged below{" "}
-          {sampleCount === 1 ? "is an" : "are"} invented example{sampleCount === 1 ? "" : "s"} of
-          Dan&rsquo;s ideas, not real requests. Ideas you add or rewrite are yours, and they
-          live only in this browser.
-        </SampleDataNotice>
-      )}
-
       {requests.length === 0 && (
         <div
           role="status"
@@ -256,9 +245,8 @@ export function RequestBoard() {
           <InboxIcon className="size-4 flex-none" aria-hidden />
           <p>
             Nothing on the board. Add Dan&rsquo;s next idea with{" "}
-            <strong className="text-foreground font-medium">New idea</strong>, or{" "}
-            <strong className="text-foreground font-medium">Reset</strong> to bring the
-            sample cards back.
+            <strong className="text-foreground font-medium">New idea</strong>; it is saved
+            in this browser.
           </p>
         </div>
       )}

@@ -38,7 +38,6 @@ import {
   FR_TITLE,
   FR_TOUCH,
 } from "@/components/feature-request/responsive"
-import { SampleDataTag } from "@/components/sample-data"
 
 export type IdeaCloseReason = "dismiss" | "delete" | "move"
 
@@ -379,7 +378,6 @@ function EditIdeaBody({
         <span className="text-caption font-medium">
           {STATUS_CONFIG[request.status].label}
         </span>
-        {request.sample && <SampleDataTag className="ml-1" />}
         <Button
           variant="ghost"
           size="icon-sm"
