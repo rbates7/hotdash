@@ -64,7 +64,6 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CELL, HEAD, Pill, SortableHead, TableCard } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import {
   AddDealDialog,
   DeleteDealDialog,
@@ -153,9 +152,8 @@ function StageMenu({ deal, variant = "pill" }: { deal: Deal; variant?: "pill" | 
 /* ------------------------------------------------------------------ cells */
 
 /**
- * Who, with org and the sample tag. On tablet (768–1279) the Owner and Last
- * touch columns fold in here as a third line (Deke 9:939) and the tag drops
- * below it; desktop keeps them as columns.
+ * Who, with org. On tablet (768–1279) the Owner and Last touch columns fold
+ * in here as a third line (Deke 9:939); desktop keeps them as columns.
  */
 function WhoCell({ deal, lastTouch }: { deal: Deal; lastTouch: string }) {
   return (
@@ -163,10 +161,6 @@ function WhoCell({ deal, lastTouch }: { deal: Deal; lastTouch: string }) {
       <p className="text-label font-semibold tracking-tight">{deal.who}</p>
       <p className="text-caption text-muted-foreground flex flex-wrap items-center gap-1.5 md:max-xl:contents">
         <span>{deal.org}</span>
-        {/* Seed rows carry the tag; a deal you add is yours and does not. */}
-        {deal.sample && (
-          <SampleDataTag className="h-4 px-1 text-[10px] md:max-xl:order-last md:max-xl:mt-1 md:max-xl:self-start" />
-        )}
       </p>
       <p className="text-caption text-muted-foreground hidden md:max-xl:block">{`${deal.owner} · ${lastTouch}`}</p>
     </div>
@@ -655,7 +649,7 @@ export function DealsScreen() {
             </div>
           </div>
 
-          <TableCard note="Seed deals are invented; deals you add or change are saved in this browser.">
+          <TableCard>
             <ResponsiveTable
               layout="stack"
               className="[&_[role=listitem]:last-child>*]:border-b-0"
@@ -675,11 +669,9 @@ export function DealsScreen() {
                     { label: "Deal", value: dealLine(deal) },
                     { label: "Next step", value: nextStepLine(deal, today, { short: true }) },
                   ]}
-                  sample={deal.sample}
                   attention={isOverdue(deal, today)}
-                  // Overdue reads in the same text-safe danger token as the table's due line;
-                  // the tag keeps its own width instead of stretching across the card.
-                  className="[&_.text-destructive]:text-danger-text [&_[data-testid=sample-data-tag]]:self-start"
+                  // Overdue reads in the same text-safe danger token as the table's due line.
+                  className="[&_.text-destructive]:text-danger-text"
                   onClick={() => {
                     setSheetId(deal.id)
                     setSheetOpen(true)

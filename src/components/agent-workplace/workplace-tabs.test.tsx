@@ -6,11 +6,13 @@ import { configureInbox } from "@/hooks/use-inbox"
 import { liveInbox } from "@/test/inbox-fixture"
 
 import { FIXED_NOW_MS } from "@/test/clock"
+import { storeFounderBoard } from "@/test/workplace"
 import { navigation } from "@/test/setup"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { WorkplaceTabs } from "@/components/agent-workplace/workplace-tabs"
 
-function renderTabs(search = "") {
+function renderTabs(search = "", { board = true } = {}) {
+  if (board) storeFounderBoard(new Date(FIXED_NOW_MS))
   navigation.params = new URLSearchParams(search)
   navigation.push.mockReset()
   return render(
@@ -81,6 +83,7 @@ describe("WorkplaceTabs", () => {
         </IssuesProvider>
       )
     }
+    storeFounderBoard(new Date(FIXED_NOW_MS))
     render(<TabsWithUrl />)
     await user.click(screen.getByRole("button", { name: /In Progress/ }))
     expect(screen.getByRole("button", { name: /In Progress/ })).toHaveAttribute(
@@ -106,11 +109,11 @@ describe("WorkplaceTabs", () => {
     const user = userEvent.setup()
     renderTabs()
     await user.click(screen.getByText("Undo stack for iPad canvas"))
-    expect(navigation.push).toHaveBeenCalledWith("?issue=CHLK-404", { scroll: false })
+    expect(navigation.push).toHaveBeenCalledWith("?issue=CHLK-904", { scroll: false })
   })
 
   it("opens the ticket view from the URL", () => {
-    renderTabs("issue=CHLK-404")
+    renderTabs("issue=CHLK-904")
     expect(screen.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeInTheDocument()
   })
 
@@ -119,7 +122,7 @@ describe("WorkplaceTabs", () => {
     const card = screen.getByRole("article", { name: "Grok-1" })
     expect(within(card).getByText("Working")).toBeInTheDocument()
     expect(within(card).getByText("Undo stack for iPad canvas")).toBeInTheDocument()
-    expect(within(card).getByText("CHLK-404")).toBeInTheDocument()
+    expect(within(card).getByText("CHLK-904")).toBeInTheDocument()
   })
 
   it("chat is a door, not a thread", () => {
@@ -140,10 +143,21 @@ describe("WorkplaceTabs", () => {
     configureInbox({})
   })
 
-  it("autopilots lists the three assumed schedules", () => {
+  it("autopilots says Not connected: no assumed schedules", () => {
     renderTabs("tab=autopilots")
-    expect(screen.getAllByRole("row")).toHaveLength(4) // header + 3
-    expect(screen.getByText("Weekly bug audit")).toBeInTheDocument()
+    const panel = screen.getByRole("region", { name: "Autopilots: not connected" })
+    expect(panel).toHaveTextContent("Not connected")
+    expect(screen.queryAllByRole("row")).toHaveLength(0)
+    expect(screen.queryByText("Weekly bug audit")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Schedules assumed/)).not.toBeInTheDocument()
+  })
+
+  it("a fresh browser shows an empty board: no seed tickets", () => {
+    renderTabs("", { board: false })
+    expect(screen.getByText("No sprint is running")).toBeInTheDocument()
+    expect(screen.queryByText("Snap-to-hash on new formations")).not.toBeInTheDocument()
+    expect(screen.queryByText("Undo stack for iPad canvas")).not.toBeInTheDocument()
+    expect(screen.queryByText(/agents working/)).not.toBeInTheDocument()
   })
 })
 
@@ -158,6 +172,9 @@ describe("TabBarScroller", () => {
       expect(fade.className).toMatch(/\bpointer-events-none\b/)
       expect(fade.className).toMatch(/\bopacity-0\b/)
     }
+    // The start fade is the stronger one: wider, solid through its first quarter.
+    expect(screen.getByTestId("tab-fade-start")).toHaveClass("w-12", "via-background/85", "from-25%")
+    expect(screen.getByTestId("tab-fade-end")).toHaveClass("w-8")
   })
 })
 

@@ -2,7 +2,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { founderClinicsState } from "../src/lib/clinics-fixture"
+import { NOTE, clearMyEntries, countWrites, expectWritesSettled, persistenceNote, storeFounderCopy, writesTo } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.clinics.v1"
@@ -30,7 +31,7 @@ const bodyRows = (page: Page, name: "Upcoming clinics" | "Past clinics") =>
 const row = (page: Page, name: "Upcoming clinics" | "Past clinics", re: RegExp) =>
   table(page, name).getByRole("row", { name: re })
 const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
-const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add clinic", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
@@ -41,13 +42,27 @@ async function openMenu(page: Page, section: "Upcoming clinics" | "Past clinics"
   return menu
 }
 
+const emptyState = (page: Page) => page.getByRole("status", { name: "No clinics", exact: true })
+
+/** A fresh browser: no sample clinics, nothing saved, nothing to clear. */
 async function freshClinics(page: Page) {
   await page.goto("/clinics")
   await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
   await page.reload()
-  // Nothing edited in this browser yet, so nothing is saved — and it says so.
   await expect(note(page)).toHaveText(NOTE.unsaved)
-  await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+  await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+  await expect(emptyState(page)).toContainText("No clinics on the calendar")
+}
+
+/** The founder's own clinics (a test-only copy of the old sample, ids past it), stored before the page loads. */
+async function founderClinics(page: Page, path = "/clinics") {
+  await storeFounderCopy(page, STORAGE_KEY, founderClinicsState(today()))
+  await page.goto(path)
+}
+
+async function withFounder(page: Page) {
+  await founderClinics(page)
+  await expect(note(page)).toHaveText(NOTE.saved)
   await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
 }
 
@@ -112,8 +127,8 @@ async function fillClinic(
 }
 
 test.describe("Clinics", () => {
-  test("is reachable from the sidebar and shows the mock's two sections", async ({ page }) => {
-    await page.goto("/home")
+  test("is reachable from the sidebar and shows the founder's clinics in two sections", async ({ page }) => {
+    await founderClinics(page, "/home")
     await rail(page).getByRole("link", { name: "Clinics", exact: true }).click()
     await expect(page).toHaveURL(/\/clinics$/)
     await expect(header(page).getByRole("heading", { level: 1, name: "Clinics" })).toBeVisible()
@@ -129,7 +144,7 @@ test.describe("Clinics", () => {
       await expect(region(page, name).getByTestId("section-count")).toHaveText("4")
     }
 
-    // Real clock: the seed sits around today's Central date, so the first
+    // Real clock: the founder's copy sits around today's Central date, so the first
     // upcoming row is 15 days out and the first past row 81 days back.
     const day = today()
     const first = row(page, "Upcoming clinics", /Houston Offensive Staff Clinic/)
@@ -146,12 +161,10 @@ test.describe("Clinics", () => {
   })
 
   test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
-    await freshClinics(page)
+    await withFounder(page)
     // One shared probe for every screen; if it stopped seeing unreadable
     // text, every contrast assertion below would pass vacuously.
-    await expectProbeCatchesSabotage(header(page).getByTestId("sample-data-tag"), "header tag", expect)
     const first = row(page, "Upcoming clinics", /Houston Offensive Staff Clinic/)
-    await expectProbeCatchesSabotage(first.getByTestId("sample-data-tag"), "row tag", expect)
     await expectProbeCatchesSabotage(first.getByTestId("status-pill"), "status pill", expect)
     await setTheme(page, "dark")
     await expectProbeCatchesSabotage(
@@ -162,18 +175,12 @@ test.describe("Clinics", () => {
     await setTheme(page, "light")
   })
 
-  test("labels every seed row as sample data, readable at ≥ 4.5:1 on every text node, light and dark; status pills too", async ({ page }) => {
-    await freshClinics(page)
+  test("no Sample data tag anywhere; status and type pills read at ≥ 4.5:1, light and dark", async ({ page }) => {
+    await withFounder(page)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
       for (const name of ["Upcoming clinics", "Past clinics"] as const) {
-        const tags = table(page, name).getByTestId("sample-data-tag")
-        await expect(tags).toHaveCount(4)
-        for (const tag of await tags.all()) {
-          await expect(tag).toHaveText("Sample data")
-          await expectReadable(tag, `${theme}/${name} row tag`, expect)
-        }
         for (const pill of await table(page, name).getByTestId("status-pill").all()) {
           await expectReadable(pill, `${theme}/${name} status`, expect)
         }
@@ -207,9 +214,9 @@ test.describe("Clinics", () => {
     await setTheme(page, "light")
   })
 
-  test("the disabled Reset does not react to hover and keeps its own size", async ({ page }) => {
+  test("the disabled Clear my entries does not react to hover and keeps its own size", async ({ page }) => {
     await freshClinics(page)
-    const reset = resetButton(page)
+    const reset = clearButton(page)
     await expect(reset).toHaveAttribute("aria-disabled", "true")
     const styles = () =>
       reset.evaluate((el) => {
@@ -230,10 +237,8 @@ test.describe("Clinics", () => {
     expect(during.fontSize).toBe("11px")
   })
 
-  test("happy path: add → edit the date into the past → mark attended → record collected → survives reload → Reset via confirm", async ({ page }) => {
-    await freshClinics(page)
-    // A visit that changes nothing writes nothing; the seed is never pinned.
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+  test("happy path: add → edit the date into the past → mark attended → record collected → survives reload → Clear via confirm", async ({ page }) => {
+    await withFounder(page)
     const day = today()
 
     // Add, dated three days out: lands in Upcoming, first by date.
@@ -257,11 +262,9 @@ test.describe("Clinics", () => {
     await expect(upcoming).toContainText("in 3 days")
     await expect(upcoming.getByTestId("type-pill")).toHaveText("Staff meeting")
     await expect(upcoming.getByTestId("status-pill")).toHaveText("Upcoming")
-    await expect(upcoming.getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(region(page, "Upcoming clinics").getByTestId("section-count")).toHaveText("5")
-    // Only now, after a real edit, is there a save — and the note says so.
     await expect(note(page)).toHaveText(NOTE.saved)
-    await expect(resetButton(page)).toBeEnabled()
+    await expect(clearButton(page)).toBeEnabled()
 
     // Edit the date to yesterday: it moves to Past, unconfirmed.
     let menu = await openMenu(page, "Upcoming clinics", "Katy spring install")
@@ -307,24 +310,24 @@ test.describe("Clinics", () => {
     expect(saved).toContain('"Katy spring install"')
     expect(saved).not.toContain('"now"')
 
-    // Reset asks first; "Keep my edits" keeps them.
-    await resetButton(page).click()
-    const confirm = dialog(page, "Reset demo data?")
+    // Clear asks first; "Keep my edits" keeps them.
+    await clearButton(page).click()
+    const confirm = dialog(page, "Clear my entries?")
     await confirm.getByRole("button", { name: "Keep my edits", exact: true }).click()
     await expect(confirm).toBeHidden()
     await expect(row(page, "Past clinics", /Katy spring install/)).toBeVisible()
 
-    // Reset (through the shared helper's confirm) clears the key and puts the seed back.
-    await resetDemoData(page, header(page))
-    await expect(bodyRows(page, "Past clinics")).toHaveCount(4)
-    await expect(table(page, "Past clinics").getByText("Katy spring install")).toHaveCount(0)
+    // Clear (through the shared helper's confirm) removes the key; no sample comes back.
+    await clearMyEntries(page, header(page))
+    await expect(emptyState(page)).toBeVisible()
+    await expect(page.getByText("Katy spring install")).toHaveCount(0)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
   })
 
   test("delete asks first, and emptying the list shows one empty state", async ({ page }) => {
-    await freshClinics(page)
+    await withFounder(page)
     let menu = await openMenu(page, "Upcoming clinics", "Dallas 7-on-7 Coaches Night")
     await menu.getByRole("menuitem", { name: "Delete", exact: true }).click()
     const confirm = dialog(page, "Delete this clinic?")
@@ -353,11 +356,11 @@ test.describe("Clinics", () => {
         await expect(table(page, "Upcoming clinics").getByRole("status")).toHaveText("Nothing on the calendar. Add a clinic above.")
       }
     }
-    const empty = page.getByRole("status", { name: "No clinics", exact: true })
+    const empty = emptyState(page)
     await expect(empty).toContainText("No clinics on the calendar")
     await expect(region(page, "Upcoming clinics")).toHaveCount(0)
 
-    // The empty state can add, and the counter carried on past the seed ids.
+    // The empty state can add, and the counter carried on past the founder's ids.
     await empty.getByRole("button", { name: "Add clinic", exact: true }).click()
     const add = dialog(page, "Add clinic")
     await fillClinic(add, { name: "First one back" })
@@ -365,10 +368,10 @@ test.describe("Clinics", () => {
     await expect(add).toBeHidden()
     const back = row(page, "Upcoming clinics", /First one back/)
     await expect(back).toContainText("Today")
-    await expect(back).toHaveAttribute("data-clinic", "clinic-9")
+    await expect(back).toHaveAttribute("data-clinic", "clinic-109")
 
-    await resetDemoData(page, header(page))
-    await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
+    await clearMyEntries(page, header(page))
+    await expect(emptyState(page)).toBeVisible()
   })
 
   test("the whole screen works from the keyboard: Add via Tab/Enter, a row menu via arrows", async ({ page }) => {
@@ -390,11 +393,11 @@ test.describe("Clinics", () => {
       if (label === "button:Add clinic") break
     }
     expect(seen.at(-1), seen.join(" | ")).toBe("button:Add clinic")
-    // The disabled Reset is a stop on purpose (focusable, with the shared
+    // The disabled Clear is a stop on purpose (focusable, with the shared
     // hint as its description), and nothing else sits between the h1 and Add.
-    expect(seen, seen.join(" | ")).toEqual(["button:Reset", "button:Add clinic"])
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
-    await expect(resetButton(page)).toHaveAccessibleDescription(/nothing to reset/)
+    expect(seen, seen.join(" | ")).toEqual(["button:Clear my entries", "button:Add clinic"])
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAccessibleDescription(/nothing to clear/)
 
     await page.keyboard.press("Enter")
     const add = dialog(page, "Add clinic")
@@ -438,12 +441,12 @@ test.describe("Clinics", () => {
     await confirm.getByRole("button", { name: "Delete", exact: true }).focus()
     await page.keyboard.press("Enter")
     await expect(confirm).toBeHidden()
-    await expect(table(page, "Past clinics").getByText("Keyboard clinic")).toHaveCount(0)
+    await expect(page.getByText("Keyboard clinic")).toHaveCount(0)
 
-    await resetDemoData(page, header(page))
+    await clearMyEntries(page, header(page))
   })
 
-  test("a save that fails is announced, never claimed, and Reset stays disabled", async ({ browser }) => {
+  test("a save that fails is announced, never claimed, and Clear stays disabled", async ({ browser }) => {
     const context = await browser.newContext()
     await context.addInitScript((k) => {
       const original = Storage.prototype.setItem
@@ -456,14 +459,16 @@ test.describe("Clinics", () => {
     await page.goto("/clinics")
     await expect(note(page)).toHaveText(NOTE.unsaved)
 
-    const menu = await openMenu(page, "Upcoming clinics", "Austin staff install")
-    await menu.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
+    await addButton(page).click()
+    const add = dialog(page, "Add clinic")
+    await fillClinic(add, { name: "Unsaved clinic", date: addDays(today(), 2) })
+    await add.getByRole("button", { name: "Add clinic", exact: true }).click()
     // The edit took in memory…
-    await expect(row(page, "Upcoming clinics", /Austin staff install/).getByTestId("attendance")).toHaveText("Skipped")
-    // …but the note says it could not be kept, as an alert, and Reset has nothing to reset.
+    await expect(row(page, "Upcoming clinics", /Unsaved clinic/)).toBeVisible()
+    // …but the note says it could not be kept, as an alert, and Clear has nothing to clear.
     await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(note(page, { failed: true })).not.toContainText("Saved")
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
@@ -486,37 +491,36 @@ test.describe("Clinics", () => {
     await settled(a, 0)
     await settled(b, 0)
 
-    // Edit in A: one write in A; B hydrates and writes nothing.
-    let menu = await openMenu(a, "Upcoming clinics", "Houston Offensive Staff Clinic")
-    await menu.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
-    await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Skipped")
+    // Edit in A (add a clinic): one write in A; B hydrates and writes nothing.
+    await addButton(a).click()
+    const add = dialog(a, "Add clinic")
+    await fillClinic(add, { name: "Two-tab clinic", date: addDays(today(), 4) })
+    await add.getByRole("button", { name: "Add clinic", exact: true }).click()
+    await expect(row(b, "Upcoming clinics", /Two-tab clinic/)).toBeVisible()
     await expect(note(b)).toHaveText(NOTE.saved)
-    await expect(resetButton(b)).toBeEnabled()
+    await expect(clearButton(b)).toBeEnabled()
     await settled(a, 1)
     await settled(b, 0)
 
     // Edit in B: one write in B; A hydrates and writes nothing. Totals settle.
-    menu = await openMenu(b, "Upcoming clinics", "Dallas 7-on-7 Coaches Night")
-    await menu.getByRole("menuitem", { name: "Delete", exact: true }).click()
-    await dialog(b, "Delete this clinic?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(bodyRows(a, "Upcoming clinics")).toHaveCount(3)
-    await expect(table(a, "Upcoming clinics").getByText("Dallas 7-on-7 Coaches Night")).toHaveCount(0)
+    const menu = await openMenu(b, "Upcoming clinics", "Two-tab clinic")
+    await menu.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
+    await expect(row(a, "Upcoming clinics", /Two-tab clinic/).getByTestId("attendance")).toHaveText("Skipped")
     await settled(a, 1)
     await settled(b, 1)
 
-    // Reset in A (behind its confirm): B hears the clear and re-seeds, with nothing to reset.
-    await resetDemoData(a, header(a))
-    await expect(bodyRows(b, "Upcoming clinics")).toHaveCount(4)
-    await expect(row(b, "Upcoming clinics", /Houston Offensive Staff Clinic/).getByTestId("attendance")).toHaveText("Planned")
+    // Clear in A (behind its confirm): B hears it and empties, with nothing to clear.
+    await clearMyEntries(a, header(a))
+    await expect(emptyState(b)).toBeVisible()
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(b)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(b)).toHaveAttribute("aria-disabled", "true")
     await settled(a, 1)
     await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
 
-  test("a corrupt saved copy renders the seed without being touched; the first real save parks it under <key>.rejected", async ({ browser }) => {
+  test("a corrupt saved copy renders the empty list without being touched; the first real save parks it under <key>.rejected", async ({ browser }) => {
     const context = await browser.newContext()
     await countWrites(context, STORAGE_KEY)
     const page = await context.newPage()
@@ -524,7 +528,7 @@ test.describe("Clinics", () => {
     await page.goto("/clinics")
     await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [STORAGE_KEY, junk] as const)
     await page.reload()
-    await expect(bodyRows(page, "Upcoming clinics")).toHaveCount(4)
+    await expect(emptyState(page)).toBeVisible()
     await expect(note(page)).toHaveText(NOTE.unsaved)
     // load() is pure: the bad copy is still there, nothing was written, nothing parked yet.
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBe(junk)
@@ -532,8 +536,10 @@ test.describe("Clinics", () => {
     expect(await page.evaluate((key) => localStorage.getItem(`${key}.rejected`), STORAGE_KEY)).toBeNull()
 
     // The first real edit parks it — as the helper's `{ at, raw, why }[]` — and writes ours.
-    const menu = await openMenu(page, "Upcoming clinics", "Austin staff install")
-    await menu.getByRole("menuitem", { name: "Mark skipped", exact: true }).click()
+    await addButton(page).click()
+    const add = dialog(page, "Add clinic")
+    await fillClinic(add, { name: "After the junk", date: addDays(today(), 2) })
+    await add.getByRole("button", { name: "Add clinic", exact: true }).click()
     await expect(note(page)).toHaveText(NOTE.saved)
     const parked = await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(`${key}.rejected`) ?? "[]") as { raw: string; why: string }[],
@@ -542,7 +548,7 @@ test.describe("Clinics", () => {
     expect(parked).toHaveLength(1)
     expect(parked[0].why).toBe("failed validation")
     expect(parked[0].raw).toBe(junk)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"skipped"')
+    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"After the junk"')
     await context.close()
   })
 })

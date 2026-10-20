@@ -6,7 +6,6 @@ import { ArrowRightIcon } from "lucide-react"
 import { formatDate } from "@/lib/clock"
 import type { FeatureRequest } from "@/lib/feature-requests/feature-requests"
 import { cn } from "@/lib/utils"
-import { SampleDataTag } from "@/components/sample-data"
 import { FR_ROADMAP_HINT } from "@/components/feature-request/responsive"
 
 export const ROADMAP_HINT_TITLE =
@@ -21,19 +20,17 @@ export function RequestCard({
   onOpen: (id: string) => void
 }) {
   // aria-label keeps the accessible name as "Open idea: <title>". The
-  // description (ask, From, date, sample tag, roadmap hint) is the visible
+  // description (ask, From, date, roadmap hint) is the visible
   // text, pointed at so a screen reader still hears it.
   const uid = useId()
   const askId = `${uid}-ask`
   const fromId = `${uid}-from`
   const dateId = `${uid}-date`
-  const sampleId = `${uid}-sample`
   const hintId = `${uid}-hint`
   const describedBy = [
     request.ask ? askId : null,
     fromId,
     dateId,
-    request.sample ? sampleId : null,
     request.status === "roadmap" ? hintId : null,
   ]
     .filter(Boolean)
@@ -76,7 +73,6 @@ export function RequestCard({
         >
           {formatDate(new Date(request.createdAt))}
         </time>
-        {request.sample && <SampleDataTag id={sampleId} />}
         {request.status === "roadmap" && (
           <span id={hintId} title={ROADMAP_HINT_TITLE} className={FR_ROADMAP_HINT}>
             <ArrowRightIcon className="size-2.5 max-xl:size-3.5" aria-hidden />

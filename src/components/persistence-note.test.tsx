@@ -7,6 +7,8 @@ import type { PersistenceStore } from "@/lib/persistence"
 import {
   CLEAR_COPY,
   CLEAR_DESCRIPTION,
+  CONFIRM_DESTRUCTIVE,
+  CONFIRM_FOOTER_BUTTON,
   PERSISTENCE_COPY,
   PERSISTENCE_NOTE_NAME,
   PersistenceNote,
@@ -178,6 +180,20 @@ describe("PersistenceNote mode=\"clear\" (screens with no sample data)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Clear" }))
     expect(s.resetDemoData).toHaveBeenCalledTimes(1)
     expect(dialog).not.toBeInTheDocument()
+  })
+
+  it("the confirm's footer: both buttons are 44px below 1280, and the red Clear reads in the text-safe danger token", async () => {
+    const user = userEvent.setup()
+    render(<PersistenceNote store={store({ edited: true, saved: true })} mode="clear" />)
+    await user.click(screen.getByRole("button", { name: "Clear my entries" }))
+    const dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    const keep = within(dialog).getByRole("button", { name: "Keep my edits" })
+    const clear = within(dialog).getByRole("button", { name: CLEAR_COPY.confirm })
+    for (const b of [keep, clear]) expect(b).toHaveClass(...CONFIRM_FOOTER_BUTTON.split(" "))
+    expect(CONFIRM_FOOTER_BUTTON).toContain("max-xl:h-11!")
+    // Nova's text-destructive on its 10% tint is ~3.96:1 (light); --danger-text is ~5.7:1 light, ~7.2:1 dark.
+    expect(clear).toHaveClass(CONFIRM_DESTRUCTIVE)
+    expect(CONFIRM_DESTRUCTIVE).toBe("text-danger-text!")
   })
 
   it("a screen's own resetDescription still wins in clear mode", async () => {

@@ -13,7 +13,7 @@ export const HOME_HEADER =
 /**
  * Title + subscriber ticker. Below `xl` they share the first row (ticker
  * top-right); at `xl` the wrapper dissolves so the ticker can sit last in
- * the one-line header, after the persistence note and dummy stamp.
+ * the one-line header, after the persistence note.
  */
 export const HOME_HEADER_TOP = "flex items-start justify-between gap-3 xl:contents"
 

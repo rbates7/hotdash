@@ -1,7 +1,13 @@
-import type { Actor, Issue, Sprint } from "@/lib/issues"
+import type { Issue, Sprint } from "@/lib/issues"
+import { actors, MAY, RASHAD, YOYO } from "@/lib/issues-actors"
+
+export { actors, MAY, RASHAD, YOYO }
+export { SEED_ISSUE_KEYS } from "@/lib/issues-seed-ids"
 
 /**
- * Dummy data for the Agent Workplace design mock.
+ * The old Agent Workplace demo board, for tests only: the app ships no
+ * seed tickets (Rashad's Oct 16 rule). The store drops these keys from an
+ * old saved copy by `@/lib/issues-seed-ids`, which carries no titles.
  *
  * Every timestamp is generated relative to the `now` the caller passes in —
  * the instant the page was requested — so "9 days left" is nine days from
@@ -15,25 +21,6 @@ import type { Actor, Issue, Sprint } from "@/lib/issues"
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
-
-export const RASHAD = "rashad"
-export const MAY = "may"
-/** Owns the Bugs page (founder-dashboard-screens.md: "Bugs — Yo-Yo's page"). */
-export const YOYO = "yoyo"
-
-/**
- * Roster. Humans are the people who touch this board (Yo-Yo owns Bugs);
- * agents use the placeholder names from the requirements doc — do not swap
- * in real ones.
- */
-export const actors: Actor[] = [
-  { id: RASHAD, name: "Rashad", kind: "human", initials: "RB", tone: "brand" },
-  { id: MAY, name: "May", kind: "human", initials: "MW", tone: "neutral" },
-  { id: YOYO, name: "Yo-Yo", kind: "human", initials: "YY", tone: "neutral" },
-  { id: "grok-1", name: "Grok-1", kind: "agent", initials: "G1" },
-  { id: "grok-2", name: "Grok-2", kind: "agent", initials: "G2" },
-  { id: "grok-3", name: "Grok-3", kind: "agent", initials: "G3" },
-]
 
 /** Sprint 4 is live (started five days ago, nine to go); Sprint 5 waits. */
 export function buildSprints(now: Date): Sprint[] {
@@ -368,12 +355,3 @@ export function buildIssues(now: Date): Issue[] {
     }),
   ]
 }
-
-/**
- * Keys of the demo seed. Dates are relative to `now`, but the keys are not:
- * any instant produces the same set. Bugs never lists these: it shows
- * only bug tickets the founder created (`userBugs` in `@/lib/bugs`).
- */
-export const SEED_ISSUE_KEYS: ReadonlySet<string> = new Set(
-  buildIssues(new Date(0)).map((i) => i.key)
-)

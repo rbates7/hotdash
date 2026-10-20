@@ -3,7 +3,8 @@ import { expect, test, type Page } from "@playwright/test"
 import { addDays, formatDate, formatRelative, now, todayIn } from "../src/lib/clock"
 import { LAST_TOUCH_STYLE } from "../src/lib/sales-opportunities"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData } from "./support/persistence"
+import { founderDealsState } from "../src/lib/sales-opportunities-fixture"
+import { CLEAR_CONFIRM_NAME, NOTE, clearMyEntries, countWrites, expectWritesSettled, persistenceNote, storeFounderCopy } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.sales-opportunities.v1"
@@ -25,19 +26,33 @@ const table = (page: Page) => deals(page).getByRole("table", { name: "Deals", ex
 const rows = (page: Page) => table(page).locator("tbody").getByRole("row")
 const row = (page: Page, who: RegExp) => table(page).getByRole("row", { name: who })
 const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
-const resetButton = (page: Page) => screen(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => screen(page).getByRole("button", { name: "Clear my entries", exact: true })
 const filter = (page: Page, name: string) =>
   deals(page).getByRole("group", { name: "Show deals" }).getByRole("button", { name, exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
+const noDeals = (page: Page) => deals(page).getByRole("status", { name: "No deals" })
+
+/** The founder's own deals (no sample ships; a test-only copy, ids past the old seed's), stored before load. */
+async function founderDeals(page: Pick<Page, "addInitScript">) {
+  await storeFounderCopy(page, STORAGE_KEY, founderDealsState(now().getTime()))
+}
+
 async function fresh(page: Page) {
+  await founderDeals(page)
+  await page.goto("/sales-opportunities")
+  await expect(note(page)).toHaveText(NOTE.saved)
+  await expect(rows(page)).toHaveCount(6)
+}
+
+/** A fresh browser: no sample deals, nothing saved, nothing to clear. */
+async function empty(page: Page) {
   await page.goto("/sales-opportunities")
   await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
   await page.reload()
-  // Nothing edited in this browser yet, so nothing is saved — and it says so.
   await expect(note(page)).toHaveText(NOTE.unsaved)
-  await expect(resetButton(page)).toBeDisabled()
-  await expect(rows(page)).toHaveCount(6)
+  await expect(clearButton(page)).toBeDisabled()
+  await expect(noDeals(page)).toContainText("No live deals")
 }
 
 async function addDeal(page: Page, who: string, org: string, what: string, value: string, nextStep: string, due?: string) {
@@ -54,7 +69,8 @@ async function addDeal(page: Page, who: string, org: string, what: string, value
 }
 
 test.describe("Sales Opportunities", () => {
-  test("is reachable from the sidebar and shows the live deals, soonest next step first", async ({ page }) => {
+  test("is reachable from the sidebar and shows the founder's live deals, soonest next step first", async ({ page }) => {
+    await founderDeals(page)
     await page.goto("/home")
     await rail(page).getByRole("link", { name: "Sales Opportunities", exact: true }).click()
     await expect(page).toHaveURL(/\/sales-opportunities$/)
@@ -63,11 +79,9 @@ test.describe("Sales Opportunities", () => {
     const region = screen(page)
     await expect(region.getByRole("heading", { level: 1, name: "Sales Opportunities" })).toBeVisible()
     await expect(region.getByText("Live deals only — a hunt becomes a deal when someone is talking.")).toBeVisible()
-    await expect(region.locator("header").getByTestId("sample-data-tag")).toHaveText("Sample data")
-    await expect(note(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toBeDisabled()
-    // The disabled Reset explains itself (shared note): aria-describedby → sr-only hint.
-    await expect(resetButton(page)).toHaveAccessibleDescription(/Nothing is saved in this browser yet/)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(note(page)).toHaveText(NOTE.saved)
+    await expect(clearButton(page)).toBeEnabled()
     await expect(deals(page).getByTestId("source-chip")).toHaveAttribute("aria-disabled", "true")
 
     await expect(table(page).getByRole("columnheader")).toHaveText([
@@ -80,7 +94,7 @@ test.describe("Sales Opportunities", () => {
       "Last touch",
       "Actions",
     ])
-    // Open by default: six of the eight seed deals; the won and lost ones are hidden.
+    // Open by default: six of the founder's eight deals; the won and lost ones are hidden.
     await expect(filter(page, "Open")).toHaveAttribute("aria-pressed", "true")
     await expect(rows(page)).toHaveCount(6)
     await expect(rows(page).first()).toContainText("Coach Lonnie Pruitt")
@@ -114,8 +128,6 @@ test.describe("Sales Opportunities", () => {
 
   test("happy path: add a deal, move its stage, finish its next step, find it under Won, survive a reload", async ({ page }) => {
     await fresh(page)
-    // A visit that changes nothing writes nothing; the seed is never pinned.
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
 
     const day = today()
     await addDeal(page, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote", addDays(day, 3))
@@ -125,12 +137,9 @@ test.describe("Sales Opportunities", () => {
     await expect(reyes).toContainText(formatDate(addDays(day, 3)))
     await expect(reyes).toContainText("Due in 3 days")
     await expect(reyes).toContainText("just now")
-    // Added by the founder, so not sample data.
-    await expect(reyes.getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(rows(page)).toHaveCount(7)
-    // Only now, after a real edit, is there a save — and the note says so.
     await expect(note(page)).toHaveText(NOTE.saved)
-    await expect(resetButton(page)).toBeEnabled()
+    await expect(clearButton(page)).toBeEnabled()
     const saved = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
     expect(saved).toContain('"Coach Jordan Reyes"')
     expect(saved).not.toContain('"now')
@@ -199,30 +208,29 @@ test.describe("Sales Opportunities", () => {
     await expect(rows(page)).toHaveCount(8)
   })
 
-  test("Reset is disabled until something is saved, asks first, and Keep my edits keeps them", async ({ page }) => {
-    await fresh(page)
-    await row(page, /Hale/).getByRole("button", { name: "Delete Coach Tommy Hale" }).click()
-    await dialog(page, "Delete this deal?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(rows(page)).toHaveCount(5)
+  test("Clear my entries is disabled until something is saved, asks first, and Keep my edits keeps them", async ({ page }) => {
+    await empty(page)
+    // The disabled Clear explains itself (shared note): aria-describedby → sr-only hint.
+    await expect(clearButton(page)).toHaveAccessibleDescription(/Nothing is saved in this browser yet/)
+    await addDeal(page, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote")
+    await expect(rows(page)).toHaveCount(1)
     await expect(note(page)).toHaveText(NOTE.saved)
-    await expect(resetButton(page)).toBeEnabled()
+    await expect(clearButton(page)).toBeEnabled()
 
     // Keep my edits: nothing changes.
-    await resetButton(page).click()
-    const confirm = dialog(page, "Reset demo data?")
-    await expect(confirm).toContainText("regenerates the sample data from today")
+    await clearButton(page).click()
+    const confirm = dialog(page, CLEAR_CONFIRM_NAME)
     await confirm.getByRole("button", { name: "Keep my edits" }).click()
     await expect(confirm).toBeHidden()
-    await expect(rows(page)).toHaveCount(5)
+    await expect(rows(page)).toHaveCount(1)
     await expect(note(page)).toHaveText(NOTE.saved)
 
-    // Reset: key cleared, seed back, note unsaved, Reset disabled again.
-    await resetDemoData(page, screen(page), page)
-    await expect(rows(page)).toHaveCount(6)
-    await expect(row(page, /Hale/)).toBeVisible()
+    // Clear: key removed, no sample comes back, note unsaved, Clear disabled again.
+    await clearMyEntries(page, screen(page), page)
+    await expect(noDeals(page)).toContainText("No live deals")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await expect(note(page)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(clearButton(page)).toBeDisabled()
   })
 
   test("says so when a save fails, and never claims Saved", async ({ page }) => {
@@ -233,23 +241,22 @@ test.describe("Sales Opportunities", () => {
         return original.call(this, k, v)
       }
     }, STORAGE_KEY)
-    await fresh(page)
-    await row(page, /Pruitt/).getByRole("button", { name: "Stage: Verbal" }).click()
-    await page.getByRole("menu").getByRole("menuitemradio", { name: "Proposal" }).click()
-    await expect(row(page, /Pruitt/).getByRole("button", { name: "Stage: Proposal" })).toBeVisible()
+    await empty(page)
+    await addDeal(page, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote")
+    await expect(row(page, /Jordan Reyes/)).toBeVisible()
     await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
-    await expect(resetButton(page)).toBeDisabled()
+    await expect(clearButton(page)).toBeDisabled()
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
-  test("two tabs stay in sync without ping-ponging writes, and a Reset in one re-seeds the other", async ({ context }) => {
+  test("two tabs stay in sync without ping-ponging writes, and a Clear in one empties the other", async ({ context }) => {
     await countWrites(context, STORAGE_KEY)
     const a = await context.newPage()
     const b = await context.newPage()
-    await fresh(a)
+    await empty(a)
     await b.goto("/sales-opportunities")
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await expect(rows(b)).toHaveCount(6)
+    await expect(noDeals(b)).toBeVisible()
     const settled = (p: Page, n: number) => expectWritesSettled(p, STORAGE_KEY, n)
     await settled(a, 0)
     await settled(b, 0)
@@ -257,7 +264,7 @@ test.describe("Sales Opportunities", () => {
     // Tab A edits: exactly one write, in A. B hears it and writes nothing.
     await addDeal(a, "Coach Jordan Reyes", "Westlake HS", "Staff seats × 6", "1800", "Send the quote")
     await expect(row(b, /Jordan Reyes/)).toBeVisible()
-    await expect(rows(b)).toHaveCount(7)
+    await expect(rows(b)).toHaveCount(1)
     await expect(note(b)).toHaveText(NOTE.saved)
     await settled(a, 1)
     await settled(b, 0)
@@ -269,41 +276,28 @@ test.describe("Sales Opportunities", () => {
     await settled(a, 1)
     await settled(b, 1)
 
-    // Reset in A: B goes back to the seed with nothing saved; no new writes.
-    await resetDemoData(a, screen(a), a)
-    await expect(rows(a)).toHaveCount(6)
-    await expect(rows(b)).toHaveCount(6)
-    await expect(row(b, /Jordan Reyes/)).toHaveCount(0)
+    // Clear in A: B empties with nothing saved; no new writes.
+    await clearMyEntries(a, screen(a), a)
+    await expect(noDeals(a)).toBeVisible()
+    await expect(noDeals(b)).toBeVisible()
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(b)).toBeDisabled()
+    await expect(clearButton(b)).toBeDisabled()
     await settled(a, 1)
     await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
-  test("every Sample data label is solid amber at ≥ 4.5:1 on every text node, in both themes", async ({ page }) => {
+  test("no Sample data label or strip; status text and every stage pill read at ≥ 4.5:1, in both themes", async ({ page }) => {
     await fresh(page)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(page.getByTestId("sample-data-strip")).toHaveCount(0)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      const region = screen(page)
-      await expectReadable(region.locator("header").getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
-      const strip = await expectReadable(deals(page).getByTestId("sample-data-strip"), `${theme}/table strip`, expect)
-      expect(strip.some((n) => /invented/.test(n.text))).toBe(true)
-      // Six open seed rows, each tagged.
-      const tags = table(page).getByTestId("sample-data-tag")
-      await expect(tags).toHaveCount(6)
-      for (const tag of await tags.all()) {
-        await expect(tag).toHaveText("Sample data")
-        await expectReadable(tag, `${theme}/row tag`, expect)
-      }
       // Status text on the shared tokens: the overdue line and the overdue count.
       await expectReadable(row(page, /Pruitt/).locator('[data-overdue="true"]'), `${theme}/overdue line`, expect)
       await expectReadable(deals(page).getByText("2 overdue"), `${theme}/overdue count`, expect)
       await filter(page, "All").click()
-      await expect(table(page).getByTestId("sample-data-tag")).toHaveCount(8)
-      for (const tag of await table(page).getByTestId("sample-data-tag").all()) {
-        await expectReadable(tag, `${theme}/row tag (all)`, expect)
-      }
+      await expect(rows(page)).toHaveCount(8)
       // Every stage pill, so a dropped tone cannot hide behind the grey fallback.
       const stagePill = (who: RegExp, name: string) =>
         row(page, who).getByRole("button", { name: `Stage: ${name}` })
@@ -331,9 +325,9 @@ test.describe("Sales Opportunities", () => {
       await filter(page, "Open").click()
     }
     // Negative control: the probe must catch sabotaged text, in both themes.
-    await expectProbeCatchesSabotage(screen(page).locator("header").getByTestId("sample-data-tag"), "header tag (dark)", expect)
+    await expectProbeCatchesSabotage(row(page, /Pruitt/).locator('[data-overdue="true"]'), "overdue line (dark)", expect)
     await setTheme(page, "light")
-    await expectProbeCatchesSabotage(table(page).getByTestId("sample-data-tag").first(), "row tag (light)", expect)
+    await expectProbeCatchesSabotage(deals(page).getByText("2 overdue"), "overdue count (light)", expect)
     await setTheme(page, "dark")
   })
 
@@ -343,8 +337,8 @@ test.describe("Sales Opportunities", () => {
     await expect(rows(page)).toHaveCount(1)
     await row(page, /Fitch/).getByRole("button", { name: "Delete Coach Aaron Fitch" }).click()
     await dialog(page, "Delete this deal?").getByRole("button", { name: "Delete", exact: true }).click()
-    const empty = deals(page).getByRole("status", { name: "No deals" })
-    await expect(empty).toContainText("No lost deals")
+    const none = noDeals(page)
+    await expect(none).toContainText("No lost deals")
     await expect(table(page)).toHaveCount(0)
 
     await filter(page, "All").click()
@@ -353,9 +347,10 @@ test.describe("Sales Opportunities", () => {
       await row(page, new RegExp(who)).getByRole("button", { name: /^Delete / }).click()
       await dialog(page, "Delete this deal?").getByRole("button", { name: "Delete", exact: true }).click()
     }
-    await expect(empty).toContainText("No live deals")
-    await expect(empty).toContainText("A hunt becomes a deal when someone is actually talking")
-    await resetDemoData(page, screen(page), page)
-    await expect(rows(page)).toHaveCount(8)
+    await expect(none).toContainText("No live deals")
+    await expect(none).toContainText("A hunt becomes a deal when someone is actually talking")
+    await clearMyEntries(page, screen(page), page)
+    await expect(none).toContainText("No live deals")
+    await expect(note(page)).toHaveText(NOTE.unsaved)
   })
 })

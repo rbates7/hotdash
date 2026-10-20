@@ -14,6 +14,10 @@ type SeedRow = {
 }
 
 /**
+ * The old Feature Request sample, for tests only: the app ships no sample
+ * cards (Rashad's Oct 16 rule), and the store drops these from an old saved
+ * copy (`SEED_REQUEST_IDS`). Tests that need cards use `founderRequests`.
+ *
  * The ten cards from `founder-dashboard-feature-v0.html`, in mock order.
  * Dates are offsets so the board always reads as recent; nothing here is a
  * real request from Dan.
@@ -35,7 +39,7 @@ export const SEED_ROWS: readonly SeedRow[] = [
  * Builds the seed against `now` — the request instant handed down by the
  * page — so every age is measured from today, in Central calendar days.
  */
-export function buildSeed(now: Date): FeatureRequest[] {
+export function buildSeed(now: Date): (FeatureRequest & { sample: true })[] {
   return SEED_ROWS.map((row, i) => {
     const at = calendarDaysBefore(row.age, now).toISOString()
     return {
@@ -49,4 +53,17 @@ export function buildSeed(now: Date): FeatureRequest[] {
       sample: true,
     }
   })
+}
+
+/** The sample's cards as the founder's own: ids fr-101…fr-110, no sample flag. */
+export function founderRequests(now: Date): FeatureRequest[] {
+  return buildSeed(now).map(({ sample: _sample, ...r }) => {
+    void _sample
+    return { ...r, id: r.id.replace(/^fr-(\d+)$/, (_, n) => `fr-${100 + Number(n)}`) }
+  })
+}
+
+/** A saved Feature Request copy holding `founderRequests(now)`. */
+export function founderRequestsState(now: Date) {
+  return { requests: founderRequests(now), nextId: 111 }
 }

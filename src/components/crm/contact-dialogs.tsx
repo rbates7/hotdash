@@ -17,12 +17,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useCrm } from "@/components/crm/crm-store"
+import { useGmailFeed } from "@/hooks/use-gmail-summary"
 import {
   CRM_44,
   CRM_DANGER_TEXT,
   CRM_DIALOG,
   CRM_DIALOG_HEADER,
 } from "@/components/crm/crm-touch"
+
+/** The New contact dialog's description: it names Gmail as pending only while Gmail is not live. */
+export const NEW_CONTACT_LIVE = "Add someone by hand. Everyone else arrives from the support inbox."
+export const NEW_CONTACT_PENDING =
+  "Add someone by hand. Everyone else arrives from the support inbox once Gmail is connected."
 
 /** First / last name side by side on tablet and desktop, stacked on a phone. */
 const PAIR = "grid grid-cols-2 gap-3 max-md:grid-cols-1"
@@ -93,6 +99,8 @@ export function ContactNewDialog({
   const emailRef = React.useRef<HTMLInputElement>(null)
   const emailErrorId = "new-email-error"
 
+  const gmailLive = useGmailFeed().kind === "live"
+
   function reset() {
     setEmail("")
     setFirstName("")
@@ -118,9 +126,7 @@ export function ContactNewDialog({
       <DialogContent initialFocus={emailRef} className={CRM_DIALOG}>
         <DialogHeader className={CRM_DIALOG_HEADER}>
           <DialogTitle>New contact</DialogTitle>
-          <DialogDescription>
-            Add someone by hand. Everyone else arrives from the support inbox once Gmail is connected.
-          </DialogDescription>
+          <DialogDescription>{gmailLive ? NEW_CONTACT_LIVE : NEW_CONTACT_PENDING}</DialogDescription>
         </DialogHeader>
         <form
           noValidate

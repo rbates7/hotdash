@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  WORKPLACE_AUTOPILOT_CELL,
   WORKPLACE_BOARD,
   WORKPLACE_BOARD_COLUMN,
   WORKPLACE_BOARD_TRACK,
@@ -27,10 +26,5 @@ describe("workplace responsive class contracts", () => {
 
   it("B4: tablet+ header keeps develop's min height", () => {
     expect(WORKPLACE_HEADER).toContain("md:min-h-10")
-  })
-
-  it("B6: phone autopilot cells beat Nova padding", () => {
-    expect(WORKPLACE_AUTOPILOT_CELL).toContain("max-md:p-0!")
-    expect(WORKPLACE_AUTOPILOT_CELL).toContain("max-md:whitespace-normal!")
   })
 })

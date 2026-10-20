@@ -4,6 +4,7 @@ import { ExternalLinkIcon } from "lucide-react"
 
 import { formatRelative, now as clockNow } from "@/lib/clock"
 import { sentryBugs } from "@/lib/bugs"
+import { lastUpdatedLabel } from "@/lib/live-metrics"
 import { useInboxView } from "@/hooks/use-inbox"
 import { useSettings } from "@/hooks/use-settings"
 import { useWallClock } from "@/hooks/use-wall-clock"
@@ -22,11 +23,13 @@ const BOX = "bg-surface border-surface-border overflow-hidden rounded-xl border"
  * same rows the Workplace Inbox shows). Never a fixture: before the first
  * answer it is a skeleton, while Sentry's first sync runs it says
  * Connecting…, with no token it is a Not connected panel, and connected
- * with nothing open it says so. Each row opens the issue in Sentry.
+ * with nothing open it says so. Each row opens the issue in Sentry. When
+ * Sentry's last sync failed (`stale`), the header says when the rows are
+ * from ("Last updated …"), so an old list never reads as live.
  */
 export function SentryCrashes() {
   const { timeZone } = useSettings()
-  const { status, rows } = sentryBugs(useInboxView())
+  const { status, rows, staleSince } = sentryBugs(useInboxView())
   useWallClock(timeZone)
   const nowMs = clockNow().getTime()
 
@@ -42,6 +45,11 @@ export function SentryCrashes() {
         {status === "connected" || status === "stale" ? (
           <span className="text-micro text-muted-foreground bg-muted grid h-5 min-w-5 place-items-center rounded-full px-1.5 font-semibold tabular-nums">
             {rows.length}
+          </span>
+        ) : null}
+        {staleSince ? (
+          <span data-testid="sentry-stale" className="text-micro text-muted-foreground ml-auto font-medium">
+            {lastUpdatedLabel(new Date(staleSince), timeZone)}
           </span>
         ) : null}
       </header>

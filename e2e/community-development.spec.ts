@@ -2,7 +2,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { addDays, formatDate, now, todayIn } from "../src/lib/clock"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
-import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData, writesTo } from "./support/persistence"
+import { founderInitiativesState } from "../src/lib/community-development-fixture"
+import { NOTE, clearMyEntries, countWrites, expectWritesSettled, persistenceNote, storeFounderCopy, writesTo } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
 const STORAGE_KEY = "hotdash.community-development.v1"
@@ -15,7 +16,7 @@ const table = (page: Page) => page.getByRole("table", { name: "Giving initiative
 const bodyRows = (page: Page) => table(page).locator("tbody").getByRole("row")
 const row = (page: Page, re: RegExp) => table(page).getByRole("row", { name: re })
 const note = (page: Page, opts?: { failed?: boolean }) => persistenceNote(page, opts)
-const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add initiative", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const summary = (page: Page) => page.getByRole("group", { name: "Giving summary", exact: true })
@@ -27,13 +28,26 @@ async function openMenu(page: Page, name: string) {
   return menu
 }
 
+const emptyState = (page: Page) => page.getByRole("status", { name: "No initiatives", exact: true })
+
+/** The founder's own initiatives (no sample ships; a test-only copy, ids past the old seed's), stored before load. */
+async function founderInitiatives(page: Page, path = "/community-development") {
+  await storeFounderCopy(page, STORAGE_KEY, founderInitiativesState(today()))
+  await page.goto(path)
+}
+
 async function fresh(page: Page) {
-  await page.goto("/community-development")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
-  await expect(note(page)).toHaveText(NOTE.unsaved)
-  await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+  await founderInitiatives(page)
+  await expect(note(page)).toHaveText(NOTE.saved)
   await expect(bodyRows(page)).toHaveCount(8)
+}
+
+async function addInitiative(page: Page, name: string) {
+  await addButton(page).click()
+  const add = dialog(page, "Add initiative")
+  await add.getByLabel("Name").fill(name)
+  await add.getByRole("button", { name: "Add initiative", exact: true }).click()
+  await expect(add).toBeHidden()
 }
 
 /**
@@ -92,8 +106,8 @@ async function expectPressedContrast(group: Locator, label: string) {
 }
 
 test.describe("Community Development", () => {
-  test("is reachable from the sidebar and shows the giving list", async ({ page }) => {
-    await page.goto("/home")
+  test("is reachable from the sidebar and shows the founder's giving list", async ({ page }) => {
+    await founderInitiatives(page, "/home")
     await rail(page).getByRole("link", { name: "Community Development", exact: true }).click()
     await expect(page).toHaveURL(/\/community-development$/)
     await expect(header(page).getByRole("heading", { level: 1, name: "Community Development" })).toBeVisible()
@@ -131,9 +145,7 @@ test.describe("Community Development", () => {
 
   test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
     await fresh(page)
-    await expectProbeCatchesSabotage(header(page).getByTestId("sample-data-tag"), "header tag", expect)
     const first = row(page, /Equipment drive for Yates High School/)
-    await expectProbeCatchesSabotage(first.getByTestId("sample-data-tag"), "row tag", expect)
     await expectProbeCatchesSabotage(first.getByTestId("status-pill"), "status pill", expect)
     await setTheme(page, "dark")
     await expectProbeCatchesSabotage(
@@ -144,24 +156,18 @@ test.describe("Community Development", () => {
     await setTheme(page, "light")
   })
 
-  test("labels every seed row as sample data, readable at ≥ 4.5:1 on every text node, light and dark", async ({
+  test("no Sample data tag; every text node reads at ≥ 4.5:1, light and dark", async ({
     page,
   }) => {
     await fresh(page)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
       await expectReadable(header(page).getByRole("heading", { level: 1 }), `${theme}/title`, expect)
       await expectReadable(header(page).getByText("Giving and foundation work"), `${theme}/lede`, expect)
-      await expectReadable(header(page).getByTestId("sample-data-tag"), `${theme}/header tag`, expect)
       await expectReadable(summary(page), `${theme}/summary`, expect)
       await expectReadable(page.getByRole("group", { name: "Filter by type" }), `${theme}/type filter`, expect)
       await expectReadable(page.getByRole("group", { name: "Filter by status" }), `${theme}/status filter`, expect)
-      const tags = table(page).getByTestId("sample-data-tag")
-      await expect(tags).toHaveCount(8)
-      for (const tag of await tags.all()) {
-        await expect(tag).toHaveText("Sample data")
-        await expectReadable(tag, `${theme}/row tag`, expect)
-      }
       const statusPills = table(page).getByTestId("status-pill")
       await expect(statusPills).toHaveCount(8)
       for (const pill of await statusPills.all()) {
@@ -287,22 +293,19 @@ test.describe("Community Development", () => {
       await expect(confirm).toBeHidden()
     }
 
-    await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 9 })), STORAGE_KEY)
-    await page.reload()
-    const empty = page.getByRole("status", { name: "No initiatives", exact: true })
-    await expect(empty).toBeVisible()
+    await clearMyEntries(page, header(page))
+    await expect(emptyState(page)).toBeVisible()
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expectReadable(empty, `${theme}/empty state`, expect)
+      await expectReadable(emptyState(page), `${theme}/empty state`, expect)
     }
     await setTheme(page, "light")
   })
 
-  test("happy path: filter → add → edit status → detail → delete → reload persists → Reset back to seed", async ({
+  test("happy path: filter → add → edit status → detail → delete → reload persists → Clear empties it", async ({
     page,
   }) => {
     await fresh(page)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     const day = today()
 
     await page.getByRole("group", { name: "Filter by type" }).getByRole("button", { name: "Volunteer", exact: true }).click()
@@ -333,10 +336,9 @@ test.describe("Community Development", () => {
     await expect(added).toContainText("in 4 days")
     await expect(added.getByTestId("type-pill")).toHaveText("Outreach event")
     await expect(added.getByTestId("status-pill")).toHaveText("Planned")
-    await expect(added.getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(page.getByTestId("section-count")).toHaveText("9")
     await expect(note(page)).toHaveText(NOTE.saved)
-    await expect(resetButton(page)).toBeEnabled()
+    await expect(clearButton(page)).toBeEnabled()
 
     let menu = await openMenu(page, "Saturday park clean-up")
     await menu.getByRole("menuitem", { name: "Mark active", exact: true }).click()
@@ -366,15 +368,15 @@ test.describe("Community Development", () => {
     await expect(table(page).getByText("Booster-club talk on giving back")).toHaveCount(0)
     await expect(note(page)).toHaveText(NOTE.saved)
 
-    await resetDemoData(page, header(page))
-    await expect(bodyRows(page)).toHaveCount(8)
-    await expect(row(page, /Booster-club talk on giving back/)).toBeVisible()
-    await expect(table(page).getByText("Saturday park clean-up")).toHaveCount(0)
+    await clearMyEntries(page, header(page))
+    await expect(emptyState(page)).toBeVisible()
+    await expect(page.getByText("Booster-club talk on giving back")).toHaveCount(0)
+    await expect(page.getByText("Saturday park clean-up")).toHaveCount(0)
     await expect(note(page)).toHaveText(NOTE.unsaved)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
-  test("a save that fails is announced, never claimed, and Reset stays disabled", async ({ browser }) => {
+  test("a save that fails is announced, never claimed, and Clear stays disabled", async ({ browser }) => {
     const context = await browser.newContext()
     await context.addInitScript((k) => {
       const original = Storage.prototype.setItem
@@ -387,12 +389,11 @@ test.describe("Community Development", () => {
     await page.goto("/community-development")
     await expect(note(page)).toHaveText(NOTE.unsaved)
 
-    const menu = await openMenu(page, "Youth flag-football clinic volunteer day")
-    await menu.getByRole("menuitem", { name: "Mark active", exact: true }).click()
-    await expect(row(page, /Youth flag-football/).getByTestId("status-pill")).toHaveText("Active")
+    await addInitiative(page, "Unsaved initiative")
+    await expect(row(page, /Unsaved initiative/)).toBeVisible()
     await expect(note(page, { failed: true })).toHaveText(NOTE.failed)
     await expect(note(page, { failed: true })).not.toContainText("Saved")
-    await expect(resetButton(page)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
@@ -412,34 +413,30 @@ test.describe("Community Development", () => {
     await settled(a, 0)
     await settled(b, 0)
 
-    let menu = await openMenu(a, "Youth flag-football clinic volunteer day")
-    await menu.getByRole("menuitem", { name: "Mark active", exact: true }).click()
-    await expect(row(b, /Youth flag-football/).getByTestId("status-pill")).toHaveText("Active")
+    await addInitiative(a, "Two-tab drive")
+    await expect(row(b, /Two-tab drive/)).toBeVisible()
     await expect(note(b)).toHaveText(NOTE.saved)
-    await expect(resetButton(b)).toBeEnabled()
+    await expect(clearButton(b)).toBeEnabled()
     await settled(a, 1)
     await settled(b, 0)
 
-    menu = await openMenu(b, "Booster-club talk on giving back")
-    await menu.getByRole("menuitem", { name: "Delete", exact: true }).click()
-    await dialog(b, "Delete this initiative?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(bodyRows(a)).toHaveCount(7)
-    await expect(table(a).getByText("Booster-club talk on giving back")).toHaveCount(0)
+    const menu = await openMenu(b, "Two-tab drive")
+    await menu.getByRole("menuitem", { name: "Mark active", exact: true }).click()
+    await expect(row(a, /Two-tab drive/).getByTestId("status-pill")).toHaveText("Active")
     await settled(a, 1)
     await settled(b, 1)
 
-    await resetDemoData(a, header(a))
-    await expect(bodyRows(b)).toHaveCount(8)
-    await expect(row(b, /Youth flag-football/).getByTestId("status-pill")).toHaveText("Planned")
+    await clearMyEntries(a, header(a))
+    await expect(emptyState(b)).toBeVisible()
     await expect(note(b)).toHaveText(NOTE.unsaved)
-    await expect(resetButton(b)).toHaveAttribute("aria-disabled", "true")
+    await expect(clearButton(b)).toHaveAttribute("aria-disabled", "true")
     await settled(a, 1)
     await settled(b, 1)
     expect(await a.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await context.close()
   })
 
-  test("a corrupt saved copy renders the seed without being touched; the first real save parks it", async ({
+  test("a corrupt saved copy renders the empty list without being touched; the first real save parks it", async ({
     browser,
   }) => {
     const context = await browser.newContext()
@@ -449,14 +446,13 @@ test.describe("Community Development", () => {
     await page.goto("/community-development")
     await page.evaluate(([key, raw]) => localStorage.setItem(key, raw), [STORAGE_KEY, junk] as const)
     await page.reload()
-    await expect(bodyRows(page)).toHaveCount(8)
+    await expect(emptyState(page)).toBeVisible()
     await expect(note(page)).toHaveText(NOTE.unsaved)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBe(junk)
     expect(await writesTo(page, STORAGE_KEY)).toBe(0)
     expect(await page.evaluate((key) => localStorage.getItem(`${key}.rejected`), STORAGE_KEY)).toBeNull()
 
-    const menu = await openMenu(page, "Youth flag-football clinic volunteer day")
-    await menu.getByRole("menuitem", { name: "Mark active", exact: true }).click()
+    await addInitiative(page, "After the junk")
     await expect(note(page)).toHaveText(NOTE.saved)
     const parked = await page.evaluate(
       (key) => JSON.parse(localStorage.getItem(`${key}.rejected`) ?? "[]") as { raw: string; why: string }[],
@@ -465,7 +461,7 @@ test.describe("Community Development", () => {
     expect(parked).toHaveLength(1)
     expect(parked[0].why).toBe("failed validation")
     expect(parked[0].raw).toBe(junk)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"active"')
+    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toContain('"After the junk"')
     await context.close()
   })
 })

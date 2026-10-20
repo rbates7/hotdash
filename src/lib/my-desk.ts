@@ -3,8 +3,9 @@ import { isBoolean, isString } from "@/lib/persistence"
 
 /**
  * My Desk domain: Rashad's personal to-dos for today and one plain-text
- * scratch note. Sample data until a datastore lands; the shapes are real so
- * the store can validate a saved copy field by field.
+ * scratch note. It starts empty and saves to this browser until a datastore
+ * lands; the shapes are real so the store can validate a saved copy field by
+ * field.
  *
  * Unfinished to-dos from an earlier Central day stay on today's list with a
  * "from Tue" label. Items completed on an earlier day stay in storage but

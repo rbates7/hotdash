@@ -2,7 +2,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { ROW_COLLAPSE_SLOT } from "../src/components/responsive-table"
 import { expectReadable, settleAnimations } from "./support/contrast"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { founderInitiativesState } from "../src/lib/community-development-fixture"
+import { now, todayIn } from "../src/lib/clock"
+import { NOTE, persistenceNote, storeFounderCopy } from "./support/persistence"
 import {
   expectFocusTrapped,
   expectNoOverflowX,
@@ -41,15 +43,14 @@ const card = (page: Page, name: string) =>
   section(page).getByRole("list").getByRole("button", { name: new RegExp(`^${name}`) })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const addButton = (page: Page) => header(page).getByRole("button", { name: "Add initiative", exact: true })
-const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 
+/** The founder's own initiatives (no sample ships), stored before the page loads. */
 async function fresh(page: Page) {
+  await storeFounderCopy(page, STORAGE_KEY, founderInitiativesState(todayIn(now())))
   await page.goto("/community-development")
   await waitForHydration(page)
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
-  await waitForHydration(page)
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -282,9 +283,9 @@ test.describe("responsive Community Development (phone 390)", () => {
     await expect(card(page, YATES)).toContainText("Donation · Yates High School football")
     await expect(card(page, YATES)).toContainText("Skye")
     await expect(card(page, YATES).getByTestId("status-pill")).toHaveText("Active")
-    await expect(card(page, YATES).getByTestId("sample-data-tag")).toBeVisible()
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
     await expectTapTarget(addButton(page), "phone Add initiative")
-    await expectTapTarget(resetButton(page), "phone Reset")
+    await expectTapTarget(clearButton(page), "phone Clear my entries")
     await expectTapTarget(cards(page).first(), "phone card")
     await expectNoPageOverflowX(page)
     await expectNoOverflowX(page)
@@ -408,12 +409,6 @@ test.describe("responsive Community Development (phone 390)", () => {
   test("empty state Add is 44px and does not overflow", async ({ page }) => {
     await page.goto("/community-development")
     await waitForHydration(page)
-    await page.evaluate(
-      (key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 9 })),
-      STORAGE_KEY
-    )
-    await page.reload()
-    await waitForHydration(page)
     const empty = page.getByRole("status", { name: "No initiatives", exact: true })
     await expect(empty).toBeVisible()
     await expectTapTarget(empty.getByRole("button", { name: "Add initiative", exact: true }), "empty Add")
@@ -433,7 +428,7 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expect(cards(page)).toHaveCount(0)
       expect(await visibleHeaders(table(page))).toEqual(["Name", "Type", "When", "Status", "Owner"])
       await expectTapTarget(addButton(page), `${VIEWPORTS[name].width} Add`)
-      await expectTapTarget(resetButton(page), `${VIEWPORTS[name].width} Reset`)
+      await expectTapTarget(clearButton(page), `${VIEWPORTS[name].width} Clear my entries`)
 
       const menu = table(page).getByRole("button", { name: `Actions for ${YATES}`, exact: true })
       await expectTapTarget(menu, `${VIEWPORTS[name].width} row menu`)
@@ -555,9 +550,9 @@ test.describe("responsive Community Development (desktop 1440)", () => {
     const box = await add.boundingBox()
     expect(box, "desktop Add").toBeTruthy()
     expect(box!.height, "desktop Add stays Nova sm, not 44").toBeLessThan(44)
-    const resetBox = await resetButton(page).boundingBox()
-    expect(resetBox, "desktop Reset").toBeTruthy()
-    expect(resetBox!.height, "desktop Reset stays PersistenceNote h-6").toBeLessThan(44)
+    const clearBox = await clearButton(page).boundingBox()
+    expect(clearBox, "desktop Clear my entries").toBeTruthy()
+    expect(clearBox!.height, "desktop Clear stays PersistenceNote h-6").toBeLessThan(44)
 
     const yates = table(page).getByRole("row", { name: /Equipment drive for Yates/ })
     await expect(yates.getByRole("cell").nth(2)).toHaveText("Yates High School football")
@@ -624,7 +619,6 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(header(page).getByRole("heading", { level: 1 }), `${label}/title`, expect)
         await expectReadable(header(page).locator("p").first(), `${label}/lede`, expect)
         await expectReadable(persistenceNote(page), `${label}/note`, expect)
-        await expectReadable(header(page).getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(page.getByRole("group", { name: "Giving summary" }), `${label}/summary`, expect)
         if (size === "390") {
           await expectReadable(card(page, YATES), `${label}/card`, expect)
@@ -662,14 +656,14 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(add.getByRole("button", { name: "Add initiative", exact: true }), `${label}/add submit`, expect)
         await page.keyboard.press("Escape")
 
-        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 1 })), STORAGE_KEY)
+        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 9 })), STORAGE_KEY)
         await page.reload()
         await waitForHydration(page)
         await expect(persistenceNote(page)).toHaveText(NOTE.saved)
-        const reset = header(page).getByRole("button", { name: "Reset", exact: true })
-        await expect(reset).toBeEnabled()
-        await expectTapTarget(reset, `${label}/Reset`)
-        await expectReadable(reset, `${label}/enabled Reset`, expect)
+        const clear = clearButton(page)
+        await expect(clear).toBeEnabled()
+        await expectTapTarget(clear, `${label}/Clear my entries`)
+        await expectReadable(clear, `${label}/enabled Clear my entries`, expect)
       })
     })
   }
