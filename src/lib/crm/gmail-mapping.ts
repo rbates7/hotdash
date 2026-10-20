@@ -62,7 +62,11 @@ export type GmailThreadMeta = { id: string; messages: GmailMessageMeta[] }
  * keeps its number (and its URL) from one sync to the next. First seen,
  * first numbered.
  */
-export type IdRegistry = { number(kind: "thread" | "contact" | "org", key: string): number }
+export type IdRegistry = {
+  number(kind: "thread" | "contact" | "org", key: string): number
+  /** The number already given to `key`, without giving one. */
+  peek(kind: "thread" | "contact" | "org", key: string): number | undefined
+}
 
 export function createIdRegistry(): IdRegistry {
   const maps = { thread: new Map<string, number>(), contact: new Map<string, number>(), org: new Map<string, number>() }
@@ -72,6 +76,9 @@ export function createIdRegistry(): IdRegistry {
       let n = map.get(key)
       if (n === undefined) map.set(key, (n = map.size + 1))
       return n
+    },
+    peek(kind, key) {
+      return maps[kind].get(key)
     },
   }
 }

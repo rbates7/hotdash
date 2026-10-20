@@ -63,7 +63,13 @@ export function buildCrmList(
   }: { mailbox: string; ids?: IdRegistry; nowMs: number; data?: CrmLiveData }
 ): CrmListView {
   const me = normalizeEmail(mailbox)
-  const metaByThread = new Map(threads.map((t) => [`thread-${ids.number("thread", t.id)}`, t]))
+  // peek, never number: a skipped thread must not take a number (it would shift later case numbers).
+  const metaByThread = new Map(
+    threads.flatMap((t) => {
+      const n = ids.peek("thread", t.id)
+      return n === undefined ? [] : [[`thread-${n}` as string, t] as const]
+    })
+  )
   const contacts = new Map(data.contacts.map((c) => [c.id, c]))
   const orgs = new Map(data.organizations.map((o) => [o.id, o]))
 

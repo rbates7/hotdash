@@ -474,7 +474,12 @@ export function createGmailService({
         throw new GmailError("InvalidData")
       }
       if (!isCrmLiveData(data)) throw new GmailError("InvalidData")
-      const gmailIds = new Map(threads.map((t) => [`case-${ids.number("thread", t.id)}`, t.id]))
+      const gmailIds = new Map(
+        threads.flatMap((t) => {
+          const n = ids.peek("thread", t.id)
+          return n === undefined ? [] : [[`case-${n}`, t.id] as const]
+        })
+      )
       lastGood = { data, syncedAt: at, threads: [...threads], gmailIds }
       threadCache.clear()
       lastAttempt = { at, ok: true }

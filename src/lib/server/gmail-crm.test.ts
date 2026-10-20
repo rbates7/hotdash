@@ -138,3 +138,31 @@ describe("gmailThreadLoader", () => {
     await expect(load(config, "../x")).rejects.toThrow()
   })
 })
+
+describe("case numbers", () => {
+  it("are the same as the legacy summary's, and a skipped thread takes no number", async () => {
+    const bounce: GmailThreadMeta = {
+      id: "abc0",
+      messages: [{ id: "9", labelIds: ["INBOX"], internalDate: String(NOW - 9 * H), snippet: "x", headers: { from: "mailer-daemon@example.com", to: ME, subject: "Undeliverable" } }],
+    }
+    const later: GmailThreadMeta = {
+      id: "abc2",
+      messages: [
+        { id: "20", labelIds: ["INBOX"], internalDate: String(NOW - 2 * H), snippet: "hi", headers: { from: "Bo <bo@school.example.com>", to: ME, subject: "Q" } },
+        { id: "21", labelIds: ["SENT"], internalDate: String(NOW - 1 * H), snippet: "ok", headers: { from: ME, to: "bo@school.example.com", subject: "Re: Q" } },
+      ],
+    }
+    let threads = [bounce, ...THREADS]
+    const svc = createGmailService({ env: () => ENV, load: async () => threads, loadThread: vi.fn(), log: () => {} })
+    await svc.list()
+    await svc.settled()
+    threads = [bounce, ...THREADS, later]
+    vi.setSystemTime(NOW + CACHE_TTL_MS)
+    await svc.list()
+    await svc.settled()
+    const body = await svc.list()
+    const legacy = body.data!.cases.map((c) => c.id).sort()
+    expect(body.cases.map((c) => c.id).sort()).toEqual(legacy)
+    expect(legacy).toEqual(["case-1", "case-2"])
+  })
+})
