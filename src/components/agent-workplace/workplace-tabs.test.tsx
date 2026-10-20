@@ -172,6 +172,9 @@ describe("TabBarScroller", () => {
       expect(fade.className).toMatch(/\bpointer-events-none\b/)
       expect(fade.className).toMatch(/\bopacity-0\b/)
     }
+    // The start fade is the stronger one: wider, solid through its first quarter.
+    expect(screen.getByTestId("tab-fade-start")).toHaveClass("w-12", "via-background/85", "from-25%")
+    expect(screen.getByTestId("tab-fade-end")).toHaveClass("w-8")
   })
 })
 

@@ -76,11 +76,13 @@ export function TabBarScroller({ active, children }: { active: string; children:
     const el = list()
     const tabEl = el?.querySelector<HTMLElement>("[role='tab'][aria-selected='true']")
     if (!el || !tabEl) return
+    // The start fade is wider and more opaque (w-12, solid for its first quarter), so it gets more room.
+    const padStart = 48
     const pad = 32
     const left = tabEl.offsetLeft - el.offsetLeft
     const right = left + tabEl.offsetWidth
     let target = el.scrollLeft
-    if (left - pad < el.scrollLeft) target = Math.max(0, left - pad)
+    if (left - padStart < el.scrollLeft) target = Math.max(0, left - padStart)
     else if (right + pad > el.scrollLeft + el.clientWidth) target = right + pad - el.clientWidth
     if (target !== el.scrollLeft) el.scrollLeft = target
     measure()
@@ -109,7 +111,7 @@ export function TabBarScroller({ active, children }: { active: string; children:
       <span
         aria-hidden
         data-testid="tab-fade-start"
-        className="from-background pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
+        className="from-background via-background/85 pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-25% to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
       />
       <span
         aria-hidden

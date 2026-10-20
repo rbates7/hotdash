@@ -133,7 +133,21 @@ for (const { slug, tab } of TABBAR) {
         })
         .toBe(true)
       if (CAPTURE) {
-        await page.waitForTimeout(400)
+        // Wait for the fades' opacity transition to settle on the bar's state
+        // (1 where data-fade-* is set, else 0), not a fixed delay.
+        const bar = page.getByTestId("workplace-tab-bar").first()
+        await expect
+          .poll(() =>
+            bar.evaluate((el) =>
+              (["start", "end"] as const).every((edge) => {
+                const fade = el.querySelector<HTMLElement>(`[data-testid="tab-fade-${edge}"]`)
+                if (!fade) return false
+                const want = el.hasAttribute(`data-fade-${edge}`) ? "1" : "0"
+                return getComputedStyle(fade).opacity === want
+              })
+            )
+          )
+          .toBe(true)
         const box = (await list.boundingBox())!
         fs.mkdirSync(OUT, { recursive: true })
         await page.screenshot({

@@ -135,7 +135,7 @@ describe("WorkBoardView live region", () => {
     ["stale and empty", ready("stale", []), "GitHub could not be read just now. Showing the last good copy, from Oct 16, 7:45 PM CDT."],
   ] as const)("%s announces %j", (_name, view, text) => {
     render(<WorkBoardView view={view} />)
-    expect(region()).toHaveTextContent(text)
+    expect(region()).toHaveTextContent(`Work board: ${text}`)
     expect(screen.getAllByRole("status")).toHaveLength(1)
   })
 
@@ -147,7 +147,7 @@ describe("WorkBoardView live region", () => {
     expect(node).toHaveTextContent("4 PRs updated Oct 16, 7:45 PM CDT")
     rerender(<WorkBoardView view={ready("stale")} />)
     expect(region()).toBe(node)
-    expect(node).toHaveTextContent(/^GitHub could not be read just now/)
+    expect(node).toHaveTextContent(/^Work board: GitHub could not be read just now/)
   })
 })
 
