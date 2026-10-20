@@ -13,10 +13,10 @@ export const PARTLY_LIVE_LABEL = "Partly live"
 export const CONNECTING_LABEL = "Connecting"
 /** Stripe has a key and its first sync is still running. */
 export const STRIPE_CONNECTING_TEXT =
-  "Stripe\u2019s first sync is in progress; MRR, Churn Rate, Trial Conversions and Subscribers will appear when it finishes"
+  "Stripe\u2019s first sync is in progress; MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR will appear when it finishes"
 /** The same, inside the "Partly live" notice (PostHog live, Stripe connecting). */
 export const STRIPE_CARDS_CONNECTING_TEXT =
-  "the Stripe cards (MRR, Churn Rate, Trial Conversions and Subscribers) are connecting and will appear when Stripe\u2019s first sync finishes"
+  "the Stripe cards (MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR) are connecting and will appear when Stripe\u2019s first sync finishes"
 /** Stripe is live, Chlk's database (App Store payers) is still on its first read. */
 export const APP_STORE_CONNECTING_NOTE = "Subscribers waits for App Store payers from Chlk’s database, first read in progress"
 
