@@ -9,19 +9,20 @@ export type WorkboardState = "working" | "needs_fix" | "ready_for_review" | "mer
 export type WorkboardCi = "passing" | "failing" | "pending" | "none"
 export type WorkboardReview = "approved" | "changes_requested" | "pending" | "none"
 
+/**
+ * One board row: title, status (state, CI, review), owner and dates, plus
+ * the PR's number and GitHub's own `html_url`. No description text, no
+ * links from the description, no branch name.
+ */
 export type WorkboardItem = {
   number: number
   title: string
   url: string
   /** The PR author's login. */
   owner: string
-  /** The head ref. */
-  branch: string
   state: WorkboardState
   ci: WorkboardCi
   review: WorkboardReview
-  /** Screenshots and other images in the PR body, deduped, in order. */
-  proofLinks: string[]
   updatedAt: string
   mergedAt: string | null
 }
@@ -136,41 +137,13 @@ export function hasConflict(detail: { mergeable: boolean | null; mergeable_state
   return detail?.mergeable === false || detail?.mergeable_state === "dirty"
 }
 
-/* ----------------------------------------------------------- proof links */
-
-const IMAGE_EXT = /\.(png|jpe?g|gif|webp)(?:[?#][^\s]*)?$/i
-const ATTACHMENT = /^https:\/\/github\.com\/user-attachments\/assets\/[\w-]+/
-
-/**
- * Image URLs in a PR body, in order of appearance, each once: markdown
- * images `![](url)`, `<img src="url">`, and bare links ending in an image
- * extension or pointing at a GitHub user-attachments asset.
- */
-export function extractProofLinks(body: string | null | undefined): string[] {
-  if (!body) return []
-  const found: { at: number; url: string }[] = []
-  const add = (at: number, raw: string) => {
-    const url = raw.trim().replace(/^<|>$/g, "")
-    if (/^https?:\/\//i.test(url)) found.push({ at, url })
-  }
-  // ![alt](url "title")
-  for (const m of body.matchAll(/!\[[^\]]*\]\(\s*(<[^>]+>|[^)\s]+)[^)]*\)/g)) add(m.index, m[1])
-  // <img ... src="url" ...>
-  for (const m of body.matchAll(/<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi)) {
-    add(m.index, m[1] ?? m[2] ?? m[3])
-  }
-  // Any other http(s) URL: kept only if it is an image or an attachment.
-  for (const m of body.matchAll(/https?:\/\/[^\s<>"'()[\]]+/g)) {
-    const url = m[0].replace(/[.,;:!?]+$/, "")
-    if (IMAGE_EXT.test(url) || ATTACHMENT.test(url)) add(m.index, url)
-  }
-  found.sort((a, b) => a.at - b.at)
-  return [...new Set(found.map((f) => f.url))]
-}
-
 /* ------------------------------------------------------------------ item */
 
-/** The fields read from the pull list (`GET /pulls`). */
+/**
+ * The fields read from the pull list (`GET /pulls`). The PR description
+ * (`body`) is never read: the board is public, so nothing from a PR body,
+ * and no link taken from one, reaches `/api/workboard` (Coulson, Oct 19).
+ */
 export type PullSummary = {
   number: number
   title: string
@@ -178,7 +151,6 @@ export type PullSummary = {
   user: { login: string } | null
   head: { ref: string; sha: string }
   draft?: boolean
-  body: string | null
   updated_at: string
   merged_at: string | null
   requested_reviewers?: ReadonlyArray<unknown>
@@ -205,12 +177,38 @@ export function toWorkboardItem(pr: PullSummary, details: PullDetails | null): W
     title: pr.title,
     url: pr.html_url,
     owner: pr.user?.login ?? "",
-    branch: pr.head.ref,
     state: deriveState({ merged, draft: Boolean(pr.draft), ci, review, conflict: Boolean(details?.conflict) }),
     ci,
     review,
-    proofLinks: extractProofLinks(pr.body),
     updatedAt: pr.updated_at,
     mergedAt: pr.merged_at,
   }
+}
+
+/** The only keys an item may carry out of `/api/workboard`. */
+export const WORKBOARD_ITEM_KEYS = [
+  "number",
+  "title",
+  "url",
+  "owner",
+  "state",
+  "ci",
+  "review",
+  "updatedAt",
+  "mergedAt",
+] as const satisfies ReadonlyArray<keyof WorkboardItem>
+
+/**
+ * A copy of `item` with only `WORKBOARD_ITEM_KEYS`: anything else (a PR
+ * body, proof links, a branch) is dropped, whatever put it there.
+ */
+export function publicWorkboardItem(item: WorkboardItem): WorkboardItem {
+  const out = {} as Record<string, unknown>
+  for (const k of WORKBOARD_ITEM_KEYS) out[k] = item[k]
+  return out as WorkboardItem
+}
+
+/** `res` with every item reduced to `publicWorkboardItem`. */
+export function publicWorkboardResponse(res: WorkboardResponse): WorkboardResponse {
+  return { ...res, items: res.items.map(publicWorkboardItem) }
 }

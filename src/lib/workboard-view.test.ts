@@ -39,12 +39,14 @@ describe("parseWorkboardResponse", () => {
         workboardItem({ number: 1 }),
         { ...workboardItem({ number: 2 }), state: "sample" },
         { ...workboardItem({ number: 3 }), url: "javascript:alert(1)" },
-        { ...workboardItem({ number: 4 }), ci: "green", review: "lgtm", proofLinks: ["http://x.png", "https://a.png"] },
+        { ...workboardItem({ number: 4 }), ci: "green", review: "lgtm", proofLinks: ["http://x.png", "https://a.png"], body: "Description", branch: "feat/x" },
       ],
     }
     const items = parseWorkboardResponse(body)!.items
     expect(items.map((i) => i.number)).toEqual([1, 4])
-    expect(items[1]).toMatchObject({ ci: "none", review: "none", proofLinks: ["https://a.png"] })
+    expect(items[1]).toMatchObject({ ci: "none", review: "none" })
+    // A body, proof links or a branch in the payload never reach the view.
+    expect(Object.keys(items[1]).sort()).toEqual(["ci", "mergedAt", "number", "owner", "review", "state", "title", "updatedAt", "url"])
   })
 })
 
