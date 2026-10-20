@@ -100,10 +100,10 @@ const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.tes
 const isCount = (v: unknown) => isNum(v) && Number.isInteger(v) && v >= 0
 
 /**
- * Hill's optional fields, each kept only when it reads cleanly: a missing
- * or malformed one is left off (its card shows an em dash) and never
- * rejects the summary, so Stripe's core figures still show. Only the
- * known keys are copied, so nothing else in the body reaches a screen.
+ * Copies #77's fields out of a summary `hasNewFigures` has already
+ * checked (a summary missing or misreading any of them is rejected
+ * there), so only the known keys reach a screen. Each field is checked
+ * again on its own, which only matters when this is called directly.
  */
 export function parseExtras(m: Record<string, unknown>): StripeMetricExtras {
   const out: StripeMetricExtras = {}

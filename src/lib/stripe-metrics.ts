@@ -179,8 +179,10 @@ export type StripeMetrics = {
 export type TrialDay = { date: string; count: number }
 
 /**
- * The fields #77 added, optional to a reader: a cached older shape during a
- * deploy still parses, and that card shows an em dash.
+ * The fields #77 added, as a partial view for `parseExtras` and the card
+ * code. `parseStripeSummary` rejects a summary missing any of them, so in
+ * practice every live card has its figure; a card given none (only in
+ * tests) shows an em dash.
  */
 export type StripeMetricExtras = Partial<
   Pick<StripeMetrics, "pastDue" | "arr" | "revenue" | "arpu" | "ltv" | "nrr" | "trialsStartedPerDay">
