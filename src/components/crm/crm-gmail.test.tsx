@@ -14,7 +14,7 @@ import { liveGmailSummary, setGmailLoadingForTest, setGmailSummaryForTest } from
 import { CLEAR_COPY } from "@/components/persistence-note"
 import { STORAGE_KEY, CrmProvider, initialState, reducer, saveState } from "@/components/crm/crm-store"
 import { CRM_MENU_LABEL, GMAIL_CONNECT } from "@/components/crm/crm-header-menu"
-import { CONNECTING_LEDE, CrmShell, EXPIRED_LEDE, LEDE, liveLede } from "@/components/crm/crm-shell"
+import { CONNECTING_LEDE, CrmShell, EXPIRED_LEDE, LEDE, expiredLede, liveLede, loadingLede } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
 import { ContactNewDialog, NEW_CONTACT_LIVE, NEW_CONTACT_PENDING } from "@/components/crm/contact-dialogs"
@@ -167,6 +167,19 @@ describe("CRM while Gmail is connecting (first sync on the server)", () => {
   })
 })
 
+describe("section subtitles while loading or signed out", () => {
+  it("name what each section lists", () => {
+    expect(loadingLede("/crm")).toBe(CONNECTING_LEDE)
+    expect(loadingLede("/crm/cases")).toBe("Loading your cases…")
+    expect(loadingLede("/crm/contacts")).toBe("Loading your contacts…")
+    expect(loadingLede("/crm/triage")).toBe("Loading triage…")
+    expect(loadingLede("/crm/accounts")).toBe("Loading your accounts…")
+    expect(expiredLede("/crm")).toBe(EXPIRED_LEDE)
+    expect(expiredLede("/crm/contacts")).toBe("Sign in again to see your contacts")
+    expect(expiredLede("/crm/triage")).toBe("Sign in again to see triage")
+  })
+})
+
 describe("CRM with the login session expired (401)", () => {
   it("says the session expired, not Not connected, in the menu and every tile", async () => {
     setCrmUnauthorizedForTest()
@@ -174,7 +187,7 @@ describe("CRM with the login session expired (401)", () => {
     expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
     expect(screen.queryByTestId("not-connected")).not.toBeInTheDocument()
     expect(screen.getAllByTestId("crm-session-expired")).toHaveLength(2)
-    expect(screen.getAllByRole("link", { name: "Log in again" })[0]).toHaveAttribute("href", "/unlock?next=%2Fcrm")
+    expect(screen.getAllByRole("link", { name: "Sign in again" })[0]).toHaveAttribute("href", "/unlock?next=%2Fcrm")
     expect(screen.getByTestId("crm-live-region")).toHaveTextContent("Your session expired.")
     const source = within(await openMenu()).getByTestId("crm-source")
     expect(source).toHaveAttribute("data-source", "unauthorized")

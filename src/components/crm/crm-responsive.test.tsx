@@ -16,6 +16,7 @@ import { CrmProvider, initialState, reducer, saveState, type State } from "@/com
 import { CRM_MENU_LABEL } from "@/components/crm/crm-header-menu"
 import { CRM_DANGER_TEXT, CRM_DIALOG, CRM_ICON_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
 import { TriageScreen } from "@/components/crm/triage-screen"
+import { contactDisplayName } from "@/lib/crm/crm"
 
 /*
  * Contacts, triage, the shell and the error state below 1280. The rebuilt
@@ -95,6 +96,26 @@ describe("phone (<768): loading cards", () => {
 })
 
 describe("phone (<768): Contacts cards and sheet (the founder's own contacts)", () => {
+  it("a contact WITH a plan shows no plan pill on its card or in its sheet (plans have no Gmail source)", async () => {
+    const user = userEvent.setup()
+    setGmailSummaryForTest({
+      ...LIVE,
+      data: {
+        ...LIVE.data,
+        contacts: LIVE.data.contacts.map((c) => (c.id === dana.id ? { ...c, plan: "Annual", planStatus: "active" } : c)),
+      },
+    })
+    renderCrm(<ContactsScreen />)
+    const danaCard = card(contactDisplayName(dana))
+    expect(within(danaCard).queryByTestId("card-plan-pill")).not.toBeInTheDocument()
+    expect(danaCard).not.toHaveTextContent("Annual")
+    await user.click(danaCard)
+    const sheet = await screen.findByRole("dialog", { name: contactDisplayName(dana) })
+    expect(within(sheet).queryByTestId("card-plan-pill")).not.toBeInTheDocument()
+    expect(within(sheet).queryByTestId("plan-pill")).not.toBeInTheDocument()
+    expect(sheet).not.toHaveTextContent("Annual")
+  })
+
   it("maps Name / Email / 'Organization · N open cases'; no plan pill (no Gmail source), no sample tag", () => {
     saveMine()
     renderCrm(<ContactsScreen />)

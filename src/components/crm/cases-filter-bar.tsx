@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { ReplyIcon, SearchIcon } from "lucide-react"
+import { ReplyIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react"
 
 import {
   parseCaseFilters,
@@ -19,6 +19,15 @@ import {
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import {
   Select,
   SelectContent,
@@ -78,11 +87,47 @@ export function CasesFilterBar() {
   const set = (changes: Partial<CaseFilters>) => go(withFilters(params, changes))
 
   return (
-    <div className="flex flex-wrap items-center gap-2.5 max-md:gap-2">
+    <div className="flex flex-wrap items-center gap-2.5 max-md:flex-nowrap max-md:gap-2">
+      {/* Desktop and tablet: the filters inline, as before. Phone: one Filters button and a sheet. */}
+      <div className="flex flex-wrap items-center gap-2.5 max-md:hidden">
+        <FilterControls filters={filters} set={set} />
+      </div>
+      <FiltersSheet filters={filters} set={set} />
+      <div className="relative ml-auto max-md:ml-0 max-md:min-w-0 max-md:flex-1">
+        <SearchIcon
+          aria-hidden
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+        />
+        <Input
+          type="search"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+          placeholder="Search cases…"
+          aria-label="Search cases"
+          className={cn("h-8 w-56 pl-9! max-md:w-full", CRM_44)}
+        />
+      </div>
+    </div>
+  )
+}
+
+type Set = (changes: Partial<CaseFilters>) => void
+
+/** Status, priority and "Needs my reply" set (search stays outside the sheet). */
+export function activeFilterCount(f: CaseFilters) {
+  return (f.status !== null ? 1 : 0) + (f.priority !== null ? 1 : 0) + (f.waitingOnUs ? 1 : 0)
+}
+
+function FilterControls({ filters, set, stacked = false }: { filters: CaseFilters; set: Set; stacked?: boolean }) {
+  return (
+    <>
       <div
         role="group"
         aria-label="Status filter"
-        className="bg-muted flex max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5"
+        className={cn(
+          "bg-muted flex max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5",
+          stacked && "w-full"
+        )}
       >
         {STATUS_TABS.map((tab) => {
           const active = filters.status === tab.value
@@ -107,7 +152,7 @@ export function CasesFilterBar() {
         size="sm"
         aria-pressed={filters.waitingOnUs}
         title="Waiting on you: their message is the newest, so the reply is yours"
-        className={CRM_44}
+        className={cn(CRM_44, stacked && "justify-start")}
         onClick={() => set({ waitingOnUs: !filters.waitingOnUs })}
       >
         <ReplyIcon aria-hidden />
@@ -118,7 +163,7 @@ export function CasesFilterBar() {
         value={filters.priority ?? ANY}
         onValueChange={(value) => set({ priority: value === ANY ? null : (value as CrmPriority) })}
       >
-        <SelectTrigger size="sm" aria-label="Priority filter" className={CRM_44}>
+        <SelectTrigger size="sm" aria-label="Priority filter" className={cn(CRM_44, stacked && "w-full")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -129,20 +174,66 @@ export function CasesFilterBar() {
           ))}
         </SelectContent>
       </Select>
-      <div className="relative ml-auto max-md:ml-0 max-md:w-full">
-        <SearchIcon
-          aria-hidden
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-        />
-        <Input
-          type="search"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-          placeholder="Search cases…"
-          aria-label="Search cases"
-          className={cn("h-8 w-56 pl-9! max-md:w-full", CRM_44)}
-        />
-      </div>
-    </div>
+    </>
+  )
+}
+
+/**
+ * Phone (<768): the status, "Needs my reply" and priority filters wrap into
+ * three rows inline, so they live in a bottom sheet behind one Filters
+ * button that shows how many are on. Each change applies at once (the list
+ * updates behind the sheet); Done closes it. Every control is 44px.
+ */
+function FiltersSheet({ filters, set }: { filters: CaseFilters; set: Set }) {
+  const [open, setOpen] = React.useState(false)
+  const count = activeFilterCount(filters)
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger
+        render={
+          <Button
+            variant={count > 0 ? "secondary" : "outline"}
+            className="h-11! shrink-0 gap-1.5 px-3 md:hidden"
+            aria-label={count > 0 ? `Filters, ${count} on` : "Filters"}
+            data-testid="crm-filters-trigger"
+          />
+        }
+      >
+        <SlidersHorizontalIcon aria-hidden />
+        Filters
+        {count > 0 ? (
+          <span
+            data-testid="crm-filters-count"
+            className="bg-primary text-primary-foreground rounded-full px-1.5 text-[0.65rem] leading-4 font-semibold tabular-nums"
+          >
+            {count}
+          </span>
+        ) : null}
+      </SheetTrigger>
+      <SheetContent side="bottom" showCloseButton={false} data-testid="crm-filters-sheet">
+        <SheetHeader className="gap-1 px-4 pt-4 pb-0">
+          <SheetTitle className="text-body font-semibold tracking-tight">Filters</SheetTitle>
+          <SheetDescription className="text-caption text-muted-foreground">
+            Changes apply right away.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-col gap-3 px-4 py-3">
+          <FilterControls filters={filters} set={set} stacked />
+        </div>
+        <SheetFooter className="flex-row gap-2 px-4 pb-4">
+          <Button
+            variant="outline"
+            className="h-11! flex-1"
+            disabled={count === 0}
+            onClick={() => set({ status: null, priority: null, waitingOnUs: false })}
+          >
+            Clear
+          </Button>
+          <Button className="h-11! flex-1" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

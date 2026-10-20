@@ -4,7 +4,7 @@ import { gmailConnecting } from "../src/lib/crm/gmail-summary"
 
 import { expectReadable, settleAnimations } from "./support/contrast"
 import {
-  CRM_CONNECTING_LEDE,
+  crmLoadingLede,
   CRM_LEDE,
   CRM_LIVE_LEDE,
   CRM_STORAGE_KEY as STORAGE_KEY,
@@ -163,7 +163,7 @@ test.describe("Gmail connecting (mocked first sync)", () => {
       ["/crm/triage", "Loading saved triage"],
     ] as const) {
       await open(page, path)
-      await expect(header(page).locator("p").first()).toHaveText(CRM_CONNECTING_LEDE)
+      await expect(header(page).locator("p").first()).toHaveText(crmLoadingLede(path))
       if (skeleton) {
         await expect(page.getByRole("main").getByRole("status", { name: skeleton, exact: true })).toBeVisible()
       } else {
