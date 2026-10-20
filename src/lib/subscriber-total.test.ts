@@ -14,20 +14,20 @@ import { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, AP
 describe("subscriberTotal", () => {
   it("with the App Store connected: (1) + (2) + (3)", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTED)
-    expect(t.value).toBe(1_337)
-    expect([t.stripePaying, t.appStore, t.freeAccounts]).toEqual([1_110, 53, 174])
+    expect(t.value).toBe(1_306)
+    expect([t.stripePaying, t.appStore, t.freeAccounts]).toEqual([1_079, 53, 174])
   })
 
   it("without it: (1) + (3), and the App Store is null — never 0", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_OFF)
-    expect(t.value).toBe(1_284)
+    expect(t.value).toBe(1_253)
     expect(t.appStore).toBeNull()
   })
 
   it("a connected or stale 0 is suspect: out of the total like not connected, never a real 0", () => {
     for (const zero of [APP_STORE_ZERO, APP_STORE_ZERO_STALE]) {
       const t = subscriberTotal(LIVE_METRICS, zero)
-      expect(t.value).toBe(1_284)
+      expect(t.value).toBe(1_253)
       expect(t.appStore).toBeNull()
       expect(t.appStoreSource).toEqual(zero)
       expect(t.series.at(-1)).toBe(t.value)
@@ -35,15 +35,15 @@ describe("subscriberTotal", () => {
   })
 
   it("a stale App Store count is still in the total", () => {
-    expect(subscriberTotal(LIVE_METRICS, APP_STORE_STALE).value).toBe(1_337)
+    expect(subscriberTotal(LIVE_METRICS, APP_STORE_STALE).value).toBe(1_306)
   })
 
   it("history: (1)+(3)'s own, with the App Store held at its count (it has no history)", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTED)
-    expect(t.previous).toBe(1_080 + 170 + 53)
+    expect(t.previous).toBe(1_049 + 170 + 53)
     expect(t.value - t.previous).toBe(34) // the change in (1)+(3) alone
     expect(t.today).toBe(3)
-    expect(t.series).toEqual([1_143, 1_201, 1_246, 1_280, 1_303, 1_337])
+    expect(t.series).toEqual([1_112, 1_170, 1_215, 1_249, 1_272, 1_306])
     expect(t.series.at(-1)).toBe(t.value)
 
     const off = subscriberTotal(LIVE_METRICS, APP_STORE_OFF)
@@ -55,7 +55,7 @@ describe("subscriberTotal", () => {
 describe("breakdown", () => {
   it("three rows, in the definition's order", () => {
     expect(breakdownRows(subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTED))).toEqual([
-      { key: "stripePaying", label: "Stripe paying", value: "1,110" },
+      { key: "stripePaying", label: "Stripe paying", value: "1,079" },
       { key: "appStore", label: "App Store", value: "53" },
       { key: "freeAccounts", label: "Free (never paid)", value: "174" },
     ])
@@ -66,7 +66,7 @@ describe("breakdown", () => {
     expect(breakdownRows(t)[1]).toEqual({ key: "appStore", label: "App Store", value: "Not connected" })
     expect(breakdownNote(t, CENTRAL)).toBe(EXCLUDES_APP_STORE)
     expect(breakdownText(t, CENTRAL)).toBe(
-      "Stripe paying 1,110, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
+      "Stripe paying 1,079, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
     )
   })
 
@@ -89,7 +89,7 @@ describe("breakdown", () => {
       APP_STORE_SUSPECT_NOTE
     )
     expect(breakdownText(t, CENTRAL)).toBe(
-      "Stripe paying 1,110, App Store Check source (warning), Free (never paid) 174. " +
+      "Stripe paying 1,079, App Store Check source (warning), Free (never paid) 174. " +
         "App Store read 0 — check database access (likely a permissions/RLS issue)."
     )
   })

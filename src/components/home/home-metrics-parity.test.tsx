@@ -105,8 +105,8 @@ describe("Home ↔ Metrics parity (rendered)", () => {
 
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    const subs = "1,337"
-    expect(paying).toBe("1,110")
+    const subs = "1,306"
+    expect(paying).toBe("1,079")
     expect(within(homeCard).getByText(subs)).toBeInTheDocument()
     const homeRows = Object.fromEntries(
       [...within(homeCard).getByTestId("subscriber-breakdown").querySelectorAll("[data-row]")].map((r) => [

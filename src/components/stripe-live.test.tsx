@@ -81,7 +81,7 @@ describe("Home with Stripe connected", () => {
 
   it("Subscribers and Cash this week are Stripe's, with no Sample label", () => {
     renderHome()
-    expect(within(kpi("Subscribers")).getByText("1,337")).toBeInTheDocument()
+    expect(within(kpi("Subscribers")).getByText("1,306")).toBeInTheDocument()
     expect(within(kpi("Subscribers")).getByText(/\+34 vs previous 28 days/)).toHaveAttribute("data-tone", "good")
     expect(within(kpi("Cash this week")).getByText("$4,322")).toBeInTheDocument()
     expect(within(kpi("Cash this week")).getByText(/\+10\.8% vs same time last week/)).toBeInTheDocument()
@@ -97,7 +97,7 @@ describe("Home with Stripe connected", () => {
 
   it("the ticker shows the Subscribers total and today's net change, unlabelled", () => {
     renderHome()
-    expect(spoken()).toBe("Subscribers: 1,337, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,306, up 3 today")
     expect(ticker()).toHaveAttribute("data-state", "ready")
     expect(within(ticker()).queryByTestId("sample-data-tag")).toBeNull()
   })
@@ -120,9 +120,9 @@ describe("Home with Stripe stale", () => {
       expect(within(kpi(name)).getByTestId("kpi-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
       expect(within(kpi(name)).queryByTestId("sample-data-tag")).toBeNull()
     }
-    expect(within(kpi("Subscribers")).getByText("1,337")).toBeInTheDocument()
+    expect(within(kpi("Subscribers")).getByText("1,306")).toBeInTheDocument()
     expect(ticker()).toHaveAttribute("data-state", "stale")
-    expect(spoken()).toBe("Subscribers: 1,337, up 3 today, Last updated 9:41 AM CDT")
+    expect(spoken()).toBe("Subscribers: 1,306, up 3 today, Last updated 9:41 AM CDT")
   })
 
   it("follows the Settings zone", () => {
@@ -173,8 +173,8 @@ describe("Metrics with Stripe connected", () => {
       [/^MRR\b/, "$61,235"],
       [/^Churn Rate\b/, "2.7%"],
       [/^Trial Conversions\b/, "41.2%"],
-      // Metrics' headline is active paying only (Home keeps the 1,337 total).
-      [/^Subscribers\b/, "1,110"],
+      // Metrics' headline is active paying only (Home keeps the 1,306 total).
+      [/^Subscribers\b/, "1,079"],
     ]
     for (const [name, value] of expected) {
       const c = card(name)
@@ -305,13 +305,13 @@ const rowsOf = (el: HTMLElement) =>
   ])
 
 describe("Subscribers total and its breakdown", () => {
-  it("App Store connected: Home's card shows 1,337 over its three groups, and no caveat", () => {
+  it("App Store connected: Home's card shows 1,306 over its three groups, and no caveat", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderHome()
     const c = kpi("Subscribers")
-    expect(within(c).getByText("1,337")).toBeInTheDocument()
+    expect(within(c).getByText("1,306")).toBeInTheDocument()
     expect(rowsOf(c)).toEqual([
-      ["Stripe paying", "1,110"],
+      ["Stripe paying", "1,079"],
       ["App Store", "53"],
       ["Free (never paid)", "174"],
     ])
@@ -322,10 +322,10 @@ describe("Subscribers total and its breakdown", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     renderHome()
     const c = kpi("Subscribers")
-    expect(within(c).getByText("1,284")).toBeInTheDocument()
+    expect(within(c).getByText("1,253")).toBeInTheDocument()
     expect(rowsOf(c)[1]).toEqual(["App Store", "Not connected"])
     expect(within(c).getByTestId("subscriber-breakdown-note")).toHaveTextContent("Total excludes App Store (not connected)")
-    expect(spoken()).toBe("Subscribers: 1,284, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,253, up 3 today")
   })
 
   it("a stale App Store count stays in the total and says when it is from", () => {
@@ -340,7 +340,7 @@ describe("Subscribers total and its breakdown", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
     const c = card(/^Subscribers\b/)
-    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,110")
+    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,079")
     expect(c).toHaveTextContent("Active paying coaches")
     // #77 sends the past-due split: its own amber line, out of the headline.
     expect(rowsOf(c)).toEqual([

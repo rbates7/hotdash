@@ -13,12 +13,12 @@ export const SYNCED_AT = "2026-10-13T14:41:00.000Z"
 
 /**
  * Live figures that cannot be mistaken for the sample ones. Subscribers is
- * Bobbi's Oct 14 split: 1,110 Stripe paying + 174 free = 1,284 without the
- * App Store, 1,337 with its 53 (`APP_STORE_CONNECTED`). Previous 1,303 and
- * today +3 on the total.
+ * active paying only since #77: Bobbi's Oct 14 1,110 less its 31 past due
+ * (`pastDue`) = 1,079 Stripe paying, + 174 free = 1,253 without the App
+ * Store, 1,306 with its 53 (`APP_STORE_CONNECTED`). Today +3 on the total.
  */
 export const LIVE_METRICS: StripeMetrics = {
-  subscribers: { value: 1_110, previous: 1_080, today: 2, series: [940, 990, 1_030, 1_060, 1_080, 1_110] },
+  subscribers: { value: 1_079, previous: 1_049, today: 2, series: [909, 959, 999, 1_029, 1_049, 1_079] },
   freeAccounts: { value: 174, previous: 170, today: 1, series: [150, 158, 163, 167, 170, 174] },
   cashThisWeek: { value: 4_321.5, previous: 3_900, since: "2026-10-12T05:00:00.000Z" },
   mrr: { value: 61_234.56, previous: 59_000, series: [52_000, 54_000, 56_000, 57_500, 59_000, 61_234.56] },

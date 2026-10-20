@@ -21,8 +21,8 @@ export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, AP
  * Answer the browser's `/api/stripe/summary` with `summary` — the server's
  * own route (no key and no database URL in e2e) is never reached, and
  * neither is Stripe or Chlk's database. `liveSummary()` has the App Store
- * connected (1,110 + 53 + 174 = 1,337); pass `APP_STORE_OFF` as its third
- * argument for not connected (1,284, "Total excludes App Store").
+ * connected (1,079 + 53 + 174 = 1,306); pass `APP_STORE_OFF` as its third
+ * argument for not connected (1,253, "Total excludes App Store").
  * Pass a function to change the answer mid-test (each poll reads it anew).
  * Returns the time-zone parameters the page asked with.
  */
