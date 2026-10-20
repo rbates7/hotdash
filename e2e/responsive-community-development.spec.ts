@@ -656,7 +656,7 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(add.getByRole("button", { name: "Add initiative", exact: true }), `${label}/add submit`, expect)
         await page.keyboard.press("Escape")
 
-        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 1 })), STORAGE_KEY)
+        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ initiatives: [], nextId: 9 })), STORAGE_KEY)
         await page.reload()
         await waitForHydration(page)
         await expect(persistenceNote(page)).toHaveText(NOTE.saved)

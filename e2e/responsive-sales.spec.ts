@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { expectReadable, settleAnimations } from "./support/contrast"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { now } from "../src/lib/clock"
+import { founderDealsState } from "../src/lib/sales-opportunities-fixture"
+import { NOTE, persistenceNote, storeFounderCopy } from "./support/persistence"
 import {
   expectFocusTrapped,
   expectNoOverflowX,
@@ -42,12 +44,12 @@ const sheetActions = (page: Page, who: string) =>
   sheet(page, who).getByRole("group", { name: "Deal actions", exact: true }).getByRole("button")
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 
+/** The founder's own deals (no sample ships), stored before the page loads. */
 async function fresh(page: Page) {
+  await storeFounderCopy(page, STORAGE_KEY, founderDealsState(now().getTime()))
   await page.goto("/sales-opportunities")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
   await waitForHydration(page)
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -223,10 +225,10 @@ test.describe("responsive Sales (phone 390)", () => {
     await expect(pruitt).toContainText("Cedar Creek HS (6A) · Staff seats × 5 · $1,500")
     await expect(pruitt).toContainText("Collect the PO from the booster club")
     await expect(pruitt).toContainText("Overdue 2 days")
-    await expect(pruitt.getByTestId("sample-data-tag")).toBeVisible()
     await expect(card(page, "Coach Tommy Hale")).toContainText("Value not known yet")
-    // The sample-data strip stays on top of the list.
-    await expect(deals(page).getByTestId("sample-data-strip")).toBeVisible()
+    // No sample tag or strip: these are the founder's deals.
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(deals(page).getByTestId("sample-data-strip")).toHaveCount(0)
     await expect(deals(page).getByRole("heading", { level: 2, name: "Open deals" })).toBeVisible()
     await expect(deals(page).getByText("2 overdue")).toBeVisible()
 
@@ -551,13 +553,11 @@ for (const theme of ["light", "dark"] as const) {
         await fresh(page)
         await setTheme(page, theme)
         const label = `${theme}/${size}`
-        // The header minus the shared note's *disabled* Reset (opacity 0.5 by
-        // design; WCAG 1.4.3 exempts inactive controls).
+        // The header's text; Clear my entries is measured on its own below.
         const header = screen(page).locator("header")
         await expectReadable(header.getByRole("heading", { level: 1 }), `${label}/title`, expect)
         await expectReadable(header.locator("p").first(), `${label}/subtitle`, expect)
         await expectReadable(persistenceNote(page), `${label}/note`, expect)
-        await expectReadable(header.getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(deals(page), `${label}/deals`, expect)
         if (size === "390") {
           await expectReadable(
@@ -609,15 +609,12 @@ for (const theme of ["light", "dark"] as const) {
           await expect(d).toBeHidden()
         }
 
-        // Reset once something is saved (enabled, so no longer exempt).
-        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ deals: [], nextId: 1 })), STORAGE_KEY)
-        await page.reload()
-        await waitForHydration(page)
+        // Clear my entries with the founder's copy saved (enabled, so not exempt).
         await expect(persistenceNote(page)).toHaveText(NOTE.saved)
-        const reset = header.getByRole("button", { name: "Reset", exact: true })
-        await expect(reset).toBeEnabled()
-        await expectTapTarget(reset, `${label}/Reset`)
-        await expectReadable(reset, `${label}/enabled Reset`, expect)
+        const clear = header.getByRole("button", { name: "Clear my entries", exact: true })
+        await expect(clear).toBeEnabled()
+        await expectTapTarget(clear, `${label}/Clear my entries`)
+        await expectReadable(clear, `${label}/enabled Clear my entries`, expect)
       })
     })
   }
