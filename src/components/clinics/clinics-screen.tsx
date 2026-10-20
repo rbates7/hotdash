@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersistenceNote } from "@/components/persistence-note"
-import { SampleDataTag } from "@/components/sample-data"
 import {
   CLINIC_TOUCH,
   ClinicDialog,
@@ -96,6 +95,9 @@ const RESET_CLASS = "max-xl:h-11! max-xl:px-2.5!"
  * The page: header, then Upcoming and Past as the mock stacks them. Must
  * sit inside a ClinicsProvider.
  */
+/** The empty list's second line. */
+export const CLINICS_EMPTY_HINT = "Add a clinic and it shows here, saved in this browser."
+
 export function ClinicsScreen() {
   const store = useClinics()
   const { today, clinics, persisted, setAttendance, removeClinic } = store
@@ -130,8 +132,7 @@ export function ClinicsScreen() {
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:mt-1">
-          <PersistenceNote store={store} resetClassName={RESET_CLASS} />
-          <SampleDataTag className="h-6 px-2" />
+          <PersistenceNote mode="clear" store={store} resetClassName={RESET_CLASS} />
           <Button
             size="sm"
             className={cn(ADD_CLINIC_CLASS, "max-md:absolute max-md:top-0 max-md:right-0")}
@@ -153,9 +154,7 @@ export function ClinicsScreen() {
         >
           <PresentationIcon className="text-faint-foreground size-6" aria-hidden />
           <p className="text-body text-foreground font-medium">No clinics on the calendar</p>
-          <p className="text-caption">
-            Every row has been removed. Add a clinic, or Reset to bring the sample rows back.
-          </p>
+          <p className="text-caption">{CLINICS_EMPTY_HINT}</p>
           <Button
             size="sm"
             variant="outline"
