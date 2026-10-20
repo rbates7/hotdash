@@ -11,7 +11,8 @@ import {
   saveState,
 } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { ChurnedSubscribersTable, NewSubscribersTable, SUBSCRIBER_LIST_HINT } from "@/components/metrics/subscribers-tables"
+import { ChurnedSubscribersTable, NewSubscribersTable } from "@/components/metrics/subscribers-tables"
+import { LIST_COPY } from "@/components/metrics/subscriber-list-panel"
 import { NO_EXPENSES_BODY, NO_EXPENSES_TITLE } from "@/components/metrics/expenses-panel"
 import { MOCK_DAY } from "@/lib/kpis-fixture"
 import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis-fixture"
@@ -141,14 +142,14 @@ describe("MetricsTabs", () => {
       // And the committed result is the saved board, not the seed.
       expect(screen.queryByRole("status", { name: "Loading saved metrics" })).not.toBeInTheDocument()
       expect(screen.queryByRole("article", { name: /^ARR\b/ })).not.toBeInTheDocument()
-      expect(cards()).toHaveLength(7)
+      expect(cards()).toHaveLength(8)
     })
   })
 
   describe("no sample data", () => {
     it("no metric card carries a Sample data tag; with nothing connected each says Not connected", () => {
       renderTabs()
-      expect(cards()).toHaveLength(8)
+      expect(cards()).toHaveLength(9)
       for (const c of cards()) {
         expect(within(c).queryByTestId("sample-data-tag")).toBeNull()
       }
@@ -175,7 +176,7 @@ describe("MetricsTabs", () => {
     ])("the %s tab says Not connected, with no rows", (search, title) => {
       renderTabs(search)
       const panel = screen.getByRole("region", { name: `${title}: not connected` })
-      expect(panel).toHaveTextContent(SUBSCRIBER_LIST_HINT)
+      expect(panel).toHaveTextContent(LIST_COPY[search === "tab=churned" ? "churned" : "new"].hint)
       expect(screen.queryByRole("table")).toBeNull()
       expect(screen.queryByTestId("sample-data-tag")).toBeNull()
     })
@@ -277,7 +278,7 @@ describe("MetricsTabs", () => {
   })
 
   describe("Overview", () => {
-    it("shows the eight default cards, in order: Not connected, and Expenses empty", () => {
+    it("shows the nine default cards, in order: Not connected, and Expenses empty", () => {
       renderTabs()
       const names = cards().map((a) => a.getAttribute("aria-label"))
       expect(names).toEqual([
@@ -288,6 +289,7 @@ describe("MetricsTabs", () => {
         "Retention not connected",
         "Subscribers not connected",
         "Trial Conversions not connected",
+        "Trials per day not connected",
         "Expenses no expenses entered",
       ])
       const mrr = card("MRR")
@@ -331,7 +333,7 @@ describe("MetricsTabs", () => {
       renderTabs()
       await user.click(within(card("Revenue")).getByRole("button", { name: "Remove Revenue" }))
       expect(screen.queryByRole("article", { name: "Revenue" })).not.toBeInTheDocument()
-      expect(cards()).toHaveLength(7)
+      expect(cards()).toHaveLength(8)
 
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
@@ -367,14 +369,14 @@ describe("MetricsTabs", () => {
       expect(within(valuation).getByTestId("metric-value")).toHaveTextContent("\u2014")
       // The illustrative derivation note only ever described a fixture figure.
       expect(within(valuation).queryByText(/illustrative/)).toBeNull()
-      expect(cards()).toHaveLength(9)
+      expect(cards()).toHaveLength(10)
       expect(screen.queryByRole("dialog", { name: "Add a metric" })).not.toBeInTheDocument()
     })
 
-    it("shows an empty state when every card is removed and the picker lists all sixteen", async () => {
+    it("shows an empty state when every card is removed and the picker lists all seventeen", async () => {
       const user = userEvent.setup()
       renderTabs()
-      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
+      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Trials per day", "Expenses"]) {
         await user.click(within(card(name)).getByRole("button", { name: `Remove ${name}` }))
       }
       expect(screen.queryByRole("region", { name: "Metric cards" })).not.toBeInTheDocument()
@@ -382,7 +384,7 @@ describe("MetricsTabs", () => {
 
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
-      expect(within(picker).getAllByRole("button")).toHaveLength(16)
+      expect(within(picker).getAllByRole("button")).toHaveLength(17)
     })
 
     it("tells you when everything is already on the board", { timeout: 20_000 }, async () => {
@@ -393,7 +395,7 @@ describe("MetricsTabs", () => {
         const picker = await screen.findByRole("dialog", { name: "Add a metric" })
         await user.click(within(picker).getAllByRole("button")[0])
       }
-      expect(cards()).toHaveLength(16)
+      expect(cards()).toHaveLength(17)
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       expect(await screen.findByText("All metrics are on the board")).toBeInTheDocument()
     })

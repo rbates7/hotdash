@@ -48,6 +48,7 @@ export function SubscriberBreakdown({
               key={row.key}
               data-row={row.key}
               data-warning={row.warning ? "" : undefined}
+              data-tone={row.tone}
               className="flex items-baseline justify-between gap-3"
             >
               <dt className="text-muted-foreground truncate">{row.label}</dt>
@@ -56,6 +57,8 @@ export function SubscriberBreakdown({
                   "flex-none tabular-nums",
                   row.warning
                     ? "text-warning-text inline-flex items-center gap-1 self-center font-medium"
+                    : row.tone === "attention"
+                      ? "text-warning-text font-medium"
                     : off
                       ? "text-muted-foreground"
                       : "text-foreground font-medium"

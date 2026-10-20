@@ -6,6 +6,7 @@ import { addDays, daysBetween, isIsoDay, todayIn, type IsoDay } from "@/lib/cloc
 import { SEED_EXPENSE_IDS } from "@/lib/kpis"
 import {
   DEFAULT_METRIC_IDS,
+  INTRODUCED_METRIC_IDS,
   METRIC_IDS,
   type ChartType,
   type Expense,
@@ -41,6 +42,13 @@ export type State = {
    * sample expenses to last week. User-added rows keep their own dates.
    */
   seededAt: IsoDay
+  /**
+   * Every card this board has been offered. A card added to the defaults
+   * later (`INTRODUCED_METRIC_IDS`) joins a saved board once, beside the
+   * card it follows; after that, removing it sticks. Absent on copies saved
+   * before the field existed: they have been offered all but those.
+   */
+  offered?: MetricId[]
 }
 
 export type NewExpenseInput = Omit<Expense, "id">
@@ -192,7 +200,26 @@ export function initialState(today: IsoDay): State {
     expenses: [],
     nextExpenseId: SEED_EXPENSE_IDS.size + 1,
     seededAt: today,
+    offered: [...METRIC_IDS],
   }
+}
+
+/**
+ * A saved board's cards with any card introduced since it was saved
+ * (`INTRODUCED_METRIC_IDS`) placed once: after the card it follows, or
+ * last when that card is off the board.
+ */
+export function offerIntroduced(visible: readonly MetricId[], offered: readonly MetricId[] | undefined) {
+  const known = new Set(offered ?? METRIC_IDS.filter((id) => !INTRODUCED_METRIC_IDS.some((n) => n.id === id)))
+  const next = [...visible]
+  for (const { id, after } of INTRODUCED_METRIC_IDS) {
+    if (known.has(id)) continue
+    known.add(id)
+    if (next.includes(id)) continue
+    const at = next.indexOf(after)
+    next.splice(at === -1 ? next.length : at + 1, 0, id)
+  }
+  return { visible: next, offered: METRIC_IDS.filter((id) => known.has(id)) }
 }
 
 /* ------------------------------------------------------------ persistence */
@@ -270,7 +297,9 @@ export function parseState(value: unknown): State | null {
   // A copy saved before the seed rows were removed still holds them: they
   // are sample data, so they are dropped here; the founder's rows stay.
   const own = expenses.filter((e) => !SEED_EXPENSE_IDS.has(e.id))
-  return { visible: [...v.visible], charts, expenses: own, nextExpenseId: v.nextExpenseId, seededAt: v.seededAt }
+  if (v.offered !== undefined && (!Array.isArray(v.offered) || !v.offered.every(isMetricId))) return null
+  const board = offerIntroduced(v.visible, v.offered as MetricId[] | undefined)
+  return { visible: board.visible, charts, expenses: own, nextExpenseId: v.nextExpenseId, seededAt: v.seededAt, offered: board.offered }
 }
 
 /** Boolean form of `parseState`, for callers that only need yes/no. */

@@ -133,7 +133,34 @@ export type StripeMetrics = {
   churn: { value: Rate; previous: Rate; series: Rate[]; churned: number; base: number }
   /** % of trials ending inside a window that became paid subscriptions. */
   trialToPaid: { value: Rate; previous: Rate; series: Rate[]; converted: number; ended: number }
+} & StripeMetricExtras
+
+/**
+ * Hill's provisional fields (feat/metrics-real-data), all optional: a
+ * server that does not send one yet (or a cached older shape during a
+ * deploy) still parses, and that card shows an em dash. Money in dollars,
+ * rates in percent; `null` is nothing to divide by. `parseStripeSummary`
+ * keeps each one only when it reads cleanly.
+ */
+export type StripeMetricExtras = {
+  /** Stripe `past_due` subscriptions that have paid once, and their monthly-equivalent $ at risk. Now only (no history). */
+  pastDue?: { value: number; mrr: number }
+  /** MRR × 12 on the same six windows. */
+  arr?: { value: number; previous: number; series: number[] }
+  /** Paid invoices in each 28-day window, gross of refunds; `invoices` is the current window's count. */
+  revenue?: { value: number; previous: number; series: number[]; invoices: number }
+  /** MRR ÷ active paying Stripe subscriptions. */
+  arpu?: { value: Rate; previous: Rate }
+  /** ARPU ÷ monthly churn. */
+  ltv?: { value: Rate; previous: Rate }
+  /** Net MRR retention of each window's starting cohort, percent. */
+  nrr?: { value: Rate; previous: Rate; series: Rate[] }
+  /** Trials started on each day of the current 28-day window (founder's zone, oldest first). */
+  trialsStartedPerDay?: { series: TrialDay[]; total: number; previousTotal: number }
 }
+
+/** One founder-zone day: `date` is YYYY-MM-DD. */
+export type TrialDay = { date: string; count: number }
 
 /* ------------------------------------------------------------ definitions */
 

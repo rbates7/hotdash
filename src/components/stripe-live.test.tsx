@@ -172,7 +172,8 @@ describe("Metrics with Stripe connected", () => {
       [/^MRR\b/, "$61,235"],
       [/^Churn Rate\b/, "2.7%"],
       [/^Trial Conversions\b/, "41.2%"],
-      [/^Subscribers\b/, "1,337"],
+      // Metrics' headline is active paying only (Home keeps the 1,337 total).
+      [/^Subscribers\b/, "1,110"],
     ]
     for (const [name, value] of expected) {
       const c = card(name)
@@ -186,9 +187,15 @@ describe("Metrics with Stripe connected", () => {
 
   it("every other card says Not connected (Expenses: the founder's entries), never a sample figure", () => {
     renderMetrics()
-    for (const name of [/^ARR\b/, /^Revenue\b/, /^Retention\b/]) {
+    for (const name of [/^Retention\b/]) {
       expect(within(card(name)).queryByTestId("sample-data-tag")).toBeNull()
       expect(card(name)).toHaveAttribute("data-source", "not_connected")
+    }
+    // Stripe's, but this sync does not send them yet: an em dash and why, no figure.
+    for (const name of [/^ARR\b/, /^Revenue\b/]) {
+      expect(card(name)).toHaveAttribute("data-source", "stripe")
+      expect(within(card(name)).getByTestId("metric-value")).toHaveTextContent("\u2014")
+      expect(card(name)).toHaveTextContent("Not in Stripe\u2019s figures yet")
     }
     expect(card(/^Expenses\b/)).toHaveAttribute("data-source", "entries")
     expect(within(card(/^Expenses\b/)).queryByTestId("sample-data-tag")).toBeNull()
@@ -206,7 +213,7 @@ describe("Metrics with Stripe connected", () => {
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
     expect(notice).toHaveTextContent(
-      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Subscribers also counts App Store payers from Chlk’s database \(read-only\)\./
+      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Subscribers also shows App Store payers from Chlk’s database \(read-only\) on their own line\./
     )
     expect(notice).toHaveTextContent("Every other card says Not connected until its source is wired up")
     expect(notice).not.toHaveTextContent(/sample|illustrative/i)
@@ -224,7 +231,7 @@ describe("Metrics with Stripe connected", () => {
     renderMetrics()
     expect(headerTag()).toBeNull()
     expect(within(card(/^ARR\b/)).queryByTestId("sample-data-tag")).toBeNull()
-    expect(within(card(/^ARR\b/)).getByText("Not connected")).toBeInTheDocument()
+    expect(within(card(/^Retention\b/)).getByText("Not connected")).toBeInTheDocument()
   })
 })
 
@@ -328,17 +335,20 @@ describe("Subscribers total and its breakdown", () => {
     )
   })
 
-  it("Metrics › Subscribers shows the same total and rows", () => {
+  it("Metrics › Subscribers: active paying headline, the other groups on their own lines", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
     const c = card(/^Subscribers\b/)
-    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,337")
+    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,110")
+    expect(c).toHaveTextContent("Active paying coaches")
+    // This sync has no past-due split yet: the line is a dash and the fine print says the headline holds them.
     expect(rowsOf(c)).toEqual([
-      ["Stripe paying", "1,110"],
+      ["Past due", "\u2014"],
       ["App Store", "53"],
       ["Free (never paid)", "174"],
     ])
-    expect(within(c).getByTestId("trend")).toHaveTextContent("+34")
+    expect(within(c).getByTestId("subscriber-breakdown-note")).toHaveTextContent("Includes past due")
+    expect(within(c).getByTestId("trend")).toHaveTextContent("+30")
   })
 
   it("sample and loading cards keep the breakdown's room but show nothing in it", () => {

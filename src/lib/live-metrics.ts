@@ -14,7 +14,13 @@ import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
 import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import type { StripeFeed } from "@/lib/stripe-summary"
-import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from "@/lib/subscriber-total"
+import {
+  breakdownNote,
+  breakdownRows,
+  metricsSubscriberRows,
+  subscriberTotal,
+  type BreakdownRow,
+} from "@/lib/subscriber-total"
 
 /**
  * Which numbers come from Stripe or PostHog, and how a screen shows them.
@@ -37,7 +43,22 @@ import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from
  * (`subscriberTotal`: Stripe paying + App Store + free accounts), with
  * its breakdown.
  */
-export const STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set(["mrr", "churn", "trials", "subscribers"])
+export const HOME_STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set(["mrr", "churn", "trials", "subscribers"])
+
+/**
+ * Every Metrics card Stripe feeds: Home's four, plus Hill's provisional
+ * fields (ARR, Revenue, ARPU, LTV, NRR, Trials per day). Home's ARR KPI
+ * stays Not connected for now (Home unchanged, pending Simmons).
+ */
+export const STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set([
+  ...HOME_STRIPE_METRIC_IDS,
+  "arr",
+  "revenue",
+  "arpu",
+  "ltv",
+  "nrr",
+  "trials_per_day",
+])
 
 /**
  * The Metrics cards PostHog feeds: Active Users (an extra card, in "Add
@@ -67,6 +88,8 @@ export type LiveMetric = {
   note?: string
   /** Subscribers only: the groups the total adds up. */
   breakdown?: SubscriberBreakdownView
+  /** A daily chart (Trials per day): the YYYY-MM-DD day of each point, instead of six 28-day windows. */
+  days?: string[]
 }
 
 /** The rows under a Subscribers total, and its fine print (or null). */
@@ -118,6 +141,98 @@ export function notConnectedText(source: LiveSource | null): string {
 const EMPTY: Partial<Record<MetricId, string>> = {
   churn: "No subscribers at the start of the window",
   trials: "No trials ended in the last 28 days",
+  arpu: "No active paying subscribers",
+  ltv: "Needs ARPU and a churn rate above 0",
+  nrr: "No paying subscribers at the start of the window",
+}
+
+/** A card whose field this Stripe sync does not send yet (Hill's provisional fields). */
+export const NOT_IN_SYNC_TEXT = "Not in Stripe\u2019s figures yet"
+
+/** The Stripe cards with a figure from this sync, in board order: the core four, then each provisional field sent. */
+export function stripeLiveLabels(m: Extract<StripeFeed, { kind: "live" }>["metrics"]): string[] {
+  const extras: [keyof typeof m, string][] = [
+    ["arr", "ARR"],
+    ["revenue", "Revenue"],
+    ["trialsStartedPerDay", "Trials per day"],
+    ["arpu", "ARPU"],
+    ["ltv", "LTV"],
+    ["nrr", "NRR"],
+  ]
+  return ["MRR", "Churn Rate", "Trial Conversions", "Subscribers", ...extras.filter(([k]) => m[k] !== undefined).map(([, l]) => l)]
+}
+
+/** "A, B and C". */
+export function listOf(items: readonly string[]) {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+}
+
+/** Under Trials per day's headline. */
+export const TRIALS_PER_DAY_NOTE = "Trials started in the last 28 days"
+/** Under Revenue's headline. */
+export const revenueNote = (invoices: number) => `${count(invoices)} paid ${invoices === 1 ? "invoice" : "invoices"} · gross, before refunds`
+/** Under the Metrics Subscribers headline. */
+export const ACTIVE_PAYING_NOTE = "Active paying coaches"
+
+type Figure = Pick<LiveMetric, "value" | "previous" | "series"> & Partial<Pick<LiveMetric, "note" | "days" | "breakdown">>
+
+/** Hill's fields, as a card's figure; null when this sync does not send it. */
+function extraFigure(id: MetricId, m: Extract<StripeFeed, { kind: "live" }>["metrics"]): Figure | null {
+  switch (id) {
+    case "arr":
+      return m.arr ? { value: m.arr.value, previous: m.arr.previous, series: m.arr.series } : null
+    case "revenue":
+      return m.revenue
+        ? { value: m.revenue.value, previous: m.revenue.previous, series: m.revenue.series, note: revenueNote(m.revenue.invoices) }
+        : null
+    case "arpu":
+    case "ltv": {
+      const f = m[id]
+      // No history: no chart, just the headline and its change.
+      return f ? { value: f.value, previous: f.previous, series: [] } : null
+    }
+    case "nrr":
+      return m.nrr ? { value: m.nrr.value, previous: m.nrr.previous, series: m.nrr.series } : null
+    case "trials_per_day": {
+      const t = m.trialsStartedPerDay
+      return t
+        ? {
+            value: t.total,
+            // Nothing started in the window before: no comparison, rather than "+∞%".
+            previous: t.previousTotal === 0 ? null : t.previousTotal,
+            series: t.series.map((d) => d.count),
+            days: t.series.map((d) => d.date),
+            note: TRIALS_PER_DAY_NOTE,
+          }
+        : null
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * Metrics › Subscribers (pending Simmons; Home keeps the Oct 14 total):
+ * the headline is active paying coaches only — Stripe's paying count,
+ * which Hill's split makes `active` only — with Past due (amber), App
+ * Store and Free on their own lines, none of them added in. A server
+ * without the split still counts past due in the headline: the fine
+ * print says so. The headline does not wait for the App Store (it is
+ * not in it); its line says Connecting… meanwhile.
+ */
+export function metricsSubscribers(feed: Extract<StripeFeed, { kind: "live" }>, timeZone: string): LiveMetric {
+  const m = feed.metrics
+  const { rows, note } = metricsSubscriberRows(m, feed.appStore, timeZone)
+  return {
+    source: "stripe",
+    value: m.subscribers.value,
+    previous: m.subscribers.previous,
+    series: m.subscribers.series,
+    updated: feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null,
+    empty: null,
+    note: ACTIVE_PAYING_NOTE,
+    breakdown: { rows, note },
+  }
 }
 
 /** What the Metrics card `id` shows for this feed. */
@@ -127,6 +242,21 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
   if (feed.kind === "loading") return feed.connecting ? { kind: "loading", connecting: true } : { kind: "loading" }
   if (id === "subscribers" && isAppStoreConnecting(feed.appStore)) return { kind: "loading", connecting: true }
   const m = feed.metrics
+  if (!HOME_STRIPE_METRIC_IDS.has(id)) {
+    const figure = extraFigure(id, m)
+    const updated = feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null
+    // Not sent yet: an em dash and why; no "Last updated" (there is no figure to date).
+    if (!figure) return { kind: "live", metric: { source: "stripe", value: null, previous: null, series: [], updated: null, empty: NOT_IN_SYNC_TEXT } }
+    return {
+      kind: "live",
+      metric: {
+        source: "stripe",
+        ...figure,
+        updated,
+        empty: figure.value === null ? (EMPTY[id] ?? "No data yet") : null,
+      },
+    }
+  }
   const subscribers = id === "subscribers" ? liveSubscribers(feed, timeZone) : null
   const source: { value: Rate; previous: Rate; series: Rate[] } =
     id === "mrr" ? m.mrr : id === "churn" ? m.churn : id === "trials" ? m.trialToPaid : subscribers!.total
@@ -222,6 +352,10 @@ export function liveCard(
   entries: { expenses: readonly Expense[]; today: IsoDay | Date }
 ): LiveState {
   if (id === "expenses") return ownExpenses(entries.expenses, entries.today)
+  if (id === "subscribers") {
+    if (stripe.kind !== "live") return liveMetric(id, stripe, timeZone)
+    return { kind: "live", metric: metricsSubscribers(stripe, timeZone) }
+  }
   return POSTHOG_METRIC_IDS.has(id) ? posthogMetric(id, posthog, timeZone) : liveMetric(id, stripe, timeZone)
 }
 
@@ -258,7 +392,7 @@ export function notConnectedKpi(kpi: Kpi): Kpi {
 export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id: MetricId) => MetricSnapshot, timeZone: string): Kpi[] {
   return kpis.map((kpi): Kpi => {
     const isCash = kpi.id === "cash-this-week"
-    const isMetric = STRIPE_METRIC_IDS.has(kpi.id as MetricId)
+    const isMetric = HOME_STRIPE_METRIC_IDS.has(kpi.id as MetricId)
     if ((!isCash && !isMetric) || feed.kind === "not_connected") return notConnectedKpi(kpi)
     const loading = (connecting: boolean): Kpi => ({
       id: kpi.id,

@@ -1,5 +1,6 @@
 import type { AppStoreSummary } from "@/lib/app-store-summary"
-import type { StripeMetrics } from "@/lib/stripe-metrics"
+import type { StripeMetricExtras, StripeMetrics } from "@/lib/stripe-metrics"
+import type { StripeSubscriberList, StripeSubscriberRow, SubscriberListKind } from "@/lib/stripe-subscribers"
 import type { StripeSummary } from "@/lib/stripe-summary"
 
 /**
@@ -47,4 +48,57 @@ export const APP_STORE_CONNECTING: AppStoreSummary = { status: "connecting" }
 /** A key is set and Stripe's first sync is still running (a fresh server). */
 export function connectingSummary(appStore: AppStoreSummary = APP_STORE_CONNECTING): StripeSummary {
   return { status: "connecting", lastSyncedAt: null, metrics: null, appStore }
+}
+
+/* ------------------------------------- Hill's provisional fields (fixtures) */
+
+/** 28 founder-zone days ending Tue 13 Oct 2026 (the fixture's sync day), oldest first. */
+const TRIAL_COUNTS = [1, 0, 2, 1, 3, 0, 1, 2, 2, 0, 1, 4, 2, 1, 0, 3, 2, 1, 1, 2, 0, 2, 3, 1, 2, 1, 0, 2]
+export const TRIAL_DAYS = TRIAL_COUNTS.map((count, i) => {
+  const d = new Date(Date.UTC(2026, 8, 16 + i))
+  return { date: d.toISOString().slice(0, 10), count }
+})
+
+/**
+ * Every optional field, with figures that cannot pass for real ones.
+ * ARR is MRR × 12; Trials per day totals 40 against 32 before.
+ */
+export const LIVE_EXTRAS: Required<StripeMetricExtras> = {
+  pastDue: { value: 12, mrr: 480 },
+  arr: { value: 734_814.72, previous: 708_000, series: [624_000, 648_000, 672_000, 690_000, 708_000, 734_814.72] },
+  revenue: { value: 63_410, previous: 60_250, series: [51_000, 53_900, 55_400, 58_100, 60_250, 63_410], invoices: 1_204 },
+  arpu: { value: 55.17, previous: 54.63 },
+  ltv: { value: 1_874.12, previous: 1_604.5 },
+  nrr: { value: 101.4, previous: 99.8, series: [98.2, 99.1, 100.5, 99.3, 99.8, 101.4] },
+  trialsStartedPerDay: { series: TRIAL_DAYS, total: TRIAL_COUNTS.reduce((a, b) => a + b, 0), previousTotal: 32 },
+}
+
+/** `LIVE_METRICS` with every provisional field. */
+export const LIVE_METRICS_FULL: StripeMetrics = { ...LIVE_METRICS, ...LIVE_EXTRAS }
+
+/* ----------------------------------------- the subscriber lists (fixtures) */
+
+
+/** The current 28-day window ending at the sync. */
+export const LIST_WINDOW = { start: "2026-09-15T05:00:00.000Z", end: SYNCED_AT }
+
+/** Fictional coaches at example.com; one with no name, one with neither name nor email. */
+export const NEW_ROWS: StripeSubscriberRow[] = [
+  { subscriptionId: "sub_test_new_1", customerName: "Avery Coach", customerEmail: "avery@example.com", plan: "Coach Pro", interval: "month", mrr: 49, at: "2026-10-12T15:00:00.000Z", reason: null },
+  { subscriptionId: "sub_test_new_2", customerName: null, customerEmail: "no-name@example.com", plan: "Coach Pro", interval: "year", mrr: 41.58, at: "2026-10-05T15:00:00.000Z", reason: null },
+  { subscriptionId: "sub_test_new_3", customerName: null, customerEmail: null, plan: null, interval: null, mrr: 49, at: "2026-09-20T15:00:00.000Z", reason: null },
+]
+
+export const CHURNED_ROWS: StripeSubscriberRow[] = [
+  { subscriptionId: "sub_test_churn_1", customerName: "Blake Coach", customerEmail: "blake@example.com", plan: "Coach Pro", interval: "month", mrr: 49, at: "2026-10-11T15:00:00.000Z", reason: "cancellation_requested" },
+  { subscriptionId: "sub_test_churn_2", customerName: null, customerEmail: "lapsed@example.com", plan: "Coach Pro", interval: "month", mrr: 49, at: "2026-10-02T15:00:00.000Z", reason: "payment_failed" },
+]
+
+export function subscriberList(
+  list: SubscriberListKind,
+  status: "connected" | "stale" = "connected",
+  rows: StripeSubscriberRow[] = list === "new" ? NEW_ROWS : CHURNED_ROWS,
+  total = rows.length
+): StripeSubscriberList {
+  return { status, lastSyncedAt: SYNCED_AT, list, window: LIST_WINDOW, total, rows }
 }

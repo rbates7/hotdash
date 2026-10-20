@@ -126,15 +126,21 @@ test.describe("Stripe connected (1440)", () => {
   test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest Not connected", async ({ page }) => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/metrics")
-    const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,337" }
+    // Metrics' Subscribers headline is active paying only (Home keeps the 1,337 total).
+    const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,110" }
     for (const [name, value] of Object.entries(live)) {
       await expect(metricCard(page, name)).toHaveAttribute("data-source", "stripe")
       await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText(value)
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    for (const name of ["ARR", "Revenue", "Retention"]) {
+    for (const name of ["Retention"]) {
       await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
+    }
+    // Stripe's, but this summary has no ARR or Revenue yet (Hill's fields): an em dash, never a figure.
+    for (const name of ["ARR", "Revenue"]) {
+      await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText("\u2014")
+      await expect(metricCard(page, name)).toContainText("Not in Stripe\u2019s figures yet")
     }
     // Expenses is the founder's own entries (none yet), never a sample figure.
     await expect(metricCard(page, "Expenses")).toHaveAttribute("data-source", "entries")
@@ -240,7 +246,7 @@ async function rowsOf(scope: ReturnType<Page["locator"]>) {
 test.describe("Subscribers total, App Store connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Home card, ticker and Metrics card all show 1,337 = 1,110 + 53 + 174", async ({ page }) => {
+  test("Home card and ticker show 1,337 = 1,110 + 53 + 174; Metrics shows 1,110 active paying with the rest on their own lines", async ({ page }) => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/home")
     const card = kpi(page, "Subscribers")
@@ -252,8 +258,12 @@ test.describe("Subscribers total, App Store connected (1440)", () => {
 
     await open(page, "/metrics")
     const metrics = metricCard(page, "Subscribers")
-    await expect(metrics.getByTestId("metric-value")).toHaveText("1,337")
-    expect(await rowsOf(metrics)).toEqual(ROWS_CONNECTED)
+    await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
+    expect(await rowsOf(metrics)).toEqual([
+      ["Past due", "\u2014"],
+      ["App Store", "53"],
+      ["Free (never paid)", "174"],
+    ])
     await expect(page.getByRole("note", { name: "Partly live" })).toContainText("App Store payers from Chlk’s database")
   })
 
@@ -320,8 +330,14 @@ test.describe("Subscribers total, App Store not connected (1440)", () => {
 
     await open(page, "/metrics")
     const metrics = metricCard(page, "Subscribers")
-    await expect(metrics.getByTestId("metric-value")).toHaveText("1,284")
-    await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText("Total excludes App Store (not connected)")
+    await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
+    expect(await rowsOf(metrics)).toEqual([
+      ["Past due", "\u2014"],
+      ["App Store", "Not connected"],
+      ["Free (never paid)", "174"],
+    ])
+    // The headline never held the App Store, so no "excludes" note; this summary has no past-due split yet.
+    await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText("Includes past due until Stripe\u2019s figures split them out")
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).not.toContainText("App Store")
   })
@@ -369,9 +385,9 @@ test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
       await open(page, "/metrics")
       await setTheme(page, theme)
       const metrics = metricCard(page, "Subscribers")
-      await expect(metrics.getByTestId("metric-value")).toHaveText("1,284")
+      await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
       expect(await rowsOf(metrics)).toEqual([
-        ["Stripe paying", "1,110"],
+        ["Past due", "\u2014"],
         ["App Store", "Check source"],
         ["Free (never paid)", "174"],
       ])
@@ -379,7 +395,7 @@ test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
       await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText(SUSPECT_NOTE)
       await expectReadable(metrics.getByTestId("subscriber-breakdown"), `${theme} suspect Metrics breakdown`, expect)
       const notice = page.getByRole("note", { name: "Partly live" })
-      await expect(notice).not.toContainText("also counts App Store payers")
+      await expect(notice).not.toContainText("also shows App Store payers")
       await expect(notice).toContainText("leaves out App Store payers")
     })
   }

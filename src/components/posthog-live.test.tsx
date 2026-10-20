@@ -117,7 +117,7 @@ describe("Metrics with PostHog connected", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
     expect(screen.getByRole("note", { name: "Partly live" })).toHaveTextContent(
-      "Subscribers also counts App Store payers from Chlk’s database (read-only)"
+      "Subscribers also shows App Store payers from Chlk’s database (read-only) on their own line"
     )
   })
 })

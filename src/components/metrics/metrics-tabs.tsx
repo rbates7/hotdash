@@ -15,10 +15,7 @@ import {
   METRICS_TABS_FADE,
   METRICS_TABS_WRAP,
 } from "@/components/metrics/responsive"
-import {
-  ChurnedSubscribersTable,
-  NewSubscribersTable,
-} from "@/components/metrics/subscribers-tables"
+import { SubscriberListTab } from "@/components/metrics/subscriber-list-panel"
 
 /** The locked tab set, in the locked order. */
 export const METRICS_TABS = [
@@ -116,8 +113,8 @@ export function MetricsTabs() {
       </div>
 
       {panel("overview", <OverviewPanel />)}
-      {panel("new", <NewSubscribersTable />)}
-      {panel("churned", <ChurnedSubscribersTable />)}
+      {panel("new", <SubscriberListTab list="new" />)}
+      {panel("churned", <SubscriberListTab list="churned" />)}
       {panel("expenses", <ExpensesPanel />)}
     </Tabs>
   )

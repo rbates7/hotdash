@@ -17,6 +17,7 @@ export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   retention: { id: "retention", label: "Retention", unit: "percent", trendKind: "pts", defaultChart: "line" },
   subscribers: { id: "subscribers", label: "Subscribers", unit: "count", trendKind: "abs", defaultChart: "bar" },
   trials: { id: "trials", label: "Trial Conversions", unit: "percent", trendKind: "pts", defaultChart: "line" },
+  trials_per_day: { id: "trials_per_day", label: "Trials per day", unit: "count", trendKind: "percent", defaultChart: "bar" },
   expenses: { id: "expenses", label: "Expenses", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },
   active: { id: "active", label: "Active Users", unit: "count", trendKind: "percent", defaultChart: "bar" },
   cac: { id: "cac", label: "CAC", unit: "currency", trendKind: "percent", lowerIsBetter: true, defaultChart: "bar" },

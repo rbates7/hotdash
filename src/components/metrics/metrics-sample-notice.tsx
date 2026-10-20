@@ -4,6 +4,7 @@ import { PlugZapIcon } from "lucide-react"
 
 import { usePosthogFeed } from "@/hooks/use-posthog-summary"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
+import { listOf, stripeLiveLabels } from "@/lib/live-metrics"
 import { isSuspectAppStore } from "@/lib/app-store-summary"
 import { cn } from "@/lib/utils"
 
@@ -52,7 +53,7 @@ function ConnectionNotice({ label, children }: { label: string; children: React.
  * MRR, Churn Rate, Trial Conversions and Subscribers cards, and/or PostHog
  * feeding Retention and Active Users, it leads with "Partly live" and says
  * which cards from where. Every other card is Not connected (no figure).
- * Subscribers also counts App Store payers when Chlk's database answers
+ * Subscribers also shows App Store payers when Chlk's database answers
  * — but not when it answers 0 (suspect: a blocked read), which it says.
  * While Stripe (or the App Store count) is still on its first read it says
  * so ("Connecting"), never "nothing is connected".
@@ -89,9 +90,9 @@ export function MetricsSampleNotice() {
     <ConnectionNotice label={PARTLY_LIVE_LABEL}>
       {fromStripe && (
         <>
-          MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe (read-only)
+          {listOf(stripeLiveLabels(stripe.metrics))} are live from Stripe (read-only)
           {stripe.stale ? ", as of their last update" : ""}
-          {appStore ? "; Subscribers also counts App Store payers from Chlk’s database (read-only)" : ""}
+          {appStore ? "; Subscribers also shows App Store payers from Chlk’s database (read-only) on their own line" : ""}
           {appStoreConnecting ? `; ${APP_STORE_CONNECTING_NOTE}` : ""}
           {suspect ? "; Subscribers leaves out App Store payers until Chlk’s database read is checked (it read 0)" : ""}
         </>

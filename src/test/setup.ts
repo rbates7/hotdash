@@ -10,6 +10,8 @@ import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { configureSubscriberLists } from "@/hooks/use-stripe-subscribers"
+import { subscriberListNotConnected } from "@/lib/stripe-subscribers"
 import { configureWorkboard } from "@/hooks/use-workboard"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { CRM_NOT_CONNECTED } from "@/lib/crm/case-view"
@@ -41,6 +43,11 @@ beforeEach(() => {
     fetcher: async () => NOTION_NOT_CONNECTED,
   })
   configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
+  // The New and Churned Subscribers lists (src/test/stripe-subscribers.ts for live, stale, 401).
+  configureSubscriberLists({
+    initial: (list) => ({ phase: "ready", list: subscriberListNotConnected(list) }),
+    fetcher: async (list) => ({ kind: "ok", data: subscriberListNotConnected(list) }),
+  })
   // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },

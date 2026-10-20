@@ -131,7 +131,7 @@ describe("Stripe live, App Store still connecting", () => {
 
   it("the Metrics notice does not claim App Store payers are counted", () => {
     render(<MetricsSampleNotice />)
-    expect(screen.getByRole("note")).not.toHaveTextContent("also counts App Store payers")
+    expect(screen.getByRole("note")).not.toHaveTextContent("also shows App Store payers")
     expect(screen.getByRole("note")).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
   })
 
@@ -141,7 +141,7 @@ describe("Stripe live, App Store still connecting", () => {
     const note = screen.getByRole("note")
     expect(note).toHaveTextContent("Retention and Active Users are live from PostHog")
     expect(note).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
-    expect(note).not.toHaveTextContent("also counts App Store payers")
+    expect(note).not.toHaveTextContent("also shows App Store payers")
     expect(note).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
   })
 })
@@ -217,7 +217,7 @@ describe("page-level wording: Stripe live, App Store connecting", () => {
     renderMetricsHeader()
     expect(notice()).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
     expect(notice()).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
-    expect(notice()).not.toHaveTextContent("also counts App Store payers")
+    expect(notice()).not.toHaveTextContent("also shows App Store payers")
   })
 
   it("Settings › Sample data says App Store is connecting", () => {
@@ -238,7 +238,7 @@ describe("page-level wording unchanged when live or not connected", () => {
   it("Stripe + App Store live: #48's wording, no connecting text", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetricsHeader()
-    expect(notice()).toHaveTextContent("Subscribers also counts App Store payers from Chlk’s database (read-only)")
+    expect(notice()).toHaveTextContent("Subscribers also shows App Store payers from Chlk’s database (read-only) on their own line")
     expect(notice()).toHaveTextContent(OTHER_CARDS_TEXT)
     expect(notice()).not.toHaveTextContent(/connecting/i)
   })
