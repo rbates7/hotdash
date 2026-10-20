@@ -1,13 +1,17 @@
 import {
+  CASE_ID,
+  idNumber,
   isCase,
   isContact,
   isEmailMessage,
   isOrganization,
   type Case,
+  type CaseStatus,
   type Contact,
   type EmailMessage,
   type Organization,
 } from "@/lib/crm/crm"
+import type { CrmListResponse } from "@/lib/crm/types"
 import { dedupe } from "@/lib/persistence"
 
 /**
@@ -106,10 +110,13 @@ export function parseGmailSummary(value: unknown): GmailSummary | null {
   if (v.status === "not_connected") return gmailNotConnected(mailbox)
   if (v.status === "connecting") return gmailConnecting(mailbox)
   if (v.status !== "connected" && v.status !== "stale") return null
-  if (typeof v.lastSyncedAt !== "string" || !Number.isFinite(Date.parse(v.lastSyncedAt))) return null
-  if (!isCrmLiveData(v.data)) return null
-  const { organizations, contacts, cases, messages } = v.data
-  return { status: v.status, lastSyncedAt: v.lastSyncedAt, mailbox, data: { organizations, contacts, cases, messages } }
+  // #69's CrmListResponse alone carries `lastUpdated`, not the older `lastSyncedAt`.
+  const lastSyncedAt = typeof v.lastSyncedAt === "string" ? v.lastSyncedAt : v.lastUpdated
+  if (typeof lastSyncedAt !== "string" || !Number.isFinite(Date.parse(lastSyncedAt))) return null
+  const data = isCrmLiveData(v.data) ? v.data : liveDataFromList(v)
+  if (!data) return null
+  const { organizations, contacts, cases, messages } = data
+  return { status: v.status, lastSyncedAt, mailbox, data: { organizations, contacts, cases, messages } }
 }
 
 /* ---------------------------------------------------------- in the browser */
@@ -143,4 +150,61 @@ export function gmailFeedOf(view: GmailView): GmailFeed {
     mailbox: summary.mailbox,
     data: summary.data,
   }
+}
+
+/**
+ * Contacts and Triage read the older `data` rows. When a body carries only
+ * #69's `CrmListResponse` (cases, accounts), build those rows from it so the
+ * screens show the inbox's people instead of a wrong "Not connected". #69
+ * sends no unknown-sender threads, so Triage then lists none. Anything that
+ * does not validate is null, as before.
+ */
+export function liveDataFromList(v: Record<string, unknown>): CrmLiveData | null {
+  if (!Array.isArray(v.cases) || !Array.isArray(v.accounts)) return null
+  const list = v as unknown as Pick<CrmListResponse, "cases" | "accounts">
+  const organizations: Organization[] = list.accounts.map((a) => ({ id: a.id, name: a.name, domain: a.domain ?? null }))
+  const orgIds = new Set(organizations.map((o) => o.id))
+  const contacts: Contact[] = []
+  const contactIdByEmail = new Map<string, string>()
+  const cases: Case[] = []
+  const STATUS: Record<string, CaseStatus> = { open: "open", waiting_on_us: "open", waiting_on_them: "waiting", closed: "closed" }
+  for (const c of list.cases) {
+    if (!c || typeof c !== "object" || !c.contact || typeof c.contact.email !== "string") return null
+    const email = c.contact.email.toLowerCase()
+    let contactId = contactIdByEmail.get(email)
+    if (!contactId) {
+      contactId = `contact-${contacts.length + 1}`
+      contactIdByEmail.set(email, contactId)
+      const [first, ...rest] = (c.contact.name ?? "").trim().split(/\s+/).filter(Boolean)
+      contacts.push({
+        id: contactId,
+        email,
+        firstName: first ?? null,
+        lastName: rest.length ? rest.join(" ") : null,
+        nameSource: first ? "gmail" : null,
+        organizationId: c.accountId && orgIds.has(c.accountId) ? c.accountId : null,
+        plan: null,
+        planStatus: null,
+        source: "gmail",
+        createdAt: c.lastMessageAt,
+      })
+    }
+    const status = STATUS[c.status]
+    if (!status) return null
+    cases.push({
+      id: c.id,
+      caseNumber: idNumber(c.id, CASE_ID),
+      subject: (c.subject ?? "").trim() || "(no subject)",
+      status,
+      priority: c.priority,
+      contactId,
+      lastActivityAt: c.lastMessageAt,
+      lastInboundAt: c.waitingOnUsSince ?? null,
+      lastOutboundAt: null,
+      closedAt: c.status === "closed" ? c.lastMessageAt : null,
+      createdAt: c.lastMessageAt,
+    })
+  }
+  const data = { organizations, contacts, cases, messages: [] }
+  return isCrmLiveData(data) ? data : null
 }

@@ -3,7 +3,6 @@ import { Suspense } from "react"
 import { now } from "@/lib/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import {
-  WORKPLACE_DUMMY,
   WORKPLACE_HEADER,
   WORKPLACE_HEADER_META,
   WORKPLACE_RESET,
@@ -27,8 +26,7 @@ export default function AgentWorkplacePage() {
             Agent Workplace
           </h1>
           <div className={WORKPLACE_HEADER_META}>
-            <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
-            <span className={WORKPLACE_DUMMY}>Dummy / design mock</span>
+            <WorkplacePersistenceNote scope="workplace" resetClassName={WORKPLACE_RESET} />
           </div>
         </header>
         {/* WorkplaceTabs reads the tab and open ticket from the URL, so it

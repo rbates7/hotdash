@@ -52,6 +52,16 @@ export const RESET_DESCRIPTION =
 
 export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
 
+/** The confirm dialog's footer buttons: a 44px hit below 1280, like every control. */
+export const CONFIRM_FOOTER_BUTTON = "max-xl:h-11! max-xl:min-w-11!"
+
+/**
+ * The red confirm reads in the text-safe danger token (4.5:1 on its tinted
+ * fill in light and dark) instead of Nova's `text-destructive`, which is
+ * too light on `bg-destructive/10`.
+ */
+export const CONFIRM_DESTRUCTIVE = "text-danger-text!"
+
 /**
  * Screens with no sample data (My Desk, CRM) offer "Clear my entries"
  * instead of Reset: the same confirm and the same store call, worded for
@@ -74,10 +84,20 @@ export function PersistenceNote({
   resetClassName,
   resetDescription,
   mode = "reset",
+  canReset: canResetProp,
+  disabledHint: disabledHintProp,
 }: {
   store: PersistenceStore
   /** "clear" for screens with no sample data: Clear my entries instead of Reset. */
   mode?: "reset" | "clear"
+  /**
+   * Whether Reset / Clear is on. Defaults to "something is saved"; a screen
+   * sharing a store with another (Bugs and Agent Workplace) narrows it to
+   * its own entries.
+   */
+  canReset?: boolean
+  /** Why it is off, when `canReset` is narrowed. */
+  disabledHint?: string
   /** What Reset does, in the confirm. Defaults to the sample screens' wording. */
   resetDescription?: string
   /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
@@ -87,10 +107,11 @@ export function PersistenceNote({
 }) {
   const [confirming, setConfirming] = React.useState(false)
   const copy = persistenceCopy(store)
-  const canReset = store.persisted && store.saved
+  const canReset = store.persisted && store.saved && (canResetProp ?? true)
   const hintId = React.useId()
   const clear = mode === "clear"
-  const disabledHint = clear ? CLEAR_COPY.disabledHint : RESET_DISABLED_HINT
+  const disabledHint =
+    store.persisted && store.saved && disabledHintProp ? disabledHintProp : clear ? CLEAR_COPY.disabledHint : RESET_DISABLED_HINT
   const description = resetDescription ?? (clear ? CLEAR_DESCRIPTION : RESET_DESCRIPTION)
 
   return (
@@ -156,11 +177,12 @@ export function PersistenceNote({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
+            <Button variant="outline" className={CONFIRM_FOOTER_BUTTON} onClick={() => setConfirming(false)}>
               Keep my edits
             </Button>
             <Button
               variant="destructive"
+              className={cn(CONFIRM_FOOTER_BUTTON, CONFIRM_DESTRUCTIVE)}
               onClick={() => {
                 store.resetDemoData()
                 setConfirming(false)

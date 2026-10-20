@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { formatRelativeDay } from "@/lib/clock"
 import { INITIATIVE_TYPE_LABEL } from "@/lib/community-development"
+import { founderInitiativesState } from "@/lib/community-development-fixture"
 import { PHONE_QUERY } from "@/hooks/use-mobile"
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import {
   CommunityDevelopmentScreen,
   COLUMNS,
@@ -17,7 +17,7 @@ import {
 } from "@/components/community-development/community-development-screen"
 import {
   CommunityDevelopmentProvider,
-  initialState,
+  STORAGE_KEY,
   saveState,
 } from "@/components/community-development/community-development-store"
 import {
@@ -36,7 +36,15 @@ import {
 const TODAY = "2026-10-07"
 const NOW_MS = new Date("2026-10-07T17:00:00.000Z").getTime()
 
-function renderScreen(nowMs = NOW_MS) {
+/** The founder's own list (the old sample under ids of their own), saved first. */
+const storeFounder = () => saveState(window.localStorage, founderInitiativesState(TODAY))
+
+/**
+ * Renders the page over the founder's saved list unless the test saved its
+ * own copy first; `fresh` opens it on nothing saved (an empty list).
+ */
+function renderScreen(nowMs = NOW_MS, { fresh = false } = {}) {
+  if (!fresh && window.localStorage.getItem(STORAGE_KEY) === null) storeFounder()
   return render(
     <CommunityDevelopmentProvider nowMs={nowMs}>
       <CommunityDevelopmentScreen />
@@ -108,11 +116,11 @@ describe("Community Development responsive", () => {
     expect(yates).toHaveTextContent(`${INITIATIVE_TYPE_LABEL.donation} · Yates High School football`)
     expect(yates).toHaveTextContent(formatRelativeDay("2026-10-15", TODAY))
     expect(yates).toHaveTextContent("Skye")
-    expect(within(yates).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    expect(within(yates).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     expect(within(yates).getByText("Type:", { exact: false })).toHaveClass("sr-only")
     expect(within(yates).getByText("When:", { exact: false })).toHaveClass("sr-only")
 
-    const meta = initiativeCardMeta(initialState(TODAY).initiatives[3], TODAY)
+    const meta = initiativeCardMeta(founderInitiativesState(TODAY).initiatives[3], TODAY)
     expect(meta[0]).toEqual({
       label: "Type",
       value: "Donation · Yates High School football",
@@ -249,8 +257,8 @@ describe("Community Development responsive", () => {
   it("after deleting the last card, focus moves to the heading", async () => {
     const user = userEvent.setup()
     saveState(window.localStorage, {
-      initiatives: [initialState(TODAY).initiatives[3]],
-      nextId: 9,
+      initiatives: [founderInitiativesState(TODAY).initiatives[3]],
+      nextId: 109,
     })
     mockPhone()
     renderScreen()

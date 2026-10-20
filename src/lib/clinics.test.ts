@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  CLINICS_MOCK_DAY,
   CLINIC_LIMITS,
   DEFAULT_OWNER,
   EMPTY_COLLECTED,
@@ -15,12 +14,12 @@ import {
   isUpcoming,
   normalizeInput,
   sameClinic,
-  seedClinics,
   splitClinics,
   statusOf,
   stripClinic,
   type Clinic,
 } from "@/lib/clinics"
+import { CLINICS_MOCK_DAY, seedClinics } from "@/lib/clinics-fixture"
 import { daysBetween, formatDate, formatRelativeDay, now, todayIn } from "@/lib/clock"
 import { LATE_EVENING_CT } from "@/test/clock"
 

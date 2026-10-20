@@ -2,8 +2,8 @@
 
 import { todayIn } from "@/lib/clock"
 import { needsYou, pulseLabel } from "@/lib/home"
-import { kpiStripTitle, kpis } from "@/lib/home-fixture"
-import { snapshotFor } from "@/lib/kpis"
+import { kpiStripTitle, kpis } from "@/lib/home-kpis"
+import { metricShell } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { combineStaleNotes, inboxScreen, sourceList } from "@/lib/inbox-sources"
 import { useInboxView } from "@/hooks/use-inbox"
@@ -56,7 +56,7 @@ export function HomeScreen() {
   // card whose source has a key and is on its first sync (or Subscribers,
   // while App Store payers are on their first read) is a placeholder marked
   // `connecting`. With no key, every card is Not connected.
-  const strip = liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)
+  const strip = liveKpis(kpis(), feed, metricShell, timeZone)
   const mrr = liveMetric("mrr", feed, timeZone)
   // Paying coaches (active subscriptions by method), from /api/subscriptions/paying.
   const paying = payingCoachesView(usePayingCoaches(), timeZone)
@@ -105,8 +105,8 @@ export function HomeScreen() {
             }
             updated={mrr.kind === "live" ? mrr.metric.updated : null}
           />
-          {/* The Workplace board is a design mock with no live source yet,
-              so its door says Not connected. The Inbox door is live
+          {/* The Workplace board has no live source on Home yet, so its
+              door says Not connected. The Inbox door is live
               (/api/inbox). */}
           <DevBoardDoor preview={null} notConnected />
           <NeedsYouDoor

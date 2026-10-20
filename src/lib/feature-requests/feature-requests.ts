@@ -51,12 +51,6 @@ export type FeatureRequest = {
   status: FeatureStatus
   createdAt: string
   updatedAt: string
-  /**
-   * True for the invented examples shipped with the page. Cleared the moment
-   * the title or ask is rewritten, because at that point the words are the
-   * founder's, not ours.
-   */
-  sample?: boolean
 }
 
 export const DEFAULT_FROM = "Dan"

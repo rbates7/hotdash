@@ -7,12 +7,13 @@ import { seedCases, seedContacts, seedMessages, seedNotes, seedOrganizations } f
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
+import { crmSummaryFromGmail, setCrmSummaryForTest } from "@/test/crm"
+import { LOCAL_EDITS_KEY } from "@/lib/crm/local-edits"
 import { CLEAR_COPY, CLEAR_DESCRIPTION, PERSISTENCE_COPY } from "@/components/persistence-note"
 import { CrmProvider, STORAGE_KEY, initialState, reducer, saveState, type State } from "@/components/crm/crm-store"
-import { CaseDetail } from "@/components/crm/case-detail"
-import { CasesScreen } from "@/components/crm/cases-screen"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
-import { CrmShell, LEDE } from "@/components/crm/crm-shell"
+import { CRM_MENU_LABEL } from "@/components/crm/crm-header-menu"
+import { CrmShell, FIND_CONTACT, LEDE } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
 import { OverviewScreen } from "@/components/crm/overview-screen"
 import { TriageScreen } from "@/components/crm/triage-screen"
@@ -61,29 +62,32 @@ beforeEach(() => {
 })
 
 describe("CRM overview", () => {
-  it("Gmail not connected: the Not connected panel, no counts, no sample conversations", () => {
+  it("Gmail not connected: the Not connected panels, no counts, no sample conversations", () => {
     saveOldSample()
     renderCrm(<OverviewScreen />)
-    expect(panel()).toHaveTextContent(GMAIL_PANEL_TITLES.overview)
-    expect(panel()).toHaveTextContent(GMAIL_HINT)
+    const panels = screen.getAllByTestId("crm-not-connected")
+    expect(panels).toHaveLength(2)
+    for (const p of panels) expect(p).toHaveTextContent(GMAIL_HINT)
+    for (const count of screen.getAllByTestId("crm-count")) expect(count).toHaveTextContent("Not connected")
     expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: /conversations from unknown senders/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/contacts you added/)).not.toBeInTheDocument()
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
-  it("Gmail not connected with a contact the founder added: the panel plus a link to them", () => {
+  it("Gmail not connected with a contact the founder added: the panels plus a link to them", () => {
     saveMine()
     renderCrm(<OverviewScreen />)
-    expect(panel()).toBeInTheDocument()
+    expect(screen.getAllByTestId("crm-not-connected").length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "1 contact you added" })).toHaveAttribute("href", "/crm/contacts")
   })
 
   it("live: the inbox's counts, triage banner and conversations", () => {
     setGmailSummaryForTest(LIVE)
+    setCrmSummaryForTest(crmSummaryFromGmail(LIVE, NOW))
     renderCrm(<OverviewScreen />)
     expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
-    expect(screen.getByText(/3 contacts · 3 open conversations/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "3 Open" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /2 conversations from unknown senders/ })).toBeInTheDocument()
     expect(screen.getAllByText("Roster import fails on a CSV with accents").length).toBeGreaterThan(0)
     expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
@@ -92,7 +96,8 @@ describe("CRM overview", () => {
 })
 
 describe("CRM shell", () => {
-  it("renders the header, lede, shared note, Clear my entries, source badge and section nav; no Sample tag", () => {
+  it("renders the header, lede, Find a contact…, the ⋯ menu (note, Clear my entries, source) and section nav; no Sample tag", async () => {
+    const user = userEvent.setup()
     renderCrm(
       <CrmShell>
         <OverviewScreen />
@@ -100,17 +105,42 @@ describe("CRM shell", () => {
     )
     const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
     expect(within(header).getByText(LEDE)).toBeInTheDocument()
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-    const clear = within(header).getByRole("button", { name: CLEAR_COPY.button })
-    expect(clear).toHaveAttribute("aria-disabled", "true")
-    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
-    expect(within(header).queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
-    expect(within(header).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
+    expect(within(header).queryByTestId("persistence-note")).not.toBeInTheDocument()
+    expect(within(header).getAllByRole("button", { name: new RegExp(FIND_CONTACT) })[0]).toBeEnabled()
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    expect(screen.getByRole("navigation", { name: "CRM sections" })).toBeInTheDocument()
-    // Nothing pending in triage when nothing is synced.
-    expect(screen.getByRole("link", { name: "Triage" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Search/ })).toBeEnabled()
+    // Exactly Overview · Cases · Accounts · Triage · Contacts; no Customers or Settings.
+    const nav = screen.getByRole("navigation", { name: "CRM sections" })
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page")
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveClass("bg-surface", "shadow-sm")
+
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    const menu = await screen.findByTestId("crm-header-menu")
+    expect(within(menu).getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
+    expect(within(menu).getByRole("menuitem", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    expect(within(menu).queryByRole("menuitem", { name: "Reset" })).not.toBeInTheDocument()
+    expect(within(menu).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
+  })
+
+  it("Clear my entries in the menu also drops this browser's case edits", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      LOCAL_EDITS_KEY,
+      JSON.stringify({ "case-1": { status: { value: "closed", from: "waiting_on_us" }, at: new Date(NOW).toISOString() } })
+    )
+    renderCrm(
+      <CrmShell>
+        <OverviewScreen />
+      </CrmShell>
+    )
+    const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    const menu = await screen.findByTestId("crm-header-menu")
+    expect(within(menu).getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.saved)
+    await user.click(within(menu).getByRole("menuitem", { name: CLEAR_COPY.button }))
+    const dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
+    expect(window.localStorage.getItem(LOCAL_EDITS_KEY)).toBeNull()
   })
 
   it("Clear my entries asks first, then removes the founder's contacts and the saved key", async () => {
@@ -123,60 +153,28 @@ describe("CRM shell", () => {
     )
     expect(screen.getByRole("row", { name: /Pat Reyes/ })).toBeInTheDocument()
     const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
-    await user.click(within(header).getByRole("button", { name: CLEAR_COPY.button }))
+    const clearFromMenu = async () => {
+      await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+      await user.click(await screen.findByRole("menuitem", { name: CLEAR_COPY.button }))
+    }
+    await clearFromMenu()
     let dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
     expect(dialog).toHaveAccessibleDescription(CLEAR_DESCRIPTION)
     await user.click(within(dialog).getByRole("button", { name: "Keep my edits" }))
     expect(screen.getByRole("row", { name: /Pat Reyes/ })).toBeInTheDocument()
 
-    await user.click(within(header).getByRole("button", { name: CLEAR_COPY.button }))
+    await clearFromMenu()
     dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
     await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
     expect(screen.queryByRole("row", { name: /Pat Reyes/ })).not.toBeInTheDocument()
     expect(screen.getByText("No contacts yet. Add someone by hand; they stay in this browser.")).toBeInTheDocument()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(within(header).getByRole("button", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    expect(await screen.findByRole("menuitem", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
   })
 })
 
-describe("Cases", () => {
-  it("Gmail not connected: the heading and the panel, no table, even with an old sample copy saved", () => {
-    saveOldSample()
-    renderCrm(<CasesScreen />)
-    expect(screen.getByRole("heading", { level: 2, name: "Cases" })).toBeInTheDocument()
-    expect(panel()).toHaveTextContent(GMAIL_PANEL_TITLES.cases)
-    expect(screen.queryByRole("table", { name: "Cases" })).not.toBeInTheDocument()
-    expect(screen.queryByText(SEED_SUBJECT)).not.toBeInTheDocument()
-  })
-
-  it("live: lists the inbox's cases with no sample tags", () => {
-    setGmailSummaryForTest(LIVE)
-    renderCrm(<CasesScreen />)
-    const table = screen.getByRole("table", { name: "Cases" })
-    expect(within(table).getAllByRole("row")).toHaveLength(LIVE.data.cases.length + 1)
-    expect(within(table).getByText("Roster import fails on a CSV with accents")).toBeInTheDocument()
-    expect(within(table).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
-  })
-
-  it("live: opens a case, changes status and priority, and adds a note", async () => {
-    const user = userEvent.setup()
-    setGmailSummaryForTest(LIVE)
-    const roster = LIVE.data.cases.find((c) => c.subject === "Roster import fails on a CSV with accents")!
-    renderCrm(<CaseDetail caseId={roster.id} />)
-    expect(screen.getByRole("heading", { level: 2, name: /Roster import fails/ })).toBeInTheDocument()
-    expect(screen.getByRole("group", { name: "Case status" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Waiting on customer" }))
-    expect(screen.getByText(/Status changed to Waiting on customer/)).toBeInTheDocument()
-    await user.click(screen.getByRole("combobox", { name: "Priority" }))
-    await user.click(await screen.findByRole("option", { name: "Urgent" }))
-    expect(screen.getByRole("combobox", { name: "Priority" })).toHaveTextContent("Urgent")
-    await user.type(screen.getByLabelText("Internal note"), "Called Dana back")
-    await user.click(screen.getByRole("button", { name: "Add note" }))
-    expect(screen.getByText("Called Dana back")).toBeInTheDocument()
-    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-  })
-})
+// Cases and the case panel: cases-screen.test.tsx (rebuilt on useCrmData).
 
 describe("Contacts", () => {
   it("Gmail not connected: the panel above an empty list; a contact added by hand lists, untagged, and is saved", async () => {

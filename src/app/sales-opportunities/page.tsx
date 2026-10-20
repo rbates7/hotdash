@@ -3,7 +3,6 @@ import { AddDealDialog } from "@/components/sales-opportunities/deal-dialogs"
 import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsProvider } from "@/components/sales-opportunities/deals-store"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
-import { SampleDataTag } from "@/components/sample-data"
 
 export const metadata = {
   title: "Sales Opportunities · Chlk",
@@ -35,9 +34,8 @@ export default function SalesOpportunitiesPage() {
             <AddDealDialog />
           </div>
           <div className="flex flex-wrap items-center gap-2.5 pt-1 max-md:w-full">
-            {/* Below 1280 the note's Reset is a 44px hit (DEALS_RESET), like every control here. */}
+            {/* Below 1280 the note's Clear is a 44px hit (DEALS_RESET), like every control here. */}
             <DealsPersistenceNote />
-            <SampleDataTag className="h-6 px-2" />
           </div>
         </header>
         <DealsScreen />

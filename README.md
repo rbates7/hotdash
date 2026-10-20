@@ -12,21 +12,21 @@ toggle, pinned footer, and active-state highlighting.
 Issues board (five columns, All/Members/Agents/New, "agents working" pill),
 Backlog with sprints, ticket view, Agents roster, Autopilots, Inbox, and a
 Chat door. Board edits are saved to the browser's localStorage until a real
-datastore exists; use "Reset" in the page header to restore the demo data.
+datastore exists; use "Clear my entries" in the page header to remove what you added.
 
 **Phase 3 — Home** is built against the `home-v0` mock: the #1 strip, four
 KPI cards, and three doors (Metrics with an MRR trend, Agent Workplace with a
 live dev-board preview, Inbox with the "Needs you" rows). The two Workplace
 doors read the same browser-saved board state, so closing tickets or
 completing the sprint there changes Home. The Home requirements are still
-open; figures are dummy.
+open. Cards with no live source say Not connected.
 
 The other 11 routes are intentional stubs; each gets its own build phase.
 
 **Live Stripe (read-only)** feeds Home's ticker, Subscribers and Cash this
 week, and Metrics' MRR, Churn Rate, Trial Conversions and Subscribers when
 the server has `STRIPE_READONLY_KEY` (a restricted key; server only). With
-no key those tiles show their sample figures, labelled. Metrics › Overview
+no key those tiles say Not connected, with no figure. Metrics › Overview
 also has an MRR (12 months) and Cash this week panel from the same cache
 (`GET /api/stripe/mrr-cash`), with no sample state. Definitions, states,
 endpoints and checks: [docs/stripe-live.md](docs/stripe-live.md).
@@ -34,7 +34,7 @@ endpoints and checks: [docs/stripe-live.md](docs/stripe-live.md).
 **Live PostHog (read-only)** feeds Metrics' Retention and Active Users
 (iOS app events only, from June 2026) when the server has
 `POSTHOG_READONLY_KEY` (project pinned in code: 472613, "CHLK iOS"); otherwise those cards
-are sample, labelled. See [docs/posthog-live.md](docs/posthog-live.md).
+say Not connected. See [docs/posthog-live.md](docs/posthog-live.md).
 
 **Product Roadmap from Notion (read-only)** when the server has
 `NOTION_READONLY_TOKEN` (server only). `NOTION_ROADMAP_PAGE_ID` is optional:

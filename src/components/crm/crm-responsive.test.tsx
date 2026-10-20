@@ -7,22 +7,26 @@ import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
-import { PlanBadge } from "@/components/crm/case-badges"
-import { CaseDetail } from "@/components/crm/case-detail"
-import { CasesScreen, caseCardMeta } from "@/components/crm/cases-screen"
 import { ContactDetail } from "@/components/crm/contact-detail"
-import { CARD_PLAN_PILL, ContactsScreen, contactCardMeta } from "@/components/crm/contacts-screen"
+import { ContactsScreen, contactCardMeta } from "@/components/crm/contacts-screen"
 import { CrmErrorAlert } from "@/components/crm/crm-error-alert"
 import { CrmShell } from "@/components/crm/crm-shell"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 import { CrmProvider, initialState, reducer, saveState, type State } from "@/components/crm/crm-store"
-import { CRM_DANGER_TEXT, CRM_DIALOG, CRM_RESET } from "@/components/crm/crm-touch"
+import { CRM_MENU_LABEL } from "@/components/crm/crm-header-menu"
+import { CRM_DANGER_TEXT, CRM_DIALOG, CRM_ICON_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
 import { TriageScreen } from "@/components/crm/triage-screen"
+
+/*
+ * Contacts, triage, the shell and the error state below 1280. The rebuilt
+ * Cases screen (cards, table, filters, panel) has its own suite:
+ * cases-screen.test.tsx.
+ */
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: navigation.push, replace: navigation.push }),
   useSearchParams: () => navigation.params,
-  usePathname: () => "/crm/cases",
+  usePathname: () => "/crm/contacts",
 }))
 
 beforeAll(() => {
@@ -56,10 +60,7 @@ function renderCrm(ui: React.ReactNode) {
 const list = () => screen.getByRole("list")
 const card = (title: string) => within(list()).getByRole("button", { name: new RegExp(`^${title}`) })
 
-/**
- * Cases, case detail and triage only have rows when the support inbox is
- * connected, so those tests run on the mocked live feed.
- */
+/** Contact detail and triage only have rows when the support inbox is connected. */
 const LIVE = liveGmailSummary(FIXED_NOW_MS)
 const ROSTER = "Roster import fails on a CSV with accents"
 const roster = LIVE.data.cases.find((c) => c.subject === ROSTER)!
@@ -83,33 +84,7 @@ function saveMine(): State {
   return s
 }
 
-describe("phone (<768): Cases cards", () => {
-  it("maps Subject / Status / '#N · Contact · Org' / 'Priority priority · last activity'; no sample tags", () => {
-    live()
-    renderCrm(<CasesScreen />)
-    const items = within(list()).getAllByRole("listitem")
-    expect(items).toHaveLength(LIVE.data.cases.length)
-    expect(items.map((c) => c.querySelector(`[data-slot='${ROW_COLLAPSE_SLOT}']`))).not.toContain(null)
-
-    const row = card(ROSTER)
-    expect(within(row).getByTestId("status-pill")).toHaveTextContent("Open")
-    expect(row).toHaveTextContent(`#${roster.caseNumber} · Dana Ortiz`)
-    expect(row).toHaveTextContent(/High priority · \d+[mhd] ago/)
-    expect(within(list()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    // Meta lines are labelled for screen readers.
-    expect(within(row).getByText("Case:", { exact: false })).toHaveClass("sr-only")
-    expect(within(row).getByText("Priority:", { exact: false })).toHaveClass("sr-only")
-  })
-
-  it("falls back to the contact's email when there is no organization", () => {
-    const tom = saveMine().contacts.find((c) => c.email === "tom@example.com")!
-    expect(tom.organizationId).toBeNull()
-    const tomCase = { ...roster, contactId: tom.id, priority: "normal" as const }
-    const [first, second] = caseCardMeta(tomCase, tom, null, FIXED_NOW_MS)
-    expect(first.value).toBe(`#${tomCase.caseNumber} · Tom Alvarez · tom@example.com`)
-    expect(second.value).toMatch(/^Normal priority · /)
-  })
-
+describe("phone (<768): loading cards", () => {
   it("loading shows RowCollapse loading cards (Deke 8:236)", () => {
     render(<CrmTableSkeleton label="Loading saved cases" />)
     const status = screen.getByRole("status", { name: "Loading saved cases" })
@@ -119,142 +94,18 @@ describe("phone (<768): Cases cards", () => {
   })
 })
 
-describe("phone (<768): the Cases bottom sheet", () => {
-  it("opens from a card, titled by the subject, with the summary and every desktop action", async () => {
-    const user = userEvent.setup()
-    live()
-    renderCrm(<CasesScreen />)
-    await user.click(card(ROSTER))
-    const sheet = await screen.findByRole("dialog", { name: ROSTER })
-    expect(sheet).toHaveAttribute("data-side", "bottom")
-    expect(sheet.className).toContain("max-xl:[&>[data-slot=sheet-close]]:size-11!")
-    expect(within(sheet).getByTestId("status-pill")).toHaveTextContent("Open")
-    expect(sheet).toHaveTextContent(`#${roster.caseNumber} · Dana Ortiz`)
-    expect(sheet).toHaveTextContent(/High priority · /)
-    const group = within(sheet).getByRole("group", { name: "Case actions" })
-    const open = within(group).getByRole("link", { name: "Open case" })
-    expect(open).toHaveAttribute("href", `/crm/cases/${roster.id}`)
-    const del = within(group).getByRole("button", { name: "Delete case" })
-    expect(del).toHaveClass("text-danger-text", "h-12")
-    expect(within(sheet).getByRole("button", { name: "Close" })).toBeInTheDocument()
-  })
-
-  it("Delete case opens the existing confirm; Delete removes the card", async () => {
-    const user = userEvent.setup()
-    live()
-    renderCrm(<CasesScreen />)
-    await user.click(card(ROSTER))
-    const sheet = await screen.findByRole("dialog", { name: ROSTER })
-    await user.click(within(sheet).getByRole("button", { name: "Delete case" }))
-    const confirm = await screen.findByRole("dialog", { name: "Delete this case?" })
-    expect(confirm).toHaveTextContent(`#${roster.caseNumber} ${ROSTER} comes off the list`)
-    expect(confirm.className).toContain(CRM_DIALOG)
-    const deleteButton = within(confirm).getByRole("button", { name: "Delete" })
-    expect(deleteButton.className).toContain(CRM_DANGER_TEXT)
-    expect(deleteButton.className).toContain("max-xl:h-11!")
-    await user.click(deleteButton)
-    await waitFor(() => expect(within(list()).queryByRole("button", { name: new RegExp(`^${ROSTER}`) })).toBeNull())
-    expect(within(list()).getAllByRole("listitem")).toHaveLength(LIVE.data.cases.length - 1)
-  })
-})
-
-describe("tablet (768–1279): Cases table", () => {
-  it("hides # and Last activity, folds them into the Subject subline, and adds one '…' column", () => {
-    live()
-    renderCrm(<CasesScreen />)
-    const table = screen.getByRole("table", { name: "Cases" })
-    const heads = within(table).getAllByRole("columnheader")
-    expect(heads.map((h) => h.textContent)).toEqual([
-      "#",
-      "Subject",
-      "Contact",
-      "Status",
-      "Priority",
-      "Last activity",
-      "Actions",
-    ])
-    expect(heads[0]).toHaveClass("md:max-xl:hidden")
-    expect(heads[5]).toHaveClass("md:max-xl:hidden")
-    expect(heads[6]).toHaveClass("hidden", "md:max-xl:table-cell")
-    const row = within(table).getByRole("row", { name: new RegExp(ROSTER) })
-    const subject = within(row).getAllByRole("link").find((l) => l.textContent?.includes(ROSTER))!
-    expect(within(subject).getByText(new RegExp(`^#${roster.caseNumber} · \\d+[mhd] ago$`))).toHaveClass(
-      "hidden",
-      "md:max-xl:inline"
-    )
-    expect(within(table).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-  })
-
-  it("the '…' menu offers Open case and Delete case; Open case navigates", async () => {
-    const user = userEvent.setup()
-    live()
-    renderCrm(<CasesScreen />)
-    const more = screen.getByRole("button", { name: `More actions for #${roster.caseNumber} ${ROSTER}` })
-    expect(more).toHaveClass("size-11!")
-    await user.click(more)
-    const menu = await screen.findByRole("menu")
-    const items = within(menu).getAllByRole("menuitem")
-    expect(items.map((i) => i.textContent)).toEqual(["Open case", "Delete case"])
-    for (const item of items) expect(item).toHaveClass("min-h-11")
-    expect(items[1].className).toContain(CRM_DANGER_TEXT)
-    await user.click(items[0])
-    expect(navigation.push).toHaveBeenCalledWith(`/crm/cases/${roster.id}`)
-  })
-
-  it("the '…' Delete case opens the same confirm", async () => {
-    const user = userEvent.setup()
-    live()
-    renderCrm(<CasesScreen />)
-    await user.click(screen.getByRole("button", { name: `More actions for #${roster.caseNumber} ${ROSTER}` }))
-    await user.click(await screen.findByRole("menuitem", { name: "Delete case" }))
-    expect(await screen.findByRole("dialog", { name: "Delete this case?" })).toBeInTheDocument()
-  })
-})
-
-describe("Cases toolbar", () => {
-  it("the picked status reads as pressed at every width; segments, select and search are 44 below 1280", () => {
-    live()
-    navigation.params = new URLSearchParams("status=open")
-    renderCrm(<CasesScreen />)
-    const nav = screen.getByRole("navigation", { name: "Case status filter" })
-    const pressed = within(nav).getByRole("link", { name: "Open" })
-    expect(pressed).toHaveAttribute("aria-current", "page")
-    for (const link of within(nav).getAllByRole("link")) {
-      expect(link).toHaveClass(
-        "aria-[current=page]:bg-primary!",
-        "aria-[current=page]:text-primary-foreground!",
-        "max-xl:min-h-11",
-        "max-xl:min-w-11"
-      )
-    }
-    expect(within(nav).getByRole("link", { name: "All" })).not.toHaveAttribute("aria-current")
-    expect(screen.getByRole("combobox", { name: "Priority filter" })).toHaveClass("max-xl:h-11!")
-    expect(screen.getByRole("textbox", { name: "Search cases" })).toHaveClass("max-xl:h-11!", "max-xl:w-full")
-    // Phone: status and priority share one sideways-scrolling strip.
-    const strip = nav.closest("[data-slot='cases-filter-strip']")!
-    expect(strip).toHaveClass("contents", "max-md:overflow-x-auto")
-    expect(strip).toContainElement(screen.getByRole("combobox", { name: "Priority filter" }))
-  })
-})
-
 describe("phone (<768): Contacts cards and sheet (the founder's own contacts)", () => {
-  it("maps Name / Email / 'Organization · N open cases'; no plan pill without a plan, no sample tag", () => {
+  it("maps Name / Email / 'Organization · N open cases'; no plan pill (no Gmail source), no sample tag", () => {
     saveMine()
     renderCrm(<ContactsScreen />)
     expect(within(list()).getAllByRole("listitem")).toHaveLength(2)
     const pat = card("Pat Reyes")
     expect(pat).toHaveTextContent("pat@example.org")
     expect(pat).toHaveTextContent(/Katy ISD · 0 open cases/)
-    expect(within(pat).queryByTestId(CARD_PLAN_PILL)).not.toBeInTheDocument()
+    expect(within(pat).queryByTestId("card-plan-pill")).not.toBeInTheDocument()
     expect(screen.queryAllByTestId("plan-pill")).toHaveLength(0)
     expect(within(list()).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     expect(card("Tom Alvarez")).toHaveTextContent(/No organization · 0 open cases/)
-  })
-
-  it("the plan pill renders under the id a card passes, so the table's `plan-pill` count stays its own", () => {
-    render(<PlanBadge plan="Monthly" planStatus="active" testId={CARD_PLAN_PILL} />)
-    expect(screen.getByTestId(CARD_PLAN_PILL)).toHaveTextContent("Monthly")
-    expect(screen.queryByTestId("plan-pill")).not.toBeInTheDocument()
   })
 
   it("says one open case in the singular", () => {
@@ -301,9 +152,9 @@ describe("tablet (768–1279): Contacts table", () => {
     renderCrm(<ContactsScreen />)
     const table = screen.getByRole("table", { name: "Contacts" })
     const heads = within(table).getAllByRole("columnheader")
-    expect(heads.map((h) => h.textContent)).toEqual(["Name", "Email", "Organization", "Plan", "Open cases", "Actions"])
+    expect(heads.map((h) => h.textContent)).toEqual(["Name", "Email", "Organization", "Open cases", "Actions"])
     expect(heads[1]).toHaveClass("md:max-xl:hidden")
-    expect(heads[5]).toHaveClass("hidden", "md:max-xl:table-cell")
+    expect(heads[4]).toHaveClass("hidden", "md:max-xl:table-cell")
     await user.click(screen.getByRole("button", { name: "More actions for Pat Reyes" }))
     const menu = await screen.findByRole("menu")
     expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual([
@@ -325,6 +176,7 @@ describe("detail pages", () => {
     const cards = within(list()).getAllByRole("listitem")
     expect(cards.length).toBeGreaterThan(0)
     await user.click(card(ROSTER))
+    // /crm/cases/<id> now redirects into the Cases panel.
     expect(navigation.push).toHaveBeenCalledWith(`/crm/cases/${roster.id}`)
     expect(card(ROSTER)).toHaveTextContent(new RegExp(`#${roster.caseNumber}.*priority · `))
   })
@@ -340,46 +192,36 @@ describe("detail pages", () => {
     const confirm = await screen.findByRole("dialog", { name: "Delete this contact?" })
     expect(within(confirm).getByRole("button", { name: "Keep them" })).toHaveClass("max-xl:h-11!")
   })
-
-  it("case detail (live): status steps, priority, note delete, Add note and Delete are 44; the note box only has a min height", async () => {
-    const user = userEvent.setup()
-    live()
-    renderCrm(<CaseDetail caseId={roster.id} />)
-    for (const step of within(screen.getByRole("group", { name: "Case status" })).getAllByRole("button")) {
-      expect(step).toHaveClass("max-xl:h-11")
-    }
-    expect(screen.getByRole("combobox", { name: "Priority" })).toHaveClass("max-xl:h-11!")
-    expect(screen.getByRole("button", { name: "Add note" })).toHaveClass("max-xl:h-11!")
-    const note = screen.getByLabelText("Internal note")
-    expect(note).toHaveClass("min-h-16", "field-sizing-content")
-    expect(note.className).not.toMatch(/(^|\s)(max-xl:)?h-\d/)
-    // The inbox's cases start without notes; add one so there is a Delete note to measure.
-    await user.type(note, "Called Dana back")
-    await user.click(screen.getByRole("button", { name: "Add note" }))
-    const deletes = screen.getAllByRole("button", { name: "Delete note" })
-    expect(deletes.length).toBeGreaterThan(0)
-    for (const del of deletes) expect(del).toHaveClass("max-xl:size-11!")
-    await user.click(screen.getByRole("button", { name: `Delete case #${roster.caseNumber}` }))
-    const confirm = await screen.findByRole("dialog", { name: "Delete this case?" })
-    expect(within(confirm).getByRole("button", { name: "Keep it" })).toHaveClass("max-xl:h-11!")
-  })
 })
 
 describe("shell, triage and error state", () => {
-  it("header: Search is icon-only on a phone but keeps its name; Clear my entries and tabs are 44 below 1280", () => {
+  it("header: Find a contact… (full width on a phone), ⋯ menu and tabs are 44 below 1280", async () => {
+    const user = userEvent.setup()
     renderCrm(
       <CrmShell>
         <div />
       </CrmShell>
     )
-    // jsdom applies no CSS, so the ⌘K hint (hidden on a phone) is in the name here.
-    const search = screen.getByRole("button", { name: /^Search/ })
-    expect(search).toHaveClass("max-md:size-11!", "max-xl:h-11!")
-    expect(within(search).getByText("Search")).toHaveClass("max-md:sr-only")
-    const clear = screen.getByRole("button", { name: "Clear my entries" })
-    for (const cls of CRM_RESET.split(" ")) expect(clear).toHaveClass(cls)
+    // jsdom applies no CSS, so both finders (desktop ⌘K one, phone full-width one) are in the tree.
+    const [desktop, phone] = screen.getAllByRole("button", { name: /^Find a contact…/ })
+    expect(desktop).toHaveClass("h-9!", "max-xl:h-11!", "max-md:hidden")
+    expect(desktop).toHaveTextContent("⌘K")
+    expect(phone).toHaveClass("h-11!", "w-full", "md:hidden")
+    const menu = screen.getByRole("button", { name: CRM_MENU_LABEL })
+    expect(menu).toHaveClass(CRM_ICON_44)
+    await user.click(menu)
+    const clear = await screen.findByRole("menuitem", { name: "Clear my entries" })
+    expect(clear).toHaveClass(CRM_ROW_44)
+    await user.keyboard("{Escape}")
     const tabs = within(screen.getByRole("navigation", { name: "CRM sections" })).getAllByRole("link")
-    for (const tab of tabs) expect(tab).toHaveClass("max-xl:min-h-11", "max-md:flex-1")
+    for (const tab of tabs) expect(tab).toHaveClass("max-xl:h-11", "max-xl:min-w-11", "shrink-0")
+    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
+    // No Customers or Settings tab; the strip scrolls itself, with decorative fades.
+    expect(screen.getByRole("navigation", { name: "CRM sections" })).toHaveClass("overflow-x-auto")
+    for (const id of ["crm-tab-fade-start", "crm-tab-fade-end"]) {
+      expect(screen.getByTestId(id)).toHaveAttribute("aria-hidden")
+      expect(screen.getByTestId(id)).toHaveClass("pointer-events-none")
+    }
     // The section tabs are navigation, not a filter: no pressed restyle.
     expect(tabs[1].className).not.toContain("bg-primary")
   })

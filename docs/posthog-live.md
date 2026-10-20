@@ -2,7 +2,7 @@
 
 Metrics reads usage figures from PostHog, the same way it reads Stripe
 ([stripe-live.md](stripe-live.md)): a server-only key, a 5-minute cache that
-a request never waits for, and labelled sample figures whenever PostHog is
+a request never waits for, and Not connected (no figure) whenever PostHog is
 not connected.
 
 ## What PostHog holds — and so what these figures can say
@@ -22,7 +22,7 @@ not connected.
 | Card | Live definition |
 | --- | --- |
 | **Active Users** (an extra card: "Add metric") | People with **any** event in the last 28 days (rolling 28 × 24 h). Compared with the 28 days before; six windows charted. Under it: people active in the last 24 h and in the last 7 days. |
-| **Retention** (default board) | Of the people active in the previous 28 days, the share also active in the latest 28 (`iOS app · 452 of 774 users came back`). When PostHog is not connected, this card shows its sample figure (subscriber retention), labelled. |
+| **Retention** (default board) | Of the people active in the previous 28 days, the share also active in the latest 28 (`iOS app · 452 of 774 users came back`). When PostHog is not connected, this card says Not connected, with no figure. |
 
 Windows are rolling 28 × 24 h ending at PostHog's `now()` at the sync, so
 they have no time zone. A window that starts before PostHog's first event
@@ -31,7 +31,7 @@ reads `—` with "PostHog has under 28 (or 56) days of app events" — never a
 0. Retention with nobody in the base window reads `—`, "No app users in the
 28 days before". Math: `src/lib/posthog-metrics.ts` (pure, unit-tested).
 
-Every other Metrics card is Stripe's or sample, labelled. The page notice
+Every other Metrics card is Stripe's or says Not connected. The page notice
 says which cards are live from Stripe and/or PostHog.
 
 ## Setup
@@ -60,7 +60,7 @@ says which cards are live from Stripe and/or PostHog.
 | Loading | `–` placeholder | Checking… |
 | Connected | PostHog's figure, no label | Connected · "Read-only · last synced <time>" |
 | Stale | Last figure + "Last updated <time>" | "Last updated <time>" |
-| Not connected | Sample figure, labelled Sample data | Not connected |
+| Not connected | No figure: Not connected | Not connected |
 
 Times use the shared clock in the Settings time zone.
 

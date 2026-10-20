@@ -7,14 +7,21 @@ import { settleAnimations } from "./support/contrast"
 import {
   CRM_STORAGE_KEY as STORAGE_KEY,
   LIVE_CASES,
+  LIVE_OPEN_TILE,
   LIVE_TRIAGE,
+  NO_CASES,
+  clearMenuItem,
+  crmSource,
+  expectCrmNote,
+  expectCrmSource,
   expectGmailPanel,
   liveCase,
+  openCrmMenu,
   openWithOwnContacts,
 } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 import { CLEAR_COPY, CLEAR_DESCRIPTION } from "../src/components/persistence-note"
-import { CLEAR_CONFIRM_NAME, NOTE, persistenceNote } from "./support/persistence"
+import { CLEAR_CONFIRM_NAME, NOTE } from "./support/persistence"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
 
@@ -40,12 +47,19 @@ const SIZES = {
   desktop: { width: 1440, height: 900 },
 } as const
 
+/** The case panel at each size: a bottom sheet, a modal sheet, a non-modal sheet, beside the list. */
+const PANEL_MODE: Record<keyof typeof SIZES, string> = {
+  phone: "bottom",
+  "tablet-portrait": "modal",
+  "tablet-landscape": "overlay",
+  desktop: "split",
+}
+
 const LIVE = liveGmailSummary(Date.now())
 const ROSTER = liveCase(LIVE, LIVE_CASES.roster)
 const PAT = "Pat Reyes"
 
 const main = (page: Page) => page.getByRole("main")
-const source = (page: Page) => main(page).locator("header").first().getByTestId("crm-source")
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
 const cardList = (page: Page) => main(page).locator("[data-slot='responsive-table']").getByRole("list")
 
@@ -70,11 +84,17 @@ async function closeAll(page: Page) {
   await expect(page.getByRole("dialog")).toHaveCount(0)
 }
 
-/** Go to `path` and wait for the source to answer and the rows to load. */
+/**
+ * Go to `path` and wait for the source to answer and the rows to load.
+ * Gmail's badge is in the header's ⋯ menu; with a case open (a modal sheet
+ * below 1180) the panel itself, which shows only once the inbox answered,
+ * stands in for it.
+ */
 async function visit(page: Page, pathname: string) {
   await page.goto(pathname)
   await waitForHydration(page)
-  await expect(source(page)).toBeVisible()
+  if (pathname.includes("case=")) await expect(page.getByTestId("case-panel")).toBeVisible()
+  else await expectCrmSource(page)
   await expect(main(page).getByRole("status", { name: /^Loading saved/ })).toHaveCount(0)
 }
 
@@ -90,10 +110,16 @@ for (const theme of ["light", "dark"] as const) {
       await page.goto("/crm")
       await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
       await visit(page, "/crm")
-      await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+      await expectCrmNote(page, NOTE.unsaved)
       await setTheme(page, theme)
       await expectGmailPanel(page, "overview")
       await shoot(page, name("overview-not-connected"))
+
+      // The header's ⋯ menu: Gmail's state and where edits live, shot where it sits.
+      await openCrmMenu(page)
+      await expect(crmSource(page)).toHaveText("Gmail not connected")
+      await shoot(page, name("header-menu"), { fullPage: false })
+      await closeAll(page)
 
       await openWithOwnContacts(page, "/crm/contacts")
       await expectGmailPanel(page, "contacts")
@@ -116,9 +142,11 @@ for (const theme of ["light", "dark"] as const) {
       await shoot(page, name("contact-edit"), { fullPage: false })
       await closeAll(page)
 
-      // The Clear my entries confirm (the founder's contacts are saved), at
-      // every width: title, what it deletes, both choices; nothing cleared.
-      await main(page).locator("header").first().getByRole("button", { name: CLEAR_COPY.button, exact: true }).click()
+      // The Clear my entries confirm (the founder's contacts are saved), from
+      // the ⋯ menu at every width: title, what it deletes, both choices; nothing cleared.
+      await openCrmMenu(page)
+      await expect(clearMenuItem(page)).toHaveText(CLEAR_COPY.button)
+      await clearMenuItem(page).click()
       const confirm = page.getByRole("dialog", { name: CLEAR_CONFIRM_NAME, exact: true })
       await expect(confirm).toBeVisible()
       await expect(confirm).toContainText(CLEAR_DESCRIPTION)
@@ -126,37 +154,43 @@ for (const theme of ["light", "dark"] as const) {
       await expect(confirm.getByRole("button", { name: CLEAR_COPY.confirm, exact: true })).toBeVisible()
       await shoot(page, name("clear-confirm"), { fullPage: desktop })
       await closeAll(page)
-      await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+      await expectCrmNote(page, NOTE.saved)
 
       // Gmail connected: the fixture inbox.
       await mockGmail(page, liveGmailSummary(Date.now()))
       await visit(page, "/crm")
-      await expect(source(page)).toHaveText("Live from Gmail")
-      await expect(main(page).getByText("3 contacts · 3 open conversations")).toBeVisible()
+      await expectCrmSource(page, "Live from Gmail")
+      await expect(main(page).getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
       await shoot(page, name("overview"))
 
       await crmNav(page).getByRole("link", { name: "Cases", exact: true }).click()
-      await expect(main(page).getByRole("heading", { level: 2, name: "Cases" })).toBeVisible()
+      await expect(main(page).getByRole("heading", { level: 2, name: /^Cases/ })).toBeVisible()
+      // The table from 820 up; a stacked list of link rows below.
+      if (phone) {
+        await expect(main(page).getByTestId("case-list")).toBeVisible()
+        await expect(main(page).getByRole("table", { name: "Cases" })).toBeHidden()
+      } else {
+        await expect(main(page).getByRole("table", { name: "Cases" })).toBeVisible()
+        await expect(main(page).getByTestId("case-list")).toBeHidden()
+      }
       await shoot(page, name("cases"))
 
-      // Row actions: phone opens the card's sheet; tablet the row "…".
-      if (!desktop) {
-        if (phone) {
-          await cardList(page).getByRole("button", { name: new RegExp(`^${LIVE_CASES.roster}`) }).click()
-          await expect(page.getByRole("dialog", { name: LIVE_CASES.roster, exact: true })).toBeVisible()
-        } else {
-          await main(page)
-            .getByRole("button", { name: `More actions for #${ROSTER.caseNumber} ${LIVE_CASES.roster}` })
-            .click()
-          await expect(page.getByRole("menu")).toBeVisible()
-        }
-        await shoot(page, name("cases-actions"), { fullPage: false })
-        await closeAll(page)
-      }
+      await crmNav(page).getByRole("link", { name: "Accounts", exact: true }).click()
+      if (phone) await expect(main(page).getByTestId("account-list")).toBeVisible()
+      else await expect(main(page).getByRole("table", { name: "Accounts" })).toBeVisible()
+      await shoot(page, name("accounts"))
 
-      await visit(page, `/crm/cases/${ROSTER.id}`)
-      await expect(main(page).getByRole("heading", { level: 2, name: LIVE_CASES.roster })).toBeVisible()
-      await shoot(page, name("case-detail"))
+      // Old Cases row actions (phone sheet, tablet "…") removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+
+      // The case panel (beside the list at 1440, a sheet below 1280), where the old detail page was.
+      await visit(page, `/crm/cases?case=${ROSTER.id}`)
+      const panel = page.getByTestId("case-panel")
+      await expect(panel).toBeVisible()
+      await expect(panel).toHaveAttribute("data-mode", PANEL_MODE[size as keyof typeof SIZES])
+      await expect(panel).toContainText(LIVE_CASES.roster)
+      await expect(panel.getByRole("list", { name: "Thread" })).toBeVisible()
+      await shoot(page, name("case-panel"), { fullPage: desktop })
+      await closeAll(page)
 
       await visit(page, "/crm/triage")
       await expect(main(page).getByText(LIVE_TRIAGE.sam)).toBeVisible()
@@ -169,7 +203,7 @@ for (const theme of ["light", "dark"] as const) {
         data: { ...inbox.data, cases: [], messages: inbox.data.messages.filter((m) => m.caseId === null) },
       })
       await visit(page, "/crm/cases")
-      await expect(main(page).getByRole("status", { name: "No cases" })).toBeVisible()
+      await expect(main(page).getByText(NO_CASES, { exact: true })).toBeVisible()
       await shoot(page, name("cases-empty"))
     })
   }

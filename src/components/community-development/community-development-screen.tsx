@@ -11,7 +11,6 @@ import {
   INITIATIVE_STATUSES,
   INITIATIVE_STATUS_LABEL,
   INITIATIVE_TYPE_LABEL,
-  isSeedInitiative,
   isStatusFilter,
   isTypeFilter,
   STATUS_FILTER_LABEL,
@@ -53,7 +52,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { PersistenceNote } from "@/components/persistence-note"
 import { ResponsiveTable, RowCollapse } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import { useCommunityDevelopment } from "@/components/community-development/community-development-store"
 import { InitiativeDetail } from "@/components/community-development/initiative-detail"
 import {
@@ -362,7 +360,6 @@ function InitiativeCards({
       key={row.id}
       title={row.name}
       status={<StatusPill status={row.status} />}
-      sample={isSeedInitiative(row)}
       meta={initiativeCardMeta(row, today)}
       onClick={() => onOpen(row)}
     />
@@ -428,8 +425,7 @@ export function CommunityDevelopmentScreen() {
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">{LEDE}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:mt-1">
-          <PersistenceNote store={store} resetClassName={CD_RESET} />
-          <SampleDataTag className="h-6 px-2" />
+          <PersistenceNote mode="clear" store={store} resetClassName={CD_RESET} />
           <Button
             size="sm"
             className={cn(CD_ADD, "max-md:absolute max-md:top-0 max-md:right-0")}
@@ -453,7 +449,7 @@ export function CommunityDevelopmentScreen() {
           <p className="text-body text-foreground font-medium">No giving initiatives yet</p>
           <p className="text-caption">
             Add the first one — a volunteer day, a donation, a foundation program, or an
-            outreach event. Or Reset to bring the sample rows back.
+            outreach event. It is saved in this browser.
           </p>
           <Button
             size="sm"
@@ -506,7 +502,7 @@ export function CommunityDevelopmentScreen() {
                   {visible.length}
                 </span>
               </div>
-              <TableCard note="Seed rows are invented giving work; initiatives you add or change are saved in this browser. No dollar totals.">
+              <TableCard>
                 <ResponsiveTable
                   layout="stack"
                   onClickCapture={(event) => {
@@ -573,9 +569,6 @@ export function CommunityDevelopmentScreen() {
                                   >
                                     <span className={CD_NAME_TEXT}>{row.name}</span>
                                   </Button>
-                                  {isSeedInitiative(row) && (
-                                    <SampleDataTag className="max-xl:shrink-0" />
-                                  )}
                                 </span>
                                 <span className="text-caption text-muted-foreground max-xl:truncate xl:hidden">
                                   {row.partner || "—"}

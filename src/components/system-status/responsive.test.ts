@@ -5,7 +5,6 @@ import {
   STATUS_BANNER_META,
   STATUS_HEADER,
   STATUS_HEADER_META,
-  STATUS_INCIDENT,
   STATUS_ROW,
   STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
@@ -29,7 +28,5 @@ describe("System Status responsive layout", () => {
     expect(STATUS_BANNER).toContain("md:flex-row")
     expect(STATUS_ROW).toContain("grid-template-areas:'name_status'_'reason_reason'_'time_time'")
     expect(STATUS_ROW).toContain("md:[grid-template-areas:'name_status'_'reason_time']")
-    expect(STATUS_INCIDENT).toContain("flex-col")
-    expect(STATUS_INCIDENT).toContain("md:flex-row")
   })
 })

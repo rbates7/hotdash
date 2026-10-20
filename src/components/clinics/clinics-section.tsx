@@ -9,7 +9,6 @@ import {
   ATTENDANCE_LABEL,
   CLINIC_TYPE_LABEL,
   formatCollected,
-  isSeedClinic,
   statusOf,
   type Attendance,
   type Clinic,
@@ -34,7 +33,6 @@ import {
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import { AttendanceText, StatusPill, TypePill } from "@/components/clinics/clinic-pills"
 import { SPAWN_LABEL, SPAWN_SOON, type DialogFocus } from "@/components/clinics/clinic-dialog"
 
@@ -166,7 +164,6 @@ function ClinicCards({
       key={c.id}
       title={c.name}
       status={<StatusPill status={statusOf(c, today)} />}
-      sample={isSeedClinic(c)}
       meta={clinicCardMeta(c, today, past)}
       onClick={() => actions.onEdit(c, "name")}
     />
@@ -257,7 +254,6 @@ export function ClinicsSection({
                             <span className="text-label font-semibold tracking-tight max-xl:truncate">
                               {c.name}
                             </span>
-                            {isSeedClinic(c) && <SampleDataTag className="max-xl:shrink-0" />}
                           </span>
                           {past ? (
                             <>

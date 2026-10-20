@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic"
 export default function BugsPage() {
   // The one read of the clock for this request. The Workplace store holds it
   // and every bug's age and the crash card's week are measured from it, on
-  // the server and in the browser alike; Reset moves it through the store.
+  // the server and in the browser alike; Clear moves it through the store.
   const nowMs = now().getTime()
 
   return (
@@ -31,12 +31,11 @@ export default function BugsPage() {
               Yo-Yo&apos;s page. Coach-reported and crashes.
             </p>
           </div>
-          {/* No "Dummy / design mock" chip: Bugs shows only Sentry and the
-              founder's own tickets now. */}
           <div className="flex items-center gap-2.5 max-md:flex-col max-md:items-start max-md:gap-2">
-            {/* Edits here are Workplace edits, so the note is the Workplace's.
-                Below 1280 its Reset is a 44px hit via the shared Workplace class. */}
-            <WorkplacePersistenceNote resetClassName={WORKPLACE_RESET} />
+            {/* Edits here are Workplace edits, so the note is the Workplace's;
+                its Clear my entries deletes only bug tickets. Below 1280 it is
+                a 44px hit via the shared Workplace class. */}
+            <WorkplacePersistenceNote scope="bugs" resetClassName={WORKPLACE_RESET} />
           </div>
         </header>
         {/* BugsScreen reads the open ticket from the URL, so it needs a

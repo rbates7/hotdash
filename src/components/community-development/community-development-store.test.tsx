@@ -2,7 +2,8 @@ import * as React from "react"
 import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { seedInitiatives, type InitiativeInput } from "@/lib/community-development"
+import { type InitiativeInput } from "@/lib/community-development"
+import { founderInitiativesState, seedInitiatives } from "@/lib/community-development-fixture"
 import { initialShell, type LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
@@ -50,60 +51,60 @@ const hydrate = (state: State | null, nowMs = NOW_MS) => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("reducer", () => {
-  it("starts with the eight seed initiatives and the next id after them", () => {
-    const s = initialState(TODAY)
-    expect(s.initiatives).toEqual(seedInitiatives(TODAY))
-    expect(s.nextId).toBe(9)
+  it("starts empty, with ids after the old sample's", () => {
+    expect(initialState(TODAY)).toEqual({ initiatives: [], nextId: 9 })
+    const s = reducer(initialState(TODAY), { type: "add", input: GEAR })
+    expect(s.initiatives.map((r) => r.id)).toEqual(["initiative-9"])
   })
 
   it("adds a normalised initiative with the next id and bumps the counter", () => {
-    const s = reducer(initialState(TODAY), { type: "add", input: GEAR })
+    const s = reducer(founderInitiativesState(TODAY), { type: "add", input: GEAR })
     expect(s.initiatives).toHaveLength(9)
     expect(s.initiatives.at(-1)).toEqual({
-      id: "initiative-9",
+      id: "initiative-109",
       ...GEAR,
       name: "Gear drive",
     })
-    expect(s.nextId).toBe(10)
+    expect(s.nextId).toBe(110)
   })
 
   it("updates an initiative in place and is a no-op when nothing changed", () => {
-    const start = reducer(initialState(TODAY), { type: "add", input: GEAR })
-    const same = reducer(start, { type: "update", id: "initiative-9", input: GEAR })
+    const start = reducer(founderInitiativesState(TODAY), { type: "add", input: GEAR })
+    const same = reducer(start, { type: "update", id: "initiative-109", input: GEAR })
     expect(same).toBe(start)
     const changed = reducer(start, {
       type: "update",
-      id: "initiative-9",
+      id: "initiative-109",
       input: { ...GEAR, status: "active", impact: "12 iPads" },
     })
     expect(changed).not.toBe(start)
     expect(changed.initiatives.at(-1)!.status).toBe("active")
-    expect(changed.initiatives.at(-1)!.id).toBe("initiative-9")
+    expect(changed.initiatives.at(-1)!.id).toBe("initiative-109")
     expect(reducer(start, { type: "update", id: "initiative-404", input: GEAR })).toBe(start)
   })
 
   it("sets status and is a no-op when it already is that", () => {
-    const start = initialState(TODAY)
-    const s = reducer(start, { type: "set-status", id: "initiative-1", status: "active" })
+    const start = founderInitiativesState(TODAY)
+    const s = reducer(start, { type: "set-status", id: "initiative-101", status: "active" })
     expect(s.initiatives[0].status).toBe("active")
-    expect(reducer(s, { type: "set-status", id: "initiative-1", status: "active" })).toBe(s)
+    expect(reducer(s, { type: "set-status", id: "initiative-101", status: "active" })).toBe(s)
     expect(reducer(start, { type: "set-status", id: "nope", status: "active" })).toBe(start)
   })
 
   it("removes by id and is a no-op for an unknown id; the counter never goes back", () => {
-    const start = reducer(initialState(TODAY), { type: "add", input: GEAR })
-    const s = reducer(start, { type: "remove", id: "initiative-9" })
+    const start = reducer(founderInitiativesState(TODAY), { type: "add", input: GEAR })
+    const s = reducer(start, { type: "remove", id: "initiative-109" })
     expect(s.initiatives).toHaveLength(8)
-    expect(s.nextId).toBe(10)
-    expect(reducer(s, { type: "remove", id: "initiative-9" })).toBe(s)
+    expect(s.nextId).toBe(110)
+    expect(reducer(s, { type: "remove", id: "initiative-109" })).toBe(s)
   })
 })
 
 describe("shellReducer (the shared persistence shell around the list)", () => {
-  const fresh = initialShell(initialState(TODAY), NOW_MS)
+  const fresh = initialShell(founderInitiativesState(TODAY), NOW_MS)
 
   it("hydrate takes the saved copy whole and keeps the clock; an empty result re-seeds around the event's instant", () => {
-    const edited = reducer(initialState(TODAY), { type: "remove", id: "initiative-1" })
+    const edited = reducer(founderInitiativesState(TODAY), { type: "remove", id: "initiative-101" })
     const s = shellReducer(fresh, hydrate(edited, noonMs("2026-09-30")))
     expect(s.data).toEqual(edited)
     expect(s).toMatchObject({
@@ -130,13 +131,13 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
 
   it("a hydrate never moves the edit counter; a local unsaved edit wins over an incoming copy", () => {
     const edited = shellReducer(fresh, { type: "add", input: GEAR })
-    const racing = shellReducer(edited, hydrate(initialState(TODAY)))
+    const racing = shellReducer(edited, hydrate(founderInitiativesState(TODAY)))
     expect(racing.edits).toBe(1)
     expect(racing.data).toBe(edited.data)
     expect(racing.edited).toBe(true)
-    const settled = shellReducer(shellReducer(edited, { type: "save-result", ok: true }), hydrate(initialState(TODAY)))
+    const settled = shellReducer(shellReducer(edited, { type: "save-result", ok: true }), hydrate(founderInitiativesState(TODAY)))
     expect(settled.edits).toBe(1)
-    expect(settled.data).toEqual(initialState(TODAY))
+    expect(settled.data).toEqual(founderInitiativesState(TODAY))
     expect(settled.edited).toBe(false)
   })
 
@@ -151,12 +152,12 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
   })
 
   it("a no-op edit returns the same shell, so nothing re-renders or writes", () => {
-    const shell = shellReducer(fresh, hydrate(null))
-    expect(shellReducer(shell, { type: "set-status", id: "initiative-1", status: "planned" })).toBe(
+    const shell = shellReducer(fresh, hydrate(founderInitiativesState(TODAY)))
+    expect(shellReducer(shell, { type: "set-status", id: "initiative-101", status: "planned" })).toBe(
       shell
     )
     expect(shellReducer(shell, { type: "remove", id: "nope" })).toBe(shell)
-    const edited = shellReducer(shell, { type: "remove", id: "initiative-1" })
+    const edited = shellReducer(shell, { type: "remove", id: "initiative-101" })
     expect(edited.edited).toBe(true)
     expect(edited.edits).toBe(1)
   })
@@ -171,7 +172,7 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
 })
 
 describe("isState rejects a bad saved copy", () => {
-  const good = initialState(TODAY)
+  const good = founderInitiativesState(TODAY)
   const cases: [string, unknown][] = [
     ["not an object", "nope"],
     ["an array", [good]],
@@ -186,8 +187,8 @@ describe("isState rejects a bad saved copy", () => {
       { ...good, initiatives: [{ ...good.initiatives[0], date: null, cadence: "" }] },
     ],
     ["duplicate ids", { ...good, initiatives: [good.initiatives[0], good.initiatives[0]] }],
-    ["nextId not above the highest id", { ...good, nextId: 8 }],
-    ["nextId fractional", { ...good, nextId: 9.5 }],
+    ["nextId not above the highest id", { ...good, nextId: 108 }],
+    ["nextId fractional", { ...good, nextId: 109.5 }],
     [
       "nextId missing",
       (() => {
@@ -240,6 +241,22 @@ describe("isState rejects a bad saved copy", () => {
   })
 })
 
+describe("no sample rows", () => {
+  it("a copy saved with the old sample drops those rows (edited or not) and keeps the founder's", () => {
+    const old = seedInitiatives(TODAY)
+    const mine = founderInitiativesState(TODAY).initiatives[0]
+    const saved = { initiatives: [{ ...old[0], impact: "edited" }, ...old.slice(1), mine], nextId: 102 }
+    expect(isState(saved)).toBe(true)
+    expect(parseState(saved)).toEqual({ initiatives: [mine], nextId: 102 })
+    expect(parseState({ initiatives: old, nextId: 9 })).toEqual({ initiatives: [], nextId: 9 })
+  })
+
+  it("the bundle's sample ids match the old sample's", async () => {
+    const { SEED_INITIATIVE_IDS } = await import("@/lib/community-development")
+    expect([...SEED_INITIATIVE_IDS]).toEqual(seedInitiatives(TODAY).map((r) => r.id))
+  })
+})
+
 describe("localStorage", () => {
   it("uses the v1 key", () => {
     expect(STORAGE_KEY).toBe("hotdash.community-development.v1")
@@ -247,22 +264,22 @@ describe("localStorage", () => {
 
   it("loadState returns null when nothing is saved and the stripped copy when there is", () => {
     expect(loadState(window.localStorage)).toBeNull()
-    const edited = reducer(initialState(TODAY), { type: "add", input: GEAR })
+    const edited = reducer(founderInitiativesState(TODAY), { type: "add", input: GEAR })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...edited, extra: 1 }))
     expect(loadState(window.localStorage)).toEqual(edited)
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    const s = reducer(initialState(TODAY), { type: "add", input: GEAR })
+    const s = reducer(founderInitiativesState(TODAY), { type: "add", input: GEAR })
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
-    const other = reducer(s, { type: "remove", id: "initiative-1" })
+    const other = reducer(s, { type: "remove", id: "initiative-101" })
     expect(saveState(quotaExceededStorage() as unknown as Storage, other)).toBe(false)
   })
 
   it("saving the identical copy again is a no-op write", () => {
-    const s = initialState(TODAY)
+    const s = founderInitiativesState(TODAY)
     expect(saveState(window.localStorage, s)).toBe(true)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     expect(saveState(window.localStorage, s)).toBe(true)
@@ -298,21 +315,21 @@ function Probe({ label = "" }: { label?: string }) {
       <button type="button" onClick={() => addInitiative(GEAR)}>
         add
       </button>
-      <button type="button" onClick={() => setStatus("initiative-1", "active")}>
+      <button type="button" onClick={() => setStatus("initiative-101", "active")}>
         activate
       </button>
-      <button type="button" onClick={() => setStatus("initiative-1", "planned")}>
+      <button type="button" onClick={() => setStatus("initiative-101", "planned")}>
         noop
       </button>
       <button
         type="button"
         onClick={() =>
-          updateInitiative("initiative-2", { ...seedInitiatives(today)[1], impact: "edited" })
+          updateInitiative("initiative-102", { ...seedInitiatives(today)[1], impact: "edited" })
         }
       >
         edit
       </button>
-      <button type="button" onClick={() => removeInitiative("initiative-3")}>
+      <button type="button" onClick={() => removeInitiative("initiative-103")}>
         remove
       </button>
       <button type="button" onClick={resetDemoData}>
@@ -321,6 +338,9 @@ function Probe({ label = "" }: { label?: string }) {
     </div>
   )
 }
+
+/** The founder's own list, saved before the page opens. */
+const storeFounder = () => saveState(window.localStorage, founderInitiativesState(TODAY))
 
 const mount = (nowMs = NOW_MS) =>
   render(
@@ -360,21 +380,22 @@ describe("CommunityDevelopmentProvider", () => {
   })
 
   it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
-    saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove", id: "initiative-1" }))
+    saveState(window.localStorage, reducer(founderInitiativesState(TODAY), { type: "remove", id: "initiative-101" }))
     mount()
     expect(screen.getByTestId("count")).toHaveTextContent("7")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
   })
 
   it("a hydrate from a saved copy never triggers a save", () => {
-    saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove", id: "initiative-1" }))
+    saveState(window.localStorage, reducer(founderInitiativesState(TODAY), { type: "remove", id: "initiative-101" }))
     const writes = countingSetItem()
     mount()
     expect(writes.calls).toEqual([])
     writes.restore()
   })
 
-  it("persists edits, skips a no-op write, rehydrates after a remount, and Reset clears the key", () => {
+  it("persists edits, skips a no-op write, rehydrates after a remount, and Clear clears the key", () => {
+    storeFounder()
     const writes = countingSetItem()
     const first = mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
@@ -395,33 +416,36 @@ describe("CommunityDevelopmentProvider", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("names")).toHaveTextContent("Youth flag-football")
+    expect(screen.getByTestId("names")).toBeEmptyDOMElement()
     expect(writes.calls).toHaveLength(1)
     vi.useRealTimers()
     writes.restore()
   })
 
-  it("opened at 23:30 CT and Reset after midnight: the seed and today move to the new day", () => {
+  it("opened at 23:30 CT and Reset after midnight: the list empties and today moves to the new day", () => {
     mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     act(() => screen.getByRole("button", { name: "add" }).click())
     vi.useFakeTimers({ now: new Date("2026-10-08T05:30:00.000Z"), toFake: ["Date"] })
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     vi.useRealTimers()
   })
 
   it("reports a failed save and never claims Saved; the next edit retries", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const full = quotaExceededStorage()
+    storeFounder()
+    const before = window.localStorage.getItem(STORAGE_KEY)
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(full.setItem)
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
-    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    // A hydrated copy keeps its saved flag; the failure is what the note shows.
+    expect(screen.getByTestId("status").textContent).toMatch(/^edited=true saved=\w+ failed=true$/)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(before)
     spy.mockRestore()
     act(() => screen.getByRole("button", { name: "activate" }).click())
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
@@ -431,7 +455,7 @@ describe("CommunityDevelopmentProvider", () => {
   it("re-hydrates when another tab writes the key, without writing back", () => {
     mount()
     const writes = countingSetItem()
-    const theirs = reducer(initialState(TODAY), { type: "remove", id: "initiative-1" })
+    const theirs = reducer(founderInitiativesState(TODAY), { type: "remove", id: "initiative-101" })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
     expect(screen.getByTestId("count")).toHaveTextContent("7")
@@ -440,7 +464,8 @@ describe("CommunityDevelopmentProvider", () => {
     writes.restore()
   })
 
-  it("a storage event with the key removed (Reset elsewhere) re-seeds this tab from now()", () => {
+  it("a storage event with the key removed (Clear elsewhere) empties this tab at now()", () => {
+    storeFounder()
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("9")
@@ -451,7 +476,7 @@ describe("CommunityDevelopmentProvider", () => {
     vi.useFakeTimers({ now: new Date(noonMs("2026-10-07")), toFake: ["Date"] })
     act(() => fireStorageEvent(STORAGE_KEY, null))
     vi.useRealTimers()
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("names")).not.toHaveTextContent("Gear drive")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
@@ -460,29 +485,31 @@ describe("CommunityDevelopmentProvider", () => {
     act(() => screen.getByRole("button", { name: "add" }).click())
     window.localStorage.setItem(STORAGE_KEY, "")
     act(() => fireStorageEvent(STORAGE_KEY, ""))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
     writes.restore()
   })
 
-  it("a corrupt copy written by another tab leaves this tab on the seed and is parked by the next save", () => {
+  it("a corrupt copy written by another tab leaves this tab on an empty list and is parked by the next save", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
+    storeFounder()
     mount()
     const writes = countingSetItem()
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     act(() => fireStorageEvent(STORAGE_KEY, "{not json"))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
     expect(writes.calls).toEqual([STORAGE_KEY])
     expect(communityDevelopmentStorage.rejected(window.localStorage)).toEqual([])
-    act(() => screen.getByRole("button", { name: "activate" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     expect(communityDevelopmentStorage.rejected(window.localStorage)[0]?.raw).toBe("{not json")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"active"')
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"Gear drive"')
     writes.restore()
   })
 
   describe("two tabs", () => {
     function mountTwo() {
+      storeFounder()
       render(
         <>
           <CommunityDevelopmentProvider nowMs={NOW_MS}>
@@ -520,7 +547,7 @@ describe("CommunityDevelopmentProvider", () => {
 
       act(() => a.getByRole("button", { name: "reset" }).click())
       act(() => fireStorageEvent(STORAGE_KEY, null))
-      expect(b.getByTestId("count")).toHaveTextContent("8")
+      expect(b.getByTestId("count")).toHaveTextContent("0")
       expect(b.getByTestId("status")).toHaveTextContent("edited=false saved=false")
       expect(a.getByTestId("status")).toHaveTextContent("edited=false saved=false")
       expect(writes.calls).toHaveLength(2)

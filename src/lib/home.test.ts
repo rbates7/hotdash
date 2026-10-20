@@ -16,7 +16,7 @@ import {
   KPI_SET_TITLES,
   kpiStripTitle,
   kpis,
-} from "@/lib/home-fixture"
+} from "@/lib/home-kpis"
 import { activeSprint, daysUntil } from "@/lib/issues"
 import { actors, buildIssues, buildSprints } from "@/lib/issues-fixture"
 import { buildInbox } from "@/test/inbox-fixture"
@@ -198,12 +198,11 @@ describe("sparklinePoints", () => {
 
 describe("KPI card sets", () => {
   // The day the Metrics mock was drawn; the shared fixture reproduces it.
-  const TODAY = "2026-08-21"
-  const KPI_SETS = kpiSets(TODAY)
+  const KPI_SETS = kpiSets()
 
   it("ships the truth strip: subscribers (the Metrics Subscribers number) and cash this week", () => {
     expect(ACTIVE_KPI_SET).toBe("truth")
-    expect(kpis(TODAY).map((k) => k.label)).toEqual(["Subscribers", "Cash this week"])
+    expect(kpis().map((k) => k.label)).toEqual(["Subscribers", "Cash this week"])
     expect(kpiStripTitle).toBe("Truth strip")
   })
 
@@ -217,15 +216,18 @@ describe("KPI card sets", () => {
     expect(KPI_SET_TITLES.growth).toBe("KPIs")
   })
 
-  it("every card in every set is well-formed with a unique id", () => {
+  it("every card in every set is well-formed with a unique id, and carries no figure", () => {
     for (const set of Object.values(KPI_SETS)) {
       const ids = set.map((k) => k.id)
       expect(new Set(ids).size).toBe(ids.length)
       for (const k of set) {
         expect(k.label).not.toBe("")
-        expect(k.value).not.toBe("")
-        expect(k.delta).not.toBe("")
-        expect(["up", "down", "flat"]).toContain(k.direction)
+        // No sample number ships: the card is a label until a source fills it.
+        expect(k.value).toBe("–")
+        expect(k.value).not.toMatch(/\d/)
+        expect(k.delta).toBe("")
+        expect(k.direction).toBe("flat")
+        expect(k.source).toBe("not_connected")
         expect(["good", "bad", "flat"]).toContain(kpiTone(k))
       }
     }

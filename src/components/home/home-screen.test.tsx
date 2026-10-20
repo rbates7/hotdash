@@ -6,10 +6,10 @@ import { FIXED_NOW, FIXED_NOW_MS } from "@/test/clock"
 import { IssuesProvider } from "@/components/agent-workplace/issues-store"
 import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { HomeScreen } from "@/components/home/home-screen"
-import { KPI_SET_TITLES, kpiSets } from "@/lib/home-fixture"
+import { KPI_SET_TITLES, kpiSets } from "@/lib/home-kpis"
 import { notConnectedKpi } from "@/lib/live-metrics"
 import { todayIn } from "@/lib/clock"
-import { truthStrip } from "@/lib/kpis"
+import { truthStrip } from "@/lib/kpis-fixture"
 import { KpiCard, KpiStrip } from "@/components/home/kpi-strip"
 import { NeedsYouDoor, inboxIssueHref } from "@/components/home/needs-you-door"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
@@ -66,7 +66,7 @@ describe("HomeScreen", () => {
   })
 
   it("the growth set with no source (notConnectedKpi, as liveKpis does without a key) is four Not connected cards, no chips", () => {
-    render(<KpiStrip kpis={kpiSets("2026-08-21").growth.map(notConnectedKpi)} title={KPI_SET_TITLES.growth} />)
+    render(<KpiStrip kpis={kpiSets().growth.map(notConnectedKpi)} title={KPI_SET_TITLES.growth} />)
     const cards = screen.getAllByRole("article")
     expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["MRR", "ARR", "Subscribers", "Churn Rate"])
     expect(screen.getAllByText("Not connected")).toHaveLength(4)

@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic"
 
 /**
  * Always the real page: nothing is polled yet, so no checks and Not
- * connected. There is no `?preview=` route; the seeded views exist only in
- * the unit tests (StatusScreen's `scenario` prop).
+ * connected, and no sample rows. Seeded rows exist only for the unit tests
+ * (`@/lib/system-status-fixture`).
  */
 export default function SystemStatusPage() {
   // The one read of the clock for this request. The screen is pure below

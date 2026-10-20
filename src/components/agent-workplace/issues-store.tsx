@@ -4,12 +4,9 @@ import * as React from "react"
 
 import type { Issue, IssuePriority, IssueStatus, Sprint } from "@/lib/issues"
 import { PRIORITY_ORDER, STATUS_ORDER } from "@/lib/issues"
-import {
-  actors as seedActors,
-  buildIssues,
-  buildSprints,
-  RASHAD,
-} from "@/lib/issues-fixture"
+import { actors as rosterActors, RASHAD } from "@/lib/issues-actors"
+import { SEED_ISSUE_KEYS, SEED_LAST_ISSUE_NUMBER, SEED_SPRINT_IDS } from "@/lib/issues-seed-ids"
+import { isBug } from "@/lib/bugs"
 import {
   createStorage,
   dedupe,
@@ -58,11 +55,45 @@ export type Action =
   /** `nowMs` is the request's instant on mount, `now()` for a cross-tab event. */
   | { type: "hydrate"; result: LoadResult<SavedState>; nowMs: number }
   | { type: "save-result"; ok: boolean }
-  /** Regenerates the seed from `nowMs` (`now()` at the click), so its dates are fresh again. */
+  /** Back to an empty board at `nowMs` (`now()` at the click): nothing saved any more. */
   | { type: "reset"; nowMs: number }
+  /**
+   * Clear my entries for one screen. Bugs and Agent Workplace share this
+   * store, so each clears only its own tickets (`clearScope`).
+   */
+  | { type: "clear"; scope: ClearScope; nowMs: number }
 
 /** The founder's own edits, as opposed to persistence plumbing. */
-export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" }>
+export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "reset" | "clear" }>
+
+/**
+ * Which screen's Clear my entries. `workplace` deletes every ticket that is
+ * not a bug, and every sprint; `bugs` deletes the bug tickets. Neither
+ * touches the other screen's tickets: a bug left in a cleared sprint goes
+ * back to the backlog.
+ */
+export type ClearScope = "workplace" | "bugs"
+
+/** The tickets a scope's Clear would delete. */
+export function inClearScope(scope: ClearScope, issue: Issue) {
+  return scope === "bugs" ? isBug(issue) : !isBug(issue)
+}
+
+/** The board after one screen's Clear my entries. */
+export function clearEntries(state: State, scope: ClearScope): State {
+  const issues = state.issues.filter((i) => !inClearScope(scope, i))
+  if (scope === "bugs") return issues.length === state.issues.length ? state : { ...state, issues }
+  return {
+    ...state,
+    issues: issues.map((i) => (i.sprintId === null ? i : { ...i, sprintId: null })),
+    sprints: [],
+  }
+}
+
+/** Whether a scope's Clear has anything to delete. */
+export function hasEntries(state: State, scope: ClearScope) {
+  return state.issues.some((i) => inClearScope(scope, i)) || (scope === "workplace" && state.sprints.length > 0)
+}
 
 function touch(issue: Issue, at: string): Issue {
   return { ...issue, updatedAt: at }
@@ -189,7 +220,7 @@ export function reducer(state: State, action: EditAction): State {
  * The shared persistence shell around the board. A saved copy brings its
  * board, never its clock: this page's instant stays so the saved sprint is
  * measured against today. No copy — nothing saved, or another tab's Reset —
- * means a fresh seed here too. Everything else is the shared reducer's
+ * means an empty board here too. Everything else is the shared reducer's
  * business (no-op edits return the same shell, hydrates never write,
  * `saved` follows the write's result).
  */
@@ -202,8 +233,8 @@ export function shellReducer(shell: Shell, action: Action): Shell {
         type: "hydrate",
         result: action.result,
         nowMs: action.nowMs,
-        // No copy (nothing saved, or another tab's Reset): a fresh seed dated
-        // from this moment, and the clock moves with it.
+        // No copy (nothing saved, or another tab's Clear): an empty board
+        // at this moment, and the clock moves with it.
         fallback: (nowMs) => initialState(new Date(nowMs)),
         // A copy brings its board, never its clock: the shell's instant stays.
         adopt: (saved) => ({ data: saved }),
@@ -216,26 +247,45 @@ export function shellReducer(shell: Shell, action: Action): Shell {
         nowMs: action.nowMs,
         seed: (nowMs) => initialState(new Date(nowMs)),
       })
+    case "clear": {
+      const data = clearEntries(shell.data, action.scope)
+      // Nothing left on the shared board: back to the never-edited state
+      // (the provider clears the key). Otherwise the rest is saved as an edit.
+      if (data.issues.length === 0 && data.sprints.length === 0) {
+        return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: () => ({ ...data }) })
+      }
+      return persistenceShellReducer(shell, { type: "edit", data })
+    }
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
 /**
- * The demo seed, dated relative to `now`: the active sprint started five
- * days before it and ends nine days after, comments and activity are hours
- * before it, and so on. Build it from the instant the page was requested.
+ * A fresh board: no tickets and no sprints. No sample rows, labelled or not
+ * (Rashad's Oct 16 rule). Keys start after the old demo's (CHLK-401…421)
+ * so a new ticket never takes one of theirs. `now` is unused, kept so every
+ * caller still passes the request's instant.
  */
-export function initialState(now: Date): State {
-  const issues = buildIssues(now)
-  const highest = issues.reduce((max, i) => {
-    const n = Number(i.key.split("-")[1])
-    return Number.isFinite(n) && n > max ? n : max
-  }, 0)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function initialState(_now: Date): State {
+  return { issues: [], sprints: [], nextKey: SEED_LAST_ISSUE_NUMBER + 1 }
+}
+
+/**
+ * A copy saved before the seed was removed still holds it. Every demo
+ * ticket (by key) and both demo sprints (by id) are dropped, edited or not;
+ * the founder's own tickets and sprints stay. A founder ticket planned into
+ * a demo sprint goes back to the backlog. The key counter never moves back.
+ */
+export function dropSeed(state: State): State {
+  const issues = state.issues.filter((i) => !SEED_ISSUE_KEYS.has(i.key))
+  const sprints = state.sprints.filter((s) => !SEED_SPRINT_IDS.has(s.id))
+  if (issues.length === state.issues.length && sprints.length === state.sprints.length) return state
   return {
-    issues,
-    sprints: buildSprints(now),
-    nextKey: highest + 1,
+    issues: issues.map((i) => (i.sprintId !== null && SEED_SPRINT_IDS.has(i.sprintId) ? { ...i, sprintId: null } : i)),
+    sprints,
+    nextKey: Math.max(state.nextKey, SEED_LAST_ISSUE_NUMBER + 1),
   }
 }
 
@@ -248,15 +298,16 @@ export function initialState(now: Date): State {
  *
  * Policy — persist only after the first real edit:
  * - A browser that has never edited the board is never written to, so it
- *   gets a fresh seed, dated from today, on every load. The seed cannot go
- *   stale in a browser that only looked at it.
+ *   starts with an empty board on every load.
  * - Once the founder edits something, the whole board is saved and a reload
  *   restores it. Dates in that copy are whatever they were when edited, so
  *   a sprint saved on day 0 honestly reads "N days over" after it ends.
- * - Reset discards the saved copy and regenerates the seed from the moment
- *   of the reset, returning the browser to the never-edited state.
+ * - Clear my entries deletes one screen's tickets (`ClearScope`); when
+ *   nothing is left it clears the saved copy, returning the browser to the
+ *   never-edited state. A copy saved before the demo seed was removed loses
+ *   the seed on load (`dropSeed`) and keeps the founder's own rows.
  *
- * Bump the version whenever the seed or the shape changes so saves from an
+ * Bump the version whenever the shape changes so saves from an
  * older build are discarded instead of half-applied. v1 (frozen demo dates)
  * is ignored entirely.
  */
@@ -363,7 +414,7 @@ export function parseSprint(value: unknown): Sprint | null {
  * Every issue, sprint, activity entry and comment is checked field by
  * field and rebuilt from known keys only, so a bad saved comment cannot
  * reach the ticket view. One malformed item drops the whole copy for the
- * seed rather than rendering half a board. The page's clock (`now`) is
+ * empty board rather than rendering half a board. The page's clock (`now`) is
  * never read from a copy; it is not saved either.
  */
 export function parseState(value: unknown): SavedState | null {
@@ -381,7 +432,7 @@ export function parseState(value: unknown): SavedState | null {
   if (new Set(issues.map((i) => i.key)).size !== issues.length) return null
   if (new Set(sprints.map((s) => s.id)).size !== sprints.length) return null
   if (sprints.filter((s) => s.status === "active").length > 1) return null
-  return { issues, sprints, nextKey: v.nextKey }
+  return dropSeed({ issues, sprints, nextKey: v.nextKey })
 }
 
 /** Boolean form of `parseState`, for callers that only need yes/no. */
@@ -403,7 +454,7 @@ export function loadState(storage: Storage | undefined): SavedState | null {
   return issuesStorage.load(storage).state
 }
 
-/** The saved copy, or a fresh seed dated from `now` when there is none. */
+/** The saved copy, or an empty board when there is none. */
 export function loadStateOrSeed(storage: Storage | undefined, now: Date): State {
   return loadState(storage) ?? initialState(now)
 }
@@ -418,7 +469,7 @@ export function clearState(storage: Storage | undefined) {
 
 type Store = State &
   PersistenceStore & {
-  actors: typeof seedActors
+  actors: typeof rosterActors
   /**
    * The shell's clock as a Date: the server's request instant, or the
    * moment of the last Reset (or of a re-seed after another tab's). Every
@@ -433,6 +484,8 @@ type Store = State &
   startSprint: (id: string) => void
   completeSprint: (id: string) => void
   resetDemoData: () => void
+  /** Clear my entries for one screen; see `ClearScope`. */
+  clearEntries: (scope: ClearScope) => void
 }
 
 const IssuesContext = React.createContext<Store | null>(null)
@@ -450,7 +503,7 @@ export function IssuesProvider({
   )
   const { data: state, persisted, edited, saved, saveFailed } = shell
 
-  // Server and first client paint both use the seed; the saved copy is
+  // Server and first client paint both use the empty board; the saved copy is
   // applied after mount so the HTML never mismatches. This first hydrate is
   // the only one dated from the request.
   React.useEffect(() => {
@@ -475,7 +528,7 @@ export function IssuesProvider({
     const at = () => clockNow().toISOString()
     return {
       ...state,
-      actors: seedActors,
+      actors: rosterActors,
       now,
       persisted,
       edited,
@@ -490,12 +543,17 @@ export function IssuesProvider({
         dispatch({ type: "create-sprint", name, startDate, endDate }),
       startSprint: (id) => dispatch({ type: "start-sprint", id }),
       completeSprint: (id) => dispatch({ type: "complete-sprint", id }),
-      // Reset clears the copy and re-dates the seed from right now, not from
-      // the page load, so a save left over from an older session comes back
-      // fresh and the browser returns to the never-edited state.
+      // Clears the copy: an empty board from right now, never-edited again.
       resetDemoData: () => {
         clearState(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
+      },
+      // One screen's entries only. When nothing is left the key is cleared
+      // too, so the browser is back to the never-edited state.
+      clearEntries: (scope) => {
+        const rest = clearEntries(state, scope)
+        if (rest.issues.length === 0 && rest.sprints.length === 0) clearState(window.localStorage)
+        dispatch({ type: "clear", scope, nowMs: reseedNowMs() })
       },
     }
   }, [state, persisted, edited, saved, saveFailed, now])

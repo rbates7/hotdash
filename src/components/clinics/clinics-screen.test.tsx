@@ -3,14 +3,15 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { CLINICS_MOCK_DAY, CLINIC_LIMITS } from "@/lib/clinics"
+import { CLINIC_LIMITS } from "@/lib/clinics"
+import { CLINICS_MOCK_DAY, founderClinicsState } from "@/lib/clinics-fixture"
 import {
   CLINIC_TOUCH,
   SPAWN_LABEL,
   SPAWN_SOON,
   TYPE_ATTEND_GRID,
 } from "@/components/clinics/clinic-dialog"
-import { ClinicsScreen, LEDE } from "@/components/clinics/clinics-screen"
+import { CLINICS_EMPTY_HINT, ClinicsScreen, LEDE } from "@/components/clinics/clinics-screen"
 import {
   COLUMNS,
   TABLET_NAME_CELL,
@@ -22,20 +23,26 @@ import { PHONE_QUERY } from "@/hooks/use-mobile"
 import {
   ClinicsProvider,
   STORAGE_KEY,
-  initialState,
   reducer,
   saveState,
 } from "@/components/clinics/clinics-store"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import { LATE_EVENING_CT_MS } from "@/test/clock"
-import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME, RESET_DISABLED_HINT } from "@/components/persistence-note"
+import { CLEAR_COPY, PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
 
 /** Noon Central on the day the mock was drawn, so rows match it verbatim. */
 const NOW_MS = new Date("2026-08-28T17:00:00.000Z").getTime()
 /** 23:30 Central on 7 Oct 2026 — UTC already says the 8th. */
 const LATE_MS = LATE_EVENING_CT_MS
 
-function renderScreen(nowMs = NOW_MS) {
+/** The founder's own clinics (the old sample under ids of their own), saved first. */
+const storeFounder = () => saveState(window.localStorage, founderClinicsState(CLINICS_MOCK_DAY))
+
+/**
+ * Renders the page over the founder's saved list unless the test saved its
+ * own copy first; `fresh` opens it on nothing saved (an empty list).
+ */
+function renderScreen(nowMs = NOW_MS, { fresh = false } = {}) {
+  if (!fresh && window.localStorage.getItem(STORAGE_KEY) === null) storeFounder()
   return render(
     <ClinicsProvider nowMs={nowMs}>
       <ClinicsScreen />
@@ -82,18 +89,35 @@ describe("ClinicsScreen", () => {
     window.matchMedia = nativeMatchMedia
   })
 
-  it("renders the header, the lede, the shared note and chip, and Add clinic", () => {
-    renderScreen()
+  it("renders the header, the lede, the Clear my entries note and Add clinic; no sample chip", () => {
+    renderScreen(NOW_MS, { fresh: true })
     expect(screen.getByRole("heading", { level: 1, name: "Clinics" })).toBeInTheDocument()
     expect(screen.getByText(LEDE)).toBeInTheDocument()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
     // Disabled but reachable, with the shared hint, per the shared note.
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass("max-xl:h-11!")
-    const header = screen.getByRole("heading", { level: 1, name: "Clinics" }).closest("header")!
-    expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-    expect(screen.getByRole("button", { name: "Add clinic" })).toBeEnabled()
+    const clear = screen.getByRole("button", { name: CLEAR_COPY.button })
+    expect(clear).toHaveAttribute("aria-disabled", "true")
+    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
+    expect(clear).toHaveClass("max-xl:h-11!")
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Add clinic" })[0]).toBeEnabled()
+  })
+
+  it("nothing saved: no sample rows, one empty state that says how to start", () => {
+    renderScreen(NOW_MS, { fresh: true })
+    const empty = screen.getByRole("status", { name: "No clinics" })
+    expect(empty).toHaveTextContent(CLINICS_EMPTY_HINT)
+    expect(empty).not.toHaveTextContent(/sample|Reset/i)
+    expect(screen.queryByText("Houston Offensive Staff Clinic")).not.toBeInTheDocument()
+  })
+
+  it("an old saved copy still holding the sample shows only the founder's rows", () => {
+    const mine = founderClinicsState(CLINICS_MOCK_DAY).clinics[0]
+    saveState(window.localStorage, { clinics: [{ ...mine, id: "clinic-1", name: "Old sample row" }, mine], nextId: 102 })
+    renderScreen()
+    expect(screen.queryByText("Old sample row")).not.toBeInTheDocument()
+    expect(screen.getAllByText(mine.name).length).toBeGreaterThan(0)
   })
 
   it("shows Upcoming then Past with the mock's rows, counts and columns", () => {
@@ -128,13 +152,9 @@ describe("ClinicsScreen", () => {
     expect(within(past[3]).getByText("Fort Worth spring clinic")).toBeInTheDocument()
   })
 
-  it("marks every seed row as sample data", () => {
+  it("no row carries a sample label", () => {
     renderScreen()
-    for (const name of ["Upcoming clinics", "Past clinics"] as const) {
-      for (const r of bodyRows(name)) {
-        expect(within(r).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-      }
-    }
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
   it("splits around the Central day: at 23:30 CT a clinic dated today is still Upcoming", async () => {
@@ -142,9 +162,9 @@ describe("ClinicsScreen", () => {
     // something to file: UTC would already call it yesterday.
     const today = "2026-10-07"
     saveState(window.localStorage, {
-      ...initialState(today),
-      clinics: [{ ...initialState(today).clinics[0], id: "clinic-1", name: "Tonight's walkthrough", date: today }],
-      nextId: 9,
+      ...founderClinicsState(today),
+      clinics: [{ ...founderClinicsState(today).clinics[0], id: "clinic-101", name: "Tonight's walkthrough", date: today }],
+      nextId: 109,
     })
     renderScreen(LATE_MS)
     const r = row("Upcoming clinics", /Tonight's walkthrough/)
@@ -156,7 +176,7 @@ describe("ClinicsScreen", () => {
 
   describe("hydration", () => {
     it("shows skeletons, never the seed, until localStorage has been read", async () => {
-      saveState(window.localStorage, reducer(initialState(CLINICS_MOCK_DAY), { type: "remove", id: "clinic-1" }))
+      saveState(window.localStorage, reducer(founderClinicsState(CLINICS_MOCK_DAY), { type: "remove", id: "clinic-101" }))
       const removed: Element[] = []
       const observer = new MutationObserver((records) => {
         for (const r of records) for (const n of r.removedNodes) if (n instanceof Element) removed.push(n)
@@ -242,10 +262,9 @@ describe("ClinicsScreen", () => {
       expect(within(rows[0]).getByText("5 Sep 2026")).toBeInTheDocument()
       expect(within(rows[0]).getByText("in 8 days")).toBeInTheDocument()
       expect(within(rows[0]).getByTestId("type-pill")).toHaveTextContent("Staff meeting")
-      expect(within(rows[0]).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
       expect(within(section("Upcoming clinics")).getByTestId("section-count")).toHaveTextContent("5")
       expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.saved)
-      expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeEnabled()
       expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Katy spring install")
     })
   })
@@ -271,8 +290,8 @@ describe("ClinicsScreen", () => {
 
     it("marks a past clinic attended, then skipped, and the status pill follows", async () => {
       const user = userEvent.setup()
-      saveState(window.localStorage, reducer(initialState(CLINICS_MOCK_DAY), {
-        type: "set-attendance", id: "clinic-5", attendance: "planned",
+      saveState(window.localStorage, reducer(founderClinicsState(CLINICS_MOCK_DAY), {
+        type: "set-attendance", id: "clinic-105", attendance: "planned",
       }))
       renderScreen()
       const r = () => row("Past clinics", /Spring Houston walk-through/)
@@ -308,14 +327,15 @@ describe("ClinicsScreen", () => {
     it("editing the date moves a clinic from Upcoming to Past; saving unchanged does not mark anything edited", async () => {
       const user = userEvent.setup()
       renderScreen()
+      const before = window.localStorage.getItem(STORAGE_KEY)
       let menu = await openMenu(user, "Austin staff install")
       await user.click(within(menu).getByRole("menuitem", { name: "Edit" }))
       let dialog = await screen.findByRole("dialog", { name: "Edit clinic" })
       expect(within(dialog).getByLabelText("Name")).toHaveFocus()
       await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-      expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-      expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+      // Nothing edited: the saved copy is untouched byte for byte.
+      expect(window.localStorage.getItem(STORAGE_KEY)).toBe(before)
 
       menu = await openMenu(user, "Austin staff install")
       await user.click(within(menu).getByRole("menuitem", { name: "Edit" }))
@@ -356,8 +376,8 @@ describe("ClinicsScreen", () => {
   describe("empty states", () => {
     it("an empty section says so in its table", () => {
       saveState(window.localStorage, {
-        ...initialState(CLINICS_MOCK_DAY),
-        clinics: initialState(CLINICS_MOCK_DAY).clinics.filter((c) => c.date < CLINICS_MOCK_DAY),
+        ...founderClinicsState(CLINICS_MOCK_DAY),
+        clinics: founderClinicsState(CLINICS_MOCK_DAY).clinics.filter((c) => c.date < CLINICS_MOCK_DAY),
       })
       renderScreen()
       expect(within(section("Upcoming clinics")).getByTestId("section-count")).toHaveTextContent("0")
@@ -384,15 +404,14 @@ describe("ClinicsScreen", () => {
     })
   })
 
-  it("Reset asks first and then puts the seed back", async () => {
+  it("Clear my entries asks first and then empties the list, with no sample rows back", async () => {
     const user = userEvent.setup()
-    saveState(window.localStorage, { clinics: [], nextId: 9 })
     renderScreen()
-    await user.click(screen.getByRole("button", { name: "Reset" }))
-    const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
-    await user.click(within(dialog).getByRole("button", { name: "Reset" }))
-    expect(bodyRows("Upcoming clinics")).toHaveLength(4)
-    expect(bodyRows("Past clinics")).toHaveLength(4)
+    await user.click(screen.getByRole("button", { name: CLEAR_COPY.button }))
+    const dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
+    expect(screen.getByRole("status", { name: "No clinics" })).toBeInTheDocument()
+    expect(screen.queryByText("Houston Offensive Staff Clinic")).not.toBeInTheDocument()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
   })
@@ -430,7 +449,7 @@ describe("ClinicsScreen", () => {
       expect(cards[0]).toHaveTextContent("Cy-Fair ISD coaches association")
       expect(cards[0]).toHaveTextContent("Trip")
       expect(within(cards[0]).getByTestId("status-pill")).toHaveTextContent("Upcoming")
-      expect(within(cards[0]).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      expect(within(cards[0]).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
 
       const past = within(section("Past clinics")).getByRole("list")
       const pastCards = within(past).getAllByRole("button")
@@ -481,8 +500,8 @@ describe("ClinicsScreen", () => {
 
     it("wraps an empty section status in a listitem so it is not a direct child of the list", () => {
       saveState(window.localStorage, {
-        ...initialState(CLINICS_MOCK_DAY),
-        clinics: initialState(CLINICS_MOCK_DAY).clinics.filter((c) => c.date < CLINICS_MOCK_DAY),
+        ...founderClinicsState(CLINICS_MOCK_DAY),
+        clinics: founderClinicsState(CLINICS_MOCK_DAY).clinics.filter((c) => c.date < CLINICS_MOCK_DAY),
       })
       mockPhone()
       renderScreen()
@@ -530,6 +549,7 @@ describe("ClinicsScreen", () => {
 
   it("a failed save is announced and nothing claims Saved", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
+    storeFounder()
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
     })
@@ -538,7 +558,7 @@ describe("ClinicsScreen", () => {
     const menu = await openMenu(user, "Houston Offensive Staff Clinic")
     await user.click(within(menu).getByRole("menuitem", { name: "Mark skipped" }))
     expect(screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })).toHaveTextContent(PERSISTENCE_COPY.failed)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeInTheDocument()
     spy.mockRestore()
   })
 })

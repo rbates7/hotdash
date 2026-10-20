@@ -46,3 +46,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# My Desk shots stay local (pnpm screens:my-desk); never in git.
+docs/screenshots/my-desk/

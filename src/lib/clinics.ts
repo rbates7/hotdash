@@ -1,12 +1,13 @@
-import { addDays, formatDate, isIsoDay, type IsoDay } from "@/lib/clock"
+import { formatDate, isIsoDay, type IsoDay } from "@/lib/clock"
 import { isFiniteNumber, isString } from "@/lib/persistence"
 
 /**
  * Clinics page domain: one row per clinic — when, who hosts, whether we
  * show up, what we collected. Trip's page (reqs: "Dates, hosts, whether we
- * show up, what we collected. One row per clinic."). Everything here is
- * sample data until a datastore lands; the shapes are real so the store can
- * validate a saved copy field by field.
+ * show up, what we collected. One row per clinic."). No sample rows ship:
+ * the list holds only what the founder enters (this browser, until a
+ * datastore lands). The shapes are real so the store can validate a saved
+ * copy field by field.
  */
 
 export const CLINIC_TYPES = ["clinic", "zoom", "staff-meeting"] as const
@@ -255,55 +256,16 @@ export function describeClinic(c: Clinic) {
   return `${c.name} · ${formatDate(c.date)}`
 }
 
-/* ------------------------------------------------------------------- seed */
+/* -------------------------------------------------------------- old seed */
 
 /**
- * The day the Clinics mock was drawn. Seed rows are day offsets so that
- * `seedClinics(MOCK_DAY)` reproduces the mock's dates exactly, while on any
- * other day the same four sit ahead of "today" and the same four behind it.
+ * The ids the old Clinics sample used (`clinic-1`…`clinic-8`), written out
+ * so the browser bundle carries none of the sample's names or notes
+ * (`@/lib/clinics-fixture` is for tests). The store drops these rows from
+ * a copy saved before the sample was removed; new rows start past them.
  */
-export const CLINICS_MOCK_DAY: IsoDay = "2026-08-28"
-
-/** Eight rows: four upcoming, four past, as the mock shows. */
-export function seedClinics(today: IsoDay): Clinic[] {
-  const d = (offset: number) => addDays(today, offset)
-  const row = (
-    n: number,
-    name: string,
-    offset: number,
-    host: string,
-    city: string,
-    type: ClinicType,
-    attendance: Attendance,
-    collected: Collected,
-    notes: string
-  ): Clinic => ({
-    id: `clinic-${n}`,
-    name,
-    date: d(offset),
-    host,
-    city,
-    type,
-    attendance,
-    collected,
-    owner: DEFAULT_OWNER,
-    notes,
-  })
-  return [
-    row(1, "Houston Offensive Staff Clinic", 15, "Cy-Fair ISD coaches association", "Houston", "clinic", "planned", EMPTY_COLLECTED, "Trip presents the install flow; bring the iPad demo rig."),
-    row(2, "Dallas 7-on-7 Coaches Night", 22, "North Texas 7v7 league", "Dallas", "clinic", "planned", EMPTY_COLLECTED, "Evening slot after pool play. Skye joins for CRM follow-ups."),
-    row(3, "Midweek CHLK walkthrough", 27, "CHLK (open invite)", "Remote", "zoom", "planned", EMPTY_COLLECTED, "Standing Zoom; link goes out to the trial list."),
-    row(4, "Austin staff install", 36, "Westlake HS football", "Austin", "staff-meeting", "planned", EMPTY_COLLECTED, "Whole-staff onboarding on their devices."),
-    row(5, "Spring Houston walk-through", -81, "Katy ISD athletics", "Houston", "clinic", "attended", { leads: 14, emails: 11, demos: 3 }, "Two staffs asked about annual pricing."),
-    row(6, "Dallas staff huddle", -98, "Highland Park HS", "Dallas", "staff-meeting", "attended", { leads: 6, emails: 6, demos: 1 }, "Converted to a staff plan the following week."),
-    row(7, "Remote playbook office hours", -106, "CHLK (open invite)", "Remote", "zoom", "attended", { leads: 9, emails: 9, demos: 0 }, "Mostly existing trials; good questions on sharing."),
-    row(8, "Fort Worth spring clinic", -121, "Tarrant County coaches clinic", "Fort Worth", "clinic", "attended", { leads: 21, emails: 17, demos: 4 }, "Biggest room so far. Two college staffs in the back."),
-  ]
-}
-
-/** Ids the seed uses; anything else was entered by the user. */
 export const SEED_CLINIC_IDS: ReadonlySet<string> = new Set(
-  seedClinics(CLINICS_MOCK_DAY).map((c) => c.id)
+  ["clinic-1", "clinic-2", "clinic-3", "clinic-4", "clinic-5", "clinic-6", "clinic-7", "clinic-8"]
 )
 
 export function isSeedClinic(c: Pick<Clinic, "id">) {

@@ -5,12 +5,13 @@ import userEvent from "@testing-library/user-event"
 import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { CAPS } from "@/lib/sales-opportunities"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
+import { founderDealsState } from "@/lib/sales-opportunities-fixture"
+import { CLEAR_COPY } from "@/components/persistence-note"
 import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
 import {
   DealsProvider,
-  initialState,
+  STORAGE_KEY,
   reducer,
   saveState,
 } from "@/components/sales-opportunities/deals-store"
@@ -42,7 +43,17 @@ function Screen({ nowMs = FIXED_NOW_MS }: { nowMs?: number }) {
   )
 }
 
-const renderScreen = (nowMs?: number) => render(<Screen nowMs={nowMs} />)
+/** The founder's own deals (the old sample under ids of their own). */
+const founder = () => founderDealsState(FIXED_NOW_MS)
+
+/**
+ * Renders the page over the founder's saved deals unless the test saved its
+ * own copy first; `fresh` opens it on nothing saved (an empty pipeline).
+ */
+const renderScreen = (nowMs?: number, { fresh = false } = {}) => {
+  if (!fresh && window.localStorage.getItem(STORAGE_KEY) === null) saveState(window.localStorage, founder())
+  return render(<Screen nowMs={nowMs} />)
+}
 
 const region = () => screen.getByRole("region", { name: "Deals" })
 const table = () => within(region()).getByRole("table", { name: "Deals" })
@@ -107,12 +118,27 @@ describe("DealsScreen", () => {
     expect(within(row(/Whitaker/)).getByText("Yesterday")).toBeInTheDocument()
   })
 
-  it("marks every seed row as sample data and the table strip too", () => {
+  it("no row carries a sample label and the table has no sample strip", () => {
     renderScreen()
-    for (const r of rows()) {
-      expect(within(r).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-    }
-    expect(within(region()).getByTestId("sample-data-strip")).toHaveTextContent(/Seed deals are invented/)
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-strip")).not.toBeInTheDocument()
+  })
+
+  it("nothing saved: no sample deals, the empty pipeline, and Clear my entries off", () => {
+    renderScreen(undefined, { fresh: true })
+    const none = within(region()).getByRole("status", { name: "No deals" })
+    expect(none).toHaveTextContent("No live deals")
+    expect(screen.queryByText(/Whitaker/)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+  })
+
+  it("an old saved copy still holding the sample shows only the founder's deals", () => {
+    const mine = founder().deals[0]
+    saveState(window.localStorage, { deals: [{ ...mine, id: "deal-1", who: "Old sample deal" }, mine], nextId: 102 })
+    renderScreen()
+    expect(screen.queryByText("Old sample deal")).not.toBeInTheDocument()
+    expect(rows()).toHaveLength(1)
   })
 
   it("filters Open / Won / Lost / All", async () => {
@@ -179,7 +205,6 @@ describe("DealsScreen", () => {
       expect(within(added).getByText("$1,800")).toBeInTheDocument()
       expect(within(added).getByText("just now")).toBeInTheDocument()
       expect(within(added).getByText("No date")).toBeInTheDocument()
-      // A deal you add is yours: no sample tag.
       expect(within(added).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
       expect(rows()).toHaveLength(7)
       expect(screen.getByTestId("persistence-note")).toHaveTextContent("Saved in this browser")
@@ -228,8 +253,7 @@ describe("DealsScreen", () => {
       expect(within(r).getByText("1 Sep 2026")).toBeInTheDocument()
       expect(within(r).getByText("Due in 5 days")).toBeInTheDocument()
       expect(within(r).getByText("just now")).toBeInTheDocument()
-      // Still a seed row, still labelled.
-      expect(within(r).getByTestId("sample-data-tag")).toBeInTheDocument()
+      expect(within(r).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     })
   })
 
@@ -278,7 +302,7 @@ describe("DealsScreen", () => {
       expect(r).not.toHaveAttribute("data-overdue")
       expect(within(region()).getByText("1 overdue")).toBeInTheDocument()
       // No longer overdue, so it sorts after today's deadlines.
-      expect(rows()[0]).toHaveAttribute("data-deal", "deal-3")
+      expect(rows()[0]).toHaveAttribute("data-deal", "deal-103")
     })
   })
 
@@ -303,7 +327,7 @@ describe("DealsScreen", () => {
   describe("empty states", () => {
     it("says so when a filter has nothing, and when there are no deals at all", async () => {
       const user = userEvent.setup()
-      saveState(window.localStorage, reducer(initialState(FIXED_NOW_MS), { type: "delete-deal", id: "deal-8" }))
+      saveState(window.localStorage, reducer(founder(), { type: "delete-deal", id: "deal-108" }))
       renderScreen()
       await user.click(filter("Lost"))
       const empty = within(region()).getByRole("status", { name: "No deals" })
@@ -320,7 +344,8 @@ describe("DealsScreen", () => {
 
   describe("clock", () => {
     it("every relative figure follows the instant the page was given", () => {
-      // 23:30 CT on 7 Oct 2026: the seed must say the 7th, not the 8th.
+      // 23:30 CT on 7 Oct 2026: deals dated that evening must say the 7th, not the 8th.
+      saveState(window.localStorage, founderDealsState(LATE_EVENING_CT_MS))
       renderScreen(LATE_EVENING_CT_MS)
       expect(within(row(/Pruitt/)).getByText("5 Oct 2026")).toBeInTheDocument()
       expect(within(row(/Pruitt/)).getByText("Overdue 2 days")).toBeInTheDocument()

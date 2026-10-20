@@ -60,7 +60,7 @@ uses different rules (see [stripe-live.md](./stripe-live.md), "Subscribers").
 
 So the two cards measure different things, and their figures will differ.
 
-## Layout (Deke's design review, #67)
+## Layout (#67; design sign-off pending: Simmons is confirming with Deke)
 
 - **1024px and up:** three even columns. The rows on desktop match heights,
   and the methods stack as label and value rows.
