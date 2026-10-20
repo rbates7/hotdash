@@ -173,7 +173,10 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
   // browser and say so themselves, so the read-only note is for the others.
   const rebuilt = isRebuiltScreen(pathname)
   // The login gate's 401: the data is behind the login, not disconnected.
-  const unauthorized = useCrmView().phase === "unauthorized"
+  const viewPhase = useCrmView().phase
+  const unauthorized = viewPhase === "unauthorized"
+  // First load or Gmail's first sync: the subtitle says the cases are loading.
+  const loading = connecting || viewPhase === "loading" || gmail.kind === "loading"
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -190,7 +193,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
               ? EXPIRED_LEDE
               : gmail.kind === "live"
                 ? liveLede(gmail.mailbox)
-                : connecting
+                : loading
                   ? CONNECTING_LEDE
                   : LEDE}
           </p>
