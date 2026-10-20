@@ -19,6 +19,8 @@ import {
  */
 export const LIST_TTL_MS = 2 * 60_000
 export const CUSTOMER_TTL_MS = 2 * 60_000
+/** At most this many customers are held; the oldest go first. */
+export const CUSTOMER_CACHE_MAX = 500
 
 export type Customer = { name: string | null; email: string | null }
 export type CustomerLookup = (id: string) => Promise<Customer>
@@ -44,6 +46,7 @@ export function createSubscriberLists({
   clock = () => Date.now(),
   listTtlMs = LIST_TTL_MS,
   customerTtlMs = CUSTOMER_TTL_MS,
+  customerMax = CUSTOMER_CACHE_MAX,
   log = (kind: string) => console.warn(`[stripe] customer lookup failed: ${kind}`),
 }: {
   service?: Pick<StripeService, "snapshot">
@@ -51,10 +54,21 @@ export function createSubscriberLists({
   clock?: () => number
   listTtlMs?: number
   customerTtlMs?: number
+  customerMax?: number
   log?: (kind: string) => void
 } = {}) {
   const lists = new Map<string, { at: number; body: StripeSubscriberListResponse }>()
   const customers = new Map<string, { at: number; value: Customer }>()
+
+  /** Drop expired customers, then the oldest beyond `customerMax`. */
+  function pruneCustomers() {
+    const now = clock()
+    for (const [k, v] of customers) if (now - v.at >= customerTtlMs) customers.delete(k)
+    for (const k of customers.keys()) {
+      if (customers.size <= customerMax) break
+      customers.delete(k)
+    }
+  }
 
   async function customer(id: string | null): Promise<Customer> {
     if (!id) return { name: null, email: null }
@@ -62,7 +76,9 @@ export function createSubscriberLists({
     if (hit && clock() - hit.at < customerTtlMs) return hit.value
     try {
       const value = await lookup(id)
+      customers.delete(id) // re-insert so Map order stays oldest-first
       customers.set(id, { at: clock(), value })
+      pruneCustomers()
       return value
     } catch (error) {
       log(failureKind(error)) // a word only: never the id, name, email or message
@@ -98,6 +114,10 @@ export function createSubscriberLists({
       for (const [k, v] of lists) if (clock() - v.at >= listTtlMs) lists.delete(k)
       lists.set(key, { at: clock(), body })
       return body
+    },
+    /** Tests only: how many customers are held. */
+    customerCacheSize() {
+      return customers.size
     },
     reset() {
       lists.clear()
