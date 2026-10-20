@@ -23,11 +23,9 @@ const ITEM: WorkboardItem = {
   title: "One",
   url: "https://github.com/rbates7/hotdash/pull/1",
   owner: "rbates7",
-  branch: "feat/one",
   state: "ready_for_review",
   ci: "passing",
   review: "none",
-  proofLinks: [],
   updatedAt: "2026-10-16T11:00:00Z",
   mergedAt: null,
 }

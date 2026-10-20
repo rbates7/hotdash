@@ -81,7 +81,12 @@ function WorkCard({ item }: { item: WorkboardItem }) {
         <CardHeader>
           <CardTitle className="text-body font-medium break-words">{item.title}</CardTitle>
           <p className="text-caption text-muted-foreground">
-            {ownerName(item.owner)} · <code className="break-all">{item.branch}</code>
+            {ownerName(item.owner)}
+            {item.mergedAt ? (
+              <> · Merged <time dateTime={item.mergedAt}>{formatWorkboardTime(item.mergedAt)}</time></>
+            ) : item.updatedAt ? (
+              <> · Updated <time dateTime={item.updatedAt}>{formatWorkboardTime(item.updatedAt)}</time></>
+            ) : null}
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-1.5">
@@ -98,12 +103,6 @@ function WorkCard({ item }: { item: WorkboardItem }) {
               PR #{item.number}
               <ExternalLinkIcon aria-hidden className="size-3" />
             </a>
-            {item.proofLinks.map((href, i) => (
-              <a key={href} className={LINK} href={href} target="_blank" rel="noopener noreferrer">
-                Proof{item.proofLinks.length > 1 ? ` ${i + 1}` : ""}
-                <ExternalLinkIcon aria-hidden className="size-3" />
-              </a>
-            ))}
           </div>
         </CardContent>
       </Card>

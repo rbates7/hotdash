@@ -54,11 +54,9 @@ function parseItem(raw: unknown): WorkboardItem | null {
     title: i.title,
     url: i.url,
     owner: isString(i.owner) ? i.owner : "",
-    branch: isString(i.branch) ? i.branch : "",
     state: i.state as WorkboardState,
     ci: CIS.has(i.ci as WorkboardCi) ? (i.ci as WorkboardCi) : "none",
     review: REVIEWS.has(i.review as WorkboardReview) ? (i.review as WorkboardReview) : "none",
-    proofLinks: Array.isArray(i.proofLinks) ? i.proofLinks.filter((u): u is string => isString(u) && /^https:\/\//.test(u)) : [],
     updatedAt: isString(i.updatedAt) ? i.updatedAt : "",
     mergedAt: isString(i.mergedAt) ? i.mergedAt : null,
   }

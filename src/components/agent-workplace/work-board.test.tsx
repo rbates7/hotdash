@@ -43,7 +43,7 @@ describe("WorkBoardView", () => {
     expect(screen.queryByTestId("workboard-stale")).toBeNull()
   })
 
-  it("live: four columns, one card each, with owner, branch, PR link, CI, review and proof", () => {
+  it("live: four columns, one card each, with owner, date, PR link, CI and review, and no other links", () => {
     render(<WorkBoardView view={ready("connected")} />)
     expect(screen.getAllByTestId("work-card")).toHaveLength(LIVE_ITEMS.length)
     for (const [name, number] of [["Working", 52], ["Needs fix", 50], ["Ready for review", 48], ["Merged", 46]] as const) {
@@ -55,12 +55,22 @@ describe("WorkBoardView", () => {
     }
     const ready48 = within(screen.getByRole("region", { name: "Ready for review" }))
     expect(ready48.getByText(/Simmons/)).toBeInTheDocument()
-    expect(ready48.getByText("feat/suspect-zero")).toBeInTheDocument()
+    expect(ready48.getByText(/Updated/)).toHaveTextContent("Simmons · Updated Oct 16, 5:10 PM CDT")
+    const merged46 = within(screen.getByRole("region", { name: "Merged" }))
+    const mergedAt = merged46.getByText("Oct 16, 10:00 AM CDT")
+    expect(mergedAt).toHaveAttribute("datetime", "2026-10-16T15:00:00Z")
+    expect(mergedAt.closest("p")).toHaveTextContent("rbates7 · Merged Oct 16, 10:00 AM CDT")
     expect(ready48.getByText("CI passing")).toBeInTheDocument()
     expect(ready48.getByText("Review pending")).toBeInTheDocument()
-    const proof = ready48.getByRole("link", { name: /Proof/ })
-    expect(proof).toHaveAttribute("target", "_blank")
-    expect(proof).toHaveAttribute("rel", "noopener noreferrer")
+    const link = ready48.getByRole("link", { name: /PR #48/ })
+    expect(link).toHaveAttribute("target", "_blank")
+    expect(link).toHaveAttribute("rel", "noopener noreferrer")
+    // One link per card, GitHub's PR URL: no Proof links, no branch.
+    expect(screen.queryByRole("link", { name: /Proof/ })).toBeNull()
+    expect(screen.queryByText(/feat\//)).toBeNull()
+    expect(screen.getAllByRole("link").map((a) => a.getAttribute("href")).sort()).toEqual(
+      LIVE_ITEMS.map((i) => `https://github.com/rbates7/hotdash/pull/${i.number}`).sort()
+    )
     expect(screen.getByText("From GitHub · updated Oct 16, 7:45 PM CDT")).toBeInTheDocument()
     expect(screen.queryByTestId("workboard-stale")).toBeNull()
   })
