@@ -67,6 +67,7 @@ describe("GET /api/workboard", () => {
     const json = JSON.parse(text)
 
     expect(json.status).toBe("connected")
+    expect(Object.keys(json).sort()).toEqual(["connected", "fetchedAt", "items", "stale", "status"])
     expect(json.items.map((i: { number: number }) => i.number).sort()).toEqual([2, 3])
     for (const item of json.items) {
       expect(Object.keys(item).sort()).toEqual(["ci", "mergedAt", "number", "owner", "review", "state", "title", "updatedAt", "url"])

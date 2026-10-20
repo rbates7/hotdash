@@ -75,6 +75,18 @@ describe("WorkBoardView", () => {
     expect(screen.queryByTestId("workboard-stale")).toBeNull()
   })
 
+  it("a missing or unparseable date renders nothing: no time, no raw string", () => {
+    const bad = [
+      { ...LIVE_ITEMS[2], number: 801, title: "Bad date", mergedAt: null, updatedAt: "not-a-date" },
+      { ...LIVE_ITEMS[2], number: 802, title: "No date", mergedAt: null, updatedAt: "" },
+    ]
+    render(<WorkBoardView view={ready("connected", bad)} />)
+    for (const card of screen.getAllByTestId("work-card")) {
+      expect(card.querySelector("time")).toBeNull()
+      expect(card).not.toHaveTextContent(/not-a-date|Updated|Merged|Invalid Date/)
+    }
+  })
+
   it("a column with no rows says None, never a placeholder card", () => {
     render(<WorkBoardView view={ready("connected", [LIVE_ITEMS[2]])} />)
     expect(within(screen.getByRole("region", { name: "Working" })).getByText("None")).toBeInTheDocument()

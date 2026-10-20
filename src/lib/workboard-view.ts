@@ -5,6 +5,7 @@
  * `@/hooks/use-workboard`. Never a sample row: no answer is loading, an
  * unreadable or failed first answer is not connected.
  */
+import { CENTRAL } from "@/lib/clock"
 import type {
   WorkboardCi,
   WorkboardItem,
@@ -128,11 +129,13 @@ export function groupByState(items: readonly WorkboardItem[]): Record<WorkboardS
 }
 
 /** "Oct 16, 5:10 PM CDT"; an unreadable time comes back as is. */
-export function formatWorkboardTime(iso: string): string {
+/** Central time ("Oct 16, 7:45 PM CDT"); a missing or unparseable date is "" (rendered as nothing). */
+export function formatWorkboardTime(iso: string | null | undefined): string {
+  if (!iso) return ""
   const d = new Date(iso)
-  if (!iso || Number.isNaN(d.getTime())) return iso
+  if (Number.isNaN(d.getTime())) return ""
   return d.toLocaleString("en-US", {
-    timeZone: "America/Chicago",
+    timeZone: CENTRAL,
     month: "short",
     day: "numeric",
     hour: "numeric",

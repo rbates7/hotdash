@@ -82,9 +82,9 @@ function WorkCard({ item }: { item: WorkboardItem }) {
           <CardTitle className="text-body font-medium break-words">{item.title}</CardTitle>
           <p className="text-caption text-muted-foreground">
             {ownerName(item.owner)}
-            {item.mergedAt ? (
-              <> · Merged <time dateTime={item.mergedAt}>{formatWorkboardTime(item.mergedAt)}</time></>
-            ) : item.updatedAt ? (
+            {formatWorkboardTime(item.mergedAt) ? (
+              <> · Merged <time dateTime={item.mergedAt!}>{formatWorkboardTime(item.mergedAt)}</time></>
+            ) : formatWorkboardTime(item.updatedAt) ? (
               <> · Updated <time dateTime={item.updatedAt}>{formatWorkboardTime(item.updatedAt)}</time></>
             ) : null}
           </p>
