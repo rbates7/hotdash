@@ -53,7 +53,17 @@ test.describe("server endpoints with no Gmail credentials", () => {
     const res = await request.get("/api/crm/gmail")
     expect(res.status()).toBe(200)
     expect(res.headers()["cache-control"]).toBe("no-store")
-    expect(await res.json()).toEqual({ status: "not_connected", lastSyncedAt: null, data: null, mailbox: "info@chlkapp.com" })
+    expect(await res.json()).toEqual({
+      status: "not_connected",
+      lastSyncedAt: null,
+      data: null,
+      mailbox: "info@chlkapp.com",
+      lastUpdated: null,
+      counts: { open: 0, waitingOnUs: 0, waitingOnThem: 0, closedThisWeek: 0 },
+      cases: [],
+      accounts: [],
+      recentActivity: [],
+    })
   })
 
   test("/api/health/gmail says only not_configured", async ({ request }) => {
