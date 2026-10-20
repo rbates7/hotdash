@@ -8,6 +8,7 @@ import {
   assertNoSecrets,
   blankSecretLike,
   isSecretLike,
+  isThrowawayGateValue,
   liveDataPaths,
   parseEnvLines,
   secretLikeSet,
@@ -52,6 +53,19 @@ describe("shot-env", () => {
     expect(() => assertNoSecrets(dirty(), "test")).toThrow(/SENTRY_READONLY_TOKEN/)
   })
 
+  it("allows only throwaway login-gate values, never real-looking ones", () => {
+    const ok = { DASHBOARD_LOGIN_EMAIL: "gate-shots@example.invalid", DASHBOARD_GATE_SECRET: "TEST-ONLY-gate-shots-1" }
+    expect(secretLikeSet(ok)).toEqual([])
+    expect(serverEnv({}, ok)).toMatchObject(ok)
+    expect(isThrowawayGateValue("DASHBOARD_LOGIN_EMAIL", "founder@chlk.app")).toBe(false)
+    expect(isThrowawayGateValue("DASHBOARD_GATE_SECRET", "hunter2-real")).toBe(false)
+    expect(isThrowawayGateValue("SENTRY_READONLY_TOKEN", "TEST-ONLY-abcdefgh")).toBe(false)
+    expect(secretLikeSet({ DASHBOARD_LOGIN_EMAIL: "founder@chlk.app", DASHBOARD_GATE_SECRET: "real-pw" })).toEqual([
+      "DASHBOARD_GATE_SECRET",
+      "DASHBOARD_LOGIN_EMAIL",
+    ])
+  })
+
   it("liveDataPaths flags live statuses and rows, never a key-less answer", () => {
     expect(liveDataPaths({ sources: { github: { status: "not_connected" } }, items: [] })).toEqual([])
     expect(liveDataPaths({ sources: { sentry: { status: "connected" } }, items: [{}] })).toEqual([
@@ -61,7 +75,7 @@ describe("shot-env", () => {
     expect(liveDataPaths({ status: "stale" })).toEqual(["$.status"])
   })
 
-  for (const script of ["scripts/inbox-reshoot.sh", "scripts/mrr-cash-reshoot.sh"]) {
+  for (const script of ["scripts/inbox-reshoot.sh", "scripts/mrr-cash-reshoot.sh", "scripts/gate-reshoot.sh"]) {
     it(`${script} --print-server-env passes no token through, even with tokens set`, () => {
       const out = execFileSync("bash", [script, "--print-server-env", "3299"], {
         cwd: ROOT,
