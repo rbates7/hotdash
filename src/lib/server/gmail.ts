@@ -16,6 +16,8 @@ import {
   type GmailHealth,
   type GmailSummary,
 } from "@/lib/crm/gmail-summary"
+import { buildCrmList, emptyCrmList, parseFullThread } from "@/lib/crm/gmail-view"
+import type { CrmFeedStatus, CrmListResponse, CrmThreadResponse } from "@/lib/crm/types"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
@@ -348,6 +350,31 @@ export function gmailLoader(fetchImpl: typeof fetch = fetch, tokens: TokenCache 
   }
 }
 
+/** Reads one whole thread (`format=full`): bodies and attachment metadata, never attachment bytes. */
+export type ThreadLoader = (config: OkConfig, gmailThreadId: string, signal?: AbortSignal) => Promise<unknown>
+
+export function gmailThreadLoader(fetchImpl: typeof fetch = fetch, tokens: TokenCache = createTokenCache(fetchImpl)): ThreadLoader {
+  return async (config, gmailThreadId, signal) => {
+    if (!GMAIL_ID.test(gmailThreadId)) throw new GmailError("InvalidData")
+    const accessToken = await tokens.get(config, signal)
+    const secrets = [config.clientSecret, config.refreshToken, config.clientId, accessToken]
+    const url = `${GMAIL_API}/${encodeURIComponent(config.mailbox)}/threads/${gmailThreadId}?format=full`
+    const res = await fetchImpl(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal,
+      cache: "no-store",
+    })
+    if (!res.ok) {
+      if (res.status === 401) tokens.invalidate()
+      throw await googleError("api", res, secrets)
+    }
+    return (await res.json()) as unknown
+  }
+}
+
+/** One thread's bodies are fetched on demand, cut off after this. */
+export const THREAD_TIMEOUT_MS = 8_000
+
 /**
  * A word for the log, never the error's message: a failed token exchange
  * can echo the request, and Google's error text is not ours to print.
@@ -390,12 +417,16 @@ export const CACHE_TTL_MS = 5 * 60_000
 /** After a failed (or timed-out) sync, wait this long before trying Gmail again. */
 export const RETRY_AFTER_MS = 60_000
 
-type Snapshot = { data: CrmLiveData; syncedAt: number }
+type Snapshot = { data: CrmLiveData; syncedAt: number; threads: GmailThreadMeta[]; gmailIds: Map<string, string> }
 
 export type GmailService = {
   /** Answers at once from the copy there is; never waits for a sync. */
   summary(): Promise<GmailSummary>
   health(): Promise<GmailHealth>
+  /** The CRM screen's list (`src/lib/crm/types.ts`). */
+  list(): Promise<CrmListResponse & GmailSummary>
+  /** One case's messages, or null when the case is unknown. */
+  thread(caseId: string): Promise<CrmThreadResponse | null>
   /** Settles when the background sync running now (if any) is done (for `after()`). */
   settled(): Promise<void>
   /** Tests only: forget everything. */
@@ -405,6 +436,7 @@ export type GmailService = {
 export function createGmailService({
   env = () => process.env,
   load = gmailLoader(),
+  loadThread = gmailThreadLoader(),
   clock = () => Date.now(),
   ttlMs = CACHE_TTL_MS,
   retryMs = RETRY_AFTER_MS,
@@ -413,6 +445,7 @@ export function createGmailService({
 }: {
   env?: () => Env
   load?: Loader
+  loadThread?: ThreadLoader
   clock?: () => number
   ttlMs?: number
   retryMs?: number
@@ -422,6 +455,7 @@ export function createGmailService({
   let lastGood: Snapshot | null = null
   let lastAttempt: { at: number; ok: boolean } | null = null
   let inflight: Promise<void> | null = null
+  const threadCache = new Map<string, { at: number; messages: CrmThreadResponse["messages"] }>()
   let ids: IdRegistry = createIdRegistry()
   /** Bumped by `reset()`, so a sync started before it cannot write after it. */
   let generation = 0
@@ -440,7 +474,14 @@ export function createGmailService({
         throw new GmailError("InvalidData")
       }
       if (!isCrmLiveData(data)) throw new GmailError("InvalidData")
-      lastGood = { data, syncedAt: at }
+      const gmailIds = new Map(
+        threads.flatMap((t) => {
+          const n = ids.peek("thread", t.id)
+          return n === undefined ? [] : [[`case-${n}`, t.id] as const]
+        })
+      )
+      lastGood = { data, syncedAt: at, threads: [...threads], gmailIds }
+      threadCache.clear()
       lastAttempt = { at, ok: true }
     } catch (error) {
       if (mine !== generation) return
@@ -477,7 +518,7 @@ export function createGmailService({
     }
   }
 
-  return {
+  const service: GmailService = {
     async summary() {
       const { fresh, connecting, mailbox } = read()
       const snapshot = lastGood
@@ -487,6 +528,55 @@ export function createGmailService({
         lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
         mailbox,
         data: snapshot.data,
+      }
+    },
+    async list() {
+      const summary = await service.summary()
+      const base = { ...summary, lastUpdated: summary.lastSyncedAt }
+      const snapshot = lastGood
+      if (summary.data === null || !snapshot) return { ...base, ...emptyCrmList() }
+      return {
+        ...base,
+        ...buildCrmList(snapshot.threads, { mailbox: summary.mailbox, ids, nowMs: clock(), data: snapshot.data }),
+      }
+    },
+    async thread(caseId) {
+      const summary = await service.summary()
+      const status: CrmFeedStatus = summary.status
+      const lastUpdated = summary.lastSyncedAt
+      const snapshot = lastGood
+      if (summary.data === null || !snapshot) return { status, lastUpdated, caseId, messages: [] }
+      const gmailId = snapshot.gmailIds.get(caseId)
+      if (!gmailId || !snapshot.data.cases.some((c) => c.id === caseId)) return null
+      const threadId = `thread-${caseId.slice("case-".length)}`
+      const hit = threadCache.get(caseId)
+      if (hit && clock() - hit.at < ttlMs) return { status, lastUpdated, caseId, messages: hit.messages }
+      const config = readGmailConfig(env())
+      try {
+        if (config.kind !== "ok") throw new GmailError("GmailAuth")
+        const raw = await withTimeout((signal) => loadThread(config, gmailId, signal), THREAD_TIMEOUT_MS)
+        const messages = parseFullThread(raw, { mailbox: summary.mailbox, threadId })
+        threadCache.set(caseId, { at: clock(), messages })
+        return { status, lastUpdated, caseId, messages }
+      } catch (error) {
+        const detail = failureDetail(error)
+        log(failureKind(error), detail ?? undefined)
+        // The last good bodies if there are any; else the snippets from the list sync.
+        if (hit) return { status: "stale", lastUpdated, caseId, messages: hit.messages }
+        const messages = snapshot.data.messages
+          .filter((m) => m.caseId === caseId)
+          .map((m, i) => ({
+            id: `${threadId}-m${i + 1}`,
+            threadId,
+            direction: m.direction,
+            from: { name: m.fromName, email: m.fromEmail },
+            to: m.toEmails.map((email) => ({ name: null, email })),
+            cc: [],
+            sentAt: m.sentAt,
+            bodyText: m.bodyText,
+            attachments: [],
+          }))
+        return { status: "stale", lastUpdated, caseId, messages }
       }
     },
     async health() {
@@ -503,10 +593,13 @@ export function createGmailService({
       lastGood = null
       lastAttempt = null
       inflight = null
+      threadCache.clear()
       ids = createIdRegistry()
     },
   }
+  return service
 }
 
 /** The one cache for this server process, shared by every route. */
-export const gmailService = createGmailService()
+const sharedTokens = createTokenCache()
+export const gmailService = createGmailService({ load: gmailLoader(fetch, sharedTokens), loadThread: gmailThreadLoader(fetch, sharedTokens) })

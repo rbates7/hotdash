@@ -1,4 +1,4 @@
-import { SEED_ISSUE_KEYS } from "@/lib/issues-fixture"
+import { SEED_ISSUE_KEYS } from "@/lib/issues-seed-ids"
 import type { InboxSourceStatus, InboxView, RealInboxItem } from "@/lib/inbox-sources"
 import {
   STATUS_ORDER,
@@ -47,10 +47,10 @@ export function bugs(issues: readonly Issue[]) {
 }
 
 /**
- * The founder's own bug tickets: tagged `bug` and not one of the Agent
- * Workplace demo board's seed tickets. Bugs never lists the seed (the
- * board keeps it until it goes too); a ticket the founder adds or tags on
- * the board shows here.
+ * The founder's own bug tickets: tagged `bug` and not one of the old Agent
+ * Workplace demo board's keys. The store already drops those from an old
+ * saved copy; this keeps Bugs honest even if one slipped through. A ticket
+ * the founder adds or tags on the board shows here.
  */
 export function userBugs(issues: readonly Issue[]) {
   return bugs(issues).filter((i) => !SEED_ISSUE_KEYS.has(i.key))
@@ -101,6 +101,8 @@ export type SentryBugs = {
   status: "loading" | InboxSourceStatus
   /** Sentry rows from `/api/inbox`, newest first. Empty unless connected or stale. */
   rows: RealInboxItem[]
+  /** Sentry's last good sync when `stale` (an ISO instant), else null. */
+  staleSince: string | null
 }
 
 /**
@@ -109,9 +111,11 @@ export type SentryBugs = {
  * screen and its tests agree on what each status shows.
  */
 export function sentryBugs(view: InboxView): SentryBugs {
-  if (view.phase === "loading") return { status: "loading", rows: [] }
-  const status = view.inbox.sources.sentry.status
+  if (view.phase === "loading") return { status: "loading", rows: [], staleSince: null }
+  const sentry = view.inbox.sources.sentry
+  const status = sentry.status
   const rows =
     status === "connected" || status === "stale" ? view.inbox.items.filter((i) => i.source === "sentry") : []
-  return { status, rows }
+  const at = status === "stale" ? sentry.fetchedAt : null
+  return { status, rows, staleSince: at && Number.isFinite(Date.parse(at)) ? at : null }
 }

@@ -1,16 +1,10 @@
-import { now } from "@/lib/clock"
-import { CaseDetail } from "@/components/crm/case-detail"
-import { CrmApp } from "@/components/crm/crm-app"
+import { redirect } from "next/navigation"
 
-export default async function CrmCaseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+/**
+ * The old deep link to a case: it opens the same case in the Cases panel
+ * (`/crm/cases?case=<id>`), so every link to a case keeps working.
+ */
+export default async function CrmCaseDeepLink({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return (
-    <CrmApp nowMs={now().getTime()}>
-      <CaseDetail caseId={id} />
-    </CrmApp>
-  )
+  redirect(`/crm/cases?case=${encodeURIComponent(id)}`)
 }

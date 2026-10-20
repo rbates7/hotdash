@@ -1,7 +1,6 @@
 import { expect, type Page } from "@playwright/test"
 
-import { buildSprints } from "../../src/lib/issues-fixture"
-import { boardWithUserBugs } from "../../src/test/bugs"
+import { founderBoard } from "../../src/test/workplace"
 import { NOTE, persistenceNote } from "./persistence"
 
 /** Bugs has no key of its own: it reads and writes the Workplace's (`STORAGE_KEY` in `issues-store`). */
@@ -18,19 +17,16 @@ export const SENTRY_HINT = "Unresolved crash and error issues in chlk-ios appear
 export const SENTRY_EMPTY = "No unresolved crashes or errors in Sentry right now."
 
 /**
- * The founder's own bug tickets (CHLK-904, -919, -920, -921: the seed's four
- * bugs copied under keys the seed never uses) saved alongside the seed
- * board, in the shape `issuesStorage` writes: `{ issues, sprints, nextKey }`,
- * no envelope and no clock. Dated back from `nowMs` like the seed.
+ * The founder's own board (the old demo's content under CHLK-9xx keys and
+ * sprint-1x ids), in the shape `issuesStorage` writes: `{ issues, sprints,
+ * nextKey }`, no envelope and no clock. Its bug tickets (CHLK-904, -919,
+ * -920, -921) are what Bugs lists. Dated back from `nowMs`.
  */
 export function savedBoardWithUserBugs(nowMs = Date.now()) {
-  const now = new Date(nowMs)
-  const issues = boardWithUserBugs(now)
-  const highest = Math.max(...issues.map((i) => Number(i.key.split("-")[1])))
-  return { issues, sprints: buildSprints(now), nextKey: highest + 1 }
+  return founderBoard(new Date(nowMs))
 }
 
-/** `path` with nothing saved: the seed board, so Bugs lists nothing. */
+/** `path` with nothing saved: an empty board, so Bugs lists nothing. */
 export async function freshBugs(page: Page, path = "/bugs") {
   await page.goto(path)
   await page.evaluate(

@@ -10,8 +10,8 @@ import {
   type SummaryFetcher,
 } from "@/hooks/use-stripe-summary"
 import { appStoreHealth, isAppStoreConnecting, parseAppStoreSummary } from "@/lib/app-store-summary"
-import { kpis } from "@/lib/home-fixture"
-import { snapshotFor } from "@/lib/kpis"
+import { kpis } from "@/lib/home-kpis"
+import { metricShell } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { CONNECTING, NOT_CONNECTED, feedOf, parseStripeSummary, type StripeFeed } from "@/lib/stripe-summary"
 import { APP_STORE_CONNECTING_TEXT, EXCLUDES_APP_STORE_CONNECTING, breakdownNote, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
@@ -23,7 +23,6 @@ import { APP_STORE_CONNECTING_TEXT, EXCLUDES_APP_STORE_CONNECTING, breakdownNote
  * at all it is still the honest "Not connected".
  */
 
-const TODAY = "2026-10-13"
 const TZ = "America/Chicago"
 
 describe("wire format", () => {
@@ -66,7 +65,7 @@ describe("Stripe-fed figures while connecting", () => {
   })
 
   it("Home's Subscribers and Cash this week cards are placeholders", () => {
-    const cards = liveKpis(kpis(TODAY), connecting, (id) => snapshotFor(id, { today: TODAY }), TZ)
+    const cards = liveKpis(kpis(), connecting, metricShell, TZ)
     for (const card of cards) {
       expect(card).toMatchObject({ source: "loading", value: "–", delta: "" })
     }
@@ -79,13 +78,13 @@ describe("Stripe live, App Store still connecting", () => {
   it("the Subscribers total waits (a placeholder), never landing without its App Store group", () => {
     // Marked connecting: the card says Connecting… while App Store payers are read.
     expect(liveMetric("subscribers", feed, TZ)).toEqual({ kind: "loading", connecting: true })
-    const sub = liveKpis(kpis(TODAY), feed, (id) => snapshotFor(id, { today: TODAY }), TZ).find((k) => k.id === "subscribers")
+    const sub = liveKpis(kpis(), feed, metricShell, TZ).find((k) => k.id === "subscribers")
     expect(sub).toMatchObject({ source: "loading", value: "–" })
   })
 
   it("the other Stripe figures are live straight away", () => {
     expect(liveMetric("mrr", feed, TZ).kind).toBe("live")
-    const cash = liveKpis(kpis(TODAY), feed, (id) => snapshotFor(id, { today: TODAY }), TZ).find((k) => k.id === "cash-this-week")
+    const cash = liveKpis(kpis(), feed, metricShell, TZ).find((k) => k.id === "cash-this-week")
     expect(cash).toMatchObject({ source: "stripe", value: "$4,322" })
   })
 

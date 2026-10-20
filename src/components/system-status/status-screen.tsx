@@ -7,33 +7,26 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { formatDate } from "@/lib/clock"
 import {
-  DEFAULT_SCENARIO,
   SENTRY_HREF,
   STATUS_LABEL,
-  buildPastIncident,
-  buildServices,
   formatChecked,
   formatCheckedAgo,
   formatCounts,
   formatDownCount,
   verdictFor,
-  type Scenario,
   type Service,
   type ServiceStatus,
 } from "@/lib/system-status"
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
 import { NotConnectedBadge } from "@/components/home/not-connected"
-import { SampleDataNotice, SampleDataTag } from "@/components/sample-data"
 import {
   STATUS_BANNER,
   STATUS_BANNER_META,
   STATUS_HEADER,
   STATUS_HEADER_CHIP,
   STATUS_HEADER_META,
-  STATUS_INCIDENT,
   STATUS_ROW,
   STATUS_ROW_LINK,
 } from "@/components/system-status/responsive"
@@ -137,8 +130,6 @@ function VerdictBanner({ services, nowMs }: { services: readonly Service[]; nowM
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-title-lg font-semibold tracking-tight">{verdict.title}</h2>
-            {/* Only the seeded views have checks; the real page has none to label. */}
-            {!verdict.empty && <SampleDataTag />}
           </div>
           <p className="text-label text-muted-foreground mt-1 tracking-tight">{verdict.detail}</p>
         </div>
@@ -192,29 +183,25 @@ function ServiceRow({ service, nowMs }: { service: Service; nowMs: number }) {
 
 /**
  * The whole System Status page below the shell. Pure: everything it shows
- * is derived from `nowMs` and the scenario, so the server render is the
+ * is derived from `nowMs` and `services`, so the server render is the
  * final render — no store, no hydration, nothing saved.
  *
- * The app always renders the real page (`empty`: no checks, Not connected).
- * The seeded `green` / `not-green` scenarios are reachable only by passing
- * `scenario` here, which only the unit tests do: there is no preview control
- * and no `?preview=` route (Coulson, relayed by Simmons, Oct 19).
+ * Nothing is polled yet (Sentry and chlkapp.com are not connected), so the
+ * page passes no services: no checks, Not connected, and never a sample row,
+ * tag or incident (Rashad's Oct 16 rule). `services` is where real checks go
+ * once a source is wired; the tests pass rows from
+ * `@/lib/system-status-fixture`.
  */
 export function StatusScreen({
   nowMs,
-  scenario = DEFAULT_SCENARIO,
+  services = [],
 }: {
   /** The request's instant, read once in page.tsx. Every "ago" is measured from it. */
   nowMs: number
-  /** Unit tests only: the seeded views. The page never passes it. */
-  scenario?: Scenario
+  /** Real checks; none until a source is connected. */
+  services?: readonly Service[]
 }) {
-  const services = buildServices(nowMs, scenario)
   const verdict = verdictFor(services)
-  const incident = buildPastIncident(nowMs)
-  // The seeded views are sample and say so; the real page has no checks
-  // and no incident history to show, so it carries no sample at all.
-  const seeded = scenario !== "empty"
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -226,30 +213,16 @@ export function StatusScreen({
           </p>
         </div>
         <div className={STATUS_HEADER_META}>
-          {seeded ? (
-            <SampleDataTag className={STATUS_HEADER_CHIP} />
-          ) : (
-            <NotConnectedBadge className={STATUS_HEADER_CHIP} />
-          )}
+          {services.length === 0 && <NotConnectedBadge className={STATUS_HEADER_CHIP} />}
         </div>
       </header>
-
-      {seeded && (
-        <SampleDataNotice>
-          Seeded view. Nothing here is polled yet; Sentry and chlkapp.com are not connected, so these
-          checks are seeded from the moment you opened the page.
-        </SampleDataNotice>
-      )}
 
       <div className="flex max-w-[920px] flex-col gap-4">
         <VerdictBanner services={services} nowMs={nowMs} />
 
         <section aria-label="Components" className="flex flex-col gap-2">
           <div className="flex min-h-6 items-center justify-between gap-2 px-0.5">
-            <div className="flex items-center gap-2">
-              <h2 className="text-label font-semibold tracking-tight">Components</h2>
-              {seeded && <SampleDataTag />}
-            </div>
+            <h2 className="text-label font-semibold tracking-tight">Components</h2>
             <span className="text-caption text-muted-foreground font-medium tracking-tight">
               {verdict.empty ? "No checks" : formatDownCount(verdict.counts)}
             </span>
@@ -268,26 +241,6 @@ export function StatusScreen({
             )}
           </Card>
         </section>
-
-        {seeded && (
-        <Card role="region" aria-label="Past incident" className="gap-2 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <p className="text-micro text-muted-foreground font-semibold tracking-[0.08em] uppercase">
-              Past incident
-            </p>
-            <SampleDataTag />
-          </div>
-          <div className={STATUS_INCIDENT}>
-            <p className="text-label text-muted-foreground font-medium tracking-tight">{incident.summary}</p>
-            <time
-              dateTime={incident.day}
-              className="text-caption text-muted-foreground flex-none font-medium tracking-tight tabular-nums whitespace-nowrap"
-            >
-              {formatDate(incident.day)}
-            </time>
-          </div>
-        </Card>
-        )}
       </div>
     </div>
   )

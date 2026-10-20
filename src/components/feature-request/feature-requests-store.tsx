@@ -10,7 +10,7 @@ import {
   type FeatureRequest,
   type FeatureStatus,
 } from "@/lib/feature-requests/feature-requests"
-import { buildSeed } from "@/lib/feature-requests/fixture"
+import { SEED_REQUEST_IDS } from "@/lib/feature-requests/seed-ids"
 import {
   createStorage,
   initialShell,
@@ -51,7 +51,7 @@ export type Action =
   | EditAction
   /** localStorage was read: on mount (`nowMs` = the request's instant) or because another tab changed it (`nowMs` = `now()`). */
   | { type: "hydrate"; result: LoadResult<State>; nowMs: number }
-  /** The key was cleared; re-seed from `nowMs` (`now()` at the click, via `reseedNowMs`). */
+  /** The key was cleared; empty the board at `nowMs` (`now()` at the click, via `reseedNowMs`). */
   | { type: "reset"; nowMs: number }
   | { type: "save-result"; ok: boolean }
 
@@ -93,9 +93,6 @@ export function reducer(state: State, action: EditAction): State {
       // A patch that changes nothing is not an edit: no updatedAt bump, no write.
       if (title === target.title && ask === target.ask && from === target.from) return state
       const next: FeatureRequest = { ...target, title, ask, from, updatedAt: action.at }
-      // Rewriting the words makes the card the founder's; a sample tag on
-      // text we did not write would be a lie.
-      if (next.sample && (title !== target.title || ask !== target.ask)) delete next.sample
       return {
         ...state,
         requests: state.requests.map((r) => (r === target ? next : r)),
@@ -128,8 +125,8 @@ export function reducer(state: State, action: EditAction): State {
  * hydrates never count as edits and never write, a local unsaved edit wins
  * over an incoming copy, no-op edits return the same shell, `saved` follows
  * a write's result. The shell also holds the clock (`nowMs`): the request's
- * instant on mount, then the moment of a Reset or of a re-seed after another
- * tab's Reset. With no saved copy, hydrate falls back to a seed built lazily
+ * instant on mount, then the moment of a Clear or of another
+ * tab's Clear. With no saved copy, hydrate falls back to an empty board
  * from that instant.
  */
 type Shell = PersistenceShell<State>
@@ -157,10 +154,19 @@ export function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-/** The seed, dated from `now` — the request instant, never a client clock. */
-export function initialState(now: Date): State {
-  const requests = buildSeed(now)
-  return { requests, nextId: requests.length + 1 }
+/**
+ * A fresh board: no cards. No sample ideas, labelled or not (Rashad's Oct 16
+ * rule). Ids start after the old sample's so a new idea never takes one of
+ * theirs. `now` is unused, kept so the shell can pass its clock.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function initialState(_now: Date): State {
+  return { requests: [], nextId: SEED_REQUEST_IDS.size + 1 }
+}
+
+/** A saved card that is still the old, untouched sample: one of its ids, saved with `sample: true`. */
+function isOldSample(r: FeatureRequest) {
+  return SEED_REQUEST_IDS.has(r.id) && (r as { sample?: unknown }).sample === true
 }
 
 /* ------------------------------------------------------------ persistence */
@@ -168,10 +174,10 @@ export function initialState(now: Date): State {
 /**
  * Board state is saved to this browser's localStorage under the shared
  * policy in `@/lib/persistence`: only after a real edit (never the
- * untouched seed, never a hydrate), identical copies not re-written, every
+ * untouched empty board, never a hydrate), identical copies not re-written, every
  * item validated on load with a bad copy parked under `<key>.rejected`, a
- * write that can fail, other tabs heard, and Reset clearing the key. Bump
- * the version whenever the seed or the shape changes. There is no server
+ * write that can fail, other tabs heard, and Clear my entries clearing the key. Bump
+ * the version whenever the shape changes. There is no server
  * copy and no API behind this page.
  */
 export const STORAGE_KEY = "hotdash.feature-requests.v1"
@@ -193,6 +199,8 @@ export function isRequest(value: unknown): value is FeatureRequest {
     isFeatureStatus(v.status) &&
     isIsoInstant(v.createdAt) &&
     isIsoInstant(v.updatedAt) &&
+    // Copies saved before the sample was removed carry `sample: true` on
+    // the untouched sample cards; `parseState` drops those.
     (v.sample === undefined || v.sample === true)
   )
 }
@@ -213,11 +221,16 @@ export function isState(value: unknown): value is State {
   return (v.nextId as number) > highest
 }
 
-/** A copy with only the fields we know about; anything else is dropped. */
+/**
+ * A copy with only the fields we know about; anything else is dropped,
+ * and so is every card that is still the old untouched sample. The id
+ * counter never moves back.
+ */
 export function sanitize(state: State): State {
+  const kept = state.requests.filter((r) => !isOldSample(r))
   return {
-    nextId: state.nextId,
-    requests: state.requests.map((r) => {
+    nextId: kept.length === state.requests.length ? state.nextId : Math.max(state.nextId, SEED_REQUEST_IDS.size + 1),
+    requests: kept.map((r) => {
       const clean: FeatureRequest = {
         id: r.id,
         title: r.title,
@@ -227,7 +240,6 @@ export function sanitize(state: State): State {
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
       }
-      if (r.sample === true) clean.sample = true
       return clean
     }),
   }
@@ -254,7 +266,7 @@ export const REJECTED_KEY = featureRequestsStorage.rejectedKey
 
 type Store = State &
   PersistenceStore & {
-    /** `new Date(shell.nowMs)`: the request instant, or the last Reset. Relative labels measure from it. */
+    /** `new Date(shell.nowMs)`: the request instant, or the last Clear. Relative labels measure from it. */
     now: Date
     addRequest: (input: NewRequestInput) => void
     patchRequest: (id: string, patch: RequestPatch) => void
@@ -278,9 +290,9 @@ export function FeatureRequestsProvider({
   const { data: state, nowMs, persisted, edited, saved, saveFailed } = shell
 
   // The server has no localStorage, so it renders with `persisted: false` and
-  // the page shows skeletons rather than the seed. On the client the saved
+  // the page shows skeletons rather than an empty board. On the client the saved
   // copy is read in a *layout* effect — it runs before the browser paints, so
-  // the first frame a user sees is already their data, never the seed. The
+  // the first frame a user sees is already their data, never a flash of the empty board. The
   // request instant is used here, and only here.
   React.useLayoutEffect(() => {
     dispatch({
@@ -292,7 +304,7 @@ export function FeatureRequestsProvider({
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
   // moving edit count does. A cross-tab event arrives with `now()` so a
-  // re-seed after their Reset is dated from that moment. The result feeds
+  // empty board after their Clear is dated from that moment. The result feeds
   // the note.
   const onHydrate = React.useCallback(
     (result: LoadResult<State>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
@@ -319,8 +331,8 @@ export function FeatureRequestsProvider({
       setStatus: (id, status) => dispatch({ type: "set-status", id, status, at: at() }),
       removeRequest: (id) => dispatch({ type: "remove", id }),
       // Clear first, then regenerate from right now (the shared post-mount
-      // clock read): the browser returns to the never-edited state with a
-      // seed dated from this moment, and the shell's clock moves with it.
+      // clock read): the browser returns to the never-edited state with an
+      // empty board dated from this moment, and the shell's clock moves with it.
       resetDemoData: () => {
         featureRequestsStorage.clear(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })

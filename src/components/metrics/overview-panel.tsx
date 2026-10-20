@@ -4,7 +4,7 @@ import * as React from "react"
 import { PlusIcon } from "lucide-react"
 
 import { formatMetricValue, pickerIds, type MetricId } from "@/lib/metrics"
-import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
+import { METRIC_DEFS, metricShell } from "@/lib/kpis"
 import { liveCard, liveValueText } from "@/lib/live-metrics"
 import { useSettings } from "@/hooks/use-settings"
 import { usePosthogFeed } from "@/hooks/use-posthog-summary"
@@ -61,7 +61,7 @@ function PickerChoices({
       ) : (
         <ul className="flex flex-col">
           {choices.map((id) => {
-            const snap = snapshotFor(id, { today, expenses })
+            const snap = metricShell(id)
             const live = liveCard(id, feed, posthog, timeZone, { expenses, today })
             // A live figure, the founder's own entries, or a plain word: never a fixture number.
             const figure =
@@ -204,7 +204,7 @@ export function OverviewPanel() {
           className={METRICS_GRID}
         >
           {visible.map((id: MetricId) => {
-            const snapshot = snapshotFor(id, { today, expenses })
+            const snapshot = metricShell(id)
             return (
               <MetricCard
                 key={id}

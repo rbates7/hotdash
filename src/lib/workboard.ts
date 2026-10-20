@@ -210,5 +210,12 @@ export function publicWorkboardItem(item: WorkboardItem): WorkboardItem {
 
 /** `res` with every item reduced to `publicWorkboardItem`. */
 export function publicWorkboardResponse(res: WorkboardResponse): WorkboardResponse {
-  return { ...res, items: res.items.map(publicWorkboardItem) }
+  // Allow-listed like each item: only these keys leave the server.
+  return {
+    status: res.status,
+    connected: res.connected,
+    fetchedAt: res.fetchedAt,
+    stale: res.stale,
+    items: res.items.map(publicWorkboardItem),
+  }
 }

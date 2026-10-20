@@ -2,7 +2,8 @@
 
 Home, Metrics and Settings read live figures from Stripe, and the
 Subscribers total also counts App Store payers read from Chlk's Supabase
-Postgres. Everything else on the dashboard is still sample data, labelled.
+Postgres. A card with no live source says Not connected; nothing on the
+dashboard is sample data.
 
 ## Setup
 
@@ -12,7 +13,7 @@ Postgres. Everything else on the dashboard is still sample data, labelled.
 | Database URL | `SUPABASE_READONLY_DB_URL`: a `postgres://`/`postgresql://` URL for a **read-only role** with `SELECT` on `chlk.subscriptions` and `chlk.plans` only (see [Read-only database role](#read-only-database-role)). Schema owner: **Radcliffe**. Always over **TLS**: with no `sslmode`, or one that allows plaintext (`disable`/`allow`/`prefer`), the server uses `sslmode=require`, and passes `ssl: "require"` to the client too (`verify-ca`/`verify-full` are kept). |
 | Key | A Stripe **restricted** key (`rk_live_…`) with read access to Subscriptions, Invoices, Charges and Coupons. The server refuses anything that is not `rk_…`/`sk_…`. |
 | Calls | `subscriptions.list` (all statuses, discounts expanded), `invoices.list` (`status=paid`, every page, listed once and joined on `parent.subscription_details.subscription` — never one call per subscription) and `charges.list` (last 15 days), via the official `stripe` package (pinned). List calls only. A full sync takes a few minutes at ~3k subscriptions; it is cut off at 240 s (the routes allow 300 s). |
-| Cache | One sync per server process every 5 minutes, always **in the background**: a request never waits for it. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with no copy yet it gets `not_connected` at once (the dashboard shows its labelled sample figures) and the next poll, a minute later, picks up the sync once it lands. The routes hand the running sync to `after()` so it outlives the response. A sync over 240 s is a failure; a failed sync retries 1 minute after it failed. The last good copy is kept. |
+| Cache | One sync per server process every 5 minutes, always **in the background**: a request never waits for it. It gets the last good copy (`connected`, or `stale` after a failure) while a due sync runs behind it, one at a time; on a cold start with no copy yet it gets `not_connected` at once (the dashboard says Not connected) and the next poll, a minute later, picks up the sync once it lands. The routes hand the running sync to `after()` so it outlives the response. A sync over 240 s is a failure; a failed sync retries 1 minute after it failed. The last good copy is kept. |
 | App Store read | `src/lib/server/app-store.ts`, via the `postgres` package (pinned): one short-lived connection per count (`max: 1`, `prepare: false` for Supabase's pooler), a `begin read only` transaction with `set local statement_timeout = 10000`, then the fixed query below. Same background refresh (never awaited by a request; `not_connected` until the first count lands), 240 s limit, 5-minute cache, 1-minute retry and last good count. Any failure is `stale` (with a last good count) or `not_connected` — never a throw, never held up with Stripe's sync, never a made-up 0. Logs only the error's class name. |
 
 Optional, local only: `STRIPE_API_BASE=http://127.0.0.1:<port>` points the SDK
@@ -88,10 +89,10 @@ behind the server's own `begin read only` transaction.
 | Loading (first paint) | `–` placeholder | none |
 | Connected | Stripe's figure | none |
 | Stale | Stripe's last figure + "Last updated <time>" | none |
-| Not connected | The sample figure, as before | Sample data |
+| Not connected | No figure: Not connected | Not connected |
 
 With Stripe not connected, the App Store count is not shown either: the
-Subscribers surfaces stay sample, as before.
+Subscribers surfaces say Not connected.
 
 Stripe feeds: the Home ticker and Subscribers card, Home's Cash this week,
 the Home Metrics door (MRR series), and the Metrics MRR, Churn Rate, Trial

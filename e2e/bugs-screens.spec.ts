@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 import { EMPTY_BUGS, EMPTY_BUGS_HINT, SENTRY_TITLE, freshBugs, seededBugs } from "./support/bugs"
 import { settleAnimations } from "./support/contrast"
 import { liveInbox, mockInbox } from "./support/inbox"
-import { resetDemoData } from "./support/persistence"
+import { clearMyEntries } from "./support/persistence"
 import { vetUnmockedApi, writeShotShas } from "./support/shots"
 import { setTheme } from "./support/theme"
 
@@ -112,8 +112,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(list(page).getByText("0 open · 4 fixed")).toBeVisible()
     await shoot(page, `bugs-all-fixed-${theme}`)
 
-    // Reset discards the saved copy: back to the empty list and its hint.
-    await resetDemoData(page, page.locator("main header").first())
+    // Clear my entries deletes the founder's bugs: back to the empty list and its hint.
+    await clearMyEntries(page, page.locator("main header").first())
     await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
     noLiveData()
   })

@@ -45,6 +45,31 @@ export function useIsTablet() {
   return useMediaQuery(TABLET_QUERY)
 }
 
+export const DESKTOP_QUERY = `(min-width: ${TABLET_MAX_WIDTH + 1}px)`
+
+/** ≥1280: the CRM case panel sits beside the list instead of in a sheet. */
+export function useIsDesktop() {
+  return useMediaQuery(DESKTOP_QUERY)
+}
+
+/**
+ * The CRM case panel's four behaviours (Deke's CRM spec §3, with his 480px
+ * split adjustment): beside the list at ≥1440, a non-modal 480px sheet at
+ * 1180–1439, a sheet with a scrim at 820–1179, a bottom sheet below 820.
+ */
+export type CasePanelMode = "split" | "overlay" | "modal" | "bottom"
+
+export const CASE_PANEL_SPLIT_QUERY = "(min-width: 1440px)"
+export const CASE_PANEL_OVERLAY_QUERY = "(min-width: 1180px)"
+export const CASE_PANEL_MODAL_QUERY = "(min-width: 820px)"
+
+export function useCasePanelMode(): CasePanelMode {
+  const split = useMediaQuery(CASE_PANEL_SPLIT_QUERY)
+  const overlay = useMediaQuery(CASE_PANEL_OVERLAY_QUERY)
+  const modal = useMediaQuery(CASE_PANEL_MODAL_QUERY)
+  return split ? "split" : overlay ? "overlay" : modal ? "modal" : "bottom"
+}
+
 export function useIsTabletPortrait() {
   return useMediaQuery(TABLET_PORTRAIT_QUERY)
 }

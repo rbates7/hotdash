@@ -15,11 +15,11 @@ import {
   isDeal,
   isOverdue,
   matchesDealFilter,
-  seedDeals,
   sortDeals,
   stripDeal,
   type Deal,
 } from "@/lib/sales-opportunities"
+import { seedDeals } from "@/lib/sales-opportunities-fixture"
 import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 const seed = seedDeals(FIXED_NOW_MS)
@@ -27,10 +27,9 @@ const TODAY = todayIn(new Date(FIXED_NOW_MS)) // 2026-08-27
 const byId = (id: string) => seed.find((d) => d.id === id)!
 
 describe("seed", () => {
-  it("is eight invented deals, all marked sample, ids deal-1 … deal-8", () => {
+  it("is eight invented deals (test-only now), ids deal-1 … deal-8, matching the bundle's SEED_DEAL_IDS", () => {
     expect(seed).toHaveLength(8)
     expect(seed.map((d) => d.id)).toEqual([...SEED_DEAL_IDS])
-    expect(seed.every((d) => d.sample)).toBe(true)
     expect(highestDealId(seed)).toBe(8)
     expect(seed.every(isDeal)).toBe(true)
     expect(dealsAreConsistent(seed, 9)).toBe(true)
@@ -229,7 +228,6 @@ describe("isDeal", () => {
     ["last touch that does not round-trip", { ...good, lastTouch: "2026-08-27T14:00:00Z" }],
     ["created at as a day", { ...good, createdAt: "2026-08-27" }],
     ["updated at garbage", { ...good, updatedAt: "yesterday" }],
-    ["sample missing", (() => { const { sample: _s, ...rest } = good; void _s; return rest })()],
   ]
 
   it.each(cases)("rejects %s", (_name, value) => {

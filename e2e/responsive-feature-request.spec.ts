@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { expectReadable, settleAnimations } from "./support/contrast"
-import { NOTE, NOTE_NAME } from "./support/persistence"
+import { now } from "../src/lib/clock"
+import { founderRequestsState } from "../src/lib/feature-requests/fixture"
+import { NOTE, NOTE_NAME, storeFounderCopy } from "./support/persistence"
 import {
   expectFocusTrapped,
   expectNoOverflowX,
@@ -41,12 +43,12 @@ const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, ex
 const persistence = (page: Page) =>
   page.getByRole("status", { name: NOTE_NAME, exact: true })
 
+/** The founder's own ideas (no sample ships), stored before the page loads. */
 async function fresh(page: Page) {
+  await storeFounderCopy(page, STORAGE_KEY, founderRequestsState(now()))
   await page.goto("/feature-request")
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
   await waitForHydration(page)
-  await expect(persistence(page)).toHaveText(NOTE.unsaved)
+  await expect(persistence(page)).toHaveText(NOTE.saved)
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -179,7 +181,7 @@ test.describe("responsive Feature Request (phone 390)", () => {
     await expect(column(page, "Parked")).toHaveCount(0)
 
     await expect(card(page, "Play of the Day")).toContainText("Pin one ready-to-run play")
-    await expect(card(page, "Play of the Day").getByTestId("sample-data-tag")).toBeVisible()
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
 
     // New idea sits beside the title; the actions-group copy is hidden.
     const add = header(page).getByRole("button", { name: "New idea", exact: true })
@@ -461,7 +463,6 @@ for (const theme of ["light", "dark"] as const) {
         )
         await expectReadable(header(page).locator("p").first(), `${label}/subtitle`, expect)
         await expectReadable(persistence(page), `${label}/note`, expect)
-        await expectReadable(header(page).getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(board(page), `${label}/board`, expect)
         const newIdea = (size === "390" ? header(page) : actions(page)).getByRole(
           "button",

@@ -6,7 +6,7 @@ afterEach(() => vi.restoreAllMocks())
 
 import { formatDate } from "@/lib/clock"
 import { initialShell } from "@/lib/persistence"
-import { buildSeed } from "@/lib/feature-requests/fixture"
+import { buildSeed, founderRequestsState } from "@/lib/feature-requests/fixture"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import { fireStorageEvent } from "@/test/storage"
 import {
@@ -34,10 +34,17 @@ const TODAY = new Date("2026-08-24T15:00:00.000Z")
 const NOW_MS = TODAY.getTime()
 const AT = "2026-08-24T16:00:00.000Z"
 
-const seed = () => initialState(TODAY)
+/** The founder's own board (the old sample's cards under ids of their own). */
+const seed = () => founderRequestsState(TODAY)
 
 describe("reducer", () => {
-  it("adds an idea to the top of the Inbox, from Dan by default, not sample data", () => {
+  it("starts empty, with ids after the old sample's", () => {
+    expect(initialState(TODAY)).toEqual({ requests: [], nextId: 11 })
+    const s = reducer(initialState(TODAY), { type: "add", input: { title: "Mine" }, at: AT })
+    expect(s.requests.map((r) => r.id)).toEqual(["fr-11"])
+  })
+
+  it("adds an idea to the top of the Inbox, from Dan by default", () => {
     const state = reducer(seed(), {
       type: "add",
       input: { title: "  Practice plan templates ", ask: " Reusable weekly plans. " },
@@ -46,7 +53,7 @@ describe("reducer", () => {
     expect(state.requests).toHaveLength(11)
     const [added] = state.requests
     expect(added).toMatchObject({
-      id: "fr-11",
+      id: "fr-111",
       title: "Practice plan templates",
       ask: "Reusable weekly plans.",
       from: "Dan",
@@ -54,8 +61,8 @@ describe("reducer", () => {
       createdAt: AT,
       updatedAt: AT,
     })
-    expect(added.sample).toBeUndefined()
-    expect(state.nextId).toBe(12)
+    expect("sample" in added).toBe(false)
+    expect(state.nextId).toBe(112)
   })
 
   it("keeps a custom sender and refuses an empty title", () => {
@@ -81,30 +88,18 @@ describe("reducer", () => {
     expect(state.requests[0].from).toHaveLength(40)
   })
 
-  it("edits title, ask and sender, and the edit drops the sample tag", () => {
+  it("edits title, ask and sender", () => {
     const state = reducer(seed(), {
       type: "patch",
-      id: "fr-1",
+      id: "fr-101",
       patch: { title: "Play of the Day (pinned)", ask: "Pin one play.", from: "Dan + Rashad" },
       at: AT,
     })
-    const r = state.requests.find((x) => x.id === "fr-1")!
+    const r = state.requests.find((x) => x.id === "fr-101")!
     expect(r.title).toBe("Play of the Day (pinned)")
     expect(r.ask).toBe("Pin one play.")
     expect(r.from).toBe("Dan + Rashad")
     expect(r.updatedAt).toBe(AT)
-    expect(r.sample).toBeUndefined()
-  })
-
-  it("a sender-only edit keeps the sample tag; the words are still ours", () => {
-    const state = reducer(seed(), {
-      type: "patch",
-      id: "fr-1",
-      patch: { from: "Dan + Rashad" },
-      at: AT,
-    })
-    expect(state.requests[0].sample).toBe(true)
-    expect(state.requests[0].updatedAt).toBe(AT)
   })
 
   it("a no-op patch returns the same state: no updatedAt bump, nothing to write", () => {
@@ -112,7 +107,7 @@ describe("reducer", () => {
     const first = before.requests[0]
     const same = reducer(before, {
       type: "patch",
-      id: "fr-1",
+      id: "fr-101",
       patch: { title: `  ${first.title} `, ask: first.ask, from: "Dan" },
       at: AT,
     })
@@ -124,7 +119,7 @@ describe("reducer", () => {
   it("never blanks a title through a patch", () => {
     const state = reducer(seed(), {
       type: "patch",
-      id: "fr-1",
+      id: "fr-101",
       patch: { title: "  ", ask: "changed" },
       at: AT,
     })
@@ -133,37 +128,36 @@ describe("reducer", () => {
   })
 
   it("moves a card between columns and stamps updatedAt", () => {
-    let state = reducer(seed(), { type: "set-status", id: "fr-1", status: "roadmap", at: AT })
+    let state = reducer(seed(), { type: "set-status", id: "fr-101", status: "roadmap", at: AT })
     expect(state.requests[0].status).toBe("roadmap")
     expect(state.requests[0].updatedAt).toBe(AT)
-    expect(state.requests[0].sample).toBe(true) // moving is not rewriting
     const same = state
-    state = reducer(state, { type: "set-status", id: "fr-1", status: "roadmap", at: "later" })
+    state = reducer(state, { type: "set-status", id: "fr-101", status: "roadmap", at: "later" })
     expect(state).toBe(same)
   })
 
   it("removes a card, and removing nothing is a no-op", () => {
     const before = seed()
-    const state = reducer(before, { type: "remove", id: "fr-5" })
+    const state = reducer(before, { type: "remove", id: "fr-105" })
     expect(state.requests).toHaveLength(9)
-    expect(state.requests.some((r) => r.id === "fr-5")).toBe(false)
+    expect(state.requests.some((r) => r.id === "fr-105")).toBe(false)
     expect(reducer(before, { type: "remove", id: "fr-999" })).toBe(before)
   })
 
-  it("reset (through the shell) restores the seed, dated from the instant it is given", () => {
+  it("reset (through the shell) empties the board, dated from the instant it is given", () => {
     let shell = initialShell(seed(), NOW_MS)
-    shell = shellReducer(shell, { type: "remove", id: "fr-1" })
+    shell = shellReducer(shell, { type: "remove", id: "fr-101" })
     shell = shellReducer(shell, { type: "add", input: { title: "Mine" }, at: AT })
     expect(shell.edits).toBe(2)
     shell = shellReducer(shell, { type: "reset", nowMs: LATE_EVENING_CT_MS })
-    expect(shell.data.requests).toEqual(buildSeed(LATE_EVENING_CT))
+    expect(shell.data.requests).toEqual([])
     expect(shell.data.nextId).toBe(11)
     expect(shell.nowMs).toBe(LATE_EVENING_CT_MS)
     expect(shell.edited).toBe(false)
     expect(shell.saved).toBe(false)
   })
 
-  it("hydrate (through the shell) builds the fallback seed lazily from the event's nowMs", () => {
+  it("hydrate (through the shell) falls back to an empty board at the event's nowMs", () => {
     const shell = shellReducer(initialShell(seed(), NOW_MS), {
       type: "hydrate",
       result: { state: null, status: "empty" },
@@ -171,7 +165,7 @@ describe("reducer", () => {
     })
     expect(shell.persisted).toBe(true)
     expect(shell.nowMs).toBe(LATE_EVENING_CT_MS)
-    expect(shell.data.requests[0].createdAt).toBe(LATE_EVENING_CT.toISOString())
+    expect(shell.data).toEqual(initialState(LATE_EVENING_CT))
   })
 })
 
@@ -208,7 +202,7 @@ describe("localStorage", () => {
     const padded = {
       ...state,
       extra: 1,
-      requests: state.requests.map((r) => ({ ...r, votes: 3, sample: r.sample })),
+      requests: state.requests.map((r) => ({ ...r, votes: 3 })),
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(padded))
     const loaded = loadState(window.localStorage)!
@@ -216,7 +210,7 @@ describe("localStorage", () => {
     expect("extra" in loaded).toBe(false)
     expect("votes" in loaded.requests[0]).toBe(false)
     expect(Object.keys(loaded.requests[1]).sort()).toEqual(
-      ["ask", "createdAt", "from", "id", "sample", "status", "title", "updatedAt"]
+      ["ask", "createdAt", "from", "id", "status", "title", "updatedAt"]
     )
   })
 
@@ -262,21 +256,32 @@ describe("localStorage", () => {
   it("refuses duplicate ids and a nextId that is not above every id in use", () => {
     const good = seed()
     expect(isState({ ...good, requests: [...good.requests, { ...good.requests[0] }] })).toBe(false)
-    expect(isState({ ...good, nextId: 10 })).toBe(false) // fr-10 exists
-    expect(isState({ ...good, nextId: 11 })).toBe(true)
+    expect(isState({ ...good, nextId: 110 })).toBe(false) // fr-110 exists
+    expect(isState({ ...good, nextId: 111 })).toBe(true)
     expect(isState({ ...good, nextId: 500 })).toBe(true)
     expect(isState({ requests: [], nextId: 1 })).toBe(true)
   })
 
-  it("accepts a sound copy, with or without the sample flag", () => {
+  it("accepts a sound copy", () => {
     const good = reducer(seed(), { type: "add", input: { title: "Mine" }, at: AT })
     expect(isState(good)).toBe(true)
     expect(isState(JSON.parse(JSON.stringify(good)))).toBe(true)
   })
 
+  it("drops the old untouched sample cards from a saved copy and keeps the founder's (and a rewritten sample card)", () => {
+    const old = buildSeed(TODAY) // fr-1…fr-10, saved with sample: true
+    const mine = seed().requests[0]
+    const { sample: _s, ...rewritten } = { ...old[2], title: "My words now" }
+    void _s
+    const saved = { requests: [...old.slice(0, 2), rewritten, ...old.slice(3), mine], nextId: 102 }
+    expect(isState(saved)).toBe(true)
+    expect(parseState(saved)).toEqual({ requests: [rewritten, mine], nextId: 102 })
+    expect(parseState({ requests: old, nextId: 11 })).toEqual({ requests: [], nextId: 11 })
+  })
+
   it("load() is pure: a bad copy is reported and left in place, then parked by the first save", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const raw = JSON.stringify({ requests: [{ id: "fr-1", title: "Mine" }], nextId: 2 })
+    const raw = JSON.stringify({ requests: [{ id: "fr-101", title: "Mine" }], nextId: 2 })
     window.localStorage.setItem(STORAGE_KEY, raw)
     const result = storage.load(window.localStorage)
     expect(result.status).toBe("rejected")
@@ -327,23 +332,26 @@ function Probe() {
       <span data-testid="count">{requests.length}</span>
       <span data-testid="first">{first?.title ?? ""}</span>
       <span data-testid="first-created">{first?.createdAt ?? ""}</span>
-      <span data-testid="fr-2-status">{requests.find((r) => r.id === "fr-2")?.status ?? ""}</span>
+      <span data-testid="fr-2-status">{requests.find((r) => r.id === "fr-102")?.status ?? ""}</span>
       <button type="button" onClick={() => addRequest({ title: "Probe idea" })}>add</button>
       <button type="button" onClick={() => addRequest({ title: "   " })}>add-nothing</button>
-      <button type="button" onClick={() => setStatus("fr-2", "parked")}>park</button>
-      <button type="button" onClick={() => setStatus("fr-2", "inbox")}>same-status</button>
-      <button type="button" onClick={() => patchRequest("fr-2", { from: "Dan" })}>same-words</button>
+      <button type="button" onClick={() => setStatus("fr-102", "parked")}>park</button>
+      <button type="button" onClick={() => setStatus("fr-102", "inbox")}>same-status</button>
+      <button type="button" onClick={() => patchRequest("fr-102", { from: "Dan" })}>same-words</button>
       <button type="button" onClick={resetDemoData}>reset</button>
     </div>
   )
 }
 
-const mount = () =>
-  render(
+/** Saves the founder's board first unless the test saved a copy (or `fresh`: nothing saved). */
+const mount = ({ fresh = false } = {}) => {
+  if (!fresh && window.localStorage.getItem(STORAGE_KEY) === null) saveState(window.localStorage, seed())
+  return render(
     <FeatureRequestsProvider nowMs={NOW_MS}>
       <Probe />
     </FeatureRequestsProvider>
   )
+}
 
 describe("FeatureRequestsProvider", () => {
   it("hydrates before the first paint, so there is no seed flash to see", () => {
@@ -369,26 +377,25 @@ describe("FeatureRequestsProvider", () => {
     }
   })
 
-  it("Reset re-seeds from now() (the shared post-mount clock read), and the shell's clock moves with it", () => {
+  it("Clear empties the board at now() (the shared post-mount clock read), and the shell's clock moves with it", () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(LATE_EVENING_CT)
     try {
       mount()
       act(() => screen.getByRole("button", { name: "add" }).click())
       act(() => screen.getByRole("button", { name: "reset" }).click())
-      expect(screen.getByTestId("count")).toHaveTextContent("10")
-      expect(screen.getByTestId("first-created")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+      expect(screen.getByTestId("count")).toHaveTextContent("0")
       expect(screen.getByTestId("now")).toHaveTextContent(LATE_EVENING_CT.toISOString())
       expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-      // Reset at 23:30 CT seeds "today" as 7 Oct in Central, not 8 Oct UTC.
+      // Clear at 23:30 CT dates "today" as 7 Oct in Central, not 8 Oct UTC.
       expect(formatDate(new Date(LATE_EVENING_CT_MS))).toBe("7 Oct 2026")
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it("does not write the untouched seed, and no-op edits do not count", () => {
-    mount()
+  it("does not write the untouched empty board, and no-op edits do not count", () => {
+    mount({ fresh: true })
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(screen.getByTestId("edited")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
@@ -429,18 +436,20 @@ describe("FeatureRequestsProvider", () => {
     expect(screen.getByTestId("fr-2-status")).toHaveTextContent("parked")
   })
 
-  it("Reset throws the browser's copy away entirely and shows a fresh seed", () => {
+  it("Clear throws the browser's copy away entirely and shows an empty board, no sample cards", () => {
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
     act(() => screen.getByRole("button", { name: "reset" }).click())
-    expect(screen.getByTestId("count")).toHaveTextContent("10")
-    expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
+    expect(screen.getByTestId("first")).toBeEmptyDOMElement()
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
   it("reports a failed save and keeps the edit for the session", () => {
+    saveState(window.localStorage, seed())
+    const before = window.localStorage.getItem(STORAGE_KEY)
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError")
     })
@@ -448,8 +457,7 @@ describe("FeatureRequestsProvider", () => {
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("11")
     expect(screen.getByTestId("save-failed")).toHaveTextContent("true")
-    expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(before)
 
     // Storage comes back: the next edit writes everything and clears the flag.
     setItem.mockRestore()
@@ -459,7 +467,7 @@ describe("FeatureRequestsProvider", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Probe idea")
   })
 
-  it("falls back to the seed when the saved copy has one bad item, parks it, and writes a clean copy only on the next edit", () => {
+  it("falls back to an empty board when the saved copy has one bad item, parks it, and writes a clean copy only on the next edit", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     const bad = reducer(seed(), { type: "add", input: { title: "Mine" }, at: AT })
     bad.requests[3] = { ...bad.requests[3], status: "shipped" as never }
@@ -467,8 +475,7 @@ describe("FeatureRequestsProvider", () => {
     window.localStorage.setItem(STORAGE_KEY, raw)
     mount()
     expect(screen.getByTestId("saved")).toHaveTextContent("false")
-    expect(screen.getByTestId("count")).toHaveTextContent("10")
-    expect(screen.getByTestId("first")).toHaveTextContent("Play of the Day")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     // load() is pure: the bad copy stays put, unparked, until the first save.
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(raw)
     expect(storage.rejected(window.localStorage)).toEqual([])
@@ -495,7 +502,7 @@ describe("FeatureRequestsProvider", () => {
       expect(screen.getByTestId("count")).toHaveTextContent("11")
     })
 
-    it("returns to the seed when another tab resets, and ignores other keys", () => {
+    it("empties when another tab clears, and ignores other keys", () => {
       mount()
       act(() => screen.getByRole("button", { name: "add" }).click())
       expect(screen.getByTestId("count")).toHaveTextContent("11")
@@ -505,11 +512,11 @@ describe("FeatureRequestsProvider", () => {
 
       window.localStorage.removeItem(STORAGE_KEY)
       fire(null)
-      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("count")).toHaveTextContent("0")
       expect(screen.getByTestId("saved")).toHaveTextContent("false")
     })
 
-    it("another tab's Reset re-seeds this tab from now(), not from the request instant", () => {
+    it("another tab's Clear moves this tab's clock to now(), not the request instant", () => {
       vi.useFakeTimers({ toFake: ["Date"] })
       vi.setSystemTime(LATE_EVENING_CT)
       try {
@@ -517,8 +524,7 @@ describe("FeatureRequestsProvider", () => {
         expect(screen.getByTestId("first-created")).toHaveTextContent(TODAY.toISOString())
         window.localStorage.removeItem(STORAGE_KEY)
         fire(null)
-        expect(screen.getByTestId("count")).toHaveTextContent("10")
-        expect(screen.getByTestId("first-created")).toHaveTextContent(LATE_EVENING_CT.toISOString())
+        expect(screen.getByTestId("count")).toHaveTextContent("0")
         expect(screen.getByTestId("now")).toHaveTextContent(LATE_EVENING_CT.toISOString())
       } finally {
         vi.useRealTimers()
@@ -535,20 +541,20 @@ describe("FeatureRequestsProvider", () => {
       setItem.mockRestore()
     })
 
-    it("an emptied key re-seeds this tab and forgets it was edited here", () => {
+    it("an emptied key empties this tab and forgets it was edited here", () => {
       mount()
       act(() => screen.getByRole("button", { name: "add" }).click())
       expect(screen.getByTestId("edited")).toHaveTextContent("true")
       window.localStorage.removeItem(STORAGE_KEY)
       fire(null)
-      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("count")).toHaveTextContent("0")
       expect(screen.getByTestId("edited")).toHaveTextContent("false")
       expect(screen.getByTestId("saved")).toHaveTextContent("false")
       // An empty string counts as emptied too.
       act(() => screen.getByRole("button", { name: "add" }).click())
       window.localStorage.setItem(STORAGE_KEY, "")
       fire("")
-      expect(screen.getByTestId("count")).toHaveTextContent("10")
+      expect(screen.getByTestId("count")).toHaveTextContent("0")
       expect(screen.getByTestId("edited")).toHaveTextContent("false")
     })
 
@@ -556,6 +562,7 @@ describe("FeatureRequestsProvider", () => {
       // Two tabs, stood in for by two providers on one window. jsdom does
       // not fire `storage` across them, so the event is relayed by hand, the
       // way the browser would, after every write.
+      saveState(window.localStorage, seed())
       const setItem = vi.spyOn(Storage.prototype, "setItem")
       const a = render(
         <FeatureRequestsProvider nowMs={NOW_MS}>

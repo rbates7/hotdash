@@ -8,7 +8,7 @@ import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 export default function CrmCasesPage() {
   return (
     <CrmApp nowMs={now().getTime()}>
-      <Suspense fallback={<CrmTableSkeleton label="Loading saved cases" />}>
+      <Suspense fallback={<CrmTableSkeleton label="Loading cases" />}>
         <CasesScreen />
       </Suspense>
     </CrmApp>

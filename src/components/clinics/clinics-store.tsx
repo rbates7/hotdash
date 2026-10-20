@@ -8,7 +8,7 @@ import {
   isClinic,
   normalizeInput,
   sameClinic,
-  seedClinics,
+  SEED_CLINIC_IDS,
   stripClinic,
   type Attendance,
   type Clinic,
@@ -87,7 +87,7 @@ export function reducer(state: State, action: EditAction): State {
 /**
  * The shared persistence shell around the list. A saved copy replaces ours
  * whole; an empty or removed key (nothing saved yet, or a Reset in another
- * tab) puts this tab back on the seed around the shell's clock, which the
+ * tab) puts this tab back on an empty list at the shell's clock, which the
  * event moves to `nowMs`. Everything else — hydrates never write, a local
  * unsaved edit wins, no-op edits are identity, `saved` follows the write's
  * result — is the shared reducer's business.
@@ -97,7 +97,7 @@ type Shell = PersistenceShell<State>
 /** The calendar day a shell measures from (America/Chicago). */
 export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
 
-/** The seed around the day `nowMs` falls on. */
+/** A fresh list at the day `nowMs` falls on: nothing in it. */
 const seedAt = (nowMs: number) => initialState(todayIn(new Date(nowMs)))
 
 export function shellReducer(shell: Shell, action: Action): Shell {
@@ -118,10 +118,26 @@ export function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-/** The seed, four clinics ahead of `today` and four behind it. */
-export function initialState(today: IsoDay): State {
-  const clinics = seedClinics(today)
-  return { clinics, nextId: highestId(clinics) + 1 }
+/**
+ * A fresh list: no clinics. No sample rows, labelled or not (Rashad's
+ * Oct 16 rule). Ids start after the old sample's (`clinic-1`…`clinic-8`)
+ * so a new row never takes one of theirs. `today` is unused, kept so every
+ * caller still passes the request's day.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function initialState(_today: IsoDay): State {
+  return { clinics: [], nextId: SEED_CLINIC_IDS.size + 1 }
+}
+
+/**
+ * A copy saved before the sample was removed still holds it: every sample
+ * row (by id) is dropped, edited or not, and the founder's own rows stay.
+ * The id counter never moves back.
+ */
+export function dropSeed(state: State): State {
+  const clinics = state.clinics.filter((c) => !SEED_CLINIC_IDS.has(c.id))
+  if (clinics.length === state.clinics.length) return state
+  return { clinics, nextId: Math.max(state.nextId, SEED_CLINIC_IDS.size + 1) }
 }
 
 /** The highest numeric suffix among clinic-n ids; 0 when there are none. */
@@ -134,14 +150,15 @@ function highestId(clinics: readonly Clinic[]) {
 /**
  * Clinics are saved to this browser's localStorage under the shared policy
  * in `@/lib/persistence`: only after a real edit, validated whole on load,
- * Reset clears the key. Bump the version when the seed or shape changes.
+ * Clear my entries clears the key, and the old sample is dropped on load.
+ * Bump the version when the shape changes.
  */
 export const STORAGE_KEY = "hotdash.clinics.v1"
 
 /**
  * Every row is checked, not just the envelope: a bad type, an impossible
  * date, a duplicate id or an id counter that would collide all drop the
- * copy for the seed.
+ * copy for an empty list.
  */
 export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
@@ -158,9 +175,9 @@ export function stripState(state: State): State {
   return { clinics: state.clinics.map(stripClinic), nextId: state.nextId }
 }
 
-/** The storage `parse`: validate every row, then keep only the known keys. */
+/** The storage `parse`: validate every row, keep only the known keys, drop the old sample. */
 export function parseState(value: unknown): State | null {
-  return isState(value) ? stripState(value) : null
+  return isState(value) ? dropSeed(stripState(value)) : null
 }
 
 export const clinicsStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
@@ -212,7 +229,7 @@ export function ClinicsProvider({
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
   // layout effect — before paint — so the first frame is already the
-  // founder's data, never a flash of seed. This first hydrate is the only
+  // founder's data, never a flash of the empty list. This first hydrate is the only
   // one dated from the request.
   React.useLayoutEffect(() => {
     dispatch({ type: "hydrate", result: clinicsStorage.load(window.localStorage), nowMs: requestNowMs })
@@ -240,9 +257,9 @@ export function ClinicsProvider({
       setAttendance: (id, attendance) => dispatch({ type: "set-attendance", id, attendance }),
       removeClinic: (id) => dispatch({ type: "remove", id }),
       resetDemoData: () => {
-        // Clear first, then regenerate from the moment of the click — the
-        // shared clock read every store uses for a Reset — so the seed and
-        // "today" move with it. Other tabs hear the clear and re-seed too.
+        // Clear my entries: clear the key, then an empty list from the
+        // moment of the click (the shared clock read), so "today" moves
+        // with it. Other tabs hear the clear and empty too.
         clearState(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },

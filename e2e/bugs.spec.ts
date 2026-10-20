@@ -17,11 +17,11 @@ import {
   countWrites,
   expectWritesSettled,
   persistenceNote,
-  resetDemoData,
+  clearMyEntries,
 } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
-/** The Workplace seed's bug tickets: still on the board, never on Bugs. */
+/** The old Workplace demo's bug tickets: no screen shows them any more. */
 const SEED_BUG_KEYS = ["CHLK-404", "CHLK-419", "CHLK-420", "CHLK-421"] as const
 
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard" })
@@ -72,7 +72,7 @@ test.describe("Bugs", () => {
     await expect(crashCard(page).getByText(/no figure until Sentry is connected/)).toBeVisible()
     await expect(crashCard(page).getByText(/vs previous 7 days/)).toHaveCount(0)
 
-    // The Workplace seed carries four bug tickets; none is the founder's, so
+    // Nothing of the founder's is saved and the board ships no tickets, so
     // the list is empty and says where bugs come from.
     await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
     await expect(emptyStatus(page)).toContainText(EMPTY_BUGS)
@@ -130,7 +130,7 @@ test.describe("Bugs", () => {
     await expect(sentry(page).getByRole("link")).toHaveCount(0)
   })
 
-  test("lists the founder's own bug tickets grouped by status; the seed's bug tickets never show", async ({ page }) => {
+  test("lists the founder's own bug tickets grouped by status; the old demo's bug keys never show", async ({ page }) => {
     await seededBugs(page)
 
     await expect(list(page).getByRole("heading", { level: 2 })).toHaveText([
@@ -157,30 +157,28 @@ test.describe("Bugs", () => {
     await expect(bug(page, "CHLK-904").getByTestId("bug-age")).toHaveText("17h ago")
     await expect(bug(page, "CHLK-921").getByTestId("bug-age")).toHaveText("4d ago")
 
-    // The same saved board holds the seed's bug tickets; Bugs skips them.
+    // Only the founder's bug tickets; none of the old demo's keys.
     await expect(list(page).getByRole("link")).toHaveCount(4)
     for (const key of SEED_BUG_KEYS) await expect(bug(page, key)).toHaveCount(0)
     await expect(list(page).getByRole("note", { name: "Sample data" })).toHaveCount(0)
   })
 
-  test("the Agent Workplace board keeps its seed tickets, seed bugs included", async ({ page }) => {
+  test("a fresh Agent Workplace board has no demo tickets, and /bugs?issue=CHLK-419 opens nothing", async ({ page }) => {
     await freshBugs(page, "/agent-workplace")
-    await expect(card(page, "In Progress", "CHLK-404")).toContainText("Undo stack for iPad canvas")
-    await expect(card(page, "In Progress", "CHLK-404").getByTestId("bug-tag")).toHaveText("Bug")
-    await expect(card(page, "To Do", "CHLK-419").getByTestId("bug-tag")).toHaveText("Bug")
-    await expect(card(page, "To Do", "CHLK-402")).toContainText("Copy-link expires after 7 days")
-    await card(page, "In Progress", "CHLK-404").click()
-    await expect(page).toHaveURL(/issue=CHLK-404/)
-    await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()
+    await expect(page.getByText("No sprint is running")).toBeVisible()
+    for (const key of SEED_BUG_KEYS) await expect(page.getByText(key, { exact: true })).toHaveCount(0)
+    await page.goto("/bugs?issue=CHLK-419")
+    await expect(page.getByText("Issue CHLK-419 not found")).toBeVisible()
+    await page.goto("/agent-workplace")
 
-    // …and Bugs, reading the same board, lists none of them.
+    // …and Bugs, reading the same board, lists none.
     await rail(page).getByRole("link", { name: "Bugs", exact: true }).click()
     await expect(page).toHaveURL(/\/bugs$/)
     await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
     await expect(list(page).getByRole("link")).toHaveCount(0)
   })
 
-  test("happy path: a bug opens its ticket, a status edit here shows on the Workplace board, a ticket created and tagged there shows here, Reset clears them", async ({ page }) => {
+  test("happy path: a bug opens its ticket, a status edit here shows on the Workplace board, a ticket created and tagged there shows here, Clear removes the bugs only", async ({ page }) => {
     await seededBugs(page)
 
     await bug(page, "CHLK-919").click()
@@ -211,8 +209,6 @@ test.describe("Bugs", () => {
     await expect(moved).toContainText("May")
     await expect(moved.getByTestId("bug-tag")).toHaveText("Bug")
     await expect(card(page, "To Do", "CHLK-919")).toHaveCount(0)
-    // The seed ticket it was copied from is untouched.
-    await expect(card(page, "To Do", "CHLK-419")).toBeVisible()
 
     // A ticket the founder files and tags on the board is a bug of their own.
     await page.getByRole("button", { name: "New issue" }).click()
@@ -234,13 +230,15 @@ test.describe("Bugs", () => {
     await expect(group(page, "To Do").getByRole("link")).toHaveText([/Roster sync drops a coach's email/])
     await expect(bug(page, "CHLK-922").getByTestId("bug-tag")).toHaveText("Bug · Coach-reported")
 
-    // Reset discards the saved board: the founder's tickets go with it.
-    await resetDemoData(page, pageHeader(page))
+    // Clear on Bugs deletes the founder's bug tickets; the board's other tickets stay.
+    await clearMyEntries(page, pageHeader(page))
     await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
     await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
     await expect(bug(page, "CHLK-922")).toHaveCount(0)
     await expect(bug(page, "CHLK-919")).toHaveCount(0)
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+    const rest = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
+    expect(rest).not.toContain('"CHLK-919"')
+    expect(rest).toContain('"CHLK-902"')
   })
 
   test("two tabs: a status edit on Bugs reaches an open Workplace board, with one write", async ({ context }) => {
@@ -265,12 +263,13 @@ test.describe("Bugs", () => {
     await settled(bugs, 1)
     await settled(board, 0)
 
-    // Reset there re-seeds here: the founder's ticket was only in the saved copy.
-    await resetDemoData(board, board.locator("main header").first())
-    await expect(bugs.getByText("Issue CHLK-920 not found")).toBeVisible()
-    await expect(persistenceNote(bugs)).toHaveText(NOTE.unsaved)
+    // The Workplace's Clear there deletes its tickets and sprints, never a bug:
+    // the bug stays open here, Done, and this tab writes nothing.
+    await clearMyEntries(board, board.locator("main header").first())
+    await expect(props(bugs).getByRole("button", { name: "Done", exact: true })).toBeVisible()
+    await expect(persistenceNote(bugs)).toHaveText(NOTE.saved)
     await settled(bugs, 1)
-    await settled(board, 0)
+    await settled(board, 1)
   })
 
   test("every open bug fixed reads 'No open bugs' while the fixed ones stay listed", async ({ page }) => {
@@ -291,7 +290,7 @@ test.describe("Bugs", () => {
     await expect(list(page).getByRole("heading", { level: 2 })).toHaveText(["Done"])
     await expect(group(page, "Done").getByRole("link")).toHaveCount(4)
 
-    await resetDemoData(page, pageHeader(page))
+    await clearMyEntries(page, pageHeader(page))
     await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
     await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
   })

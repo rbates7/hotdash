@@ -9,7 +9,7 @@ import {
 } from "@/components/feature-request/responsive"
 
 /**
- * Title, persistence note, sample tag, and New idea. On phone New idea sits
+ * Title, persistence note, and New idea. On phone New idea sits
  * beside the title (Deke 13:1651); from `md` it stays in Page actions, which
  * is the desktop layout on develop.
  */

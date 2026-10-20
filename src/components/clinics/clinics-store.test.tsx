@@ -2,7 +2,8 @@ import * as React from "react"
 import { act, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { CLINICS_MOCK_DAY, seedClinics, type ClinicInput } from "@/lib/clinics"
+import { type ClinicInput } from "@/lib/clinics"
+import { CLINICS_MOCK_DAY, founderClinicsState, seedClinics } from "@/lib/clinics-fixture"
 import { initialShell, type LoadResult } from "@/lib/persistence"
 import { LATE_EVENING_CT, LATE_EVENING_CT_MS } from "@/test/clock"
 import {
@@ -51,57 +52,57 @@ const hydrate = (state: State | null, nowMs = NOW_MS) => {
 afterEach(() => vi.restoreAllMocks())
 
 describe("reducer", () => {
-  it("starts with the eight seed clinics and the next id after them", () => {
-    const s = initialState(TODAY)
-    expect(s.clinics).toEqual(seedClinics(TODAY))
-    expect(s.nextId).toBe(9)
+  it("starts empty, with ids after the old sample's", () => {
+    expect(initialState(TODAY)).toEqual({ clinics: [], nextId: 9 })
+    const s = reducer(initialState(TODAY), { type: "add", input: KATY })
+    expect(s.clinics.map((c) => c.id)).toEqual(["clinic-9"])
   })
 
   it("adds a normalised clinic with the next id and bumps the counter", () => {
-    const s = reducer(initialState(TODAY), { type: "add", input: KATY })
+    const s = reducer(founderClinicsState(TODAY), { type: "add", input: KATY })
     expect(s.clinics).toHaveLength(9)
-    expect(s.clinics.at(-1)).toEqual({ id: "clinic-9", ...KATY, name: "Katy spring install" })
-    expect(s.nextId).toBe(10)
+    expect(s.clinics.at(-1)).toEqual({ id: "clinic-109", ...KATY, name: "Katy spring install" })
+    expect(s.nextId).toBe(110)
   })
 
   it("updates a clinic in place and is a no-op when nothing changed", () => {
-    const start = reducer(initialState(TODAY), { type: "add", input: KATY })
-    const same = reducer(start, { type: "update", id: "clinic-9", input: KATY })
+    const start = reducer(founderClinicsState(TODAY), { type: "add", input: KATY })
+    const same = reducer(start, { type: "update", id: "clinic-109", input: KATY })
     expect(same).toBe(start)
     const changed = reducer(start, {
       type: "update",
-      id: "clinic-9",
+      id: "clinic-109",
       input: { ...KATY, attendance: "attended", collected: { leads: 12, emails: 9, demos: 2 } },
     })
     expect(changed).not.toBe(start)
     expect(changed.clinics.at(-1)!.collected).toEqual({ leads: 12, emails: 9, demos: 2 })
-    expect(changed.clinics.at(-1)!.id).toBe("clinic-9")
+    expect(changed.clinics.at(-1)!.id).toBe("clinic-109")
     expect(reducer(start, { type: "update", id: "clinic-404", input: KATY })).toBe(start)
   })
 
   it("sets attendance and is a no-op when it already is that", () => {
-    const start = initialState(TODAY)
-    const s = reducer(start, { type: "set-attendance", id: "clinic-1", attendance: "attended" })
+    const start = founderClinicsState(TODAY)
+    const s = reducer(start, { type: "set-attendance", id: "clinic-101", attendance: "attended" })
     expect(s.clinics[0].attendance).toBe("attended")
-    expect(reducer(s, { type: "set-attendance", id: "clinic-1", attendance: "attended" })).toBe(s)
+    expect(reducer(s, { type: "set-attendance", id: "clinic-101", attendance: "attended" })).toBe(s)
     expect(reducer(start, { type: "set-attendance", id: "nope", attendance: "attended" })).toBe(start)
   })
 
   it("removes by id and is a no-op for an unknown id; the counter never goes back", () => {
-    const start = reducer(initialState(TODAY), { type: "add", input: KATY })
-    const s = reducer(start, { type: "remove", id: "clinic-9" })
+    const start = reducer(founderClinicsState(TODAY), { type: "add", input: KATY })
+    const s = reducer(start, { type: "remove", id: "clinic-109" })
     expect(s.clinics).toHaveLength(8)
-    expect(s.nextId).toBe(10)
-    expect(reducer(s, { type: "remove", id: "clinic-9" })).toBe(s)
+    expect(s.nextId).toBe(110)
+    expect(reducer(s, { type: "remove", id: "clinic-109" })).toBe(s)
   })
 
 })
 
 describe("shellReducer (the shared persistence shell around the list)", () => {
-  const fresh = initialShell(initialState(TODAY), NOW_MS)
+  const fresh = initialShell(founderClinicsState(TODAY), NOW_MS)
 
   it("hydrate takes the saved copy whole and keeps the clock; an empty result (nothing saved, or a Reset elsewhere) re-seeds around the event's instant and moves it", () => {
-    const edited = reducer(initialState(TODAY), { type: "remove", id: "clinic-1" })
+    const edited = reducer(founderClinicsState(TODAY), { type: "remove", id: "clinic-101" })
     const s = shellReducer(fresh, hydrate(edited, noonMs("2026-09-30")))
     expect(s.data).toEqual(edited)
     expect(s).toMatchObject({ persisted: true, edited: false, saved: true, saveFailed: false, edits: 0, nowMs: NOW_MS })
@@ -123,14 +124,14 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
     const edited = shellReducer(fresh, { type: "add", input: KATY })
     // Not yet saved: the incoming copy is ignored, ours stays and stays dirty,
     // so the pending save overwrites theirs rather than theirs discarding ours.
-    const racing = shellReducer(edited, hydrate(initialState(TODAY)))
+    const racing = shellReducer(edited, hydrate(founderClinicsState(TODAY)))
     expect(racing.edits).toBe(1)
     expect(racing.data).toBe(edited.data)
     expect(racing.edited).toBe(true)
     // Once saved, a hydrate adopts the copy and clears `edited` without moving `edits`.
-    const settled = shellReducer(shellReducer(edited, { type: "save-result", ok: true }), hydrate(initialState(TODAY)))
+    const settled = shellReducer(shellReducer(edited, { type: "save-result", ok: true }), hydrate(founderClinicsState(TODAY)))
     expect(settled.edits).toBe(1)
-    expect(settled.data).toEqual(initialState(TODAY))
+    expect(settled.data).toEqual(founderClinicsState(TODAY))
     expect(settled.edited).toBe(false)
   })
 
@@ -142,10 +143,10 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
   })
 
   it("a no-op edit returns the same shell, so nothing re-renders or writes", () => {
-    const shell = shellReducer(fresh, hydrate(null))
-    expect(shellReducer(shell, { type: "set-attendance", id: "clinic-1", attendance: "planned" })).toBe(shell)
+    const shell = shellReducer(fresh, hydrate(founderClinicsState(TODAY)))
+    expect(shellReducer(shell, { type: "set-attendance", id: "clinic-101", attendance: "planned" })).toBe(shell)
     expect(shellReducer(shell, { type: "remove", id: "nope" })).toBe(shell)
-    const edited = shellReducer(shell, { type: "remove", id: "clinic-1" })
+    const edited = shellReducer(shell, { type: "remove", id: "clinic-101" })
     expect(edited.edited).toBe(true)
     expect(edited.edits).toBe(1)
   })
@@ -160,7 +161,7 @@ describe("shellReducer (the shared persistence shell around the list)", () => {
 })
 
 describe("isState rejects a bad saved copy", () => {
-  const good = initialState(TODAY)
+  const good = founderClinicsState(TODAY)
   const cases: [string, unknown][] = [
     ["not an object", "nope"],
     ["an array", [good]],
@@ -169,8 +170,8 @@ describe("isState rejects a bad saved copy", () => {
     ["a row with an impossible date", { ...good, clinics: [{ ...good.clinics[0], date: "2026-02-30" }] }],
     ["a row with a bad nested count", { ...good, clinics: [{ ...good.clinics[0], collected: { leads: "12", emails: 0, demos: 0 } }] }],
     ["duplicate ids", { ...good, clinics: [good.clinics[0], good.clinics[0]] }],
-    ["nextId not above the highest id", { ...good, nextId: 8 }],
-    ["nextId fractional", { ...good, nextId: 9.5 }],
+    ["nextId not above the highest id", { ...good, nextId: 108 }],
+    ["nextId fractional", { ...good, nextId: 109.5 }],
     ["nextId missing", (() => { const { nextId: _n, ...rest } = good; void _n; return rest })()],
     ["nextId a string", { ...good, nextId: "9" }],
   ]
@@ -213,6 +214,25 @@ describe("isState rejects a bad saved copy", () => {
   })
 })
 
+describe("no sample rows", () => {
+  it("a copy saved with the old sample drops those rows (edited or not) and keeps the founder's", () => {
+    const old = seedClinics(TODAY)
+    const mine = founderClinicsState(TODAY).clinics[0]
+    const saved = { clinics: [{ ...old[0], notes: "edited" }, ...old.slice(1), mine], nextId: 102 }
+    expect(isState(saved)).toBe(true)
+    const parsed = parseState(saved)!
+    expect(parsed.clinics).toEqual([mine])
+    expect(parsed.nextId).toBe(102)
+    expect(parseState({ clinics: old, nextId: 9 })).toEqual({ clinics: [], nextId: 9 })
+    expect(parseState({ clinics: [mine], nextId: 102 })).toEqual({ clinics: [mine], nextId: 102 })
+  })
+
+  it("the bundle's sample ids match the old sample's", async () => {
+    const { SEED_CLINIC_IDS } = await import("@/lib/clinics")
+    expect([...SEED_CLINIC_IDS]).toEqual(seedClinics(TODAY).map((c) => c.id))
+  })
+})
+
 describe("localStorage", () => {
   it("uses the v1 key", () => {
     expect(STORAGE_KEY).toBe("hotdash.clinics.v1")
@@ -220,23 +240,23 @@ describe("localStorage", () => {
 
   it("loadState returns null when nothing is saved and the stripped copy when there is", () => {
     expect(loadState(window.localStorage)).toBeNull()
-    const edited = reducer(initialState(TODAY), { type: "add", input: KATY })
+    const edited = reducer(founderClinicsState(TODAY), { type: "add", input: KATY })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...edited, extra: 1 }))
     expect(loadState(window.localStorage)).toEqual(edited)
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    const s = reducer(initialState(TODAY), { type: "add", input: KATY })
+    const s = reducer(founderClinicsState(TODAY), { type: "add", input: KATY })
     expect(saveState(window.localStorage, s)).toBe(true)
     expect(loadState(window.localStorage)).toEqual(s)
     // A different copy, so the byte comparison does not short-circuit the write.
-    const other = reducer(s, { type: "remove", id: "clinic-1" })
+    const other = reducer(s, { type: "remove", id: "clinic-101" })
     expect(saveState(quotaExceededStorage() as unknown as Storage, other)).toBe(false)
   })
 
   it("saving the identical copy again is a no-op write (the shared save compares bytes)", () => {
-    const s = initialState(TODAY)
+    const s = founderClinicsState(TODAY)
     expect(saveState(window.localStorage, s)).toBe(true)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     expect(saveState(window.localStorage, s)).toBe(true)
@@ -260,14 +280,17 @@ function Probe({ label = "" }: { label?: string }) {
       <span data-testid="names">{clinics.map((c) => c.name).join("|")}</span>
       <span data-testid="attendance">{clinics.map((c) => c.attendance).join(",")}</span>
       <button type="button" onClick={() => addClinic(KATY)}>add</button>
-      <button type="button" onClick={() => setAttendance("clinic-1", "attended")}>attend</button>
-      <button type="button" onClick={() => setAttendance("clinic-1", "planned")}>noop</button>
-      <button type="button" onClick={() => updateClinic("clinic-2", { ...seedClinics(today)[1], notes: "edited" })}>edit</button>
-      <button type="button" onClick={() => removeClinic("clinic-3")}>remove</button>
+      <button type="button" onClick={() => setAttendance("clinic-101", "attended")}>attend</button>
+      <button type="button" onClick={() => setAttendance("clinic-101", "planned")}>noop</button>
+      <button type="button" onClick={() => updateClinic("clinic-102", { ...seedClinics(today)[1], notes: "edited" })}>edit</button>
+      <button type="button" onClick={() => removeClinic("clinic-103")}>remove</button>
       <button type="button" onClick={resetDemoData}>reset</button>
     </div>
   )
 }
+
+/** The founder's own list, saved before the page opens. */
+const storeFounder = () => saveState(window.localStorage, founderClinicsState(TODAY))
 
 const mount = (nowMs = NOW_MS) =>
   render(
@@ -304,21 +327,22 @@ describe("ClinicsProvider", () => {
   })
 
   it("is hydrated before the first paint, so saved data never follows a flash of seed", () => {
-    saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove", id: "clinic-1" }))
+    saveState(window.localStorage, reducer(founderClinicsState(TODAY), { type: "remove", id: "clinic-101" }))
     mount()
     expect(screen.getByTestId("count")).toHaveTextContent("7")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=true")
   })
 
   it("a hydrate from a saved copy never triggers a save", () => {
-    saveState(window.localStorage, reducer(initialState(TODAY), { type: "remove", id: "clinic-1" }))
+    saveState(window.localStorage, reducer(founderClinicsState(TODAY), { type: "remove", id: "clinic-101" }))
     const writes = countingSetItem()
     mount()
     expect(writes.calls).toEqual([])
     writes.restore()
   })
 
-  it("persists edits (saved=true), skips a write that would not change the bytes, rehydrates after a remount, and Reset clears the key", () => {
+  it("persists edits (saved=true), skips a write that would not change the bytes, rehydrates after a remount, and Clear clears the key", () => {
+    storeFounder()
     const writes = countingSetItem()
     const first = mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
@@ -342,15 +366,15 @@ describe("ClinicsProvider", () => {
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
-    expect(screen.getByTestId("names")).toHaveTextContent("Houston Offensive Staff Clinic")
+    expect(screen.getByTestId("names")).toBeEmptyDOMElement()
     expect(writes.calls).toHaveLength(1)
     vi.useRealTimers()
     writes.restore()
   })
 
-  it("opened at 23:30 CT and Reset after midnight: the seed and today move to the new day", () => {
+  it("opened at 23:30 CT and Reset after midnight: the list empties and today moves to the new day", () => {
     mount(LATE_EVENING_CT_MS)
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     act(() => screen.getByRole("button", { name: "add" }).click())
@@ -358,18 +382,21 @@ describe("ClinicsProvider", () => {
     vi.useFakeTimers({ now: new Date("2026-10-08T05:30:00.000Z"), toFake: ["Date"] })
     act(() => screen.getByRole("button", { name: "reset" }).click())
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-08")
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     vi.useRealTimers()
   })
 
   it("reports a failed save and never claims Saved; the next edit retries", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const full = quotaExceededStorage()
+    storeFounder()
+    const before = window.localStorage.getItem(STORAGE_KEY)
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(full.setItem)
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
-    expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=false failed=true")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+    // A hydrated copy keeps its saved flag; the failure is what the note shows.
+    expect(screen.getByTestId("status").textContent).toMatch(/^edited=true saved=\w+ failed=true$/)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(before)
     spy.mockRestore()
     act(() => screen.getByRole("button", { name: "attend" }).click())
     expect(screen.getByTestId("status")).toHaveTextContent("edited=true saved=true failed=false")
@@ -379,7 +406,7 @@ describe("ClinicsProvider", () => {
   it("re-hydrates when another tab writes the key, without writing back", () => {
     mount()
     const writes = countingSetItem()
-    const theirs = reducer(initialState(TODAY), { type: "remove", id: "clinic-1" })
+    const theirs = reducer(founderClinicsState(TODAY), { type: "remove", id: "clinic-101" })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(theirs))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(theirs)))
     expect(screen.getByTestId("count")).toHaveTextContent("7")
@@ -389,7 +416,8 @@ describe("ClinicsProvider", () => {
     writes.restore()
   })
 
-  it("a storage event with the key removed (Reset elsewhere) re-seeds this tab from now() and clears edited", () => {
+  it("a storage event with the key removed (Reset elsewhere) empties this tab at now() and clears edited", () => {
+    storeFounder()
     mount()
     act(() => screen.getByRole("button", { name: "add" }).click())
     expect(screen.getByTestId("count")).toHaveTextContent("9")
@@ -401,7 +429,7 @@ describe("ClinicsProvider", () => {
     vi.useFakeTimers({ now: new Date(noonMs("2026-10-07")), toFake: ["Date"] })
     act(() => fireStorageEvent(STORAGE_KEY, null))
     vi.useRealTimers()
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("names")).not.toHaveTextContent("Katy")
     expect(screen.getByTestId("today")).toHaveTextContent("2026-10-07")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false failed=false")
@@ -411,24 +439,25 @@ describe("ClinicsProvider", () => {
     act(() => screen.getByRole("button", { name: "add" }).click())
     window.localStorage.setItem(STORAGE_KEY, "")
     act(() => fireStorageEvent(STORAGE_KEY, ""))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("edited=false saved=false")
     writes.restore()
   })
 
-  it("a corrupt copy written by another tab leaves this tab on the seed, writes nothing, and is parked by the next real save", () => {
+  it("a corrupt copy written by another tab leaves this tab on an empty list, writes nothing, and is parked by the next real save", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
+    storeFounder()
     mount()
     const writes = countingSetItem()
     window.localStorage.setItem(STORAGE_KEY, "{not json")
     act(() => fireStorageEvent(STORAGE_KEY, "{not json"))
-    expect(screen.getByTestId("count")).toHaveTextContent("8")
+    expect(screen.getByTestId("count")).toHaveTextContent("0")
     expect(screen.getByTestId("status")).toHaveTextContent("saved=false")
     expect(writes.calls).toEqual([STORAGE_KEY]) // only the simulated other tab
     expect(clinicsStorage.rejected(window.localStorage)).toEqual([])
-    act(() => screen.getByRole("button", { name: "attend" }).click())
+    act(() => screen.getByRole("button", { name: "add" }).click())
     expect(clinicsStorage.rejected(window.localStorage)[0]?.raw).toBe("{not json")
-    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"attended"')
+    expect(window.localStorage.getItem(STORAGE_KEY)).toContain('"Katy spring install"')
     writes.restore()
   })
 
@@ -440,6 +469,7 @@ describe("ClinicsProvider", () => {
      * answers with a write, so the count settles.
      */
     function mountTwo() {
+      storeFounder()
       render(
         <>
           <ClinicsProvider nowMs={NOW_MS}>
@@ -479,7 +509,7 @@ describe("ClinicsProvider", () => {
       // Reset in A clears the key; B hears it and re-seeds without writing.
       act(() => a.getByRole("button", { name: "reset" }).click())
       act(() => fireStorageEvent(STORAGE_KEY, null))
-      expect(b.getByTestId("count")).toHaveTextContent("8")
+      expect(b.getByTestId("count")).toHaveTextContent("0")
       expect(b.getByTestId("status")).toHaveTextContent("edited=false saved=false")
       expect(a.getByTestId("status")).toHaveTextContent("edited=false saved=false")
       expect(writes.calls).toHaveLength(2)

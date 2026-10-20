@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event"
 import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { ROW_COLLAPSE_SLOT } from "@/components/responsive-table"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
+import { founderDealsState } from "@/lib/sales-opportunities-fixture"
+import { CLEAR_COPY } from "@/components/persistence-note"
 import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
-import { DealsProvider } from "@/components/sales-opportunities/deals-store"
+import { DealsProvider, saveState } from "@/components/sales-opportunities/deals-store"
 import { FIXED_NOW_MS } from "@/test/clock"
 
 beforeAll(() => {
@@ -26,6 +27,8 @@ beforeAll(() => {
 // (md:max-xl) and the desktop icons (xl) are all in the tree at once; each
 // test scopes to the layout it is about.
 function renderScreen() {
+  // The founder's own deals (the old sample under ids of their own).
+  saveState(window.localStorage, founderDealsState(FIXED_NOW_MS))
   return render(
     <DealsProvider nowMs={FIXED_NOW_MS}>
       <section aria-label="Sales Opportunities">
@@ -56,7 +59,7 @@ describe("phone (<768): RowCollapse cards", () => {
     // The card drops the year ("25 Aug", Deke 9:339) so "Overdue 2 days" fits; the sheet keeps it.
     expect(pruitt).toHaveTextContent("Collect the PO from the booster club · 25 Aug · Overdue 2 days")
     expect(pruitt).not.toHaveTextContent("2026")
-    expect(within(pruitt).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+    expect(within(pruitt).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
     // Meta lines are labelled for screen readers.
     expect(within(pruitt).getByText("Deal:", { exact: false })).toHaveClass("sr-only")
     expect(within(pruitt).getByText("Next step:", { exact: false })).toHaveClass("sr-only")
@@ -201,13 +204,13 @@ describe("phone (<768): the row-actions bottom sheet", () => {
 })
 
 describe("persistence note", () => {
-  it("passes the 44px-below-1280 Reset through the shared resetClassName", () => {
+  it("passes the 44px-below-1280 Clear my entries through the shared resetClassName", () => {
     render(
       <DealsProvider nowMs={FIXED_NOW_MS}>
         <DealsPersistenceNote />
       </DealsProvider>
     )
-    const reset = screen.getByRole("button", { name: /Reset/ })
+    const reset = screen.getByRole("button", { name: CLEAR_COPY.button })
     expect(reset).toHaveClass("max-xl:h-11!", "max-xl:min-w-11!")
     // The note's root keeps the shared classes (no wrapper, no className).
     expect(reset.parentElement).toHaveClass("text-micro", "inline-flex", "items-center", "gap-1.5")

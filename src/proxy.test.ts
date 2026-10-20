@@ -155,6 +155,28 @@ describe("paths and matcher", () => {
     expect(isPublicPath("/crm")).toBe(false)
   })
 
+  it("keeps every CRM page and the CRM's API private", async () => {
+    const paths = [
+      "/crm",
+      "/crm/",
+      "/crm/cases",
+      "/crm/cases/case-1",
+      "/crm/cases?case=case-1",
+      "/crm/accounts",
+      "/crm/accounts/x",
+      "/crm/contacts",
+      "/crm/triage",
+      "/api/crm/gmail",
+    ]
+    for (const path of paths) expect(isPublicPath(path), path).toBe(false)
+    setGate(EMAIL, SECRET)
+    for (const path of paths) {
+      const res = await proxy(req(path))
+      expect(passes(res), path).toBe(false)
+      expect(res.status, path).toBe(path.startsWith("/api/") ? 401 : 307)
+    }
+  })
+
   it("reuses #38's matcher", () => {
     expect(config.matcher).toEqual(["/((?!_next/|favicon\\.ico).*)"])
   })

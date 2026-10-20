@@ -103,6 +103,10 @@ describe("helpers", () => {
 
   it("formats times in Central", () => {
     expect(formatWorkboardTime("2026-10-17T00:45:00.000Z")).toBe("Oct 16, 7:45 PM CDT")
-    expect(formatWorkboardTime("nope")).toBe("nope")
+    // A missing or unparseable date renders nothing, never the raw string.
+    expect(formatWorkboardTime("nope")).toBe("")
+    expect(formatWorkboardTime("")).toBe("")
+    expect(formatWorkboardTime(null)).toBe("")
+    expect(formatWorkboardTime(undefined)).toBe("")
   })
 })

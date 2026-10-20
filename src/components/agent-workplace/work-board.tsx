@@ -82,9 +82,9 @@ function WorkCard({ item }: { item: WorkboardItem }) {
           <CardTitle className="text-body font-medium break-words">{item.title}</CardTitle>
           <p className="text-caption text-muted-foreground">
             {ownerName(item.owner)}
-            {item.mergedAt ? (
-              <> · Merged <time dateTime={item.mergedAt}>{formatWorkboardTime(item.mergedAt)}</time></>
-            ) : item.updatedAt ? (
+            {formatWorkboardTime(item.mergedAt) ? (
+              <> · Merged <time dateTime={item.mergedAt!}>{formatWorkboardTime(item.mergedAt)}</time></>
+            ) : formatWorkboardTime(item.updatedAt) ? (
               <> · Updated <time dateTime={item.updatedAt}>{formatWorkboardTime(item.updatedAt)}</time></>
             ) : null}
           </p>
@@ -210,16 +210,20 @@ function WorkBoardBody({ view }: { view: WorkboardView }) {
   )
 }
 
+export const WORKBOARD_ANNOUNCE_PREFIX = "Work board: "
+
 /**
  * The board plus one polite live region that is always mounted (so a change
  * of state is announced, not just a fresh mount): Connecting…, Not
  * connected, No open pull requests, "N PRs updated <time CT>", or the stale
- * note. Visually hidden; the visible states say the same thing.
+ * note, each led by "Work board:" so a screen reader says which region
+ * spoke. Visually hidden; the visible states say the same thing.
  */
 export function WorkBoardView({ view }: { view: WorkboardView }) {
   return (
     <div className="flex min-w-0 flex-col">
       <p role="status" aria-live="polite" aria-atomic="true" data-testid="workboard-announce" className="sr-only">
+        {WORKBOARD_ANNOUNCE_PREFIX}
         {workboardAnnouncement(view)}
       </p>
       <WorkBoardBody view={view} />

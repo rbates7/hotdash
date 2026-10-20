@@ -11,7 +11,7 @@ import {
   type Expense,
   type Sort,
 } from "@/lib/metrics"
-import { METRIC_DEFS, snapshotFor } from "@/lib/kpis"
+import { METRIC_DEFS, metricShell } from "@/lib/kpis"
 import { ownExpenses } from "@/lib/live-metrics"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -323,7 +323,7 @@ type ExpenseKey = keyof Omit<Expense, "id">
 
 export function ExpensesPanel() {
   const { today, expenses, charts, setChart, removeExpense } = useMetrics()
-  const snapshot = snapshotFor("expenses", { today, expenses })
+  const snapshot = metricShell("expenses")
   const [sort, setSort] = React.useState<Sort<ExpenseKey> | null>({
     key: "amount",
     dir: "desc",

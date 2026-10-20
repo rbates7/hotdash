@@ -19,13 +19,14 @@ import {
   mrrTrend,
   netSubscribers,
   priorExpensesTotal,
-  seedChurnedSubscribers,
   seedExpenses,
-  seedNewSubscribers,
   snapshotFor,
   truthStrip,
   weekEnding,
-} from "@/lib/kpis"
+  SAMPLE_CHURNED_SUBSCRIBERS,
+  SAMPLE_NEW_SUBSCRIBERS,
+} from "@/lib/kpis-fixture"
+import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis-fixture"
 import { expensesTotal, formatMetricValue, trendFor } from "@/lib/metrics"
 
 afterEach(() => vi.useRealTimers())
@@ -103,6 +104,9 @@ describe("the seed reconciles", () => {
     const subs = snapshotFor("subscribers", { today })
     const net = seedNewSubscribers(today).length - seedChurnedSubscribers(today).length
     expect(net).toBe(3)
+    // The bundle ships only the counts; the test-only names match them.
+    expect(seedNewSubscribers(today)).toHaveLength(SAMPLE_NEW_SUBSCRIBERS)
+    expect(seedChurnedSubscribers(today)).toHaveLength(SAMPLE_CHURNED_SUBSCRIBERS)
     expect(netSubscribers(today)).toBe(net)
     expect(subs.value - subs.previous).toBe(net)
     expect(trendFor(subs.value, subs.previous, "abs").text).toBe("+3")

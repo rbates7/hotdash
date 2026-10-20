@@ -14,9 +14,6 @@ export const WORKPLACE_HEADER =
 export const WORKPLACE_HEADER_META =
   "flex w-full min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 xl:w-auto"
 
-export const WORKPLACE_DUMMY =
-  "text-muted-foreground border-surface-border bg-surface shrink-0 rounded-md border border-dashed px-2 py-[5px] text-[10px] font-semibold tracking-[0.07em] whitespace-nowrap uppercase"
-
 /** Passed to PersistenceNote so Reset is 44px on phone/tablet. */
 export const WORKPLACE_RESET = "max-xl:h-11! max-xl:px-2.5!"
 
@@ -66,15 +63,3 @@ export const WORKPLACE_TICKET =
 
 export const WORKPLACE_TICKET_RAIL =
   "border-border w-72 shrink-0 border-l pt-14 pl-6 max-xl:w-full max-xl:border-t max-xl:border-l-0 max-xl:pt-6 max-xl:pl-0"
-
-export const WORKPLACE_AUTOPILOT_TABLE = "max-md:block max-md:w-full"
-
-export const WORKPLACE_AUTOPILOT_HEAD = "max-md:hidden"
-
-export const WORKPLACE_AUTOPILOT_BODY = "max-md:block"
-
-export const WORKPLACE_AUTOPILOT_ROW =
-  "hover:bg-transparent max-md:grid max-md:grid-cols-[minmax(0,1fr)_auto] max-md:items-start max-md:gap-x-3 max-md:px-4 max-md:py-3"
-
-export const WORKPLACE_AUTOPILOT_CELL =
-  "max-md:block max-md:border-0 max-md:p-0! max-md:whitespace-normal!"

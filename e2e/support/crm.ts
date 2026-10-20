@@ -1,9 +1,9 @@
-import { expect, type Page } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 
 import type { LiveGmailSummary } from "../../src/lib/crm/gmail-summary"
 
 import { liveGmailSummary } from "./gmail"
-import { NOTE, persistenceNote } from "./persistence"
+import { CLEAR_CONFIRM_NAME, NOTE, NOTE_NAME, persistenceNote } from "./persistence"
 
 /**
  * The CRM with no sample rows. Gmail not connected (the real server with no
@@ -17,35 +17,187 @@ export const CRM_STORAGE_KEY = "hotdash.crm.v1"
 /** Mirrored from `LEDE` / `CONNECTING_LEDE` in `@/components/crm/crm-shell`. */
 export const CRM_LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
 export const CRM_CONNECTING_LEDE = "Conversations, contacts, and triage"
+/** `liveLede("info@chlkapp.com")`: the lede once the fixture inbox (or the stale copy) has answered. */
+export const CRM_LIVE_LEDE = "Conversations, contacts, and triage from info@chlkapp.com"
+
+/* ------------------------------------------------- the header and ⋯ menu */
+
+/** Mirrored from `@/components/crm/crm-shell` and `@/components/crm/crm-header-menu`. */
+export const FIND_CONTACT = "Find a contact…"
+export const CRM_MENU_LABEL = "CRM menu"
+export const GMAIL_CONNECT = "Connect…"
+export const CLEAR_MY_ENTRIES = "Clear my entries"
+/** `GMAIL_READ_ONLY_NOTE`: the menu's storage line on Contacts / Triage while Gmail is live. */
+export const GMAIL_READ_ONLY_NOTE = "Read-only · edits here aren't saved"
+/** `EDITS_NOTE`: under the Cases filter bar, in the case panel, and the menu's line on Overview / Cases / Accounts. */
+export const EDITS_NOTE = "Edits save in this browser"
+
+/** Exactly these section tabs, in this order (Triage carries its count while live). */
+export const CRM_TABS = ["Overview", "Cases", "Accounts", "Triage", "Contacts"] as const
+
+/** The CRM header row: the title and lede, Find a contact… and the ⋯ menu button. */
+export function crmHeader(page: Page) {
+  return page.getByRole("main").locator("header").first()
+}
+
+/** The ghost ⋯ button that opens the header menu. */
+export function crmMenuButton(page: Page) {
+  return crmHeader(page).getByRole("button", { name: CRM_MENU_LABEL, exact: true })
+}
+
+/** The header menu's popup. It is portalled out of the header, so it is found on the page. */
+export function crmMenu(page: Page) {
+  return page.getByTestId("crm-header-menu")
+}
+
+/** Gmail's source badge, inside the menu (open it first). */
+export function crmSource(page: Page) {
+  return crmMenu(page).getByTestId("crm-source")
+}
+
+/** "Clear my entries", a menu item (aria-disabled when nothing is saved); open the menu first. */
+export function clearMenuItem(page: Page) {
+  return crmMenu(page).getByRole("menuitem", { name: CLEAR_MY_ENTRIES, exact: true })
+}
+
+/** The menu's storage line by role and name (`persistenceNote`); open the menu first. */
+export function crmNote(page: Page, { failed = false } = {}) {
+  return crmMenu(page).getByRole(failed ? "alert" : "status", { name: NOTE_NAME, exact: true })
+}
+
+/**
+ * Open the header's ⋯ menu (if it is not open already) and return it. A
+ * click that lands before hydration does nothing, so it is retried.
+ */
+export async function openCrmMenu(page: Page): Promise<Locator> {
+  const menu = crmMenu(page)
+  await expect(async () => {
+    if (!(await menu.isVisible())) await crmMenuButton(page).click()
+    await expect(menu).toBeVisible({ timeout: 1_000 })
+  }).toPass()
+  return menu
+}
+
+/**
+ * Close the menu (Escape returns focus to its button). The menu is modal,
+ * so close it before touching anything outside it (the theme toggle, tabs).
+ */
+export async function closeCrmMenu(page: Page) {
+  const menu = crmMenu(page)
+  if (await menu.isVisible()) await page.keyboard.press("Escape")
+  await expect(menu).toBeHidden()
+}
+
+/**
+ * Open the menu, check Gmail's source badge, close it again. `text` and
+ * `source` (its `data-source`) are optional: with neither, it only waits for
+ * the badge (the first answer from /api/crm/gmail).
+ */
+export async function expectCrmSource(page: Page, text?: string | RegExp, source?: string) {
+  await openCrmMenu(page)
+  const badge = crmSource(page)
+  await expect(badge).toBeVisible()
+  if (text !== undefined) await expect(badge).toHaveText(text)
+  if (source !== undefined) await expect(badge).toHaveAttribute("data-source", source)
+  await closeCrmMenu(page)
+}
+
+/** Open the menu, check where edits live (the storage line), close it again. */
+export async function expectCrmNote(page: Page, text: string | RegExp) {
+  await openCrmMenu(page)
+  await expect(crmNote(page)).toHaveText(text)
+  await closeCrmMenu(page)
+}
+
+/**
+ * Clear my entries from the ⋯ menu, through the shared confirm ("Clear my
+ * entries?" → "Clear"), which also clears this browser's case edits.
+ */
+export async function clearCrmEntries(page: Page) {
+  await openCrmMenu(page)
+  const clear = clearMenuItem(page)
+  await expect(clear).not.toHaveAttribute("aria-disabled", "true")
+  await clear.click()
+  await expect(crmMenu(page)).toBeHidden()
+  const dialog = page.getByRole("dialog", { name: CLEAR_CONFIRM_NAME, exact: true })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(dialog).toBeHidden()
+}
 
 /** Mirrored from `@/components/crm/gmail-not-connected`. */
 export const GMAIL_HINT =
   "Connect the support inbox (Gmail) in Settings › Connected data and its conversations show here."
+/** One panel per screen; Overview has two (`OVERVIEW_PANEL_TITLES`). */
 export const GMAIL_PANEL_TITLES = {
-  overview: "Support inbox conversations",
   cases: "Cases from the support inbox",
+  accounts: "Accounts from the support inbox",
   contacts: "People who email the support inbox",
   triage: "Unknown senders from the support inbox",
 } as const
 
-export type CrmScreen = keyof typeof GMAIL_PANEL_TITLES
+/** The rebuilt Overview's two list cards, each its own panel (in DOM order). */
+export const OVERVIEW_PANEL_TITLES = ["Cases waiting on you", "Recent support inbox activity"] as const
 
-/** The Not connected panel a CRM screen shows while Gmail is not connected. */
+export type CrmScreen = "overview" | keyof typeof GMAIL_PANEL_TITLES
+
+/** The Not connected panel(s) a CRM screen shows while Gmail is not connected. */
 export function gmailPanel(page: Page) {
   return page.getByRole("main").getByTestId("crm-not-connected")
 }
 
-/** The panel for `screen`: its title, the hint and the Not connected badge. */
+/**
+ * The panel(s) for `screen`: title, the hint and the Not connected badge.
+ * Returns the (first) panel.
+ */
 export async function expectGmailPanel(page: Page, screen: CrmScreen) {
-  const panel = gmailPanel(page)
-  await expect(panel).toHaveCount(1)
-  await expect(panel).toBeVisible()
-  await expect(panel).toHaveAttribute("data-source", "not_connected")
-  await expect(panel).toHaveAccessibleName(`${GMAIL_PANEL_TITLES[screen]}: not connected`)
-  await expect(panel.getByTestId("not-connected")).toHaveText("Not connected")
-  await expect(panel.getByText(GMAIL_PANEL_TITLES[screen], { exact: true })).toBeVisible()
-  await expect(panel.getByText(GMAIL_HINT, { exact: true })).toBeVisible()
-  return panel
+  const titles: readonly string[] = screen === "overview" ? OVERVIEW_PANEL_TITLES : [GMAIL_PANEL_TITLES[screen]]
+  const panels = gmailPanel(page)
+  await expect(panels).toHaveCount(titles.length)
+  for (const [i, title] of titles.entries()) {
+    const panel = panels.nth(i)
+    await expect(panel).toBeVisible()
+    await expect(panel).toHaveAttribute("data-source", "not_connected")
+    await expect(panel).toHaveAccessibleName(`${title}: not connected`)
+    await expect(panel.getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(panel.getByText(title, { exact: true })).toBeVisible()
+    await expect(panel.getByText(GMAIL_HINT, { exact: true })).toBeVisible()
+  }
+  return panels.first()
+}
+
+/** Mirrored from `NO_CASES` in `@/components/crm/cases-screen`: Cases, connected with no cases. */
+export const NO_CASES = "No cases yet. Conversations from the support inbox show here."
+
+/** The fixture inbox's Overview "Open" tile: three cases not closed (roster, invoice, assistants). */
+export const LIVE_OPEN_TILE = "3 Open"
+
+/** The Overview's six count cards (`data-count`), in order, with their labels. */
+export const OVERVIEW_COUNTS = [
+  ["open", "Open"],
+  ["waitingOnUs", "Waiting on you"],
+  ["waitingOnThem", "Waiting on them"],
+  ["urgentOpen", "Urgent, not closed"],
+  ["overdue", "Waiting on you over 3 days"],
+  ["closedThisWeek", "Closed this week"],
+] as const
+
+/**
+ * Every Overview count card says Not connected and shows no number. A label
+ * holds a digit ("over 3 days"), so this looks for the count's own number
+ * (`.tabular-nums`), never a digit anywhere in the card.
+ */
+export async function expectCountsNotConnected(page: Page) {
+  const counts = page.getByRole("main").getByTestId("crm-count")
+  await expect(counts).toHaveCount(OVERVIEW_COUNTS.length)
+  for (const [i, [key, label]] of OVERVIEW_COUNTS.entries()) {
+    const count = counts.nth(i)
+    await expect(count).toHaveAttribute("data-count", key)
+    await expect(count).toContainText(label)
+    await expect(count.getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(count.locator(".tabular-nums")).toHaveCount(0)
+    await expect(count.getByRole("link")).toHaveCount(0)
+  }
 }
 
 /* --------------------------------------------------- the fixture inbox */
@@ -193,7 +345,8 @@ export function ownContactName(c: OwnContact) {
 
 /**
  * Open `path` with `contacts` saved as the founder's own in this browser
- * (Gmail not connected), past the loading state: the note reads Saved.
+ * (Gmail not connected), past the loading state: the ⋯ menu's note reads
+ * Saved (the menu is closed again afterwards).
  */
 export async function openWithOwnContacts(page: Page, path: string, contacts: readonly OwnContact[] = OWN_CONTACTS) {
   await page.goto(path)
@@ -202,5 +355,7 @@ export async function openWithOwnContacts(page: Page, path: string, contacts: re
     [CRM_STORAGE_KEY, JSON.stringify(ownCrmState(contacts))] as const
   )
   await page.reload()
+  await openCrmMenu(page)
   await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+  await closeCrmMenu(page)
 }

@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   FeatureRequestsProvider,
+  STORAGE_KEY,
 } from "@/components/feature-request/feature-requests-store"
+import { founderRequestsState } from "@/lib/feature-requests/fixture"
 import { HeaderActions } from "@/components/feature-request/header-actions"
 import { RequestBoard } from "@/components/feature-request/request-board"
 import {
@@ -65,6 +67,12 @@ function Screen() {
   )
 }
 
+/** Renders the page over the founder's saved board (the old sample's cards under ids of their own). */
+function renderScreen() {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(founderRequestsState(TODAY)))
+  return render(<Screen />)
+}
+
 const column = (name: string) => screen.getByRole("region", { name })
 const board = () => screen.getByRole("region", { name: "Feature request intake" })
 const card = (title: string) =>
@@ -74,7 +82,7 @@ describe("phone (<768): status chips + one column", () => {
   beforeEach(() => mockViewport(390))
 
   it("shows Inbox cards behind a chip and hides the other columns", () => {
-    render(<Screen />)
+    renderScreen()
     const chips = screen.getByRole("group", { name: "Filter by status" })
     expect(within(chips).getAllByRole("button").map((t) => t.textContent)).toEqual([
       "Inbox3",
@@ -96,12 +104,12 @@ describe("phone (<768): status chips + one column", () => {
     expect(items).toHaveLength(3)
     expect(within(items[0]).getByRole("button", { name: "Open idea: Play of the Day" })).toBeInTheDocument()
     expect(card("Play of the Day")).toHaveTextContent("Pin one ready-to-run play")
-    expect(within(card("Play of the Day")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card("Play of the Day")).queryByTestId("sample-data-tag")).toBeNull()
   })
 
   it("the On Roadmap chip swaps the list and keeps the board-only hint", async () => {
     const user = userEvent.setup()
-    render(<Screen />)
+    renderScreen()
     const chips = screen.getByRole("group", { name: "Filter by status" })
     await user.click(within(chips).getByRole("button", { name: /On Roadmap/ }))
     expect(within(chips).getByRole("button", { name: /On Roadmap/ })).toHaveAttribute(
@@ -116,7 +124,7 @@ describe("phone (<768): status chips + one column", () => {
 
   it("opens the existing idea dialog from a card", async () => {
     const user = userEvent.setup()
-    render(<Screen />)
+    renderScreen()
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
     expect(dialog).toHaveTextContent("Move to On Roadmap")
@@ -125,7 +133,7 @@ describe("phone (<768): status chips + one column", () => {
 
   it("the × closes the sheet and focus returns to the card", async () => {
     const user = userEvent.setup()
-    render(<Screen />)
+    renderScreen()
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
     await user.click(within(dialog).getByRole("button", { name: "Close" }))
@@ -135,7 +143,7 @@ describe("phone (<768): status chips + one column", () => {
 
   it("after Delete, focus moves to the next Inbox card", async () => {
     const user = userEvent.setup()
-    render(<Screen />)
+    renderScreen()
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
     await user.click(within(dialog).getByRole("button", { name: "Delete" }))
@@ -145,13 +153,13 @@ describe("phone (<768): status chips + one column", () => {
   })
 
   it("paints a right-edge fade over the chips", () => {
-    render(<Screen />)
+    renderScreen()
     expect(screen.getByTestId("fr-chips-fade")).toBeInTheDocument()
   })
 
   it("after Move to On Roadmap, focus moves to the next Inbox card", async () => {
     const user = userEvent.setup()
-    render(<Screen />)
+    renderScreen()
     await user.click(card("Play of the Day"))
     const dialog = await screen.findByRole("dialog", { name: "Idea: Play of the Day" })
     await user.click(within(dialog).getByRole("button", { name: "Move to On Roadmap" }))
@@ -164,7 +172,7 @@ describe("tablet portrait (820): 2×2 of all four columns", () => {
   beforeEach(() => mockViewport(820))
 
   it("does not use chips and keeps every column on the board", () => {
-    render(<Screen />)
+    renderScreen()
     expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_TABLET)
     expect(within(column("Inbox")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
@@ -178,7 +186,7 @@ describe("tablet portrait (820): 2×2 of all four columns", () => {
 describe("desktop / 1180: four columns, no chips", () => {
   it("matches develop at the default (no phone) viewport", () => {
     mockViewport(1440)
-    render(<Screen />)
+    renderScreen()
     expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_DESKTOP)
     expect(within(column("Inbox")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)
@@ -187,7 +195,7 @@ describe("desktop / 1180: four columns, no chips", () => {
 
   it("keeps four columns at 1180 (no Feature Request 1180 frame)", () => {
     mockViewport(1180)
-    render(<Screen />)
+    renderScreen()
     expect(screen.queryByRole("group", { name: "Filter by status" })).toBeNull()
     expect(board().className).toContain(FR_BOARD_DESKTOP)
     expect(within(column("Triaged")).getAllByRole("button", { name: /^Open idea:/ })).toHaveLength(3)

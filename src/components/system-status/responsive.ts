@@ -27,6 +27,3 @@ export const STATUS_ROW_LINK = "max-md:min-h-11"
 
 export const STATUS_ROW =
   "border-border/70 hover:bg-surface-hover grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b px-4 py-3 last:border-b-0 [grid-template-areas:'name_status'_'reason_reason'_'time_time'] md:min-h-[56px] md:items-center md:gap-y-[3px] md:px-5 md:py-2.5 md:[grid-template-areas:'name_status'_'reason_time']"
-
-export const STATUS_INCIDENT =
-  "flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between md:gap-4"

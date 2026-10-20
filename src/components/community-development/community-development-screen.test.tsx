@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { INITIATIVE_LIMITS } from "@/lib/community-development"
+import { founderInitiativesState } from "@/lib/community-development-fixture"
 import { addDays, formatDate } from "@/lib/clock"
 import { PHONE_QUERY } from "@/hooks/use-mobile"
 import { SPAWN_LABEL, SPAWN_SOON } from "@/components/community-development/initiative-dialog"
@@ -15,19 +16,25 @@ import {
 import {
   CommunityDevelopmentProvider,
   STORAGE_KEY,
-  initialState,
   reducer,
   saveState,
 } from "@/components/community-development/community-development-store"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
 import { LATE_EVENING_CT_MS } from "@/test/clock"
-import { PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME, RESET_DISABLED_HINT } from "@/components/persistence-note"
+import { CLEAR_COPY, PERSISTENCE_COPY, PERSISTENCE_NOTE_NAME } from "@/components/persistence-note"
 
 const TODAY = "2026-10-07"
 const NOW_MS = new Date("2026-10-07T17:00:00.000Z").getTime()
 const LATE_MS = LATE_EVENING_CT_MS
 
-function renderScreen(nowMs = NOW_MS) {
+/** The founder's own list (the old sample under ids of their own), saved first. */
+const storeFounder = () => saveState(window.localStorage, founderInitiativesState(TODAY))
+
+/**
+ * Renders the page over the founder's saved list unless the test saved its
+ * own copy first; `fresh` opens it on nothing saved (an empty list).
+ */
+function renderScreen(nowMs = NOW_MS, { fresh = false } = {}) {
+  if (!fresh && window.localStorage.getItem(STORAGE_KEY) === null) storeFounder()
   return render(
     <CommunityDevelopmentProvider nowMs={nowMs}>
       <CommunityDevelopmentScreen />
@@ -63,17 +70,33 @@ describe("CommunityDevelopmentScreen", () => {
     installMatchMedia(1440)
   })
 
-  it("renders the header, the lede, the shared note and chip, and Add initiative", () => {
-    renderScreen()
+  it("renders the header, the lede, the Clear my entries note and Add initiative; no sample chip", () => {
+    renderScreen(NOW_MS, { fresh: true })
     expect(screen.getByRole("heading", { level: 1, name: "Community Development" })).toBeInTheDocument()
     expect(screen.getByText(LEDE)).toBeInTheDocument()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAccessibleDescription(RESET_DISABLED_HINT)
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveClass("max-xl:h-11!", "max-xl:min-w-11!")
-    const header = screen.getByRole("heading", { level: 1, name: "Community Development" }).closest("header")!
-    expect(within(header).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-    expect(screen.getByRole("button", { name: "Add initiative" })).toBeEnabled()
+    const clear = screen.getByRole("button", { name: CLEAR_COPY.button })
+    expect(clear).toHaveAttribute("aria-disabled", "true")
+    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
+    expect(clear).toHaveClass("max-xl:h-11!", "max-xl:min-w-11!")
+    expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Add initiative" })[0]).toBeEnabled()
+  })
+
+  it("nothing saved: no sample rows, one empty state with no Reset wording", () => {
+    renderScreen(NOW_MS, { fresh: true })
+    const empty = screen.getByRole("status", { name: "No initiatives" })
+    expect(empty).not.toHaveTextContent(/sample|Reset/i)
+    expect(screen.queryByText("Equipment drive for Yates High School")).not.toBeInTheDocument()
+  })
+
+  it("an old saved copy still holding the sample shows only the founder's rows", () => {
+    const mine = founderInitiativesState(TODAY).initiatives[0]
+    saveState(window.localStorage, { initiatives: [{ ...mine, id: "initiative-1", name: "Old sample row" }, mine], nextId: 102 })
+    renderScreen()
+    expect(screen.queryByText("Old sample row")).not.toBeInTheDocument()
+    expect(screen.getAllByText(mine.name).length).toBeGreaterThan(0)
   })
 
   it("shows the summary strip, filters, columns and the eight seed rows", () => {
@@ -109,20 +132,18 @@ describe("CommunityDevelopmentScreen", () => {
     expect(within(idea).getByText("Annual, each spring")).toBeInTheDocument()
   })
 
-  it("marks every seed row as sample data", () => {
+  it("no row carries a sample label", () => {
     renderScreen()
-    for (const r of bodyRows()) {
-      expect(within(r).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-    }
+    expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
   })
 
   it("splits around the Central day: at 23:30 CT a row dated today is still upcoming", () => {
     saveState(window.localStorage, {
-      ...initialState(TODAY),
+      ...founderInitiativesState(TODAY),
       initiatives: [
-        { ...initialState(TODAY).initiatives[0], id: "initiative-1", name: "Tonight's serve-day", date: TODAY },
+        { ...founderInitiativesState(TODAY).initiatives[0], id: "initiative-101", name: "Tonight's serve-day", date: TODAY },
       ],
-      nextId: 9,
+      nextId: 109,
     })
     renderScreen(LATE_MS)
     const r = row(/Tonight's serve-day/)
@@ -134,7 +155,7 @@ describe("CommunityDevelopmentScreen", () => {
     it("shows skeletons, never the seed, until localStorage has been read", async () => {
       saveState(
         window.localStorage,
-        reducer(initialState(TODAY), { type: "remove", id: "initiative-1" })
+        reducer(founderInitiativesState(TODAY), { type: "remove", id: "initiative-101" })
       )
       const removed: Element[] = []
       const observer = new MutationObserver((records) => {
@@ -238,7 +259,7 @@ describe("CommunityDevelopmentScreen", () => {
       expect(within(r).queryByTestId("sample-data-tag")).not.toBeInTheDocument()
       expect(screen.getByTestId("section-count")).toHaveTextContent("9")
       expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.saved)
-      expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeEnabled()
       expect(window.localStorage.getItem(STORAGE_KEY)).toContain("Saturday park clean-up")
     })
   })
@@ -335,20 +356,20 @@ describe("CommunityDevelopmentScreen", () => {
     })
   })
 
-  it("Reset asks first and then puts the seed back", async () => {
+  it("Clear my entries asks first and then empties the list, with no sample rows back", async () => {
     const user = userEvent.setup()
-    saveState(window.localStorage, { initiatives: [], nextId: 9 })
     renderScreen()
-    await user.click(screen.getByRole("button", { name: "Reset" }))
-    const dialog = await screen.findByRole("dialog", { name: "Reset demo data?" })
-    await user.click(within(dialog).getByRole("button", { name: "Reset" }))
-    expect(bodyRows()).toHaveLength(8)
+    await user.click(screen.getByRole("button", { name: CLEAR_COPY.button }))
+    const dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
+    expect(screen.getByRole("status", { name: "No initiatives" })).toBeInTheDocument()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
   })
 
   it("a failed save is announced and nothing claims Saved", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
+    storeFounder()
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("The quota has been exceeded.", "QuotaExceededError")
     })
@@ -359,7 +380,7 @@ describe("CommunityDevelopmentScreen", () => {
     expect(screen.getByRole("alert", { name: PERSISTENCE_NOTE_NAME })).toHaveTextContent(
       PERSISTENCE_COPY.failed
     )
-    expect(screen.getByRole("button", { name: "Reset" })).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByRole("button", { name: CLEAR_COPY.button })).toBeInTheDocument()
     spy.mockRestore()
   })
 })
