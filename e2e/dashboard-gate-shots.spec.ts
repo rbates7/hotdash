@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { expectBorderContrast, expectReadable } from "./support/contrast"
 import { vetUnmockedApi } from "./support/shots"
 
 /**
@@ -57,6 +58,14 @@ async function open(page: Page, url: string, theme: "light" | "dark") {
   await page.waitForTimeout(300)
 }
 
+/** Text at 4.5:1, field edges at 3:1, and no sideways scroll. */
+async function expectFormReadable(page: Page) {
+  const form = page.locator("form")
+  await expectReadable(form, "unlock form", expect)
+  await expectBorderContrast(form.locator("input:not([type=hidden])"), "unlock fields", expect)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+}
+
 async function shoot(page: Page, name: string) {
   await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true })
 }
@@ -76,6 +85,7 @@ for (const vp of WIDTHS) {
       const tag = `${vp.width}-${theme}`
 
       await open(page, "/unlock", theme)
+      if (PHASE === "after") await expectFormReadable(page)
       await shoot(page, `unlock-${PHASE}-${tag}`)
 
       await open(page, "/crm", theme)
@@ -90,6 +100,7 @@ for (const vp of WIDTHS) {
         await page.getByLabel("Password").fill("not-the-password")
         await page.getByRole("button", { name: "Sign in" }).click()
         await expect(page.getByRole("alert").filter({ hasText: "didn't work" })).toBeVisible()
+        await expectFormReadable(page)
         await page.waitForTimeout(300)
         await shoot(page, `unlock-error-${PHASE}-${tag}`)
       }

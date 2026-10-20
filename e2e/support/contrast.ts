@@ -294,3 +294,54 @@ export async function expectNonTextContrast(
   expect(failures).toEqual([])
   return fills
 }
+
+/**
+ * WCAG 1.4.11 for an outlined control (a text field): its border colour
+ * against what is behind the control, so the field's edge stays visible.
+ */
+export async function expectBorderContrast(
+  locator: Locator,
+  label: string,
+  expect: typeof import("@playwright/test").expect,
+  minimum = MIN_NON_TEXT_CONTRAST
+) {
+  const ratios = await locator.evaluateAll((els) => {
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!
+    const parse = (css: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+      return { r, g, b, a: a / 255 }
+    }
+    type Rgb = { r: number; g: number; b: number }
+    const over = (top: ReturnType<typeof parse>, under: Rgb): Rgb => ({
+      r: top.r * top.a + under.r * (1 - top.a),
+      g: top.g * top.a + under.g * (1 - top.a),
+      b: top.b * top.a + under.b * (1 - top.a),
+    })
+    const lum = ({ r, g, b }: Rgb) => {
+      const f = (c: number) => {
+        const s = c / 255
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    return els.map((el) => {
+      const layers: ReturnType<typeof parse>[] = []
+      for (let node = el.parentElement; node; node = node.parentElement) {
+        const bg = parse(getComputedStyle(node).backgroundColor)
+        if (bg.a > 0) layers.push(bg)
+        if (bg.a >= 1) break
+      }
+      let backdrop: Rgb = { r: 255, g: 255, b: 255 }
+      for (const layer of layers.reverse()) backdrop = over(layer, backdrop)
+      const border = over(parse(getComputedStyle(el).borderTopColor), backdrop)
+      const [l1, l2] = [lum(border), lum(backdrop)].sort((a, b) => b - a)
+      return Math.round(((l1 + 0.05) / (l2 + 0.05)) * 100) / 100
+    })
+  })
+  expect(ratios.length, `${label}: borders measured`).toBeGreaterThan(0)
+  expect(ratios.filter((r) => r < minimum), `${label}: border contrast ${ratios.join(", ")}`).toEqual([])
+  return ratios
+}

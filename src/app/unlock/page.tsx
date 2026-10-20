@@ -46,7 +46,7 @@ export default async function UnlockPage({
                 type="email"
                 autoComplete="username"
                 required
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-10 rounded-md border border-muted-foreground bg-transparent px-3 text-base md:text-sm"
               />
             </label>
             <label className="grid gap-1 text-sm">
@@ -56,7 +56,7 @@ export default async function UnlockPage({
                 type="password"
                 autoComplete="current-password"
                 required
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-10 rounded-md border border-muted-foreground bg-transparent px-3 text-base md:text-sm"
               />
             </label>
             {error && ERRORS[error] ? (
@@ -64,7 +64,7 @@ export default async function UnlockPage({
                 {ERRORS[error]}
               </p>
             ) : null}
-            <button type="submit" className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">
+            <button type="submit" className="h-10 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground">
               Sign in
             </button>
           </form>
