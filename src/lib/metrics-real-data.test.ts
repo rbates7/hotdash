@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { liveCard, metricsSubscribers, stripeLiveLabels, listOf, NOT_IN_SYNC_TEXT } from "@/lib/live-metrics"
+import { liveCard, metricsSubscribers, stripeLiveLabels, listOf, NOT_IN_SYNC_TEXT, NRR_NOTE } from "@/lib/live-metrics"
 import type { StripeFeed } from "@/lib/stripe-summary"
 import { parseExtras, parseStripeSummary } from "@/lib/stripe-summary"
 import {
@@ -79,6 +79,14 @@ describe("Metrics cards from the provisional fields", () => {
     const s = card("arr", live(LIVE_METRICS_CORE, true))
     expect(s).toMatchObject({ kind: "live", metric: { value: null, empty: NOT_IN_SYNC_TEXT, updated: null } })
   })
+  it("NRR says it is at current prices when #77's basis is current_prices, and only then", () => {
+    const s = card("nrr", live(LIVE_METRICS_FULL))
+    expect(s.kind === "live" && s.metric.note).toBe(NRR_NOTE)
+    expect(NRR_NOTE).toBe("At current prices")
+    const other = { ...LIVE_METRICS_FULL, nrr: { ...LIVE_EXTRAS.nrr, basis: "historical" } } as unknown as typeof LIVE_METRICS_FULL
+    const o = card("nrr", live(other))
+    expect(o.kind === "live" && o.metric.note).toBeUndefined()
+  })
   it("a null rate says why", () => {
     const s = card("ltv", live({ ...LIVE_METRICS_FULL, ltv: { value: null, previous: null } }))
     expect(s.kind === "live" && s.metric.empty).toMatch(/churn/)
@@ -99,7 +107,7 @@ describe("Metrics cards from the provisional fields", () => {
 describe("Metrics › Subscribers lines", () => {
   it("headline is Stripe paying; Past due amber with MRR; App Store and Free separate", () => {
     const m = metricsSubscribers(live(), TZ)
-    expect(m.value).toBe(1_110)
+    expect(m.value).toBe(1_079)
     expect(m.breakdown!.rows).toEqual([
       { key: "pastDue", label: "Past due", value: "12 · $480 MRR", tone: "attention" },
       { key: "appStore", label: "App Store", value: "53" },

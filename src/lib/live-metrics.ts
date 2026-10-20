@@ -192,7 +192,9 @@ function extraFigure(id: MetricId, m: Extract<StripeFeed, { kind: "live" }>["met
       return f ? { value: f.value, previous: f.previous, series: [] } : null
     }
     case "nrr":
-      return m.nrr ? { value: m.nrr.value, previous: m.nrr.previous, series: m.nrr.series } : null
+      return m.nrr
+        ? { value: m.nrr.value, previous: m.nrr.previous, series: m.nrr.series, note: m.nrr.basis === "current_prices" ? NRR_NOTE : undefined }
+        : null
     case "trials_per_day": {
       const t = m.trialsStartedPerDay
       return t
@@ -370,6 +372,8 @@ export function liveValueText(metric: Pick<LiveMetric, "value">, unit: MetricSna
 /** Fine print on the Stripe-fed money figures (Mack, PR #42 round 1). */
 export const CASH_NOTE = "Gross, before refunds"
 export const MRR_NOTE = "USD only · past points use today\u2019s prices"
+/** #77 prices both ends of a window at today\u2019s prices (`nrr.basis`). */
+export const NRR_NOTE = "At current prices"
 
 export const VS_SAME_POINT_LAST_WEEK = "vs same time last week"
 

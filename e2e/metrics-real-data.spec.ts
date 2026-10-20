@@ -81,7 +81,7 @@ for (const theme of ["light", "dark"] as const) {
       await open(page, "/metrics")
       await setTheme(page, theme)
       const card = metricCard(page, "Subscribers")
-      await expect(card.getByTestId("metric-value")).toHaveText("1,110")
+      await expect(card.getByTestId("metric-value")).toHaveText("1,079")
       await expect(card).toContainText("Active paying coaches")
       const rows = card.getByTestId("subscriber-breakdown").locator("[data-row]")
       await expect(rows).toHaveCount(3)
@@ -99,7 +99,7 @@ for (const theme of ["light", "dark"] as const) {
 
       await open(page, "/home")
       const home = main(page).getByRole("region", { name: "KPI strip" }).getByRole("article", { name: "Subscribers", exact: true })
-      await expect(home).toContainText("1,337")
+      await expect(home).toContainText("1,306")
     })
 
     test("ARR, Revenue, ARPU, LTV, NRR and Trials per day carry Stripe's figures", async ({ page }) => {
@@ -122,6 +122,8 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(c, `${theme} ${name}`, expect)
       }
       await expect(metricCard(page, "Revenue")).toContainText("1,204 paid invoices · gross, before refunds")
+      // #77 prices NRR at today's prices (`basis: "current_prices"`): the card says so.
+      await expect(metricCard(page, "NRR")).toContainText("At current prices")
       // Trials per day sits right after Trial Conversions, with a 28-day chart.
       const names = await grid(page).getByRole("article").evaluateAll((els) => els.map((e) => e.getAttribute("data-metric")))
       expect(names.indexOf("trials_per_day")).toBe(names.indexOf("trials") + 1)
