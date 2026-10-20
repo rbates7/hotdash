@@ -7,7 +7,7 @@ import { CACHE_TTL_MS, createGmailService, gmailThreadLoader, GMAIL_API, TOKEN_U
 /** Fake credentials: shaped like Google's, valid nowhere. */
 const SECRET = "crm-unit-test-only-secret"
 const REFRESH = "crm-unit-test-only-refresh"
-const CLIENT_ID = "crm-unit-test-client-id"
+const CLIENT_ID = "crm-unit-test-only.apps.googleusercontent.com"
 const ENV = { GMAIL_CLIENT_ID: CLIENT_ID, GMAIL_CLIENT_SECRET: SECRET, GMAIL_REFRESH_TOKEN: REFRESH, GMAIL_MAILBOX: "support@example.com" }
 const ME = "support@example.com"
 const NOW = Date.parse("2026-10-20T12:00:00.000Z")
