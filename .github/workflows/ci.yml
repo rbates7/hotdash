@@ -64,6 +64,8 @@ jobs:
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
           SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
+          DASHBOARD_LOGIN_EMAIL: ci-dummy-gate@example.invalid
+          DASHBOARD_GATE_SECRET: CI-DUMMY-not-a-real-gate-password-6d2f
 
       - name: Client bundle holds no secret and no secret's env var name
         run: pnpm check:bundle
@@ -77,6 +79,8 @@ jobs:
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
           SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
+          DASHBOARD_LOGIN_EMAIL: ci-dummy-gate@example.invalid
+          DASHBOARD_GATE_SECRET: CI-DUMMY-not-a-real-gate-password-6d2f
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
@@ -98,6 +102,8 @@ jobs:
           GMAIL_CLIENT_SECRET: ""
           GMAIL_REFRESH_TOKEN: ""
           GITHUB_READONLY_TOKEN: ""
+          DASHBOARD_LOGIN_EMAIL: ""
+          DASHBOARD_GATE_SECRET: ""
           github_read_only: ""
           SENTRY_READONLY_TOKEN: ""
 

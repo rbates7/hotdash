@@ -70,6 +70,11 @@ cache with a 1-minute retry, and never sample rows. Gmail is a stub (Not
 connected). Bugs lists the same Sentry rows, plus only the bug tickets the
 founder created on the Workplace board. See [docs/inbox.md](docs/inbox.md).
 
+**Login gate:** with `DASHBOARD_LOGIN_EMAIL` and `DASHBOARD_GATE_SECRET`
+both set, every page and `/api` route needs a sign-in at `/unlock` (one email
++ one password, 7-day cookie). Neither set = open; only one set = locked and
+flagged as misconfigured. See [docs/dashboard-gate.md](docs/dashboard-gate.md).
+
 ## Getting started
 
 ```bash
@@ -85,7 +90,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token, the GitHub or Sentry token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `SENTRY_READONLY_TOKEN`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`; `GMAIL_MAILBOX` by name) is in client output |
+| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token, the GitHub or Sentry token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `SENTRY_READONLY_TOKEN`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `DASHBOARD_LOGIN_EMAIL`, `DASHBOARD_GATE_SECRET`; `GMAIL_MAILBOX` by name) is in client output |
 | `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |

@@ -8,6 +8,8 @@
  * `github_read_only` as named in Vercel), the Sentry token
  * (`SENTRY_READONLY_TOKEN`), or the Gmail OAuth client and refresh token
  * (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`).
+ * The login gate's settings (`DASHBOARD_LOGIN_EMAIL`, `DASHBOARD_GATE_SECRET`)
+ * are checked the same way, name and value.
  * `GMAIL_MAILBOX` is not a secret — the CRM shows the inbox's address — so
  * only its name is checked.
  *
@@ -37,6 +39,9 @@ const ENV_NAMES = [
   "GMAIL_CLIENT_ID",
   "GMAIL_CLIENT_SECRET",
   "GMAIL_REFRESH_TOKEN",
+  // The dashboard login gate: the one allowed email and the password/cookie key.
+  "DASHBOARD_LOGIN_EMAIL",
+  "DASHBOARD_GATE_SECRET",
 ]
 /** Not secret (shown in the UI), but client code has no business naming it. */
 const NAME_ONLY = ["GMAIL_MAILBOX"]
