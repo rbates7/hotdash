@@ -13,7 +13,7 @@ import {
   valuationFromArr,
   type MetricId,
 } from "@/lib/metrics"
-import { METRIC_DEFS, MOCK_DAY, seedExpenses, snapshotFor } from "@/lib/kpis"
+import { METRIC_DEFS, MOCK_DAY, seedExpenses, snapshotFor } from "@/lib/kpis-fixture"
 
 /** The seed as the mock drew it. */
 const expenses = seedExpenses(MOCK_DAY)

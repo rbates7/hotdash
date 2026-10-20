@@ -2,12 +2,14 @@ import { render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { formatCheckedAgo } from "@/lib/system-status"
+import { buildServices, type Scenario } from "@/lib/system-status-fixture"
 import { StatusScreen } from "@/components/system-status/status-screen"
 import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 // 27 Aug 2026, 09:00 Chicago. Checks are seeded 2–6 minutes before it.
-const mount = (scenario?: "green" | "not-green" | "empty", nowMs = FIXED_NOW_MS) =>
-  render(<StatusScreen nowMs={nowMs} scenario={scenario} />)
+// The rows are test fixtures passed in as if a source had answered.
+const mount = (scenario?: Scenario, nowMs = FIXED_NOW_MS) =>
+  render(<StatusScreen nowMs={nowMs} services={scenario ? buildServices(nowMs, scenario) : undefined} />)
 
 const banner = () => screen.getByRole("region", { name: "Current status" })
 /** The verbose relative wording, through the page's own helper (explicit style). */
@@ -65,30 +67,27 @@ describe("StatusScreen", () => {
     expect(within(components()).getAllByText("Operational")).toHaveLength(6)
   })
 
-  it("defaults to the real page: no checks, Not connected, and no preview control", () => {
+  it("defaults to the real page: no checks, Not connected, no sample tag, notice or incident", () => {
     mount()
     expect(within(banner()).getByRole("heading", { level: 2, name: "No checks yet" })).toBeInTheDocument()
     expect(screen.queryByTestId("sample-data-tag")).toBeNull()
-    expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
+    expect(screen.queryByTestId("sample-data-notice")).toBeNull()
+    expect(screen.queryByRole("note")).toBeNull()
     expect(screen.queryByRole("region", { name: "Past incident" })).toBeNull()
     expect(screen.getAllByText("Not connected").length).toBeGreaterThan(0)
-    // The seeded views are unit-test-only (the scenario prop): no control, no links to them.
     expect(screen.queryByRole("group", { name: "Preview" })).toBeNull()
-    expect(screen.queryByRole("link", { name: /^(Live|Green|Not green)$/ })).toBeNull()
     expect(document.querySelector('a[href*="preview="]')).toBeNull()
+    // None of the fixture's rows or reasons.
+    for (const text of ["iPad app API", "Stripe webhook", "Site up", "3 errors", "Resolved"]) {
+      expect(document.body).not.toHaveTextContent(text)
+    }
   })
 
-  it("a seeded view has no preview control either", () => {
+  it("rows from a source wear no sample tag, and link out to Sentry and the site as plain external links", () => {
     mount("green")
-    expect(screen.queryByRole("group", { name: "Preview" })).toBeNull()
-  })
-
-  it("a seeded preview is marked as sample data and links out to Sentry and the site as plain external links", () => {
-    mount("green")
-    expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("Nothing here is polled yet")
-    expect(within(banner()).getAllByTestId("sample-data-tag")).toHaveLength(1)
-    expect(within(components()).getAllByTestId("sample-data-tag")).toHaveLength(1)
-    expect(within(screen.getByRole("region", { name: "Past incident" })).getAllByTestId("sample-data-tag")).toHaveLength(1)
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByRole("note")).toBeNull()
+    expect(screen.queryByText("Not connected")).toBeNull()
     const sentry = screen.getAllByRole("link", { name: "Sentry" })
     expect(sentry.length).toBeGreaterThan(0)
     for (const a of sentry) {
@@ -97,10 +96,9 @@ describe("StatusScreen", () => {
       expect(a).toHaveAttribute("rel", expect.stringContaining("noopener"))
     }
     expect(within(row("chlkapp.com")).getByRole("link", { name: "chlkapp.com" })).toHaveAttribute("href", "https://chlkapp.com")
-    // No bug list: no table, no issue rows, just the status list and one past incident.
+    // No bug list, and no invented incident history.
     expect(screen.queryByRole("table")).toBeNull()
-    expect(screen.getByRole("region", { name: "Past incident" })).toHaveTextContent("Resolved · Sync delay after the iPad 1.4 push")
-    expect(screen.getByRole("region", { name: "Past incident" })).toHaveTextContent("8 Jul 2026")
+    expect(screen.queryByRole("region", { name: "Past incident" })).toBeNull()
   })
 
   it("every relative figure comes from nowMs, not the machine clock", () => {
@@ -125,6 +123,5 @@ describe("StatusScreen", () => {
     // 23:30 CDT on 7 Oct = 04:30 UTC on 8 Oct — the shared instant.
     mount("not-green", LATE_EVENING_CT_MS)
     expect(row("Billing")).toHaveTextContent(`Checked ${ago(LATE_EVENING_CT_MS, 4)} · 11:26 PM CT`)
-    expect(screen.getByRole("region", { name: "Past incident" })).toHaveTextContent("18 Aug 2026")
   })
 })

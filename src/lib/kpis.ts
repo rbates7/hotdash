@@ -1,40 +1,13 @@
-import {
-  PERIOD_DAYS,
-  addDays,
-  daysEnding,
-  inPeriod,
-  periodBefore,
-  periodEnding,
-  toDay,
-  type IsoDay,
-  type Period,
-} from "@/lib/clock"
-import type { Kpi } from "@/lib/home"
-import {
-  expensesTotal,
-  formatMetricValue,
-  trendFor,
-  valuationFromArr,
-  type Expense,
-  type MetricDef,
-  type MetricId,
-  type MetricSnapshot,
-} from "@/lib/metrics"
+import { addDays, inPeriod, toDay, type IsoDay, type Period } from "@/lib/clock"
+import type { MetricDef, MetricId, MetricSnapshot } from "@/lib/metrics"
 
 /**
- * The one set of business numbers for the dashboard. Home's truth strip,
- * Home's Metrics door and the Metrics page all read from here, so they can
- * never disagree. Everything is dummy (nothing is wired to Stripe, Supabase
- * or PostHog yet) and everything is relative to the real clock: pass the
- * request's `today` and the seed lands around it.
+ * What every Metrics card and Home KPI is: its label, unit and trend rule.
+ * No figures: Rashad's Oct 16 rule. A number on screen comes only from a
+ * live source (Stripe, PostHog, Chlk's database) or the founder's own
+ * entries (`@/lib/live-metrics`); anything else shows #50's Not connected.
+ * The old invented series live in `@/lib/kpis-fixture`, for tests only.
  */
-
-/**
- * The day the Metrics mock was drawn. Seed rows are day offsets so that
- * `seedX(MOCK_DAY)` reproduces the mock, while on any other day the same
- * rows sit the same distance behind "today" and inside its period.
- */
-export const MOCK_DAY: IsoDay = "2026-08-21"
 
 export const METRIC_DEFS: Record<MetricId, MetricDef> = {
   mrr: { id: "mrr", label: "MRR", unit: "currency", trendKind: "percent", defaultChart: "bar" },
@@ -63,135 +36,12 @@ export const METRIC_DEFS: Record<MetricId, MetricDef> = {
 }
 
 /**
- * Six 28-day windows per metric, oldest first; the last two are the prior
- * window and the current one. Several points are derived at read time (see
- * `snapshotFor`): Expenses sums the table, Subscribers reconciles with the
- * subscriber tables, Churn and Retention follow from them, Valuation is
- * ARR × 3.5.
+ * A card's definition in the shape the card components take, with no
+ * figure: value and previous are 0 and the series is empty. Never rendered
+ * as a number: the card shows its live state (`liveCard`) or Not connected.
  */
-const SERIES: Record<MetricId, number[]> = {
-  mrr: [23_800, 24_200, 24_900, 25_100, 25_130, 26_190],
-  arr: [285_600, 290_400, 298_800, 301_200, 301_560, 314_280],
-  churn: [4.4, 4.3, 4.3, 4.2, 4.2, 0],
-  revenue: [24_800, 25_200, 26_100, 26_400, 26_780, 28_410],
-  retention: [95.6, 95.7, 95.8, 95.8, 95.8, 0],
-  subscribers: [158, 164, 169, 172, 0, 186],
-  trials: [22, 23, 24, 24.5, 24.9, 28],
-  // The second-to-last point is the prior period's total; the last is
-  // summed live from the table.
-  expenses: [7_800, 7_900, 7_960, 8_000, 8_050, 0],
-  active: [540, 575, 610, 648, 690, 731],
-  cac: [168, 162, 160, 158, 155, 142],
-  ltv: [1_520, 1_560, 1_590, 1_600, 1_620, 1_680],
-  arpu: [132, 134, 136, 137, 138, 141],
-  nrr: [104, 105, 105.5, 106, 106.8, 108],
-  runway: [11, 12, 12, 12, 12, 14],
-  nps: [44, 46, 47, 48, 48, 52],
-  valuation: [285_600, 290_400, 298_800, 301_200, 301_560, 0].map((arr) =>
-    valuationFromArr(arr)
-  ),
-}
-
-/** What the derived metrics need besides their series. */
-export type KpiContext = {
-  today: IsoDay | Date
-  /** The expense table — the live rows when the store has them. */
-  expenses?: readonly Expense[]
-}
-
-/**
- * The prior period's expenses: the series baseline, plus any table rows
- * that are dated inside it (a user's older entries), so the comparison is
- * against the same window one period back.
- */
-export function priorExpensesTotal(expenses: readonly Expense[], period: Period) {
-  return SERIES.expenses[SERIES.expenses.length - 2] + expensesTotal(expenses, periodBefore(period))
-}
-
-/** Resolve a metric's numbers for `today`. */
-export function snapshotFor(id: MetricId, ctx: KpiContext): MetricSnapshot {
-  const today = toDay(ctx.today)
-  const period = periodEnding(today)
-  const def = METRIC_DEFS[id]
-  const series = [...SERIES[id]]
-  const last = series.length - 1
-
-  if (id === "expenses") {
-    const rows = ctx.expenses ?? []
-    series[last] = expensesTotal(rows, period)
-    series[last - 1] = priorExpensesTotal(rows, period)
-  }
-  if (id === "subscribers") {
-    // Last period's count is this period's less the net adds the tables show.
-    series[last - 1] = series[last] - netSubscribers(today)
-  }
-  if (id === "churn") {
-    series[last] = churnRate(today)
-  }
-  if (id === "retention") {
-    series[last] = 100 - churnRate(today)
-  }
-  if (id === "valuation") {
-    series[last] = valuationFromArr(SERIES.arr[SERIES.arr.length - 1])
-  }
-
-  return {
-    ...def,
-    value: series[last],
-    previous: series[last - 1],
-    series,
-  }
-}
-
-/* ------------------------------------------------- derived from the seed */
-
-/** Net adds this window: the sign-up count less the churn count. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function netSubscribers(_today: IsoDay | Date) {
-  return SAMPLE_NEW_SUBSCRIBERS - SAMPLE_CHURNED_SUBSCRIBERS
-}
-
-/** Churn this window: the churn count over last window's subscriber count, in %. */
-export function churnRate(today: IsoDay | Date) {
-  const current = SERIES.subscribers[SERIES.subscribers.length - 1]
-  const previous = current - netSubscribers(today)
-  return (SAMPLE_CHURNED_SUBSCRIBERS / previous) * 100
-}
-
-/**
- * Daily revenue for the two most recent 28-day windows, oldest first. The
- * Revenue series only has window totals, so each window is spread over its
- * days with a gentle linear ramp (the business is growing inside the
- * window, not flat), summing exactly to the window's total. Dummy, like
- * everything here — but it lets "Cash this week" be a real trailing-7-day
- * figure rather than a 28-day average wearing a weekly label.
- */
-export function dailyRevenue(today: IsoDay | Date): { date: IsoDay; amount: number }[] {
-  const end = toDay(today)
-  const totals = SERIES.revenue.slice(-2) // prior window, current window
-  const days = daysEnding(end, PERIOD_DAYS * 2)
-  const out: { date: IsoDay; amount: number }[] = []
-  totals.forEach((total, w) => {
-    const window = days.slice(w * PERIOD_DAYS, (w + 1) * PERIOD_DAYS)
-    const mid = (PERIOD_DAYS - 1) / 2
-    const weights = window.map((_, i) => 1 + (i - mid) * 0.01)
-    const sum = weights.reduce((a, b) => a + b, 0)
-    let allotted = 0
-    window.forEach((date, i) => {
-      const amount =
-        i === window.length - 1
-          ? total - allotted // the remainder lands on the last day so the sum is exact
-          : Math.round((total * weights[i]) / sum)
-      allotted += amount
-      out.push({ date, amount })
-    })
-  })
-  return out
-}
-
-/** Sum of daily revenue inside a window. */
-export function cashIn(period: Period, today: IsoDay | Date) {
-  return dailyRevenue(today).reduce((sum, d) => (inPeriod(d.date, period) ? sum + d.amount : sum), 0)
+export function metricShell(id: MetricId): MetricSnapshot {
+  return { ...METRIC_DEFS[id], value: 0, previous: 0, series: [] }
 }
 
 /** The trailing 7 days ending today, and the 7 before: the truth strip's "week". */
@@ -203,93 +53,15 @@ export function weekEnding(today: IsoDay | Date): { thisWeek: Period; lastWeek: 
   }
 }
 
-/* --------------------------------------------------------------- home */
-
 /** How every 28-day comparison is labelled, on Home and on Metrics. */
 export const VS_PREVIOUS_WINDOW = "vs previous 28 days"
 export const VS_PREVIOUS_WEEK = "vs previous 7 days"
 
-/** Home's truth strip: are coaches paying, and is cash arriving this week. */
-export function truthStrip(ctx: KpiContext): Kpi[] {
-  const subscribers = snapshotFor("subscribers", ctx)
-  const { thisWeek, lastWeek } = weekEnding(ctx.today)
-  const cash = { value: cashIn(thisWeek, ctx.today), previous: cashIn(lastWeek, ctx.today) }
-  const cashTrend = trendFor(cash.value, cash.previous, "percent")
-  return [
-    // Same number and delta as the Metrics Subscribers card.
-    toKpi(subscribers, VS_PREVIOUS_WINDOW),
-    {
-      id: "cash-this-week",
-      label: "Cash this week",
-      value: `$${Math.round(cash.value).toLocaleString("en-US")}`,
-      delta: `${cashTrend.text} ${VS_PREVIOUS_WEEK}`,
-      direction: cashTrend.flat ? "flat" : cashTrend.up ? "up" : "down",
-    },
-  ]
-}
-
-/** Home's growth set: the Metrics cards it mirrors, same numbers, same label. */
-export function growthStrip(ctx: KpiContext): Kpi[] {
-  return (["mrr", "arr", "subscribers", "churn"] as const).map((id) =>
-    toKpi(snapshotFor(id, ctx), VS_PREVIOUS_WINDOW)
-  )
-}
-
-/** The series behind Home's Metrics door — the Metrics MRR card's own. */
-export function mrrTrend(ctx: KpiContext): number[] {
-  return snapshotFor("mrr", ctx).series
-}
-
-function toKpi(snap: MetricSnapshot, suffix: string): Kpi {
-  const t = trendFor(snap.value, snap.previous, snap.trendKind, {
-    lowerIsBetter: snap.lowerIsBetter,
-    unit: snap.unit,
-  })
-  return {
-    id: snap.id,
-    label: snap.label,
-    value: formatMetricValue(snap.value, snap.unit),
-    delta: suffix ? `${t.text} ${suffix}` : t.text,
-    direction: t.flat ? "flat" : t.up ? "up" : "down",
-    lowerIsBetter: snap.lowerIsBetter,
-  }
-}
-
-/* ------------------------------------------------------------- expenses */
-
 /**
- * The old Expenses seed (eight rows inside the four weeks ending `today`).
- * No screen shows it any more; it is kept so rows a browser saved before the
- * seed was removed can be recognised by id and dropped (`SEED_EXPENSE_IDS`).
+ * Ids the old Expenses seed used (`exp-1`…`exp-8`); a browser copy saved
+ * before the seed was removed still holds them, and they are dropped.
+ * Anything else was entered by the founder.
  */
-export function seedExpenses(today: IsoDay | Date): Expense[] {
-  const d = (offset: number) => addDays(today, offset)
-  return [
-    { id: "exp-1", category: "AWS", amount: 5_410, date: d(-3), recurring: true },
-    // The mock's rows sum to $8,104 against a card reading $8,240; Stripe fees
-    // absorb the gap so the derived card lands on the mock's headline number.
-    { id: "exp-2", category: "Stripe fees", amount: 1_978, date: d(0), recurring: false },
-    { id: "exp-3", category: "Cursor", amount: 320, date: d(-20), recurring: true },
-    { id: "exp-4", category: "Google Workspace", amount: 288, date: d(-13), recurring: true },
-    { id: "exp-5", category: "Apple Developer", amount: 99, date: d(-6), recurring: true },
-    { id: "exp-6", category: "Figma", amount: 75, date: d(-9), recurring: true },
-    { id: "exp-7", category: "Notion", amount: 48, date: d(-17), recurring: true },
-    { id: "exp-8", category: "Domain", amount: 22, date: d(-18), recurring: false },
-  ]
-}
-
-/** Ids the seed uses; anything else was entered by the user. */
-export const SEED_EXPENSE_IDS: ReadonlySet<string> = new Set(seedExpenses(MOCK_DAY).map((e) => e.id))
-
-/* ---------------------------------------------------------- subscribers */
-
-/**
- * How many sign-ups and churns the invented Metrics window holds. Only the
- * counts ship: they set the Subscribers delta and the churn rate. The
- * invented names behind them live in `@/lib/kpis-fixture` (tests only), so
- * no made-up person is in the browser bundle.
- */
-export const SAMPLE_NEW_SUBSCRIBERS = 8
-export const SAMPLE_CHURNED_SUBSCRIBERS = 5
+export const SEED_EXPENSE_IDS: ReadonlySet<string> = new Set(Array.from({ length: 8 }, (_, i) => `exp-${i + 1}`))
 
 export { inPeriod }
