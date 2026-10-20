@@ -19,6 +19,8 @@ const password = process.env.GATE_E2E_PASSWORD ?? ""
 
 test.describe("dashboard login gate", () => {
   test.skip(!enabled, "opt-in: set GATE_E2E=1 against a gated server (see the file header)")
+  // Its own client key for the per-instance wrong-login limit.
+  test.use({ extraHTTPHeaders: { "x-forwarded-for": "203.0.113.64" } })
 
   test("a locked page goes to /unlock, then the right login returns to it", async ({ page }) => {
     await page.goto("/crm")
@@ -37,7 +39,8 @@ test.describe("dashboard login gate", () => {
     await page.getByLabel("Email").fill(email)
     await page.getByLabel("Password").fill(`${password}-wrong`)
     await page.getByRole("button", { name: "Sign in" }).click()
-    await expect(page.getByRole("alert")).toHaveText("That email and password didn't work. Try again.")
+    // Next's route announcer is also role=alert; pick ours by text.
+    await expect(page.getByRole("alert").filter({ hasText: "didn't work" })).toHaveText("That email and password didn't work. Try again.")
     expect((await context.cookies()).some((c) => c.name === "hotdash_gate")).toBe(false)
   })
 

@@ -64,7 +64,11 @@ async function shoot(page: Page, name: string) {
 for (const vp of WIDTHS) {
   for (const theme of ["light", "dark"] as const) {
     test(`${PHASE} at ${vp.width} ${theme}`, async ({ browser }) => {
-      const context = await browser.newContext({ viewport: vp })
+      // Its own client key, so the wrong-login still never trips the rate limit.
+      const context = await browser.newContext({
+        viewport: vp,
+        extraHTTPHeaders: { "x-forwarded-for": `10.64.${vp.width % 256}.${theme === "dark" ? 1 : 2}` },
+      })
       const page = await context.newPage()
       const noLiveData = await vetUnmockedApi(page)
       // The login form post (and its redirect) goes straight to the server.
@@ -85,7 +89,7 @@ for (const vp of WIDTHS) {
         await page.getByLabel("Email").fill("someone@example.invalid")
         await page.getByLabel("Password").fill("not-the-password")
         await page.getByRole("button", { name: "Sign in" }).click()
-        await expect(page.getByRole("alert")).toBeVisible()
+        await expect(page.getByRole("alert").filter({ hasText: "didn't work" })).toBeVisible()
         await page.waitForTimeout(300)
         await shoot(page, `unlock-error-${PHASE}-${tag}`)
       }

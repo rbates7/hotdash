@@ -78,6 +78,13 @@ shoot() { # phase port served-sha
 serve "$WT_BASE" "$PORT_BASE"; shoot before "$PORT_BASE" "$BASE_SHA"; stop_server
 serve "$WT_HEAD" "$PORT_HEAD" "DASHBOARD_LOGIN_EMAIL=$GATE_EMAIL" "DASHBOARD_GATE_SECRET=$GATE_PASSWORD"
 shoot after "$PORT_HEAD" "$HEAD_SHA"
+stop_server
+# Fresh process (same build, same throwaway values) so the per-instance
+# wrong-login counts from the stills start at zero.
+setsid bash -c 'source "$0"; shot_run "$1" "$2" "$3" -- pnpm start --port "$2"' \
+  "$SHOT_LIB_DIR/shot-server.sh" "$WT_HEAD" "$PORT_HEAD" "$SERVER_ENV" &
+SERVER_PID=$!
+for _ in $(seq 1 60); do curl -s -o /dev/null "http://localhost:$PORT_HEAD/icon.svg" && break; sleep 2; done
 # The opt-in gate e2e, same server, same throwaway values.
 (cd "$WT_HEAD" && PORT="$PORT_HEAD" GATE_E2E=1 GATE_E2E_EMAIL="$GATE_EMAIL" GATE_E2E_PASSWORD="$GATE_PASSWORD" \
   pnpm exec playwright test e2e/dashboard-gate.spec.ts --workers=1 --fail-on-flaky-tests)
