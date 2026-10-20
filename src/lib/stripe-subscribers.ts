@@ -194,6 +194,8 @@ export type SubscriberListView =
   | { phase: "loading" }
   | { phase: "ready"; list: StripeSubscriberList }
   | { phase: "unauthorized" }
+  /** The list failed to load with no rows to keep: a neutral line while polling retries. */
+  | { phase: "error" }
 
 export type SubscriberListFetch =
   | { kind: "ok"; data: StripeSubscriberList }
@@ -203,8 +205,9 @@ export type SubscriberListFetch =
 /**
  * - ok → that list;
  * - 401 → the session expired (polling stops; signing in reloads the page);
- * - anything else failing keeps the last rows as stale, or with none (or
- *   while connecting, no longer known to be on its way) is not connected.
+ * - anything else failing keeps the last rows as stale; with none it is an
+ *   error line (Stripe may well be live: the page says so), unless the
+ *   server last said not connected.
  */
 export function subscriberListReducer(view: SubscriberListView, result: SubscriberListFetch, list: SubscriberListKind): SubscriberListView {
   if (result.kind === "ok") return { phase: "ready", list: result.data }
@@ -212,7 +215,8 @@ export function subscriberListReducer(view: SubscriberListView, result: Subscrib
   if (view.phase === "ready" && (view.list.status === "connected" || view.list.status === "stale")) {
     return { phase: "ready", list: { ...view.list, status: "stale" } }
   }
-  return { phase: "ready", list: subscriberListNotConnected(list) }
+  if (view.phase === "ready" && view.list.status === "not_connected") return { phase: "ready", list: subscriberListNotConnected(list) }
+  return { phase: "error" }
 }
 
 /** What a list tab shows. */
@@ -220,6 +224,7 @@ export type SubscriberListState =
   | { kind: "not_connected" }
   | { kind: "loading"; connecting?: boolean }
   | { kind: "session_expired" }
+  | { kind: "error" }
   | {
       kind: "live"
       rows: StripeSubscriberRow[]
@@ -232,6 +237,7 @@ export type SubscriberListState =
 export function subscriberListState(view: SubscriberListView): SubscriberListState {
   if (view.phase === "loading") return { kind: "loading" }
   if (view.phase === "unauthorized") return { kind: "session_expired" }
+  if (view.phase === "error") return { kind: "error" }
   const l = view.list
   if (l.status === "not_connected") return { kind: "not_connected" }
   if (l.status === "connecting") return { kind: "loading", connecting: true }

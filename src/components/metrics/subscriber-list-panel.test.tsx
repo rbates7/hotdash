@@ -19,6 +19,12 @@ describe("SubscriberListPanel", () => {
     expect(screen.getByRole("status", { name: "New subscribers connecting" })).toBeInTheDocument()
     expect(screen.getByTestId("connecting")).toHaveTextContent("Connecting…")
   })
+  it("error: a neutral retrying line, no figure, never Not connected", () => {
+    render(<SubscriberListPanel list="new" state={{ kind: "error" }} timeZone={TZ} />)
+    expect(screen.getByTestId("subscriber-list-error")).toHaveTextContent("Couldn\u2019t load subscribers. Retrying\u2026")
+    expect(screen.queryByText("Not connected")).toBeNull()
+    expect(screen.queryByRole("table")).toBeNull()
+  })
   it("session expired: sign in again, never Not connected", () => {
     render(<SubscriberListPanel list="churned" state={{ kind: "session_expired" }} timeZone={TZ} />)
     const r = screen.getByRole("region", { name: "Churned subscribers: session expired" })

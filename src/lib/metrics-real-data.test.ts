@@ -157,7 +157,10 @@ describe("list states", () => {
     const ready = { phase: "ready" as const, list: subscriberList("new") }
     expect(subscriberListState(subscriberListReducer(ready, { kind: "unauthorized" }, "new"))).toEqual({ kind: "session_expired" })
     expect(subscriberListState(subscriberListReducer(ready, { kind: "error" }, "new"))).toMatchObject({ kind: "live", stale: true })
-    expect(subscriberListState(subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new"))).toEqual({ kind: "not_connected" })
+    // A failed first read is an error line, not Not connected (Stripe may be live); the server's own not connected stays.
+    expect(subscriberListState(subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new"))).toEqual({ kind: "error" })
+    const off = { phase: "ready" as const, list: subscriberListNotConnected("new") }
+    expect(subscriberListState(subscriberListReducer(off, { kind: "error" }, "new"))).toEqual({ kind: "not_connected" })
   })
   it("words for rows", () => {
     expect(whoText({ customerName: null, customerEmail: "a@example.com" })).toEqual({ title: "a@example.com", email: null })

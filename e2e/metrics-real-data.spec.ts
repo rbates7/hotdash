@@ -152,6 +152,20 @@ for (const theme of ["light", "dark"] as const) {
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
     })
 
+    test("a list that fails (500) says it is retrying, never Not connected, while Stripe is live", async ({ page }) => {
+      await mockStripe(page, liveSummary("connected", LIVE_METRICS_FULL))
+      await mockSubscriberLists(page, { new: 500, churned: 500 })
+      for (const [tab, name] of [["new", "New Subscribers"], ["churned", "Churned Subscribers"]] as const) {
+        await open(page, `/metrics?tab=${tab}`)
+        await setTheme(page, theme)
+        const panel = tabPanel(page, name)
+        await expect(panel.getByTestId("subscriber-list-error")).toHaveText("Couldn\u2019t load subscribers. Retrying\u2026")
+        await expect(panel).not.toContainText("Not connected")
+        await expect(panel.getByRole("table")).toHaveCount(0)
+        await expectReadable(panel.getByTestId("subscriber-list-error"), `${theme} ${tab} list error`, expect)
+      }
+    })
+
     test("Churned Subscribers: stale shows Last updated and an amber Stale badge; reasons in words", async ({ page }) => {
       await mockStripe(page, liveSummary("stale", LIVE_METRICS_FULL))
       await mockSubscriberLists(page, { churned: subscriberList("churned", "stale", CHURNED_ROWS) })

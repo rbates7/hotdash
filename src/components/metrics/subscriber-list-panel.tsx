@@ -30,6 +30,9 @@ import { CELL, TableCard } from "@/components/table-bits"
 
 /* ------------------------------------------------------------------ words */
 
+/** A list that failed with nothing to keep (the poller retries). */
+export const LIST_ERROR_TEXT = "Couldn\u2019t load subscribers. Retrying\u2026"
+
 export const LIST_COPY: Record<SubscriberListKind, { title: string; empty: string; hint: string }> = {
   new: {
     title: "New subscribers",
@@ -82,6 +85,7 @@ function SessionExpired({ title }: { title: string }) {
  * - not_connected   → the shared NotConnectedPanel;
  * - loading         → a table-shaped skeleton; Connecting… during the first sync;
  * - session_expired → Your session expired, with a way to sign in again;
+ * - error           → a neutral "Couldn\u2019t load subscribers. Retrying\u2026" line, no figure;
  * - live, no rows   → the empty line, never sample rows;
  * - live            → "N in <window>" and the rows; stale adds "Last updated …" and an amber Stale badge.
  */
@@ -97,6 +101,13 @@ export function SubscriberListPanel({
   const copy = LIST_COPY[list]
   if (state.kind === "not_connected") return <NotConnectedPanel title={copy.title} hint={copy.hint} />
   if (state.kind === "session_expired") return <SessionExpired title={copy.title} />
+  if (state.kind === "error") {
+    return (
+      <p role="status" data-testid="subscriber-list-error" className="text-muted-foreground py-6 text-center text-sm">
+        {LIST_ERROR_TEXT}
+      </p>
+    )
+  }
   if (state.kind === "loading") {
     return (
       <div
