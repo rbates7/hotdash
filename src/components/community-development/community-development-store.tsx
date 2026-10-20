@@ -8,7 +8,7 @@ import {
   isInitiative,
   normalizeInput,
   sameInitiative,
-  seedInitiatives,
+  SEED_INITIATIVE_IDS,
   stripInitiative,
   type Initiative,
   type InitiativeInput,
@@ -95,7 +95,7 @@ type Shell = PersistenceShell<State>
 /** The calendar day a shell measures from (America/Chicago). */
 export const shellToday = (shell: Pick<Shell, "nowMs">): IsoDay => todayIn(new Date(shell.nowMs))
 
-/** The seed around the day `nowMs` falls on. */
+/** A fresh, empty list at the day `nowMs` falls on. */
 const seedAt = (nowMs: number) => initialState(todayIn(new Date(nowMs)))
 
 export function shellReducer(shell: Shell, action: Action): Shell {
@@ -116,9 +116,25 @@ export function shellReducer(shell: Shell, action: Action): Shell {
   }
 }
 
-export function initialState(today: IsoDay): State {
-  const initiatives = seedInitiatives(today)
-  return { initiatives, nextId: highestId(initiatives) + 1 }
+/**
+ * A fresh list: no initiatives. No sample rows, labelled or not (Rashad's
+ * Oct 16 rule). Ids start after the old sample's so a new row never takes
+ * one of theirs. `today` is unused, kept so every caller passes the day.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function initialState(_today: IsoDay): State {
+  return { initiatives: [], nextId: SEED_INITIATIVE_IDS.size + 1 }
+}
+
+/**
+ * A copy saved before the sample was removed still holds it: every sample
+ * row (by id) is dropped, edited or not; the founder's rows stay and the
+ * id counter never moves back.
+ */
+export function dropSeed(state: State): State {
+  const initiatives = state.initiatives.filter((r) => !SEED_INITIATIVE_IDS.has(r.id))
+  if (initiatives.length === state.initiatives.length) return state
+  return { initiatives, nextId: Math.max(state.nextId, SEED_INITIATIVE_IDS.size + 1) }
 }
 
 /** The highest numeric suffix among initiative-n ids; 0 when there are none. */
@@ -131,15 +147,15 @@ function highestId(rows: readonly Initiative[]) {
 /**
  * Initiatives are saved to this browser's localStorage under the shared
  * policy in `@/lib/persistence`: only after a real edit, validated whole
- * on load, Reset clears the key. Bump the version when the seed or shape
- * changes.
+ * on load, Clear my entries clears the key, and the old sample is dropped
+ * on load. Bump the version when the shape changes.
  */
 export const STORAGE_KEY = "hotdash.community-development.v1"
 
 /**
  * Every row is checked, not just the envelope: a bad type, an impossible
  * date, a duplicate id or an id counter that would collide all drop the
- * copy for the seed.
+ * copy for an empty list.
  */
 export function isState(value: unknown): value is State {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false
@@ -156,9 +172,9 @@ export function stripState(state: State): State {
   return { initiatives: state.initiatives.map(stripInitiative), nextId: state.nextId }
 }
 
-/** The storage `parse`: validate every row, then keep only the known keys. */
+/** The storage `parse`: validate every row, keep only the known keys, drop the old sample. */
 export function parseState(value: unknown): State | null {
-  return isState(value) ? stripState(value) : null
+  return isState(value) ? dropSeed(stripState(value)) : null
 }
 
 export const communityDevelopmentStorage = createStorage<State>({
@@ -183,7 +199,7 @@ type Store = State &
   PersistenceStore & {
     /**
      * Today on the founder's calendar (America/Chicago), from the shell's
-     * clock: the request's instant until a Reset (ours, or another tab's)
+     * clock: the request's instant until a Clear (ours, or another tab's)
      * moves it. The 30-day window, "done this year" and the add dialog's
      * default date all derive from it; nothing else in the tree reads a clock.
      */
@@ -219,7 +235,7 @@ export function CommunityDevelopmentProvider({
   // The server has no localStorage, so it renders with `persisted: false`
   // and the page shows skeletons. On the client the saved copy is read in a
   // layout effect — before paint — so the first frame is already the
-  // founder's data, never a flash of seed. This first hydrate is the only
+  // founder's data, never a flash of the empty list. This first hydrate is the only
   // one dated from the request.
   React.useLayoutEffect(() => {
     if (holdHydration) return

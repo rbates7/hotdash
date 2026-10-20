@@ -6,7 +6,6 @@ import { formatRelativeDay, type IsoDay } from "@/lib/clock"
 import {
   describeInitiative,
   formatWhen,
-  isSeedInitiative,
   type Initiative,
 } from "@/lib/community-development"
 import { cn } from "@/lib/utils"
@@ -20,7 +19,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { SampleDataTag } from "@/components/sample-data"
 import { StatusPill, TypePill } from "@/components/community-development/initiative-pills"
 import {
   SPAWN_LABEL,
@@ -77,7 +75,6 @@ export function InitiativeDetail({
             <SheetHeader className={CD_HEADER}>
               <SheetTitle className="flex flex-wrap items-center gap-1.5">
                 <span>{row.name}</span>
-                {isSeedInitiative(row) && <SampleDataTag />}
               </SheetTitle>
               <SheetDescription>{describeInitiative(row)}</SheetDescription>
             </SheetHeader>

@@ -7,8 +7,9 @@ import { isString } from "@/lib/persistence"
  * foundation efforts. Not coach communities (Play Callers, groups) and
  * not content (One Play a Day).
  *
- * Everything here is sample data until a datastore lands; the shapes are
- * real so the store can validate a saved copy field by field.
+ * No sample rows ship: the list holds only what the founder enters (this
+ * browser, until a datastore lands). The shapes are real so the store can
+ * validate a saved copy field by field.
  */
 
 export const INITIATIVE_TYPES = ["volunteer", "donation", "foundation", "outreach"] as const
@@ -306,133 +307,24 @@ export function isPreview(value: unknown): value is Preview {
   return isString(value) && (PREVIEWS as readonly string[]).includes(value)
 }
 
-/* ------------------------------------------------------------------- seed */
+/* -------------------------------------------------------------- old seed */
 
 /**
- * Eight rows around `today`: two Active, three upcoming in the next 30
- * days, one Done this year, two Ideas (one cadence-only foundation
- * scholarship, one outreach talk). Offsets stay relative so the same
- * split holds on any day.
+ * The ids the old sample used (`initiative-1`…`initiative-8`), written out
+ * so the browser bundle carries none of the sample's names
+ * (`@/lib/community-development-fixture` is for tests). The store drops
+ * these rows from a copy saved before the sample was removed.
  */
-export function seedInitiatives(today: IsoDay): Initiative[] {
-  const dated = (offset: number) => addDays(today, offset)
-  const row = (
-    n: number,
-    name: string,
-    type: InitiativeType,
-    partner: string,
-    date: IsoDay | null,
-    cadence: string,
-    status: InitiativeStatus,
-    owner: string,
-    impact: string
-  ): Initiative => ({
-    id: `initiative-${n}`,
-    name,
-    type,
-    partner,
-    date,
-    cadence,
-    status,
-    owner,
-    impact,
-  })
-  return [
-    row(
-      1,
-      "Youth flag-football clinic volunteer day",
-      "volunteer",
-      "Houston Youth Flag League",
-      dated(12),
-      "",
-      "planned",
-      "Trip",
-      "40 kids coached"
-    ),
-    row(
-      2,
-      "Refurbished iPads for a Title I program",
-      "donation",
-      "Katy ISD Title I",
-      daysAgoThisYear(today, 40),
-      "",
-      "done",
-      "Rashad",
-      "12 iPads"
-    ),
-    row(
-      3,
-      "Chlk Foundation coaching scholarship",
-      "foundation",
-      "Chlk Foundation",
-      null,
-      "Annual, each spring",
-      "idea",
-      "Rashad",
-      ""
-    ),
-    row(
-      4,
-      "Equipment drive for Yates High School",
-      "donation",
-      "Yates High School football",
-      dated(8),
-      "",
-      "active",
-      "Skye",
-      "helmets, pads, and a playbook print run"
-    ),
-    row(
-      5,
-      "Coaches serve-day at the Houston Food Bank",
-      "volunteer",
-      "Houston Food Bank",
-      dated(21),
-      "",
-      "planned",
-      "Trip",
-      ""
-    ),
-    row(
-      6,
-      "Free play-calling clinic for middle-school coaches",
-      "outreach",
-      "Cy-Fair ISD athletics",
-      dated(45),
-      "",
-      "planned",
-      "Skye",
-      ""
-    ),
-    row(
-      7,
-      "Booster-club talk on giving back",
-      "outreach",
-      "Westlake HS booster club",
-      null,
-      "Once we have a date",
-      "idea",
-      "Rashad",
-      ""
-    ),
-    row(
-      8,
-      "Saturday volunteer coaching at Alief rec",
-      "volunteer",
-      "Alief rec league",
-      null,
-      "Weekly, Saturday mornings",
-      "active",
-      "Trip",
-      "18 kids on Saturdays"
-    ),
-  ]
-}
-
-/** Ids the seed uses; anything else was entered by the user. */
-export const SEED_INITIATIVE_IDS: ReadonlySet<string> = new Set(
-  seedInitiatives("2026-10-07").map((r) => r.id)
-)
+export const SEED_INITIATIVE_IDS: ReadonlySet<string> = new Set([
+  "initiative-1",
+  "initiative-2",
+  "initiative-3",
+  "initiative-4",
+  "initiative-5",
+  "initiative-6",
+  "initiative-7",
+  "initiative-8",
+])
 
 export function isSeedInitiative(row: Pick<Initiative, "id">) {
   return SEED_INITIATIVE_IDS.has(row.id)
