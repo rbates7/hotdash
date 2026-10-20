@@ -1,6 +1,6 @@
 "use client"
 
-import { CRM_PRIORITIES, CRM_PRIORITY_LABELS, type CrmCase, type CrmPriority } from "@/lib/crm/types.ours"
+import { CRM_PRIORITIES, CRM_PRIORITY_LABELS, type CrmCase, type CrmPriority } from "@/lib/crm/case-view"
 import { cn } from "@/lib/utils"
 import { saveCaseEdit } from "@/hooks/use-crm-edits"
 import {
@@ -11,14 +11,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { BADGE_TRIGGER_CLASSES } from "@/components/crm/case-status-select"
+import { PRIORITY_TONE } from "@/components/crm/crm-badges"
 import { CRM_ROW_44 } from "@/components/crm/crm-touch"
 
+/** Urgent / High are tinted; Normal / Low are outline badges (spec §1). */
 const PRIORITY_TRIGGER: Record<CrmPriority, string> = {
-  low: "bg-muted text-muted-foreground hover:bg-muted/80 dark:bg-muted dark:hover:bg-muted/80",
-  normal: "bg-muted text-foreground hover:bg-muted/80 dark:bg-muted dark:hover:bg-muted/80",
-  high: "bg-warning/15 text-warning-text hover:bg-warning/25 dark:bg-warning/15 dark:hover:bg-warning/25",
-  urgent:
-    "bg-destructive/15 text-danger-text hover:bg-destructive/25 dark:bg-destructive/15 dark:hover:bg-destructive/25",
+  urgent: cn("border-transparent", PRIORITY_TONE.urgent),
+  high: cn("border-transparent", PRIORITY_TONE.high),
+  normal: cn(PRIORITY_TONE.normal, "dark:bg-transparent"),
+  low: cn(PRIORITY_TONE.low, "dark:bg-transparent"),
 }
 
 const ITEMS = CRM_PRIORITIES.map((value) => ({ value, label: CRM_PRIORITY_LABELS[value] }))

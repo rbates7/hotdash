@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { gmailConnecting } from "../src/lib/crm/gmail-summary"
 
 import { settleAnimations } from "./support/contrast"
-import { CRM_STORAGE_KEY, LIVE_OPEN_TILE, expectGmailPanel, gmailPanel } from "./support/crm"
+import { CRM_STORAGE_KEY, LIVE_OPEN_TILE, expectCrmSource, expectGmailPanel, gmailPanel } from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 
 /**
@@ -72,17 +72,17 @@ for (const name of PAGES) {
         } else {
           await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
           if (name === "crm") {
-            const source = page.getByRole("main").locator("header").first().getByTestId("crm-source")
+            // Gmail's badge is in the header's ⋯ menu (opened, checked, closed before the still).
             if (GMAIL === "connected") {
-              await expect(source).toHaveText("Live from Gmail")
+              await expectCrmSource(page, "Live from Gmail", "gmail")
               await expect(page.getByRole("main").getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
               await expect(gmailPanel(page)).toHaveCount(0)
             } else if (GMAIL === "connecting") {
-              await expect(source).toHaveText("Connecting…")
+              await expectCrmSource(page, "Connecting…", "connecting")
               await expect(page.getByRole("main").getByTestId("crm-connecting").first()).toBeVisible()
               await expect(gmailPanel(page)).toHaveCount(0)
             } else {
-              await expect(source).toHaveText("Gmail not connected")
+              await expectCrmSource(page, "Gmail not connected", "not_connected")
               await expectGmailPanel(page, "overview")
             }
             await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)

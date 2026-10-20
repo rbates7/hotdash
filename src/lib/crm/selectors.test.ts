@@ -55,7 +55,6 @@ describe("filterCases", () => {
   it("by status, priority and waiting on you", () => {
     expect(subjects(filterCases(CASES, { ...NO_FILTERS, status: "closed" }))).toEqual([FIXTURE_SUBJECTS.closed])
     expect(subjects(filterCases(CASES, { ...NO_FILTERS, priority: "urgent" }))).toEqual([FIXTURE_SUBJECTS.urgent])
-    // An open case whose newest message is theirs counts as waiting on you.
     expect(subjects(filterCases(CASES, { ...NO_FILTERS, waitingOnUs: true }))).toEqual([
       FIXTURE_SUBJECTS.urgent,
       FIXTURE_SUBJECTS.overdue,
@@ -93,14 +92,14 @@ describe("Overview selectors", () => {
 describe("filterAccounts", () => {
   const accounts = [
     ...crmFixtureAccounts(FIXED_NOW_MS),
-    { id: "acct-2", name: "Another Test Org", domain: null, contacts: [], openCases: 0, waitingOnUsCount: 0, lastActivityAt: null },
+    { id: "org-2", name: "another.example", domain: "another.example", contacts: [], openCases: 0, waitingOnUsCount: 0, lastActivityAt: null },
   ]
 
   it("newest activity first; search name, domain and people", () => {
-    expect(filterAccounts(accounts, "").map((a) => a.id)).toEqual(["acct-test-1", "acct-2"])
-    expect(filterAccounts(accounts, "another").map((a) => a.id)).toEqual(["acct-2"])
-    expect(filterAccounts(accounts, "example.com").map((a) => a.id)).toEqual(["acct-test-1"])
-    expect(filterAccounts(accounts, "bravo").map((a) => a.id)).toEqual(["acct-test-1"])
+    expect(filterAccounts(accounts, "").map((a) => a.id)).toEqual(["org-1", "org-2"])
+    expect(filterAccounts(accounts, "another").map((a) => a.id)).toEqual(["org-2"])
+    expect(filterAccounts(accounts, "example.com").map((a) => a.id)).toEqual(["org-1"])
+    expect(filterAccounts(accounts, "bravo").map((a) => a.id)).toEqual(["org-1"])
     expect(filterAccounts(accounts, "nothing")).toEqual([])
   })
 })

@@ -13,9 +13,9 @@ import {
   withOpenCase,
 } from "@/lib/crm/selectors"
 import { cn } from "@/lib/utils"
-import { useIsDesktop } from "@/hooks/use-mobile"
+import { useCasePanelMode } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
-import { CasePanel, EditsNote } from "@/components/crm/case-panel"
+import { CasePanel, EditsNote, type CasePanelNav } from "@/components/crm/case-panel"
 import { CasesFilterBar, useFilterNavigation } from "@/components/crm/cases-filter-bar"
 import { CasesTable, type CaseRow } from "@/components/crm/cases-table"
 import {
@@ -42,17 +42,24 @@ function focusCaseLink(id: string) {
   ;(links.find((el) => el.getClientRects().length > 0) ?? links[0])?.focus()
 }
 
+/** ↑ / ↓ move between cases beside the list, unless a control wants the arrows. */
+function wantsArrows(target: EventTarget | null) {
+  const el = target as HTMLElement | null
+  return Boolean(el?.closest?.("input, textarea, select, [contenteditable=true], [role=radiogroup], [role=listbox], [role=menu]"))
+}
+
 /**
  * Cases (`/crm/cases`): the Gmail cases with Sept's filters, inline status
- * and priority pickers, and the case panel on `?case=<id>` — beside the
- * list at ≥1280, a sheet below that.
+ * and priority pickers, and the case panel on `?case=<id>` (Deke's spec §3:
+ * beside the list at ≥1440, a sheet below that).
  */
 export function CasesScreen() {
   const data = useCrmData()
   const router = useRouter()
   const searchParams = useSearchParams()
   const go = useFilterNavigation()
-  const docked = useIsDesktop()
+  const mode = useCasePanelMode()
+  const docked = mode === "split"
   const params = searchParams.toString()
   const filters = parseCaseFilters(searchParams)
   const openId = searchParams.get(CASE_PARAM)
@@ -95,27 +102,54 @@ export function CasesScreen() {
   const showPanel = openId !== null && panelRow !== undefined
   const count = live ? `${shown.length === rows.length ? rows.length : `${shown.length} of ${rows.length}`} ${rows.length === 1 ? "case" : "cases"}` : ""
 
+  const nav = React.useMemo<CasePanelNav | null>(() => {
+    const index = openId ? shown.findIndex((r) => r.crmCase.id === openId) : -1
+    if (index < 0) return null
+    const at = (i: number) => (i >= 0 && i < shown.length ? hrefFor(shown[i]!.crmCase.id) : null)
+    return { index, total: shown.length, prevHref: at(index - 1), nextHref: at(index + 1) }
+  }, [openId, shown, hrefFor])
+
+  // Beside the list, ↑ / ↓ move between cases (spec §3).
+  React.useEffect(() => {
+    if (!docked || !showPanel || !nav) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || wantsArrows(event.target)) return
+      const href = event.key === "ArrowUp" ? nav.prevHref : event.key === "ArrowDown" ? nav.nextHref : null
+      if (!href) return
+      event.preventDefault()
+      router.push(href, { scroll: false })
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [docked, showPanel, nav, router])
+
   return (
-    <section aria-labelledby="crm-cases-heading" className="flex min-w-0 flex-col gap-3.5">
+    <section aria-labelledby="crm-cases-heading" className="flex min-w-0 flex-col gap-3">
       <CrmLiveRegion
         message={crmAnnouncement(data, rows.length === 0 ? "No cases yet" : shown.length === 0 ? NO_MATCH : `Showing ${count}`)}
       />
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <h2 id="crm-cases-heading" className="text-label font-semibold tracking-tight">
-          Cases
-          {live ? <span className="text-muted-foreground ml-2 text-xs font-normal tabular-nums">{count}</span> : null}
-        </h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <CrmStaleNote data={data} />
-          <EditsNote />
-        </div>
-      </div>
+      <h2 id="crm-cases-heading" className="sr-only">
+        Cases
+      </h2>
 
       {data.phase === "not_connected" || data.phase === "unauthorized" ? (
-        <CrmPhasePanel data={data} title={GMAIL_PANEL_TITLES.cases} />
+        <>
+          <EditsNote />
+          <CrmPhasePanel data={data} title={GMAIL_PANEL_TITLES.cases} />
+        </>
       ) : (
         <>
           <CasesFilterBar />
+          {/* Sept's "12 cases · …" line; the edits note stays visible here (Simmons). */}
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {live ? (
+              <span className="tabular-nums" data-testid="crm-cases-count">
+                {count}
+              </span>
+            ) : null}
+            <CrmStaleNote data={data} />
+            <EditsNote />
+          </div>
           {isWaiting(data) ? (
             <div aria-busy="true" className="flex flex-col gap-2">
               <CrmConnecting className="self-start" />
@@ -129,7 +163,7 @@ export function CasesScreen() {
             <div
               className={cn(
                 "grid min-w-0 items-start gap-4",
-                showPanel && docked && "xl:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)]"
+                showPanel && docked && "grid-cols-[minmax(0,1fr)_480px]"
               )}
             >
               <div className="min-w-0">
@@ -150,7 +184,7 @@ export function CasesScreen() {
                   />
                 )}
               </div>
-              {showPanel ? <CasePanel row={panelRow} docked={docked} nowMs={data.nowMs} onClose={close} /> : null}
+              {showPanel ? <CasePanel row={panelRow} mode={mode} nav={nav} nowMs={data.nowMs} onClose={close} /> : null}
             </div>
           )}
         </>

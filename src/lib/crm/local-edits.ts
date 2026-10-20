@@ -8,7 +8,7 @@ import {
   type CrmCaseStatus,
   type CrmCounts,
   type CrmPriority,
-} from "@/lib/crm/types.ours"
+} from "@/lib/crm/case-view"
 
 /**
  * Status and priority changes made on the Cases screen. Gmail is read-only

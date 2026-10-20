@@ -64,6 +64,8 @@
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
   --color-danger-text: var(--danger-text);
+  /* Info text on its own 12% / 18% tint (the CRM's New badge): plain --info fails AA there. */
+  --color-info-text: var(--info-text);
   /* The same, on an inverted surface (the tooltip: foreground-on-background). */
   --color-warning-text-inverse: var(--warning-text-inverse);
   /* Role-named type scale, after Multica: name sizes by what they are for,
@@ -152,6 +154,8 @@
   --warning-text: oklch(0.47 0.12 70);
   --warning-text-inverse: oklch(0.86 0.15 85);
   --danger-text: oklch(0.50 0.19 28);
+  /* Deke's info-text (CRM spec §1): 5.17:1 on the 12% info tint. */
+  --info-text: #0062b8;
 
   /* Chlk brand — the blue on the founder avatar and the active nav item. */
   --brand: oklch(0.588 0.166 253);
@@ -216,6 +220,8 @@
   --warning-text: oklch(0.86 0.15 85);
   --warning-text-inverse: oklch(0.47 0.12 70);
   --danger-text: oklch(0.80 0.14 25);
+  /* 6.79:1 on the 18% info tint; the same value as --sidebar-accent-foreground. */
+  --info-text: #7abafb;
 
   --brand: oklch(0.588 0.166 253);
   --brand-foreground: oklch(0.985 0 0);

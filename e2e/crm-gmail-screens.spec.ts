@@ -4,7 +4,14 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 import { settleAnimations } from "./support/contrast"
-import { CRM_STORAGE_KEY as STORAGE_KEY, LIVE_OPEN_TILE, expectGmailPanel, gmailPanel } from "./support/crm"
+import {
+  CRM_STORAGE_KEY as STORAGE_KEY,
+  LIVE_OPEN_TILE,
+  expectCountsNotConnected,
+  expectCrmSource,
+  expectGmailPanel,
+  gmailPanel,
+} from "./support/crm"
 import { liveGmailSummary, mockGmail } from "./support/gmail"
 import { waitForHydration } from "./support/shell"
 import { setTheme } from "./support/theme"
@@ -30,8 +37,6 @@ const WIDTHS = [
   { width: 1440, height: 900 },
 ] as const
 
-const source = (page: Page) => page.getByRole("main").locator("header").first().getByTestId("crm-source")
-
 async function shoot(page: Page, name: string) {
   if (!CAPTURE) return
   await settleAnimations(page)
@@ -50,13 +55,15 @@ for (const state of ["not-connected", "connected"] as const) {
         await page.reload()
         await waitForHydration(page)
         await setTheme(page, theme)
+        // Gmail's badge is in the header's ⋯ menu (opened, checked, closed before the still).
         if (state === "connected") {
-          await expect(source(page)).toHaveText("Live from Gmail")
+          await expectCrmSource(page, "Live from Gmail", "gmail")
           await expect(page.getByRole("main").getByRole("link", { name: LIVE_OPEN_TILE, exact: true })).toBeVisible()
           await expect(gmailPanel(page)).toHaveCount(0)
         } else {
-          await expect(source(page)).toHaveText("Gmail not connected")
+          await expectCrmSource(page, "Gmail not connected", "not_connected")
           await expectGmailPanel(page, "overview")
+          await expectCountsNotConnected(page)
           await expect(page.getByText(/open conversations/)).toHaveCount(0)
         }
         await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)

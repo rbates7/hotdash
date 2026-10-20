@@ -9,7 +9,7 @@ import {
   parseLocalEdits,
   type LocalEdits,
 } from "@/lib/crm/local-edits"
-import type { CrmCase, CrmCaseStatus, CrmPriority } from "@/lib/crm/types.ours"
+import type { CrmCase, CrmCaseStatus, CrmPriority } from "@/lib/crm/case-view"
 
 /**
  * This browser's case edits (`@/lib/crm/local-edits`), shared by the Cases
@@ -70,6 +70,12 @@ export function saveCaseEdit(
   const ok = localEditsStorage.save(storage(), next)
   for (const l of listeners) l()
   return ok
+}
+
+/** Drop every case edit in this browser (the header menu's Clear my entries). */
+export function clearCaseEdits() {
+  localEditsStorage.clear(storage())
+  for (const l of listeners) l()
 }
 
 export function useCrmEdits(): LocalEdits {

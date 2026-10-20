@@ -15,7 +15,7 @@ import {
   CRM_PRIORITY_LABELS,
   CRM_STATUS_LABELS,
   type CrmPriority,
-} from "@/lib/crm/types.ours"
+} from "@/lib/crm/case-view"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

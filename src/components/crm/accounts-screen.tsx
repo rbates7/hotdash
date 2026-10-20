@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { SearchIcon } from "lucide-react"
 
 import { agoLabel, filterAccounts } from "@/lib/crm/selectors"
-import type { CrmAccount } from "@/lib/crm/types.ours"
+import type { CrmAccount } from "@/lib/crm/case-view"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,16 +38,26 @@ function people(a: CrmAccount) {
   return a.contacts.map((p) => p.name ?? p.email).join(", ")
 }
 
-function Waiting({ n }: { n: number }) {
-  return <span className={cn("tabular-nums", n > 0 ? "text-danger-text font-medium" : "text-muted-foreground")}>{n}</span>
+/** Gmail knows only the domain, so the name usually is the domain: then it is not repeated. */
+function AccountName({ a }: { a: CrmAccount }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block truncate font-medium">{a.name}</span>
+      {a.domain && a.domain !== a.name ? (
+        <span className="text-muted-foreground block truncate text-xs">{a.domain}</span>
+      ) : null}
+    </span>
+  )
 }
 
 /**
- * Accounts (`/crm/accounts`): one row per organization in the support
- * inbox, ported from crm-port's table with only what Gmail backs: name,
- * domain, its people, open cases, cases waiting on you and last activity.
- * No plan, coach or school-type columns, and no account page (cut), so the
- * rows are not links. Search lives in `?q=`. Below 768 each row is a card.
+ * Accounts (`/crm/accounts`): one row per email domain in the support
+ * inbox, with Deke's columns (spec §2) where Gmail can fill them: Account
+ * (+ domain), Contacts (the spec's Coaches), Last activity from 1180, Open
+ * cases. No plan or school type (no source), and no account page (cut), so
+ * the rows are not links. Personal-domain senders have no account and are
+ * not grouped here. Search lives in `?q=`. Below 820 the table collapses to
+ * a list: the name with its domain, and the open count on the right.
  */
 export function AccountsScreen() {
   const data = useCrmData()
@@ -126,23 +136,22 @@ export function AccountsScreen() {
         </div>
       ) : (
         <>
-          <div className="bg-surface border-surface-border overflow-hidden rounded-xl border max-md:hidden">
+          <div className="bg-surface border-surface-border overflow-hidden rounded-xl border max-[819px]:hidden">
             <Table aria-label="Accounts">
               <TableHeader>
                 <TableRow>
                   <TableHead>Account</TableHead>
-                  <TableHead>Domain</TableHead>
                   <TableHead>Contacts</TableHead>
-                  <TableHead className="text-right">Open cases</TableHead>
-                  <TableHead className="text-right">Waiting on you</TableHead>
-                  <TableHead className="text-right">Last activity</TableHead>
+                  <TableHead className="hidden min-[1180px]:table-cell">Last activity</TableHead>
+                  <TableHead className="text-right">Open</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {shown.map((a) => (
                   <TableRow key={a.id} data-account-id={a.id}>
-                    <TableCell className="max-w-56 truncate font-medium">{a.name}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-48 truncate">{a.domain ?? "—"}</TableCell>
+                    <TableCell className="max-w-72">
+                      <AccountName a={a} />
+                    </TableCell>
                     <TableCell className="max-w-64">
                       <span className="tabular-nums">{a.contacts.length}</span>
                       {a.contacts.length > 0 ? (
@@ -151,32 +160,26 @@ export function AccountsScreen() {
                         </span>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{a.openCases}</TableCell>
-                    <TableCell className="text-right">
-                      <Waiting n={a.waitingOnUsCount} />
+                    <TableCell className="text-muted-foreground hidden min-[1180px]:table-cell">
+                      {agoLabel(a.lastActivityAt, data.nowMs)}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-right">{agoLabel(a.lastActivityAt, data.nowMs)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{a.openCases}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <ul aria-label="Accounts" className="flex flex-col gap-2.5 md:hidden" data-testid="account-cards">
+          <ul
+            aria-label="Accounts"
+            data-testid="account-list"
+            className="bg-surface border-surface-border divide-surface-border flex flex-col divide-y overflow-hidden rounded-xl border min-[820px]:hidden"
+          >
             {shown.map((a) => (
-              <li
-                key={a.id}
-                data-account-id={a.id}
-                className="bg-surface border-surface-border flex min-w-0 flex-col gap-1 rounded-xl border p-3"
-              >
-                <div className="flex min-w-0 items-baseline justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium">{a.name}</span>
-                  <span className="text-muted-foreground shrink-0 text-xs">{agoLabel(a.lastActivityAt, data.nowMs)}</span>
-                </div>
-                {a.domain ? <span className="text-muted-foreground truncate text-xs">{a.domain}</span> : null}
-                <p className="text-muted-foreground text-xs">
-                  {a.contacts.length} {a.contacts.length === 1 ? "contact" : "contacts"} · {a.openCases} open ·{" "}
-                  <Waiting n={a.waitingOnUsCount} /> waiting on you
-                </p>
+              <li key={a.id} data-account-id={a.id} className="flex min-h-11 min-w-0 items-center gap-3 px-3.5 py-2.5">
+                <AccountName a={a} />
+                <span className="ml-auto shrink-0 text-sm tabular-nums" aria-label={`${a.openCases} open`}>
+                  {a.openCases}
+                </span>
               </li>
             ))}
           </ul>

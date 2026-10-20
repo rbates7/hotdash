@@ -6,7 +6,7 @@ import { LockIcon } from "lucide-react"
 
 import { now, startOfWeek } from "@/lib/clock"
 import { adjustCounts, mergeCases } from "@/lib/crm/local-edits"
-import type { CrmAccount, CrmActivity, CrmCase, CrmCounts } from "@/lib/crm/types.ours"
+import type { CrmAccount, CrmActivity, CrmCase, CrmCounts } from "@/lib/crm/case-view"
 import { agoLabel } from "@/lib/crm/selectors"
 import { UNLOCK_PATH } from "@/lib/gate/paths"
 import { cn } from "@/lib/utils"
@@ -42,6 +42,7 @@ export type CrmData = {
   liveCases: CrmCase[]
   accounts: CrmAccount[]
   recentActivity: CrmActivity[]
+  /** Only when live. The route always sends counts, but they are zeros while not connected: never shown. */
   counts: CrmCounts | null
   nowMs: number
 }
@@ -65,7 +66,7 @@ export function useCrmData(): CrmData {
       liveCases: s.cases,
       accounts: s.accounts,
       recentActivity: s.recentActivity,
-      counts: s.counts ? adjustCounts(s.counts, s.cases, edits, weekStart) : null,
+      counts: adjustCounts(s.counts, s.cases, edits, weekStart),
       nowMs,
     }
   }, [view, edits, nowMs])

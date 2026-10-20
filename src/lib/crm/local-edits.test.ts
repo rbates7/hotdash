@@ -12,7 +12,17 @@ import {
   mergeCases,
   parseLocalEdits,
 } from "@/lib/crm/local-edits"
-import { countCases } from "@/lib/crm/adapter"
+import { isOpenCrmCase, isWaitingOnUs, type CrmCase, type CrmCounts } from "@/lib/crm/case-view"
+
+/** The server's counting rules (docs/crm-gmail-data.md), over rows. */
+function countCases(cases: readonly CrmCase[], closedThisWeek: number): CrmCounts {
+  return {
+    open: cases.filter(isOpenCrmCase).length,
+    waitingOnUs: cases.filter(isWaitingOnUs).length,
+    waitingOnThem: cases.filter((c) => c.status === "waiting_on_them").length,
+    closedThisWeek,
+  }
+}
 
 const AT = new Date(FIXED_NOW_MS).toISOString()
 const [urgent, overdue, waiting, closed] = crmFixtureCases(FIXED_NOW_MS)
@@ -20,7 +30,7 @@ const [urgent, overdue, waiting, closed] = crmFixtureCases(FIXED_NOW_MS)
 describe("applyEdit / mergeCase", () => {
   it("records the change and the live value it replaced", () => {
     const edits = applyEdit({}, overdue!, { status: "closed" }, AT)
-    expect(edits).toEqual({ [overdue!.id]: { status: { value: "closed", from: "open" }, at: AT } })
+    expect(edits).toEqual({ [overdue!.id]: { status: { value: "closed", from: "waiting_on_us" }, at: AT } })
     expect(mergeCase(overdue!, edits[overdue!.id]).status).toBe("closed")
   })
 
@@ -32,7 +42,7 @@ describe("applyEdit / mergeCase", () => {
 
   it("setting a field back to the live value removes it, and an empty edit goes", () => {
     let edits = applyEdit({}, overdue!, { status: "closed" }, AT)
-    edits = applyEdit(edits, overdue!, { status: "open" }, AT)
+    edits = applyEdit(edits, overdue!, { status: "waiting_on_us" }, AT)
     expect(edits).toEqual({})
   })
 

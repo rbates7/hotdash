@@ -4,15 +4,25 @@ import type { LiveGmailSummary } from "../src/lib/crm/gmail-summary"
 
 import { expectReadable, settleAnimations } from "./support/contrast"
 import {
+  CRM_LIVE_LEDE,
+  EDITS_NOTE,
+  FIND_CONTACT,
   LIVE_CASES,
   LIVE_PEOPLE,
   LIVE_TRIAGE,
   OWN_CONTACTS,
   OWN_ID_BASE,
+  clearMenuItem,
+  closeCrmMenu,
+  crmHeader,
+  crmMenuButton,
+  crmSource,
+  expectCrmSource,
   expectGmailPanel,
   gmailPanel,
   liveCase,
   liveContact,
+  openCrmMenu,
   openWithOwnContacts,
   withPlans,
   type OwnContact,
@@ -27,10 +37,12 @@ import { setTheme } from "./support/theme"
  * Phone stacks RowCollapse cards with a bottom sheet of row actions; tablet
  * keeps ≤5-column tables with one "…" per row; desktop (≥1280) is unchanged
  * apart from the pressed status filter. There is no sample: contacts and
- * the header's Clear my entries are measured with the founder's own
+ * the header ⋯ menu's Clear my entries are measured with the founder's own
  * contacts saved (Gmail not connected, the CI state); cases, the case panel
- * and triage with the fixture inbox from a mocked /api/crm/gmail. The
- * rebuilt Cases screen's own layout is covered by e2e/crm-rebuild.spec.ts.
+ * and triage with the fixture inbox from a mocked /api/crm/gmail. Cases and
+ * Accounts by width (table from 820, a list below) and the case panel's four
+ * modes are checked here at a glance; the rebuilt Cases screen's behaviour
+ * in depth is covered by e2e/crm-rebuild.spec.ts.
  */
 
 const VIEWPORTS = {
@@ -58,22 +70,32 @@ const LEE = "Lee Morgan"
 const PAT_ID = `contact-${OWN_ID_BASE}`
 
 /** Gmail not connected, the founder's own contacts saved. */
-const NOT_CONNECTED_ROUTES = ["/crm", "/crm/cases", "/crm/contacts", `/crm/contacts/${PAT_ID}`, "/crm/triage"] as const
+const NOT_CONNECTED_ROUTES = [
+  "/crm",
+  "/crm/cases",
+  "/crm/accounts",
+  "/crm/contacts",
+  `/crm/contacts/${PAT_ID}`,
+  "/crm/triage",
+] as const
 /** Gmail connected (mocked). */
 const LIVE_ROUTES = [
   "/crm",
   "/crm/cases",
-  // The old case page redirects here: the case panel (a sheet below 1280).
+  // The old case page redirects here: the case panel (a sheet below 1440).
   `/crm/cases?case=${ROSTER.id}`,
+  "/crm/accounts",
   "/crm/contacts",
   `/crm/contacts/${DANA.id}`,
   "/crm/triage",
 ] as const
 
 const main = (page: Page) => page.getByRole("main")
-const header = (page: Page) => main(page).locator("header").first()
-const source = (page: Page) => header(page).getByTestId("crm-source")
-const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
+const header = crmHeader
+// Gmail's badge and Clear my entries are in the header's ⋯ menu (open it first).
+const source = crmSource
+const clearButton = clearMenuItem
+const casePanel = (page: Page) => page.getByTestId("case-panel")
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
 const statusFilter = (page: Page) => main(page).getByRole("group", { name: "Status filter", exact: true })
 const cardList = (page: Page) => main(page).locator("[data-slot='responsive-table']").getByRole("list")
@@ -87,11 +109,17 @@ const sheetActions = (page: Page, title: string, group: string) =>
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const table = (page: Page, name: string) => main(page).getByRole("table", { name, exact: true })
 
-/** Go to `path` keeping storage and routes, and wait for the source to answer and the rows to load. */
+/**
+ * Go to `path` keeping storage and routes, and wait for the source to answer
+ * and the rows to load. Gmail's badge is in the header's ⋯ menu (opened and
+ * closed again); with a case open (a modal sheet below 1180) the panel,
+ * which shows only once the inbox has answered, stands in for it.
+ */
 async function visit(page: Page, path: string) {
   await page.goto(path)
   await waitForHydration(page)
-  await expect(source(page)).toBeVisible()
+  if (path.includes("case=")) await expect(casePanel(page)).toBeVisible()
+  else await expectCrmSource(page)
   await expect(main(page).getByRole("status", { name: /^Loading saved/ })).toHaveCount(0)
   await settleAnimations(page)
 }
@@ -100,15 +128,25 @@ async function visit(page: Page, path: string) {
 async function own(page: Page, path = "/crm/contacts", contacts: readonly OwnContact[] = OWN_CONTACTS) {
   await openWithOwnContacts(page, path, contacts)
   await visit(page, path)
+  await openCrmMenu(page)
   await expect(persistenceNote(page)).toHaveText(NOTE.saved)
   await expect(source(page)).toHaveAttribute("data-source", "not_connected")
+  await closeCrmMenu(page)
 }
 
 /** The fixture inbox (or `summary`) from a mocked /api/crm/gmail. A later call's route wins. */
 async function live(page: Page, path = "/crm/cases", summary: LiveGmailSummary = liveGmailSummary(Date.now())) {
   await mockGmail(page, summary)
   await visit(page, path)
-  await expect(source(page)).toHaveText("Live from Gmail")
+  await expect(header(page).getByText(CRM_LIVE_LEDE, { exact: true })).toBeVisible()
+  if (!path.includes("case=")) await expectCrmSource(page, "Live from Gmail", "gmail")
+}
+
+/** Clear my entries in the open ⋯ menu is usable (the founder's contacts are saved). */
+async function expectClearEnabled(page: Page) {
+  await openCrmMenu(page)
+  await expect(clearButton(page)).not.toHaveAttribute("aria-disabled", "true")
+  await closeCrmMenu(page)
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -180,11 +218,11 @@ for (const [name, viewport] of Object.entries(VIEWPORTS)) {
 
     test("no route scrolls sideways; below 1280 every control in main is ≥ 44×44", async ({ page }) => {
       // Gmail not connected with the founder's contacts saved: the panels,
-      // their rows and an enabled Clear my entries.
+      // their rows and an enabled Clear my entries (in the ⋯ menu).
       await own(page, "/crm")
       for (const route of NOT_CONNECTED_ROUTES) {
         await visit(page, route)
-        await expect(clearButton(page)).toBeEnabled()
+        await expectClearEnabled(page)
         expect(await pageOverflowX(page), `${route} page overflow`).toBeLessThanOrEqual(1)
         await expectNoOverflowX(page)
         if (viewport.width < 1280) await expectAllTargets44(main(page), `${viewport.width} ${route} (not connected)`)
@@ -193,7 +231,7 @@ for (const [name, viewport] of Object.entries(VIEWPORTS)) {
       await mockGmail(page, liveGmailSummary(Date.now()))
       for (const route of LIVE_ROUTES) {
         await visit(page, route)
-        await expect(source(page)).toHaveText("Live from Gmail")
+        await expect(header(page).getByText(CRM_LIVE_LEDE, { exact: true })).toBeVisible()
         expect(await pageOverflowX(page), `${route} page overflow (live)`).toBeLessThanOrEqual(1)
         await expectNoOverflowX(page)
         if (viewport.width < 1280) await expectAllTargets44(main(page), `${viewport.width} ${route} (live)`)
@@ -222,27 +260,106 @@ test.describe("44px sweep (negative control)", () => {
 test.describe("responsive CRM (phone 390)", () => {
   test.use({ viewport: VIEWPORTS.phone })
 
-  test("header per Deke 8:2: Search top-right; the note, Clear my entries and badge on their own line", async ({ page }) => {
+  test("header: title and ⋯ on one row, the full-width Find a contact… below; badge, note and Clear in the ⋯ menu", async ({
+    page,
+  }) => {
     await own(page)
-    const search = header(page).getByRole("button", { name: "Search", exact: true })
-    await expectTapTarget(search, "Search")
-    const sBox = (await search.boundingBox())!
-    expect(Math.round(sBox.width)).toBe(44)
+    const menuButton = crmMenuButton(page)
+    await expectTapTarget(menuButton, "CRM menu")
+    const mBox = (await menuButton.boundingBox())!
+    expect(Math.round(mBox.width)).toBe(44)
+    expect(Math.round(mBox.height)).toBe(44)
     const title = (await header(page).getByRole("heading", { level: 1, name: "CRM" }).boundingBox())!
     const lede = (await header(page).locator("p").first().boundingBox())!
-    const note = (await persistenceNote(page).boundingBox())!
-    expect(sBox.y, "Search sits on the title line").toBeLessThan(title.y + title.height)
-    expect(sBox.x, "Search is right of the title").toBeGreaterThan(lede.x + lede.width - 1)
-    expect(note.y, "note under the lede").toBeGreaterThan(lede.y + lede.height)
+    expect(mBox.y, "⋯ sits on the title line").toBeLessThan(title.y + title.height)
+    expect(mBox.x, "⋯ is right of the title").toBeGreaterThan(lede.x + lede.width - 1)
+    // The phone's own finder: full width under the lede; the ⌘K one is desktop-only.
+    const find = header(page).getByRole("button", { name: FIND_CONTACT, exact: true })
+    await expectTapTarget(find, "Find a contact…")
+    const fBox = (await find.boundingBox())!
+    const hBox = (await header(page).boundingBox())!
+    expect(fBox.y, "Find a contact… under the lede").toBeGreaterThan(lede.y + lede.height)
+    expect(fBox.width, "Find a contact… is full width").toBeGreaterThanOrEqual(hBox.width - 1)
+    await expect(header(page).getByText("⌘K")).toBeHidden()
+    // Nothing else in the header row: Gmail's state and storage are in the menu.
+    await expect(header(page).getByTestId("crm-source")).toHaveCount(0)
+    await expect(header(page).getByTestId("persistence-note")).toHaveCount(0)
+    const menu = await openCrmMenu(page)
+    await settle(menu)
+    await expect(source(page)).toHaveAttribute("data-source", "not_connected")
+    await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+    await expect(clearButton(page)).not.toHaveAttribute("aria-disabled", "true")
     await expectTapTarget(clearButton(page), "Clear my entries")
-    expect((await clearButton(page).boundingBox())!.y, "Clear under the lede").toBeGreaterThan(lede.y + lede.height)
-    await expect(source(page)).toBeVisible()
-    expect((await source(page).boundingBox())!.y, "badge under the lede").toBeGreaterThan(lede.y + lede.height)
+    await expect(menu, "the menu fits the screen").toBeInViewport({ ratio: 1 })
+    await closeCrmMenu(page)
+    // Find a contact… opens the palette.
+    await find.click()
+    await expect(dialog(page, "Search CRM")).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(dialog(page, "Search CRM")).toBeHidden()
     for (const tab of await crmNav(page).getByRole("link").all()) await expectTapTarget(tab, "section tab")
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 
-  // Old Cases phone UI (full-width segmented tabs, filter strip, RowCollapse case cards) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+  test("Cases: a stacked list of link rows (no pickers); a case opens in a bottom sheet that grows to full height", async ({
+    page,
+  }) => {
+    await live(page)
+    const list = main(page).getByTestId("case-list")
+    await expect(list).toBeVisible()
+    await expect(table(page, "Cases")).toBeHidden()
+    await expect(list).toHaveAccessibleName("Cases")
+    await expect(list.getByRole("listitem").first()).toBeVisible()
+    const rows = await list.getByRole("listitem").count()
+    // Status changes happen in the panel: no pickers in the rows.
+    await expect(list.getByRole("combobox")).toHaveCount(0)
+    await expect(list.getByRole("radiogroup")).toHaveCount(0)
+    await expect(main(page).getByTestId("crm-cases-count")).toHaveText(`${rows} cases`)
+    await expect(main(page).getByTestId("crm-edits-note")).toHaveText(EDITS_NOTE)
+    const row = list.getByRole("link", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) })
+    await expect(row).toContainText(`#${ROSTER.id.replace("case-", "")}`)
+    await expect(row).toContainText(DANA_NAME)
+    await expectTapTarget(row, "case row")
+
+    await row.click()
+    await expect(page).toHaveURL(new RegExp(`[?&]case=${ROSTER.id}$`))
+    const panel = casePanel(page)
+    await expect(panel).toHaveAttribute("data-mode", "bottom")
+    await expect(panel).toHaveAttribute("data-side", "bottom")
+    await expect(page.getByRole("dialog", { name: ROSTER_SUBJECT, exact: true })).toBeVisible()
+    await settle(panel)
+    const vh = VIEWPORTS.phone.height
+    expect(Math.abs((await panel.boundingBox())!.height - vh * 0.55), "55% tall").toBeLessThanOrEqual(2)
+    // No ↑ / ↓ or position in the bottom sheet; Full height and × are 44.
+    await expect(panel.getByTestId("case-panel-position")).toHaveCount(0)
+    await expectTapTarget(panel.getByRole("button", { name: "Close case", exact: true }), "Close case")
+    const full = panel.getByRole("button", { name: "Full height", exact: true })
+    await expectTapTarget(full, "Full height")
+    await full.click()
+    await expect
+      .poll(async () => Math.abs((await panel.boundingBox())!.height - vh * 0.95), { message: "95% tall" })
+      .toBeLessThanOrEqual(2)
+    await expect(panel.getByRole("button", { name: "Shrink", exact: true })).toBeVisible()
+    await expect(panel.getByRole("radiogroup", { name: "Status" }).getByRole("radio")).toHaveCount(4)
+
+    await panel.getByRole("button", { name: "Close case", exact: true }).click()
+    await expect(panel).toBeHidden()
+    await expect(page).toHaveURL(/\/crm\/cases$/)
+    await expect(row).toBeFocused()
+  })
+
+  test("Accounts: a list (name, open count) instead of the table; rows are not links", async ({ page }) => {
+    await live(page, "/crm/accounts")
+    const list = main(page).getByTestId("account-list")
+    await expect(list).toBeVisible()
+    await expect(table(page, "Accounts")).toBeHidden()
+    await expect(list.getByRole("listitem").first()).toBeVisible()
+    await expect(list.getByRole("link")).toHaveCount(0)
+    await expect(main(page).getByTestId("account-cards")).toHaveCount(0)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+  })
+
+  // Old Cases phone UI (full-width segmented tabs, filter strip, RowCollapse case cards) removed by the CRM rebuild; the filters are covered by e2e/crm-rebuild.spec.ts.
 
   test("Contacts: the panel, then cards with Name, Plan, Email, 'Organization · N open cases'", async ({ page }) => {
     await own(page)
@@ -325,6 +442,77 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
 
     // Old Cases tablet table ("…" row menus, Delete case, segmented toolbar) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
+    test("Cases: the table's columns at this width; the case panel is a sheet (modal with a scrim at 820, not at 1180)", async ({
+      page,
+    }) => {
+      const portrait = name === "tablet-portrait"
+      await live(page)
+      const t = table(page, "Cases")
+      await expect(main(page).getByTestId("case-list")).toBeHidden()
+      // Priority from 1180; Channel only from 1440.
+      await expect(t.getByRole("columnheader")).toHaveText(
+        portrait
+          ? ["Unread", "#", "Subject", "Contact", "Status", "Last activity"]
+          : ["Unread", "#", "Subject", "Contact", "Status", "Priority", "Last activity"]
+      )
+      await expect(main(page).getByTestId("crm-edits-note")).toHaveText(EDITS_NOTE)
+      const link = t.getByRole("link", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) })
+      await link.click()
+      await expect(page).toHaveURL(new RegExp(`[?&]case=${ROSTER.id}$`))
+      const panel = casePanel(page)
+      await expect(panel).toHaveAttribute("data-mode", portrait ? "modal" : "overlay")
+      await expect(panel).toHaveAttribute("data-side", "right")
+      await expect(page.getByRole("dialog", { name: ROSTER_SUBJECT, exact: true })).toBeVisible()
+      await settle(panel)
+      await expect(panel.getByTestId("case-panel-position")).toHaveText(/^\d+ of \d+$/)
+      // ↑ / ↓ are links, or disabled buttons at either end of the list.
+      for (const control of ["Previous case", "Next case", "Close case"]) {
+        const target = panel
+          .getByRole("button", { name: control, exact: true })
+          .or(panel.getByRole("link", { name: control, exact: true }))
+        await expectTapTarget(target, control)
+      }
+      // The status radiogroup: four 44-tall segments, one checked.
+      const radios = panel.getByRole("radiogroup", { name: "Status" }).getByRole("radio")
+      await expect(radios).toHaveText(["Open", "Waiting on you", "Waiting on them", "Closed"])
+      await expect(panel.getByRole("radio", { checked: true })).toHaveCount(1)
+      for (const radio of await radios.all()) await expectTapTarget(radio, "status segment")
+      await expect(panel.getByTestId("crm-edits-note")).toHaveText(EDITS_NOTE)
+      await expect(panel.getByTestId("message-text").first()).toBeVisible()
+      await expect(panel.getByTestId("message-html")).toHaveCount(0)
+
+      const scrim = page.locator("[data-slot='sheet-overlay']")
+      if (portrait) {
+        // 820–1179: a modal sheet over the literal black scrim; Escape closes it.
+        await expect(scrim).toBeVisible()
+        // Black at 40% (Tailwind's color-mix may serialise as rgba() or oklab()).
+        await expect(scrim).toHaveCSS("background-color", /^(rgba\(0, 0, 0, 0\.4\)|oklab\(0 0 0 \/ 0\.4\)|color\(srgb 0 0 0 \/ 0\.4\))$/)
+        await page.keyboard.press("Escape")
+      } else {
+        // 1180–1439: no scrim, not modal; another row swaps the case, × closes it.
+        await expect(scrim).toBeHidden()
+        const other = t.getByRole("link", { name: new RegExp(escapeRe(LIVE_CASES.invoice)) })
+        await other.click()
+        await expect(page.getByRole("dialog", { name: LIVE_CASES.invoice, exact: true })).toBeVisible()
+        await panel.getByRole("button", { name: "Close case", exact: true }).click()
+      }
+      await expect(panel).toBeHidden()
+      await expect(page).toHaveURL(/\/crm\/cases$/)
+      expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+    })
+
+    test("Accounts: Account, Contacts, Open (Last activity from 1180); rows are not links", async ({ page }) => {
+      await live(page, "/crm/accounts")
+      const t = table(page, "Accounts")
+      await expect(main(page).getByTestId("account-list")).toBeHidden()
+      await expect(t.getByRole("columnheader")).toHaveText(
+        name === "tablet-portrait" ? ["Account", "Contacts", "Open"] : ["Account", "Contacts", "Last activity", "Open"]
+      )
+      await expect(t.getByRole("row").nth(1)).toBeVisible()
+      await expect(t.getByRole("link")).toHaveCount(0)
+      expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+    })
+
     test("Contacts: the panel above; Email folds under Name; one 44×44 '…' with Open / Edit / Delete", async ({ page }) => {
       await own(page)
       await expectGmailPanel(page, "contacts")
@@ -361,6 +549,14 @@ for (const [size, viewport] of TOUCH_SIZES) {
     test("fields, options, footer buttons, ×, menu rows, palette rows ≥ 44; dialogs fit the screen", async ({ page }) => {
       const phone = size === "390"
       await own(page)
+
+      // The header's ⋯ button and menu (Connect…, Clear my entries): 44 rows, on screen.
+      await expectTapTarget(crmMenuButton(page), `${size} CRM menu`)
+      const crmMenu = await openCrmMenu(page)
+      await settle(crmMenu)
+      await expectAllTargets44(crmMenu, `${size} CRM menu`)
+      await expect(crmMenu, `${size} CRM menu fits the screen`).toBeInViewport({ ratio: 1 })
+      await closeCrmMenu(page)
 
       // New contact.
       await main(page).getByRole("button", { name: "New contact", exact: true }).click()
@@ -406,17 +602,29 @@ for (const [size, viewport] of TOUCH_SIZES) {
       await expectAllTargets44(options, `${size} priority filter options`)
       await page.keyboard.press("Escape")
       await expect(options).toBeHidden()
-      // The row's picker (table at 820/1180, card at 390: whichever is on screen).
-      await main(page).getByRole("combobox", { name: `Priority: ${ROSTER_SUBJECT}`, exact: true }).click()
+      // The case's priority picker, in the case panel at every width (the
+      // list rows below 820 have no pickers; the table's Priority column is
+      // 1180 up), and the panel's 44px status segments.
+      await main(page).getByRole("link", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) }).click()
+      const panel = casePanel(page)
+      await expect(panel).toBeVisible()
+      await settle(panel)
+      const radios = panel.getByRole("radiogroup", { name: "Status" }).getByRole("radio")
+      await expect(radios).toHaveCount(4)
+      for (const radio of await radios.all()) await expectTapTarget(radio, `${size} status segment`)
+      await panel.getByRole("combobox", { name: `Priority: ${ROSTER_SUBJECT}`, exact: true }).click()
       await expect(options).toBeVisible()
       await settle(options)
       await expectAllTargets44(options, `${size} case priority options`)
       await page.keyboard.press("Escape")
       await expect(options).toBeHidden()
+      // The picker's Escape closes its list first; × closes the panel.
+      if (await panel.isVisible()) await panel.getByRole("button", { name: "Close case", exact: true }).click()
+      await expect(panel).toBeHidden()
       // Old Cases "Delete case" (row sheet / "…" and case detail) removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
 
-      // Command palette, with results.
-      await header(page).getByRole("button", { name: /^Search/ }).click()
+      // Command palette (from Find a contact…), with results.
+      await header(page).getByRole("button", { name: new RegExp(`^${FIND_CONTACT}`) }).click()
       const palette = dialog(page, "Search CRM")
       await palette.getByLabel("Search cases and contacts").fill("a")
       await expect(palette.getByRole("button").first()).toBeVisible()
@@ -452,9 +660,14 @@ test.describe("responsive CRM (desktop 1440)", () => {
   test.use({ viewport: VIEWPORTS.desktop })
 
   test("is unchanged: original columns, no cards, no '…', develop's control sizes", async ({ page }) => {
-    // Not connected, own contacts saved: the header's Clear and the Contacts table.
+    // Not connected, own contacts saved: the header's ⋯ (and its Clear) and the Contacts table.
     await own(page)
-    await expect(clearButton(page)).toHaveCSS("height", "24px")
+    // ≥1280 keeps develop's compact sizes: the ⋯ button and its rows are not grown to 44.
+    expect((await crmMenuButton(page).boundingBox())!.height).toBeLessThan(44)
+    await openCrmMenu(page)
+    await settle(clearButton(page))
+    expect((await clearButton(page).boundingBox())!.height).toBeLessThan(44)
+    await closeCrmMenu(page)
     await expect(table(page, "Contacts").getByRole("columnheader")).toHaveText([
       "Name",
       "Email",
@@ -464,12 +677,68 @@ test.describe("responsive CRM (desktop 1440)", () => {
     ])
     await expect(main(page).getByRole("button", { name: /^More actions for / })).toHaveCount(0)
     await expect(cardList(page)).toBeHidden()
-    // The shared header and tabs: develop's 28px: Nova's unlayered `size-sm` wins over the button's `h-9`.
-    await expect(header(page).getByRole("button", { name: /^Search/ })).toHaveCSS("height", "28px")
-    await expect(header(page).getByText("⌘K")).toBeVisible()
+    // The shared header and tabs: the ⌘K finder (the phone's full-width one is hidden) and compact tabs.
+    const find = header(page).getByRole("button", { name: new RegExp(`^${FIND_CONTACT}`) })
+    await expect(find).toHaveCount(1)
+    await expect(find).toContainText("⌘K")
+    expect((await find.boundingBox())!.height).toBeLessThan(44)
     expect((await crmNav(page).getByRole("link", { name: "Cases", exact: true }).boundingBox())!.height).toBeLessThan(44)
-    // Old desktop Cases table/toolbar and case detail sizes removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
+    // The segmented tabs: the current one is the raised pill.
+    const current = crmNav(page).getByRole("link", { name: "Contacts", exact: true })
+    await expect(current).toHaveAttribute("aria-current", "page")
+    await expect(current).toHaveClass(/\bbg-surface\b/)
+    await expect(current).toHaveClass(/\bshadow-sm\b/)
+    // Old desktop Cases toolbar and case detail sizes removed by the CRM rebuild; covered by e2e/crm-rebuild.spec.ts.
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+  })
+
+  test("Cases: every column; the panel sits beside the list (~480px) and the list drops Priority, Last activity, Channel", async ({
+    page,
+  }) => {
+    await live(page)
+    const t = table(page, "Cases")
+    await expect(main(page).getByTestId("case-list")).toBeHidden()
+    await expect(t.getByRole("columnheader")).toHaveText([
+      "Unread",
+      "#",
+      "Subject",
+      "Contact",
+      "Status",
+      "Priority",
+      "Last activity",
+      "Channel",
+    ])
+    await t.getByRole("link", { name: new RegExp(escapeRe(ROSTER_SUBJECT)) }).click()
+    await expect(page).toHaveURL(new RegExp(`[?&]case=${ROSTER.id}$`))
+    const panel = casePanel(page)
+    await expect(panel).toHaveAttribute("data-mode", "split")
+    // Beside the list in <main>, not a dialog.
+    await expect(main(page).getByRole("complementary", { name: ROSTER_SUBJECT, exact: true })).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    expect(Math.abs((await panel.boundingBox())!.width - 480), "~480px wide").toBeLessThanOrEqual(2)
+    await expect(t.getByRole("columnheader")).toHaveText(["Unread", "#", "Subject", "Contact", "Status"])
+    await expect(panel.getByTestId("case-panel-position")).toHaveText(/^\d+ of \d+$/)
+    await expect(panel.getByRole("radiogroup", { name: "Status" }).getByRole("radio")).toHaveCount(4)
+    await expect(panel.getByTestId("crm-edits-note")).toHaveText(EDITS_NOTE)
+    await panel.getByRole("button", { name: "Close case", exact: true }).click()
+    await expect(panel).toBeHidden()
+    await expect(t.getByRole("columnheader")).toHaveCount(8)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+  })
+
+  test("Accounts: Account, Contacts, Last activity, Open; the domain shows only when it differs from the name", async ({
+    page,
+  }) => {
+    await live(page, "/crm/accounts")
+    const t = table(page, "Accounts")
+    await expect(main(page).getByTestId("account-list")).toBeHidden()
+    await expect(t.getByRole("columnheader")).toHaveText(["Account", "Contacts", "Last activity", "Open"])
+    await expect(t.getByRole("link")).toHaveCount(0)
+    // Gmail knows only the domain, so the name is the domain and is not repeated under it.
+    for (const cell of await t.locator("tbody tr td:first-child").all()) {
+      const lines = await cell.locator("span span").allTextContents()
+      expect(lines.length === 1 || lines[0] !== lines[1], `domain not repeated: ${lines.join(" / ")}`).toBe(true)
+    }
   })
 })
 
@@ -488,19 +757,28 @@ for (const theme of ["light", "dark"] as const) {
         const phone = size === "390"
         const label = `${theme}/${size}`
 
-        // Gmail not connected, own contacts saved: the header (Clear enabled,
-        // so no longer exempt as an inactive control), the panel, the rows.
+        // Gmail not connected, own contacts saved: the header, its ⋯ menu
+        // (Clear enabled, so no longer exempt as an inactive control), the
+        // panel, the rows.
         await own(page)
         await setTheme(page, theme)
         await expectReadable(header(page).getByRole("heading", { level: 1 }), `${label}/title`, expect)
         await expectReadable(header(page).locator("p").first(), `${label}/lede`, expect)
+        await expectReadable(
+          header(page).getByRole("button", { name: new RegExp(`^${FIND_CONTACT}`) }),
+          `${label}/Find a contact…`,
+          expect
+        )
+        await expectReadable(crmNav(page), `${label}/section tabs`, expect)
+        await expectTapTarget(crmMenuButton(page), `${label}/CRM menu`)
+        await openCrmMenu(page)
+        await settle(clearButton(page))
         await expectReadable(persistenceNote(page), `${label}/note`, expect)
         await expectReadable(source(page), `${label}/not connected badge`, expect)
-        await expectReadable(header(page).getByRole("button", { name: /^Search/ }), `${label}/Search`, expect)
-        await expectReadable(crmNav(page), `${label}/section tabs`, expect)
-        await expect(clearButton(page)).toBeEnabled()
+        await expect(clearButton(page)).not.toHaveAttribute("aria-disabled", "true")
         await expectTapTarget(clearButton(page), `${label}/Clear my entries`)
         await expectReadable(clearButton(page), `${label}/enabled Clear my entries`, expect)
+        await closeCrmMenu(page)
         await expectReadable(gmailPanel(page), `${label}/contacts panel`, expect)
 
         // Contacts: cards / table, the Edit form, New contact's inline error.

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { FIXED_NOW_MS } from "@/test/clock"
-import { crmFixtureSummary } from "@/test/crm-fixture"
+import { crmFixtureSummary, crmFixtureThread, crmFixtureThreadBody, crmNotConnectedBody } from "@/test/crm-fixture"
 import { liveGmailSummary } from "@/test/gmail-fixture"
-import { CRM_NOT_CONNECTED, CRM_CONNECTING } from "@/lib/crm/types.ours"
+import { CRM_NOT_CONNECTED, CRM_CONNECTING } from "@/lib/crm/case-view"
 import { crmReducer, fetchCrmSummary, fetchCrmThread, type CrmView } from "@/hooks/use-crm-summary"
 
 const LIVE = crmFixtureSummary(FIXED_NOW_MS)
@@ -20,12 +20,16 @@ describe("fetchCrmSummary", () => {
     expect(await fetchCrmSummary()).toEqual({ kind: "unauthorized" })
   })
 
-  it("reads both shapes", async () => {
+  it("reads Hill's CrmListResponse, ignoring the route's older fields", async () => {
     stubFetch(200, LIVE)
     expect(await fetchCrmSummary()).toEqual({ kind: "ok", data: LIVE })
-    stubFetch(200, liveGmailSummary(FIXED_NOW_MS))
-    const legacy = await fetchCrmSummary()
-    expect(legacy.kind === "ok" && legacy.data.status).toBe("connected")
+    stubFetch(200, { ...liveGmailSummary(FIXED_NOW_MS), ...LIVE })
+    expect(await fetchCrmSummary()).toEqual({ kind: "ok", data: LIVE })
+  })
+
+  it("not connected: the route's zero counts come with it, as status not_connected", async () => {
+    stubFetch(200, crmNotConnectedBody())
+    expect(await fetchCrmSummary()).toEqual({ kind: "ok", data: CRM_NOT_CONNECTED })
   })
 
   it("a 500, an unreadable body or a network failure is an error", async () => {
@@ -44,6 +48,20 @@ describe("fetchCrmThread", () => {
     vi.stubGlobal("fetch", fetchMock)
     expect(await fetchCrmThread("case 1")).toEqual({ kind: "unauthorized" })
     expect(fetchMock).toHaveBeenCalledWith("/api/crm/gmail?caseId=case%201", { cache: "no-store" })
+  })
+
+  it("reads a CrmThreadResponse", async () => {
+    stubFetch(200, crmFixtureThreadBody(FIXED_NOW_MS))
+    expect(await fetchCrmThread("case-1")).toEqual({ kind: "ok", data: crmFixtureThread(FIXED_NOW_MS) })
+  })
+
+  it("400 (bad id) and 404 (unknown case) are not found", async () => {
+    stubFetch(400, { error: "bad_case_id" })
+    expect(await fetchCrmThread("nope")).toEqual({ kind: "not_found" })
+    stubFetch(404, { error: "not_found" })
+    expect(await fetchCrmThread("case-99")).toEqual({ kind: "not_found" })
+    stubFetch(500, {})
+    expect(await fetchCrmThread("case-1")).toEqual({ kind: "error" })
   })
 })
 

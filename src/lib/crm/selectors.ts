@@ -7,7 +7,7 @@ import {
   type CrmCase,
   type CrmCaseStatus,
   type CrmPriority,
-} from "@/lib/crm/types.ours"
+} from "@/lib/crm/case-view"
 
 /**
  * Pure selectors for the CRM screens: the Cases filters and their URL

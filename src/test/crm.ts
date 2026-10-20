@@ -1,7 +1,7 @@
 import { vi } from "vitest"
 
 import { configureCrmSummary } from "@/hooks/use-crm-summary"
-import type { CrmMessage, CrmSummary } from "@/lib/crm/types.ours"
+import type { CrmMessage, CrmSummary } from "@/lib/crm/case-view"
 
 export * from "@/test/crm-fixture"
 
@@ -28,10 +28,23 @@ export function setCrmUnauthorizedForTest() {
   })
 }
 
-/** jsdom has no matchMedia: answer `(min-width: 1280px)` as `desktop`, everything else false. */
-export function stubViewport({ desktop }: { desktop: boolean }) {
+/** Does a viewport `width` px wide match `query`'s min-/max-width parts? */
+export function widthMatches(query: string, width: number) {
+  const min = /min-width:\s*(\d+)px/.exec(query)
+  const max = /max-width:\s*(\d+)px/.exec(query)
+  if (!min && !max) return false
+  return (!min || width >= Number(min[1])) && (!max || width <= Number(max[1]))
+}
+
+/**
+ * jsdom has no matchMedia: answer every width query for a viewport
+ * `width` px wide (`desktop` is 1440, the case panel's split view;
+ * `desktop: false` is 1024, its modal sheet).
+ */
+export function stubViewport(viewport: { width: number } | { desktop: boolean }) {
+  const width = "width" in viewport ? viewport.width : viewport.desktop ? 1440 : 1024
   vi.stubGlobal("matchMedia", (query: string) => ({
-    matches: desktop && query.includes("min-width: 1280px"),
+    matches: widthMatches(query, width),
     media: query,
     onchange: null,
     addEventListener: () => {},

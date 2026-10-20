@@ -14,7 +14,8 @@ import { CrmErrorAlert } from "@/components/crm/crm-error-alert"
 import { CrmShell } from "@/components/crm/crm-shell"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 import { CrmProvider, initialState, reducer, saveState, type State } from "@/components/crm/crm-store"
-import { CRM_DANGER_TEXT, CRM_DIALOG, CRM_RESET } from "@/components/crm/crm-touch"
+import { CRM_MENU_LABEL } from "@/components/crm/crm-header-menu"
+import { CRM_DANGER_TEXT, CRM_DIALOG, CRM_ICON_44, CRM_ROW_44 } from "@/components/crm/crm-touch"
 import { TriageScreen } from "@/components/crm/triage-screen"
 
 /*
@@ -201,21 +202,27 @@ describe("detail pages", () => {
 })
 
 describe("shell, triage and error state", () => {
-  it("header: Search is icon-only on a phone but keeps its name; Clear my entries and tabs are 44 below 1280", () => {
+  it("header: Find a contact… (full width on a phone), ⋯ menu and tabs are 44 below 1280", async () => {
+    const user = userEvent.setup()
     renderCrm(
       <CrmShell>
         <div />
       </CrmShell>
     )
-    // jsdom applies no CSS, so the ⌘K hint (hidden on a phone) is in the name here.
-    const search = screen.getByRole("button", { name: /^Search/ })
-    expect(search).toHaveClass("max-md:size-11!", "max-xl:h-11!")
-    expect(within(search).getByText("Search")).toHaveClass("max-md:sr-only")
-    const clear = screen.getByRole("button", { name: "Clear my entries" })
-    for (const cls of CRM_RESET.split(" ")) expect(clear).toHaveClass(cls)
+    // jsdom applies no CSS, so both finders (desktop ⌘K one, phone full-width one) are in the tree.
+    const [desktop, phone] = screen.getAllByRole("button", { name: /^Find a contact…/ })
+    expect(desktop).toHaveClass("max-xl:h-11!", "max-md:hidden")
+    expect(desktop).toHaveTextContent("⌘K")
+    expect(phone).toHaveClass("h-11", "w-full", "md:hidden")
+    const menu = screen.getByRole("button", { name: CRM_MENU_LABEL })
+    expect(menu).toHaveClass(CRM_ICON_44)
+    await user.click(menu)
+    const clear = await screen.findByRole("menuitem", { name: "Clear my entries" })
+    expect(clear).toHaveClass(CRM_ROW_44)
+    await user.keyboard("{Escape}")
     const tabs = within(screen.getByRole("navigation", { name: "CRM sections" })).getAllByRole("link")
-    for (const tab of tabs) expect(tab).toHaveClass("max-xl:min-h-11", "max-xl:min-w-11", "shrink-0")
-    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Cases", "Accounts", "Contacts", "Triage"])
+    for (const tab of tabs) expect(tab).toHaveClass("max-xl:h-11", "max-xl:min-w-11", "shrink-0")
+    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
     // No Customers or Settings tab; the strip scrolls itself, with decorative fades.
     expect(screen.getByRole("navigation", { name: "CRM sections" })).toHaveClass("overflow-x-auto")
     for (const id of ["crm-tab-fade-start", "crm-tab-fade-end"]) {

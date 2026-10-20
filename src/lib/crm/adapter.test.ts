@@ -1,178 +1,104 @@
 import { describe, expect, it } from "vitest"
 
-import { FIXED_NOW_MS } from "@/test/clock"
-import { crmFixtureSummary, crmFixtureThread } from "@/test/crm-fixture"
-import { liveGmailSummary } from "@/test/gmail-fixture"
+import { isCrmActivity, isCrmMessage, parseCrmSummary, toCrmThread } from "@/lib/crm/adapter"
+import { CRM_CONNECTING, CRM_NOT_CONNECTED } from "@/lib/crm/case-view"
 import {
-  groupAccounts,
-  mapLegacyStatus,
-  parseCrmSummary,
-  toCrmSummary,
-  toCrmThread,
-} from "@/lib/crm/adapter"
-import { gmailConnecting, gmailNotConnected } from "@/lib/crm/gmail-summary"
-import { CRM_NOT_CONNECTED, isWaitingOnUs, type CrmCase } from "@/lib/crm/types.ours"
+  crmFixtureSummary,
+  crmFixtureThread,
+  crmFixtureThreadBody,
+  crmNotConnectedBody,
+  HOSTILE_TEXT,
+} from "@/test/crm-fixture"
 
-const NOW = FIXED_NOW_MS
-const LEGACY = liveGmailSummary(NOW)
-const json = <T>(v: T): unknown => JSON.parse(JSON.stringify(v))
+const NOW = Date.parse("2026-10-19T15:00:00Z")
+const json = <T>(v: T): T => JSON.parse(JSON.stringify(v))
 
-describe("toCrmSummary: Hill's new shape", () => {
-  it("passes a valid body through unchanged", () => {
+describe("parseCrmSummary: Hill's CrmListResponse", () => {
+  it("passes a well-formed body through unchanged", () => {
     const body = crmFixtureSummary(NOW)
-    expect(toCrmSummary(json(body), NOW)).toEqual(body)
+    expect(parseCrmSummary(json(body))).toEqual(body)
+  })
+
+  it("ignores the route's older fields (lastSyncedAt, mailbox, data)", () => {
+    const body = crmFixtureSummary(NOW)
+    const out = parseCrmSummary({ ...json(body), lastSyncedAt: body.lastUpdated, mailbox: "support@example.com", data: { cases: [] } })
+    expect(out).toEqual(body)
+    expect(out).not.toHaveProperty("data")
   })
 
   it("drops a malformed row and keeps the rest", () => {
-    const body = crmFixtureSummary(NOW)
-    const raw = json(body) as { cases: unknown[] }
-    raw.cases.push({ id: "bad", status: "new" })
-    const out = toCrmSummary(raw, NOW)
-    expect(out.cases).toHaveLength(body.cases.length)
-  })
-
-  it("connecting and not_connected carry no rows and no counts", () => {
-    for (const status of ["connecting", "not_connected"] as const) {
-      const out = toCrmSummary({ status, lastUpdated: null, cases: [], counts: null }, NOW)
-      expect(out).toEqual({ status, lastUpdated: null, cases: [], accounts: [], recentActivity: [], counts: null })
+    const body = json(crmFixtureSummary(NOW))
+    const raw = {
+      ...body,
+      cases: [...body.cases, { id: "case-9", subject: 3 }],
+      accounts: [...body.accounts, { id: "org-9", name: "x", domain: null }],
+      recentActivity: [...body.recentActivity, { id: "act-9", kind: "received", summary: "old shape" }],
     }
+    const out = parseCrmSummary(raw)!
+    expect(out.cases.map((c) => c.id)).toEqual(body.cases.map((c) => c.id))
+    expect(out.accounts).toHaveLength(1)
+    expect(out.recentActivity).toHaveLength(2)
   })
 
-  it("an unreadable body is null from parse, not connected from toCrmSummary", () => {
-    expect(parseCrmSummary({ status: "connected", cases: [], counts: { open: -1 } }, NOW)).toBeNull()
-    expect(parseCrmSummary("nope", NOW)).toBeNull()
-    expect(toCrmSummary(null, NOW)).toEqual(CRM_NOT_CONNECTED)
-  })
-})
-
-describe("toCrmSummary: today's GmailSummary", () => {
-  const out = toCrmSummary(json(LEGACY), NOW)
-
-  it("maps status, lastSyncedAt and every case", () => {
-    expect(out.status).toBe("connected")
-    expect(out.lastUpdated).toBe(LEGACY.lastSyncedAt)
-    expect(out.cases.map((c) => c.id).sort()).toEqual(LEGACY.data.cases.map((c) => c.id).sort())
+  it("keeps a case with no account (personal domain)", () => {
+    const out = parseCrmSummary(json(crmFixtureSummary(NOW)))!
+    expect(out.cases.find((c) => c.id === "case-4")?.accountId).toBeNull()
   })
 
-  it("fills each case from its contact, organization and thread", () => {
-    const roster = out.cases.find((c) => c.subject === "Roster import fails on a CSV with accents")!
-    const legacy = LEGACY.data.cases.find((c) => c.id === roster.id)!
-    const contact = LEGACY.data.contacts.find((c) => c.id === legacy.contactId)!
-    const thread = LEGACY.data.messages.filter((m) => m.caseId === roster.id)
-    expect(roster.contact).toEqual({ name: "Dana Ortiz", email: contact.email })
-    expect(roster.accountId).toBe(contact.organizationId)
-    expect(roster.messageCount).toBe(thread.length)
-    expect(roster.threadId).toBe(thread[0]!.threadId)
-    expect(roster.priority).toBe("high")
-    // Dana wrote last: open, and the ball is ours since her last message.
-    expect(roster.status).toBe("open")
-    expect(roster.waitingOnUsSince).toBe(legacy.lastInboundAt)
-    expect(isWaitingOnUs(roster)).toBe(true)
+  it("not connected / connecting: no rows, whatever came, and the zero counts are only a placeholder", () => {
+    expect(parseCrmSummary(json(crmNotConnectedBody()))).toEqual(CRM_NOT_CONNECTED)
+    expect(parseCrmSummary({ ...crmNotConnectedBody(), status: "connecting" })).toEqual(CRM_CONNECTING)
+    expect(CRM_NOT_CONNECTED.counts).toEqual({ open: 0, waitingOnUs: 0, waitingOnThem: 0, closedThisWeek: 0 })
   })
 
-  it("orders cases newest first", () => {
-    const times = out.cases.map((c) => Date.parse(c.lastMessageAt))
-    expect(times).toEqual([...times].sort((a, b) => b - a))
-  })
-
-  it("new/open → open; waiting → waiting on them unless they wrote last; closed → closed", () => {
-    const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString()
-    expect(mapLegacyStatus({ status: "new", lastInboundAt: at(1), lastOutboundAt: null })).toBe("open")
-    expect(mapLegacyStatus({ status: "open", lastInboundAt: at(1), lastOutboundAt: at(2) })).toBe("open")
-    expect(mapLegacyStatus({ status: "waiting", lastInboundAt: at(2), lastOutboundAt: at(1) })).toBe("waiting_on_them")
-    expect(mapLegacyStatus({ status: "waiting", lastInboundAt: at(1), lastOutboundAt: at(2) })).toBe("waiting_on_us")
-    expect(mapLegacyStatus({ status: "closed", lastInboundAt: at(1), lastOutboundAt: null })).toBe("closed")
-  })
-
-  it("computes the counts from the rows", () => {
-    expect(out.counts).toEqual({
-      open: out.cases.filter((c) => c.status !== "closed").length,
-      waitingOnUs: out.cases.filter(isWaitingOnUs).length,
-      waitingOnThem: out.cases.filter((c) => c.status === "waiting_on_them").length,
-      // The fixture's one closed case closed nine days ago.
-      closedThisWeek: 0,
-    })
-  })
-
-  it("builds accounts from organizations and recent activity from case messages only", () => {
-    expect(out.accounts.map((a) => a.id).sort()).toEqual(LEGACY.data.organizations.map((o) => o.id).sort())
-    const caseMessages = LEGACY.data.messages.filter((m) => m.caseId !== null)
-    expect(out.recentActivity).toHaveLength(Math.min(20, caseMessages.length))
-    expect(out.recentActivity.every((a) => a.kind === "received" || a.kind === "sent")).toBe(true)
-    const times = out.recentActivity.map((a) => Date.parse(a.at))
-    expect(times).toEqual([...times].sort((a, b) => b - a))
-    // Triage senders never show as activity.
-    expect(out.recentActivity.some((a) => a.summary.includes("Sam Patel"))).toBe(false)
-  })
-
-  it("connecting and not_connected map to empty summaries", () => {
-    expect(toCrmSummary(json(gmailConnecting()), NOW).status).toBe("connecting")
-    expect(toCrmSummary(json(gmailNotConnected()), NOW)).toEqual(CRM_NOT_CONNECTED)
+  it("an unreadable body is null (a failed read)", () => {
+    expect(parseCrmSummary(null)).toBeNull()
+    expect(parseCrmSummary({ status: "connected", lastUpdated: null, cases: [] })).toBeNull()
+    expect(parseCrmSummary({ status: "weird" })).toBeNull()
+    // develop's old GmailSummary alone is not read any more.
+    expect(parseCrmSummary({ status: "connected", lastSyncedAt: new Date(NOW).toISOString(), mailbox: "a@example.com", data: {} })).toBeNull()
   })
 })
 
-describe("groupAccounts", () => {
-  const c = (id: string, accountId: string | null, status: CrmCase["status"], at: string, since: string | null = null): CrmCase => ({
-    id,
-    threadId: id,
-    subject: id,
-    accountId,
-    contact: { name: null, email: `${id}@example.com` },
-    status,
-    priority: "normal",
-    waitingOnUsSince: since,
-    lastMessageAt: at,
-    lastMessageSnippet: "",
-    messageCount: 1,
-    unread: false,
-    labels: [],
-  })
-
-  it("counts each organization's open and waiting cases and finds its newest message", () => {
-    const orgs = [
-      { id: "org-1", name: "Example One", domain: "one.example.com" },
-      { id: "org-2", name: "Example Two", domain: null },
-    ]
-    const people = [
-      { organizationId: "org-1", person: { name: "Test A", email: "a@one.example.com" } },
-      { organizationId: null, person: { name: null, email: "loner@example.com" } },
-    ]
-    const cases = [
-      c("1", "org-1", "open", "2026-10-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z"),
-      c("2", "org-1", "closed", "2026-10-05T00:00:00.000Z"),
-      c("3", "org-1", "waiting_on_them", "2026-10-03T00:00:00.000Z"),
-      c("4", null, "open", "2026-10-09T00:00:00.000Z"),
-    ]
-    const [one, two] = groupAccounts(orgs, people, cases)
-    expect(one).toEqual({
-      id: "org-1",
-      name: "Example One",
-      domain: "one.example.com",
-      contacts: [{ name: "Test A", email: "a@one.example.com" }],
-      openCases: 2,
-      waitingOnUsCount: 1,
-      lastActivityAt: "2026-10-05T00:00:00.000Z",
-    })
-    expect(two).toMatchObject({ contacts: [], openCases: 0, waitingOnUsCount: 0, lastActivityAt: null })
+describe("isCrmActivity", () => {
+  it("reads {type, caseId, at, actor}; status_changed is optional but accepted", () => {
+    const at = new Date(NOW).toISOString()
+    const actor = { name: null, email: "support@example.com" }
+    expect(isCrmActivity({ type: "sent", caseId: "case-1", at, actor })).toBe(true)
+    expect(isCrmActivity({ type: "status_changed", caseId: "case-1", at, actor })).toBe(true)
+    expect(isCrmActivity({ id: "a", kind: "sent", caseId: "case-1", at, summary: "x" })).toBe(false)
   })
 })
 
-describe("toCrmThread", () => {
-  it("passes Hill's { messages } through, oldest first", () => {
-    const thread = crmFixtureThread(NOW)
-    expect(toCrmThread(json({ messages: [...thread].reverse() }), "case-test-1")).toEqual(thread)
+describe("toCrmThread: Hill's CrmThreadResponse", () => {
+  it("reads the messages oldest first", () => {
+    const body = json(crmFixtureThreadBody(NOW))
+    const out = toCrmThread({ ...body, messages: [...body.messages].reverse() })!
+    expect(out).toEqual(crmFixtureThread(NOW))
   })
 
-  it("filters today's summary to the case, mapping each message", () => {
-    const roster = LEGACY.data.cases.find((c) => c.subject === "Roster import fails on a CSV with accents")!
-    const out = toCrmThread(json(LEGACY), roster.id)!
-    const legacy = LEGACY.data.messages.filter((m) => m.caseId === roster.id)
-    expect(out.map((m) => m.id)).toEqual(legacy.map((m) => m.id))
-    expect(out[0]).toMatchObject({ from: { email: legacy[0]!.fromEmail }, cc: [], bodyText: legacy[0]!.bodyText })
+  it("to / cc are people, and bodyText is plain text kept as is", () => {
+    const [first] = toCrmThread(json(crmFixtureThreadBody(NOW)))!
+    expect(first!.to).toEqual([{ name: null, email: "support@example.com" }])
+    expect(first!.bodyText).toContain(HOSTILE_TEXT)
   })
 
-  it("not connected has no thread; garbage is null", () => {
-    expect(toCrmThread(json(gmailNotConnected()), "case-1")).toEqual([])
-    expect(toCrmThread(42, "case-1")).toBeNull()
+  it("never keeps an HTML body, even if one came", () => {
+    const body = json(crmFixtureThreadBody(NOW))
+    const raw = { ...body, messages: body.messages.map((m) => ({ ...m, bodyHtml: "<b>x</b>" })) }
+    for (const m of toCrmThread(raw)!) expect(Object.keys(m)).not.toContain("bodyHtml")
+  })
+
+  it("drops a message in an old shape (string recipients, null body)", () => {
+    const [good] = json(crmFixtureThread(NOW))
+    expect(isCrmMessage(good)).toBe(true)
+    expect(isCrmMessage({ ...good, to: ["a@example.com"] })).toBe(false)
+    expect(isCrmMessage({ ...good, bodyText: null })).toBe(false)
+    expect(isCrmMessage({ ...good, threadId: undefined })).toBe(false)
+  })
+
+  it("not connected is an empty thread; an unreadable body is null", () => {
+    expect(toCrmThread({ status: "not_connected", lastUpdated: null, caseId: "case-1", messages: [] })).toEqual([])
+    expect(toCrmThread({ error: "not_found" })).toBeNull()
   })
 })

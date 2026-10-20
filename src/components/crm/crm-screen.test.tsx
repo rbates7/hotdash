@@ -7,12 +7,13 @@ import { seedCases, seedContacts, seedMessages, seedNotes, seedOrganizations } f
 import { navigation } from "@/test/setup"
 import { FIXED_NOW_MS } from "@/test/clock"
 import { liveGmailSummary, setGmailSummaryForTest } from "@/test/gmail"
-import { setCrmSummaryForTest } from "@/test/crm"
-import { toCrmSummary } from "@/lib/crm/adapter"
+import { crmSummaryFromGmail, setCrmSummaryForTest } from "@/test/crm"
+import { LOCAL_EDITS_KEY } from "@/lib/crm/local-edits"
 import { CLEAR_COPY, CLEAR_DESCRIPTION, PERSISTENCE_COPY } from "@/components/persistence-note"
 import { CrmProvider, STORAGE_KEY, initialState, reducer, saveState, type State } from "@/components/crm/crm-store"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
-import { CrmShell, LEDE } from "@/components/crm/crm-shell"
+import { CRM_MENU_LABEL } from "@/components/crm/crm-header-menu"
+import { CrmShell, FIND_CONTACT, LEDE } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
 import { OverviewScreen } from "@/components/crm/overview-screen"
 import { TriageScreen } from "@/components/crm/triage-screen"
@@ -83,7 +84,7 @@ describe("CRM overview", () => {
 
   it("live: the inbox's counts, triage banner and conversations", () => {
     setGmailSummaryForTest(LIVE)
-    setCrmSummaryForTest(toCrmSummary(LIVE, NOW))
+    setCrmSummaryForTest(crmSummaryFromGmail(LIVE, NOW))
     renderCrm(<OverviewScreen />)
     expect(screen.queryByTestId("crm-not-connected")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "3 Open" })).toBeInTheDocument()
@@ -95,7 +96,8 @@ describe("CRM overview", () => {
 })
 
 describe("CRM shell", () => {
-  it("renders the header, lede, shared note, Clear my entries, source badge and section nav; no Sample tag", () => {
+  it("renders the header, lede, Find a contact…, the ⋯ menu (note, Clear my entries, source) and section nav; no Sample tag", async () => {
+    const user = userEvent.setup()
     renderCrm(
       <CrmShell>
         <OverviewScreen />
@@ -103,17 +105,42 @@ describe("CRM shell", () => {
     )
     const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
     expect(within(header).getByText(LEDE)).toBeInTheDocument()
-    expect(screen.getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
-    const clear = within(header).getByRole("button", { name: CLEAR_COPY.button })
-    expect(clear).toHaveAttribute("aria-disabled", "true")
-    expect(clear).toHaveAccessibleDescription(CLEAR_COPY.disabledHint)
-    expect(within(header).queryByRole("button", { name: "Reset" })).not.toBeInTheDocument()
-    expect(within(header).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
+    expect(within(header).queryByTestId("persistence-note")).not.toBeInTheDocument()
+    expect(within(header).getAllByRole("button", { name: new RegExp(FIND_CONTACT) })[0]).toBeEnabled()
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    expect(screen.getByRole("navigation", { name: "CRM sections" })).toBeInTheDocument()
-    // Nothing pending in triage when nothing is synced.
-    expect(screen.getByRole("link", { name: "Triage" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Search/ })).toBeEnabled()
+    // Exactly Overview · Cases · Accounts · Triage · Contacts; no Customers or Settings.
+    const nav = screen.getByRole("navigation", { name: "CRM sections" })
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page")
+    expect(within(nav).getByRole("link", { name: "Overview" })).toHaveClass("bg-surface", "shadow-sm")
+
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    const menu = await screen.findByTestId("crm-header-menu")
+    expect(within(menu).getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.unsaved)
+    expect(within(menu).getByRole("menuitem", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    expect(within(menu).queryByRole("menuitem", { name: "Reset" })).not.toBeInTheDocument()
+    expect(within(menu).getByTestId("crm-source")).toHaveAttribute("data-source", "not_connected")
+  })
+
+  it("Clear my entries in the menu also drops this browser's case edits", async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      LOCAL_EDITS_KEY,
+      JSON.stringify({ "case-1": { status: { value: "closed", from: "waiting_on_us" }, at: new Date(NOW).toISOString() } })
+    )
+    renderCrm(
+      <CrmShell>
+        <OverviewScreen />
+      </CrmShell>
+    )
+    const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    const menu = await screen.findByTestId("crm-header-menu")
+    expect(within(menu).getByTestId("persistence-note")).toHaveTextContent(PERSISTENCE_COPY.saved)
+    await user.click(within(menu).getByRole("menuitem", { name: CLEAR_COPY.button }))
+    const dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
+    await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
+    expect(window.localStorage.getItem(LOCAL_EDITS_KEY)).toBeNull()
   })
 
   it("Clear my entries asks first, then removes the founder's contacts and the saved key", async () => {
@@ -126,19 +153,24 @@ describe("CRM shell", () => {
     )
     expect(screen.getByRole("row", { name: /Pat Reyes/ })).toBeInTheDocument()
     const header = screen.getByRole("heading", { level: 1, name: "CRM" }).closest("header")!
-    await user.click(within(header).getByRole("button", { name: CLEAR_COPY.button }))
+    const clearFromMenu = async () => {
+      await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+      await user.click(await screen.findByRole("menuitem", { name: CLEAR_COPY.button }))
+    }
+    await clearFromMenu()
     let dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
     expect(dialog).toHaveAccessibleDescription(CLEAR_DESCRIPTION)
     await user.click(within(dialog).getByRole("button", { name: "Keep my edits" }))
     expect(screen.getByRole("row", { name: /Pat Reyes/ })).toBeInTheDocument()
 
-    await user.click(within(header).getByRole("button", { name: CLEAR_COPY.button }))
+    await clearFromMenu()
     dialog = await screen.findByRole("dialog", { name: CLEAR_COPY.title })
     await user.click(within(dialog).getByRole("button", { name: CLEAR_COPY.confirm }))
     expect(screen.queryByRole("row", { name: /Pat Reyes/ })).not.toBeInTheDocument()
     expect(screen.getByText("No contacts yet. Add someone by hand; they stay in this browser.")).toBeInTheDocument()
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
-    expect(within(header).getByRole("button", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
+    await user.click(within(header).getByRole("button", { name: CRM_MENU_LABEL }))
+    expect(await screen.findByRole("menuitem", { name: CLEAR_COPY.button })).toHaveAttribute("aria-disabled", "true")
   })
 })
 

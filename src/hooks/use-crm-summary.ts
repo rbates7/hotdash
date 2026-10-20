@@ -4,7 +4,8 @@ import * as React from "react"
 
 import { parseCrmSummary, toCrmThread } from "@/lib/crm/adapter"
 import { GMAIL_SUMMARY_PATH } from "@/lib/crm/gmail-summary"
-import { CRM_NOT_CONNECTED, type CrmFetchResult, type CrmMessage, type CrmSummary } from "@/lib/crm/types.ours"
+import { CRM_NOT_CONNECTED, type CrmFetchResult, type CrmSummary } from "@/lib/crm/case-view"
+import type { CrmMessage } from "@/lib/crm/types"
 import { retryDelay, type Timers } from "@/lib/subscriber-source"
 import { GMAIL_POLL_MS } from "@/hooks/use-gmail-summary"
 import { CONNECTING_POLL_MS } from "@/hooks/use-stripe-summary"
@@ -16,7 +17,8 @@ import { CONNECTING_POLL_MS } from "@/hooks/use-stripe-summary"
  * - **loading** until the first answer (and on the server): skeletons and
  *   Connecting…, never rows that then swap;
  * - **ready** with the summary: `connecting` polls every
- *   `CONNECTING_POLL_MS`, everything else every `GMAIL_POLL_MS`;
+ *   `CONNECTING_POLL_MS`, everything else every `GMAIL_POLL_MS`. When not
+ *   live the body's counts are zeros: screens key off `status`, never them;
  * - **unauthorized** on a 401 from the login gate: "Your session expired",
  *   never "Not connected". Polling stops; logging in again reloads the page;
  * - a failed or unreadable read keeps the last rows as `stale`; with none
@@ -44,6 +46,7 @@ export const fetchCrmSummary: CrmSummaryFetcher = async () => {
 export function crmReducer(view: CrmView, result: CrmFetchResult<CrmSummary>): CrmView {
   if (result.kind === "ok") return { phase: "ready", summary: result.data }
   if (result.kind === "unauthorized") return { phase: "unauthorized" }
+  if (result.kind === "not_found") return view
   if (view.phase === "ready") {
     const { summary } = view
     if (summary.status === "connected" || summary.status === "stale") {
@@ -148,8 +151,10 @@ export const fetchCrmThread: CrmThreadFetcher = async (caseId) => {
   try {
     const res = await fetch(`${GMAIL_SUMMARY_PATH}?caseId=${encodeURIComponent(caseId)}`, { cache: "no-store" })
     if (res.status === 401) return { kind: "unauthorized" }
+    // 400: not a case id; 404: no such case. Either way there is no thread.
+    if (res.status === 400 || res.status === 404) return { kind: "not_found" }
     if (!res.ok) return { kind: "error" }
-    const messages = toCrmThread(await res.json(), caseId)
+    const messages = toCrmThread(await res.json())
     return messages ? { kind: "ok", data: messages } : { kind: "error" }
   } catch {
     return { kind: "error" }
@@ -160,6 +165,7 @@ export type CrmThreadView =
   | { phase: "loading" }
   | { phase: "ready"; messages: CrmMessage[] }
   | { phase: "unauthorized" }
+  | { phase: "not_found" }
   | { phase: "error" }
 
 /** One case's messages, read when the panel opens it. */
