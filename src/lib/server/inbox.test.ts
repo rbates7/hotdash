@@ -14,11 +14,9 @@ const PR: WorkboardItem = {
   title: "Workboard",
   url: "https://github.com/rbates7/hotdash/pull/51",
   owner: "rbates7",
-  branch: "feat/workboard-data",
   state: "ready_for_review",
   ci: "passing",
   review: "none",
-  proofLinks: [],
   updatedAt: "2026-10-18T19:00:00Z",
   mergedAt: null,
 }

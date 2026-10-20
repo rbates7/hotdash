@@ -33,8 +33,14 @@ the same rules as the Stripe summary (`src/lib/server/stripe.ts`):
 | `stale` | The last sync failed; these are the last good items, as of `fetchedAt`. | `true` / `true` | last good board |
 | `not_connected` | No (usable) token, or no sync has ever succeeded. A failed or timed-out first sync is not connecting: it, and every retry after it, is `not_connected` until a sync lands. With no token it is always `not_connected`, never `connecting`. | `false` / `false` | `[]` |
 
-Each item is `{ number, title, url, owner, branch, state, ci, review,
-proofLinks, updatedAt, mergedAt }`. `state` is `working`, `needs_fix`,
+Each item is `{ number, title, url, owner, state, ci, review, updatedAt,
+mergedAt }` and nothing else: the route keeps only those keys
+(`publicWorkboardResponse` in `src/lib/workboard.ts`). `url` is GitHub's own
+`html_url` for the PR. The board is public, so the PR description (`body`)
+is never read and nothing taken from it reaches the response or the page:
+no description text, no "Proof" or screenshot links, no other links. The
+branch name is not sent either. Coulson's call, Mon Oct 19, 2026, 7:26 PM CT
+(relayed by Simmons): title, status, owner and dates only. `state` is `working`, `needs_fix`,
 `ready_for_review` or `merged`; `ci` is `passing`, `failing`, `pending` or
 `none`; `review` is `approved`, `changes_requested`, `pending` or `none`.
 The rules are in `src/lib/workboard.ts` (pure, unit-tested).

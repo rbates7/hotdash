@@ -4,9 +4,10 @@ import {
   deriveCi,
   deriveReview,
   deriveState,
-  extractProofLinks,
   hasConflict,
   notConnected,
+  publicWorkboardItem,
+  publicWorkboardResponse,
   toWorkboardItem,
   type PullSummary,
   type WorkboardCi,
@@ -110,45 +111,6 @@ describe("hasConflict", () => {
   })
 })
 
-describe("extractProofLinks", () => {
-  it("is empty for no body", () => {
-    expect(extractProofLinks(null)).toEqual([])
-    expect(extractProofLinks("")).toEqual([])
-    expect(extractProofLinks("No screenshots, see https://example.com/docs.")).toEqual([])
-  })
-
-  it("finds markdown images, <img> tags, bare image links and user-attachments, in order, deduped", () => {
-    const body = [
-      "## Proof",
-      "![home](https://example.com/a.png)",
-      '<img width="400" alt="x" src="https://example.com/b.jpg">',
-      "Bare: https://example.com/c.webp, and https://example.com/d.JPEG.",
-      "https://github.com/user-attachments/assets/1f2e3d4c-aaaa-bbbb-cccc-0123456789ab",
-      "Again ![dupe](https://example.com/a.png \"title\") and <img src='https://example.com/e.gif' />",
-      "Not proof: https://example.com/page.html https://github.com/rbates7/hotdash/pull/1",
-    ].join("\n")
-    expect(extractProofLinks(body)).toEqual([
-      "https://example.com/a.png",
-      "https://example.com/b.jpg",
-      "https://example.com/c.webp",
-      "https://example.com/d.JPEG",
-      "https://github.com/user-attachments/assets/1f2e3d4c-aaaa-bbbb-cccc-0123456789ab",
-      "https://example.com/e.gif",
-    ])
-  })
-
-  it("takes markdown/<img> URLs without an image extension, and keeps query strings", () => {
-    expect(
-      extractProofLinks("![s](https://github.com/user-attachments/assets/abc) <img src=\"https://cdn.example.com/shot?id=1\">")
-    ).toEqual(["https://github.com/user-attachments/assets/abc", "https://cdn.example.com/shot?id=1"])
-    expect(extractProofLinks("see https://example.com/x.png?raw=true")).toEqual(["https://example.com/x.png?raw=true"])
-  })
-
-  it("does not count a markdown image's URL twice", () => {
-    expect(extractProofLinks("![a](https://example.com/a.png)")).toEqual(["https://example.com/a.png"])
-  })
-})
-
 describe("toWorkboardItem", () => {
   const pr: PullSummary = {
     number: 44,
@@ -157,7 +119,6 @@ describe("toWorkboardItem", () => {
     user: { login: "rbates7" },
     head: { ref: "feat/workboard-data", sha: "abc123" },
     draft: false,
-    body: "![](https://example.com/a.png)",
     updated_at: "2026-10-16T10:00:00Z",
     merged_at: null,
     requested_reviewers: [],
@@ -171,14 +132,27 @@ describe("toWorkboardItem", () => {
       title: "Workboard data",
       url: "https://github.com/rbates7/hotdash/pull/44",
       owner: "rbates7",
-      branch: "feat/workboard-data",
       state: "ready_for_review",
       ci: "passing",
       review: "none",
-      proofLinks: ["https://example.com/a.png"],
       updatedAt: "2026-10-16T10:00:00Z",
       mergedAt: null,
     })
+  })
+
+  it("never carries the PR body, links from it, or the branch, even when GitHub sends them", () => {
+    const raw = {
+      ...pr,
+      body: "Secret plan ![proof](https://example.com/proof.png) <img src=\"https://cdn.example.com/b.jpg\"> https://github.com/user-attachments/assets/abc",
+      proofLinks: ["https://example.com/proof.png"],
+    } as PullSummary
+    const item = toWorkboardItem(raw, { checkRuns: [], status: null, reviews: [], conflict: false })
+    expect(Object.keys(item).sort()).toEqual(["ci", "mergedAt", "number", "owner", "review", "state", "title", "updatedAt", "url"])
+    const json = JSON.stringify(item)
+    for (const leak of ["Secret plan", "proof.png", "b.jpg", "user-attachments", "feat/workboard-data", "body", "proofLinks", "branch"]) {
+      expect(json).not.toContain(leak)
+    }
+    expect(item.url).toBe(pr.html_url)
   })
 
   it("maps a merged PR without details", () => {
@@ -195,5 +169,37 @@ describe("notConnected", () => {
   it("is not_connected, not stale, no items", () => {
     const now = new Date("2026-10-16T12:00:00Z")
     expect(notConnected(now)).toEqual({ status: "not_connected", connected: false, fetchedAt: now.toISOString(), stale: false, items: [] })
+  })
+})
+
+describe("publicWorkboardResponse", () => {
+  it("keeps only title, status, owner, dates, number and the PR URL on each item", () => {
+    const item = {
+      number: 7,
+      title: "Seven",
+      url: "https://github.com/rbates7/hotdash/pull/7",
+      owner: "dev",
+      state: "working",
+      ci: "pending",
+      review: "none",
+      updatedAt: "2026-10-16T10:00:00Z",
+      mergedAt: null,
+      body: "Description text",
+      proofLinks: ["https://example.com/proof.png"],
+      branch: "feat/seven",
+    } as Parameters<typeof publicWorkboardItem>[0]
+    expect(publicWorkboardItem(item)).toEqual({
+      number: 7,
+      title: "Seven",
+      url: "https://github.com/rbates7/hotdash/pull/7",
+      owner: "dev",
+      state: "working",
+      ci: "pending",
+      review: "none",
+      updatedAt: "2026-10-16T10:00:00Z",
+      mergedAt: null,
+    })
+    const res = publicWorkboardResponse({ ...notConnected(new Date("2026-10-16T12:00:00Z")), items: [item] })
+    expect(JSON.stringify(res)).not.toMatch(/Description text|proof\.png|feat\/seven|body|proofLinks|branch/)
   })
 })
