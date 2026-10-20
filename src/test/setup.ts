@@ -6,6 +6,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
 import { configureCrmSummary } from "@/hooks/use-crm-summary"
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
+import { configurePayingCoaches } from "@/hooks/use-paying-coaches"
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
@@ -24,6 +25,8 @@ import { WORKBOARD_NOT_CONNECTED } from "@/lib/workboard-view"
 // A test that wants live figures configures them itself (see
 // src/test/stripe.ts, src/test/posthog.ts and src/test/gmail.ts).
 beforeEach(() => {
+  // Paying coaches: not connected unless a test says otherwise (no fetch).
+  configurePayingCoaches(async () => ({ status: "not_connected" }))
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
     fetcher: async () => NOT_CONNECTED,

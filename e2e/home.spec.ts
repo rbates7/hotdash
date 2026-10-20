@@ -36,9 +36,9 @@ test.describe("Home", () => {
     await expect(one.getByText(/Pick one on My Desk/)).toHaveCount(0)
     await expect(one.getByRole("link", { name: "My Desk" })).toHaveAttribute("href", "/my-desk")
 
-    // Truth strip: both cards Not connected, no figures.
+    // Truth strip plus Paying coaches (#67): every card Not connected, no figures.
     const kpis = page.getByRole("region", { name: "KPI strip" })
-    await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/])
+    await expect(kpis.getByRole("article")).toHaveText([/Subscribers/, /Cash this week/, /Paying coaches/])
     for (const card of await kpis.getByRole("article").all()) {
       await expect(card).toHaveAttribute("data-source", "not_connected")
       await expect(card.getByTestId("not-connected")).toBeVisible()
