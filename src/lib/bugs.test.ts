@@ -110,13 +110,13 @@ describe("Sentry rows for the crash list", () => {
   const NOW = FIXED_NOW.getTime()
 
   it("is loading until /api/inbox first answers", () => {
-    expect(sentryBugs({ phase: "loading" })).toEqual({ status: "loading", rows: [] })
+    expect(sentryBugs({ phase: "loading" })).toEqual({ status: "loading", rows: [], staleSince: null })
   })
 
   it("follows Sentry's own status, never GitHub's", () => {
-    expect(sentryBugs({ phase: "ready", inbox: notConnectedInbox(NOW) })).toEqual({ status: "not_connected", rows: [] })
-    expect(sentryBugs({ phase: "ready", inbox: connectingInbox(NOW) })).toEqual({ status: "connecting", rows: [] })
-    expect(sentryBugs({ phase: "ready", inbox: emptyInbox(NOW) })).toEqual({ status: "connected", rows: [] })
+    expect(sentryBugs({ phase: "ready", inbox: notConnectedInbox(NOW) })).toEqual({ status: "not_connected", rows: [], staleSince: null })
+    expect(sentryBugs({ phase: "ready", inbox: connectingInbox(NOW) })).toEqual({ status: "connecting", rows: [], staleSince: null })
+    expect(sentryBugs({ phase: "ready", inbox: emptyInbox(NOW) })).toEqual({ status: "connected", rows: [], staleSince: null })
   })
 
   it("connected or stale: only the Sentry rows, in the Inbox's order", () => {
@@ -127,5 +127,7 @@ describe("Sentry rows for the crash list", () => {
     const stale = sentryBugs({ phase: "ready", inbox: mixedInbox(NOW) })
     expect(stale.status).toBe("stale")
     expect(stale.rows).toHaveLength(3)
+    expect(live.staleSince).toBeNull()
+    expect(stale.staleSince).toBe(mixedInbox(NOW).sources.sentry.fetchedAt)
   })
 })

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { formatRelative } from "@/lib/clock"
 import { boardWithUserBugs, userBugIssues } from "@/test/bugs"
-import { liveInbox, notConnectedInbox, connectingInbox, emptyInbox } from "@/test/inbox-fixture"
+import { liveInbox, notConnectedInbox, connectingInbox, emptyInbox, staleInbox } from "@/test/inbox-fixture"
 import { configureInbox } from "@/hooks/use-inbox"
 import { FIXED_NOW, FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 import { navigation } from "@/test/setup"
@@ -237,6 +237,23 @@ describe("Bugs screen", () => {
     expect(rows[0]).toHaveTextContent("CHLK-IOS-4F Crash opening a practice plan")
     // GitHub rows from the same Inbox never show on Bugs.
     expect(crashes).not.toHaveTextContent(/PR ready for review/)
+  })
+
+  it("Sentry stale: the rows stay, and the header says when they are from", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(staleInbox(FIXED_NOW_MS)) })
+    renderBugs()
+    const crashes = await screen.findByRole("region", { name: "Crashes and errors from Sentry" })
+    expect(await within(crashes).findAllByRole("link")).toHaveLength(3)
+    expect(crashes).toHaveAttribute("data-state", "stale")
+    expect(within(crashes).getByTestId("sentry-stale")).toHaveTextContent(/^Last updated .+ C[DS]T$/)
+  })
+
+  it("Sentry live: no stale cue", async () => {
+    configureInbox({ fetcher: () => Promise.resolve(liveInbox(FIXED_NOW_MS)) })
+    renderBugs()
+    const crashes = await screen.findByRole("region", { name: "Crashes and errors from Sentry" })
+    await within(crashes).findAllByRole("link")
+    expect(within(crashes).queryByTestId("sentry-stale")).toBeNull()
   })
 
   it("Sentry connected with nothing open says so", async () => {

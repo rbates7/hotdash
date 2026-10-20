@@ -101,6 +101,8 @@ export type SentryBugs = {
   status: "loading" | InboxSourceStatus
   /** Sentry rows from `/api/inbox`, newest first. Empty unless connected or stale. */
   rows: RealInboxItem[]
+  /** Sentry's last good sync when `stale` (an ISO instant), else null. */
+  staleSince: string | null
 }
 
 /**
@@ -109,9 +111,11 @@ export type SentryBugs = {
  * screen and its tests agree on what each status shows.
  */
 export function sentryBugs(view: InboxView): SentryBugs {
-  if (view.phase === "loading") return { status: "loading", rows: [] }
-  const status = view.inbox.sources.sentry.status
+  if (view.phase === "loading") return { status: "loading", rows: [], staleSince: null }
+  const sentry = view.inbox.sources.sentry
+  const status = sentry.status
   const rows =
     status === "connected" || status === "stale" ? view.inbox.items.filter((i) => i.source === "sentry") : []
-  return { status, rows }
+  const at = status === "stale" ? sentry.fetchedAt : null
+  return { status, rows, staleSince: at && Number.isFinite(Date.parse(at)) ? at : null }
 }
