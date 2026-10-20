@@ -65,21 +65,26 @@ describe("StatusScreen", () => {
     expect(within(components()).getAllByText("Operational")).toHaveLength(6)
   })
 
-  it("defaults to green and marks the current preview as such", () => {
+  it("defaults to the real page: no checks, Not connected, and no preview control", () => {
     mount()
-    expect(within(banner()).getByRole("heading", { level: 2, name: "All systems green" })).toBeInTheDocument()
-    const preview = screen.getByRole("group", { name: "Preview" })
-    expect(preview.className).toContain("xl:h-8")
-    expect(within(preview).getByRole("link", { name: /^Green$/ }).className).toContain(
-      "max-xl:min-h-11"
-    )
-    expect(within(preview).getByRole("link", { name: "Green" })).toHaveAttribute("aria-current", "page")
-    expect(within(preview).getByRole("link", { name: "Not green" })).not.toHaveAttribute("aria-current")
-    expect(within(preview).getByRole("link", { name: "Not green" })).toHaveAttribute("href", "/system-status?preview=not-green")
+    expect(within(banner()).getByRole("heading", { level: 2, name: "No checks yet" })).toBeInTheDocument()
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByRole("note", { name: "Sample data" })).toBeNull()
+    expect(screen.queryByRole("region", { name: "Past incident" })).toBeNull()
+    expect(screen.getAllByText("Not connected").length).toBeGreaterThan(0)
+    // The seeded views are unit-test-only (the scenario prop): no control, no links to them.
+    expect(screen.queryByRole("group", { name: "Preview" })).toBeNull()
+    expect(screen.queryByRole("link", { name: /^(Live|Green|Not green)$/ })).toBeNull()
+    expect(document.querySelector('a[href*="preview="]')).toBeNull()
   })
 
-  it("is marked as sample data and links out to Sentry and the site as plain external links", () => {
-    mount()
+  it("a seeded view has no preview control either", () => {
+    mount("green")
+    expect(screen.queryByRole("group", { name: "Preview" })).toBeNull()
+  })
+
+  it("a seeded preview is marked as sample data and links out to Sentry and the site as plain external links", () => {
+    mount("green")
     expect(screen.getByRole("note", { name: "Sample data" })).toHaveTextContent("Nothing here is polled yet")
     expect(within(banner()).getAllByTestId("sample-data-tag")).toHaveLength(1)
     expect(within(components()).getAllByTestId("sample-data-tag")).toHaveLength(1)

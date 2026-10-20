@@ -15,7 +15,6 @@ import {
   type Contact,
   type Organization,
 } from "@/lib/crm/crm"
-import { isSeedCase } from "@/lib/crm/fixture"
 import { cn } from "@/lib/utils"
 import {
   Table,
@@ -27,13 +26,11 @@ import {
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard, Who } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
-import { SampleDataTag } from "@/components/sample-data"
 import { PriorityBadge, StatusBadge } from "@/components/crm/case-badges"
 import { CasesFilterBar, caseFilterFromSearch } from "@/components/crm/cases-filter-bar"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { CaseDeleteDialog } from "@/components/crm/crm-delete-dialogs"
 import {
-  CARD,
   CARD_LIST,
   RecordSheet,
   RowMenu,
@@ -45,6 +42,7 @@ import {
 import { clearListReturn, rememberListReturn } from "@/components/crm/crm-return"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
+import { GmailNotConnected } from "@/components/crm/gmail-not-connected"
 
 /**
  * The phone card's two lines (Deke 7:47): "#N · Contact · Org" (email when
@@ -190,6 +188,16 @@ export function CasesScreen() {
   React.useEffect(() => clearListReturn(), [])
 
   if (!store.persisted) return <CrmTableSkeleton label="Loading saved cases" />
+  if (store.gmail.kind === "not_connected") {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <h2 data-crm-list-heading tabIndex={-1} className="text-title-sm font-semibold tracking-tight">
+          Cases
+        </h2>
+        <GmailNotConnected screen="cases" />
+      </div>
+    )
+  }
 
   return (
     <div ref={rootRef} className="flex min-w-0 flex-col gap-4">
@@ -212,8 +220,7 @@ export function CasesScreen() {
           <InboxIcon className="text-faint-foreground size-6" aria-hidden />
           <p className="text-body text-foreground font-medium">No cases</p>
           <p className="text-caption">
-            Every case has been removed. Promote a triage thread, or Reset to bring the sample
-            cases back.
+            No conversations the inbox has replied to yet. Promote a triage thread to open a case.
           </p>
         </div>
       ) : rows.length === 0 ? (
@@ -225,7 +232,7 @@ export function CasesScreen() {
           No cases match these filters.
         </p>
       ) : (
-        <TableCard note="Seed conversations dated from today. Cases you add or promote are yours.">
+        <TableCard>
           <ResponsiveTable
             layout="stack"
             className={CARD_LIST}
@@ -242,8 +249,6 @@ export function CasesScreen() {
                   title={row.subject}
                   status={<StatusBadge status={row.status} />}
                   meta={caseCardMeta(row, contact, org, store.nowMs)}
-                  sample={isSeedCase(row.id)}
-                  className={CARD}
                   onClick={() => {
                     setSheetId(row.id)
                     setSheetOpen(true)
@@ -272,7 +277,6 @@ export function CasesScreen() {
                 const org = contact ? orgOf(store.organizations, contact.organizationId) : null
                 const name = contact ? contactDisplayName(contact) : "Unknown"
                 const lastActivity = formatCrmRelative(row.lastActivityAt, store.nowMs)
-                const sample = isSeedCase(row.id)
                 return (
                   <TableRow key={row.id} data-case={row.id} className={TABLET_WRAP}>
                     <TableCell className={cn(`${CELL} text-muted-foreground`, TABLET_HIDE)}>
@@ -293,7 +297,6 @@ export function CasesScreen() {
                         <span className="text-caption text-muted-foreground hidden font-normal md:max-xl:inline">
                           {`#${row.caseNumber} · ${lastActivity}`}
                         </span>
-                        {sample ? <SampleDataTag /> : null}
                       </Link>
                     </TableCell>
                     <TableCell className={CELL}>

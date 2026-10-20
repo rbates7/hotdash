@@ -25,7 +25,7 @@ describe("summaryReducer", () => {
     expect(view).toEqual({ phase: "ready", summary: liveSummary("stale") })
   })
 
-  it("failing before any figures reads as not connected (sample, labelled), never zeros", () => {
+  it("failing before any figures reads as not connected (no figures), never zeros", () => {
     expect(summaryReducer(LOADING_VIEW, { type: "failure" })).toEqual({ phase: "ready", summary: NOT_CONNECTED })
   })
 })
@@ -138,7 +138,7 @@ describe("parseStripeSummary", () => {
 describe("feedOf", () => {
   it("maps the view to what screens show", () => {
     expect(feedOf(LOADING_VIEW)).toEqual({ kind: "loading" })
-    expect(feedOf({ phase: "ready", summary: NOT_CONNECTED })).toEqual({ kind: "sample" })
+    expect(feedOf({ phase: "ready", summary: NOT_CONNECTED })).toEqual({ kind: "not_connected" })
     expect(feedOf({ phase: "ready", summary: liveSummary("stale") })).toMatchObject({
       kind: "live",
       stale: true,

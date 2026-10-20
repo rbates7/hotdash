@@ -119,7 +119,7 @@ export function ContactNewDialog({
         <DialogHeader className={CRM_DIALOG_HEADER}>
           <DialogTitle>New contact</DialogTitle>
           <DialogDescription>
-            Add someone by hand. Most sample contacts arrived from Stripe or triage.
+            Add someone by hand. Everyone else arrives from the support inbox once Gmail is connected.
           </DialogDescription>
         </DialogHeader>
         <form

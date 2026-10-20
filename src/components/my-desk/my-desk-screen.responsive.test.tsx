@@ -16,15 +16,24 @@ function renderScreen() {
   )
 }
 
+/** The founder's own rows, so there is something to measure (the desk starts empty). */
 beforeEach(() => {
   window.localStorage.removeItem(STORAGE_KEY)
+  saveState(window.localStorage, {
+    ...initialState(NOW_MS),
+    todos: [
+      { id: "todo-8", title: "Book the bus", note: "Aledo trip", done: false, createdOn: "2026-08-26", doneOn: null },
+      { id: "todo-9", title: "Order cones", note: "", done: false, createdOn: "2026-08-26", doneOn: null },
+    ],
+    nextId: 10,
+  })
 })
 
 describe("MyDeskScreen responsive hooks", () => {
-  it("passes the 44px-below-1280 Reset through the shared resetClassName", () => {
+  it("passes the 44px-below-1280 Clear my entries through the shared resetClassName", () => {
     renderScreen()
-    expect(screen.getByRole("button", { name: "Reset" }).className).toContain("max-xl:h-11!")
-    expect(screen.getByRole("button", { name: "Reset" }).className).toContain("max-xl:min-w-11!")
+    expect(screen.getByRole("button", { name: "Clear my entries" }).className).toContain("max-xl:h-11!")
+    expect(screen.getByRole("button", { name: "Clear my entries" }).className).toContain("max-xl:min-w-11!")
   })
 
   it("keeps develop's Add to-do sizing and grows it only below xl", () => {
@@ -44,25 +53,25 @@ describe("MyDeskScreen responsive hooks", () => {
     expect(screen.getByRole("region", { name: "Today list" }).parentElement?.className).not.toContain(
       "lg:grid-cols-2"
     )
-    const row = screen.getByRole("checkbox", { name: "Call Aledo" }).closest("li")!
+    const row = screen.getByRole("checkbox", { name: "Book the bus" }).closest("li")!
     expect(row.className).toContain("max-xl:rounded-xl")
     expect(row.className).toContain("max-xl:overflow-hidden")
-    expect(screen.getByRole("checkbox", { name: "Call Aledo" }).className).toContain("max-xl:size-11!")
-    expect(screen.getByRole("checkbox", { name: "Call Aledo" }).className).toContain(
+    expect(screen.getByRole("checkbox", { name: "Book the bus" }).className).toContain("max-xl:size-11!")
+    expect(screen.getByRole("checkbox", { name: "Book the bus" }).className).toContain(
       "max-xl:focus-visible:ring-inset"
     )
-    expect(screen.getByRole("button", { name: "Open Call Aledo" }).className).toContain("md:hidden")
-    expect(screen.getByRole("button", { name: "Open Call Aledo" }).className).toContain("size-11!")
-    expect(screen.getByRole("button", { name: "Delete Call Aledo" }).className).toContain(
+    expect(screen.getByRole("button", { name: "Open Book the bus" }).className).toContain("md:hidden")
+    expect(screen.getByRole("button", { name: "Open Book the bus" }).className).toContain("size-11!")
+    expect(screen.getByRole("button", { name: "Delete Book the bus" }).className).toContain(
       "max-xl:text-danger-text!"
     )
   })
 
   it("does not duplicate the title in the checkbox name; carry stays a description", () => {
     renderScreen()
-    const box = screen.getByRole("checkbox", { name: "Call Aledo" })
-    expect(box).toHaveAccessibleName("Call Aledo")
-    const title = within(box.closest("li")!).getByText("Call Aledo")
+    const box = screen.getByRole("checkbox", { name: "Book the bus" })
+    expect(box).toHaveAccessibleName("Book the bus")
+    const title = within(box.closest("li")!).getByText("Book the bus")
     expect(title).toHaveAttribute("aria-hidden", "true")
   })
 
@@ -93,16 +102,16 @@ describe("MyDeskScreen responsive hooks", () => {
   it("after delete, focus moves to the next checkbox", async () => {
     const user = userEvent.setup()
     renderScreen()
-    await user.click(screen.getByRole("button", { name: "Delete Call Aledo" }))
+    await user.click(screen.getByRole("button", { name: "Delete Book the bus" }))
     await user.click(
       within(screen.getByRole("dialog", { name: "Delete this to-do?" })).getByRole("button", {
         name: "Delete",
       })
     )
     await waitFor(() =>
-      expect(screen.queryByRole("checkbox", { name: "Call Aledo" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("checkbox", { name: "Book the bus" })).not.toBeInTheDocument()
     )
-    expect(screen.getByRole("checkbox", { name: "Clinic follow-up" })).toHaveFocus()
+    expect(screen.getByRole("checkbox", { name: "Order cones" })).toHaveFocus()
   })
 
   it("after deleting the last row, focus moves to the heading", async () => {

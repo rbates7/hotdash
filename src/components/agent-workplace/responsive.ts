@@ -27,7 +27,7 @@ export const WORKPLACE_TABS_LIST =
   "border-border w-full justify-start overflow-x-auto rounded-none border-b pb-[5px] max-xl:min-h-11"
 
 export const WORKPLACE_TAB =
-  "text-label flex-none px-3.5 py-1.5 font-medium tracking-tight max-xl:h-11 max-xl:px-2"
+  "text-label flex-none px-3.5 py-1.5 font-medium tracking-tight max-xl:h-11 max-xl:min-w-11 max-xl:px-2"
 
 export const WORKPLACE_FILTER =
   "text-caption h-7 rounded-full border px-[11px] leading-none font-semibold tracking-tight transition-colors focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none max-xl:h-11 max-xl:px-3.5 max-xl:text-label"

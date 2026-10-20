@@ -67,29 +67,30 @@ test.describe("server endpoints with no key", () => {
 test.describe("Stripe not connected (1440)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("Home: the Stripe tiles show sample figures, labelled", async ({ page }) => {
+  test("Home: the Stripe tiles and ticker say Not connected, with no figures", async ({ page }) => {
     await open(page, "/home")
     for (const name of ["Subscribers", "Cash this week"]) {
-      await expect(kpi(page, name)).toHaveAttribute("data-source", "sample")
-      await expect(kpi(page, name).getByTestId("sample-data-tag")).toBeVisible()
+      await expect(kpi(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(kpi(page, name).getByTestId("not-connected")).toBeVisible()
+      await expect(kpi(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    await expect(strip(page).getByTestId("kpi-sample-label")).toBeVisible()
-    await expect(ticker(page).getByTestId("sample-data-tag")).toBeVisible()
+    await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
+    await expect(ticker(page)).toHaveAttribute("data-state", "not_connected")
+    await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(main(page).getByText(/Last updated/)).toHaveCount(0)
-    // Sample, as before: no breakdown, and the ticker has nothing to describe.
     await expect(kpi(page, "Subscribers").getByTestId("subscriber-breakdown")).toHaveCount(0)
-    await expect(ticker(page).getByRole("link")).not.toHaveAttribute("aria-describedby")
   })
 
-  test("Metrics: every card is sample, labelled", async ({ page }) => {
+  test("Metrics: every Stripe card says Not connected, with no figure and no Sample label", async ({ page }) => {
     await open(page, "/metrics")
     for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers", "ARR"]) {
-      await expect(metricCard(page, name)).toHaveAttribute("data-source", "sample")
-      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText("\u2014")
+      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    await expect(page.getByTestId("sample-data-notice")).toContainText("Nothing is connected to Stripe")
-    await expect(page.getByRole("note", { name: "Sample data" })).toContainText(/^Sample data\./)
-    await expect(metricsHeaderTag(page)).toHaveText("Sample data")
+    await expect(page.getByRole("note", { name: "Not connected" })).toContainText("so no card has a figure")
+    await expect(page.getByRole("note", { name: "Sample data" })).toHaveCount(0)
+    await expect(metricsHeaderTag(page)).toHaveCount(0)
   })
 
   test("Settings: Stripe and every other source say Not connected", async ({ page }) => {
@@ -97,7 +98,7 @@ test.describe("Stripe not connected (1440)", () => {
     await expect(stripeRow(page)).toContainText("Not connected")
     await expect(
       main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    ).toHaveCount(4)
+    ).toHaveCount(5)
   })
 })
 
@@ -122,7 +123,7 @@ test.describe("Stripe connected (1440)", () => {
     expect(zones[0]).toBe("America/Chicago")
   })
 
-  test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest sample", async ({ page }) => {
+  test("Metrics: MRR, churn, trial-to-paid and Subscribers live; the rest Not connected", async ({ page }) => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/metrics")
     const live = { MRR: "$61,235", "Churn Rate": "2.7%", "Trial Conversions": "41.2%", Subscribers: "1,337" }
@@ -131,9 +132,13 @@ test.describe("Stripe connected (1440)", () => {
       await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText(value)
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    for (const name of ["ARR", "Revenue", "Retention", "Expenses"]) {
-      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toBeVisible()
+    for (const name of ["ARR", "Revenue", "Retention"]) {
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
+      await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
+    // Expenses is the founder's own entries (none yet), never a sample figure.
+    await expect(metricCard(page, "Expenses")).toHaveAttribute("data-source", "entries")
+    await expect(metricCard(page, "Expenses").getByTestId("sample-data-tag")).toHaveCount(0)
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).toContainText(/^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe/)
     await expect(notice).not.toContainText("Sample data")
@@ -149,7 +154,7 @@ test.describe("Stripe connected (1440)", () => {
       "Read-only · last synced Tue, Oct 13 · 9:41 AM CDT"
     )
     const others = main(page).getByRole("region", { name: "Connected data" }).getByText("Not connected", { exact: true })
-    await expect(others).toHaveCount(3)
+    await expect(others).toHaveCount(4)
   })
 
   test("a saved time zone is what the page asks Stripe's figures in", async ({ page }) => {

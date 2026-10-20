@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangleIcon, HardDriveIcon, RotateCcwIcon } from "lucide-react"
+import { AlertTriangleIcon, HardDriveIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import type { PersistenceStore } from "@/lib/persistence"
 import { cn } from "@/lib/utils"
@@ -47,14 +47,39 @@ export function persistenceCopy(store: Pick<PersistenceStore, "persisted" | "sav
  * Pass any store that exposes `PersistenceStore` (Agent Workplace / Home
  * via `useIssues()`, Metrics via `useMetrics()`).
  */
+export const RESET_DESCRIPTION =
+  "This discards every edit saved in this browser and regenerates the sample data from today. There is no server copy to recover from."
+
 export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so there is nothing to reset."
+
+/**
+ * Screens with no sample data (My Desk, CRM) offer "Clear my entries"
+ * instead of Reset: the same confirm and the same store call, worded for
+ * what it does there — there is no demo data to bring back.
+ */
+export const CLEAR_COPY = {
+  button: "Clear my entries",
+  title: "Clear my entries?",
+  confirm: "Clear",
+  tooltip: "Discard everything you entered on this screen in this browser",
+  disabledHint: "Nothing is saved in this browser yet, so there is nothing to clear.",
+} as const
+
+export const CLEAR_DESCRIPTION =
+  "This deletes everything you entered on this screen in this browser. There is no server copy to recover from."
 
 export function PersistenceNote({
   store,
   className,
   resetClassName,
+  resetDescription,
+  mode = "reset",
 }: {
   store: PersistenceStore
+  /** "clear" for screens with no sample data: Clear my entries instead of Reset. */
+  mode?: "reset" | "clear"
+  /** What Reset does, in the confirm. Defaults to the sample screens' wording. */
+  resetDescription?: string
   /** Extra classes on the root span. Screens that wrap the note pass this; others stay on develop's classes. */
   className?: string
   /** Extra classes on Reset — screens use this to grow the tap target below `xl`. */
@@ -64,6 +89,9 @@ export function PersistenceNote({
   const copy = persistenceCopy(store)
   const canReset = store.persisted && store.saved
   const hintId = React.useId()
+  const clear = mode === "clear"
+  const disabledHint = clear ? CLEAR_COPY.disabledHint : RESET_DISABLED_HINT
+  const description = resetDescription ?? (clear ? CLEAR_DESCRIPTION : RESET_DESCRIPTION)
 
   return (
     <span
@@ -106,27 +134,26 @@ export function PersistenceNote({
               aria-describedby={canReset ? undefined : hintId}
               title={
                 canReset
-                  ? "Discard this browser's edits and restore the demo data"
-                  : RESET_DISABLED_HINT
+                  ? clear
+                    ? CLEAR_COPY.tooltip
+                    : "Discard this browser's edits and restore the demo data"
+                  : disabledHint
               }
             >
-              <RotateCcwIcon aria-hidden />
-              Reset
+              {clear ? <Trash2Icon aria-hidden /> : <RotateCcwIcon aria-hidden />}
+              {clear ? CLEAR_COPY.button : "Reset"}
             </Button>
           }
         />
         {!canReset && (
           <span id={hintId} className="sr-only">
-            {RESET_DISABLED_HINT}
+            {disabledHint}
           </span>
         )}
         <DialogContent className="sm:max-w-sm!">
           <DialogHeader>
-            <DialogTitle>Reset demo data?</DialogTitle>
-            <DialogDescription>
-              This discards every edit saved in this browser and regenerates the
-              sample data from today. There is no server copy to recover from.
-            </DialogDescription>
+            <DialogTitle>{clear ? CLEAR_COPY.title : "Reset demo data?"}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>
@@ -139,7 +166,7 @@ export function PersistenceNote({
                 setConfirming(false)
               }}
             >
-              Reset
+              {clear ? CLEAR_COPY.confirm : "Reset"}
             </Button>
           </DialogFooter>
         </DialogContent>

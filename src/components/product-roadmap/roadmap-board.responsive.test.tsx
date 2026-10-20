@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { HeaderActions } from "@/components/product-roadmap/header-actions"
 import { RoadmapBoard } from "@/components/product-roadmap/roadmap-board"
-import { RoadmapProvider } from "@/components/product-roadmap/roadmap-store"
+import { RoadmapProvider, configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
+import { seedState } from "@/lib/roadmap/fixture"
 import {
   ROADMAP_BOARD_DESKTOP,
   ROADMAP_BOARD_TABLET,
@@ -27,6 +28,8 @@ const TODAY = new Date("2026-10-07T15:00:00.000Z")
 const nativeMatchMedia = window.matchMedia
 
 beforeEach(() => {
+  // The editing tests need bets to move: the fixture, tests only.
+  configureRoadmapBoard(seedState)
   vi.useFakeTimers({ toFake: ["Date"] })
   vi.setSystemTime(TODAY)
 })
@@ -100,7 +103,7 @@ describe("phone (<768): Now/Next/Later segments + one column", () => {
     expect(items).toHaveLength(3)
     expect(within(items[0]).getByRole("article", { name: "Flag Football 2026" })).toBeInTheDocument()
     expect(card("Flag Football 2026")).toHaveTextContent("biggest wave of new coaches")
-    expect(within(card("Flag Football 2026")).getByTestId("sample-data-tag")).toBeInTheDocument()
+    expect(within(card("Flag Football 2026")).queryByTestId("sample-data-tag")).toBeNull()
     expect(within(card("Flag Football 2026")).getByRole("button", { name: "Edit" })).toBeInTheDocument()
     expect(within(card("Flag Football 2026")).getByRole("button", { name: "Move down" })).toBeInTheDocument()
   })

@@ -1,8 +1,5 @@
-import { daysEnding, inPeriod, toDay, type IsoDay, type Period } from "@/lib/clock"
 import { SEED_ISSUE_KEYS } from "@/lib/issues-fixture"
-import type { Kpi } from "@/lib/home"
-import { VS_PREVIOUS_WEEK, weekEnding } from "@/lib/kpis"
-import { trendFor } from "@/lib/metrics"
+import type { InboxSourceStatus, InboxView, RealInboxItem } from "@/lib/inbox-sources"
 import {
   STATUS_ORDER,
   issuesByStatus,
@@ -12,11 +9,12 @@ import {
 import { dedupe } from "@/lib/persistence"
 
 /**
- * Bugs is a *view* of Agent Workplace tickets, never a second list. A ticket
- * is a bug when it carries the `bug` label; its source is the `crash` label
- * (crash tooling) or, failing that, a coach's report. Everything here is a
- * pure selector over the Workplace store's issues, so an edit on either
- * screen is the same edit.
+ * Bugs has two real sources and no sample: Sentry's crash and error issues
+ * (through `/api/inbox`, `sentryBugs`) and the founder's own Agent
+ * Workplace tickets tagged `bug` (`userBugs`). The ticket half is a *view*
+ * of the Workplace store, never a second list, so an edit on either screen
+ * is the same edit. A ticket's source is the `crash` label or, failing
+ * that, a coach's report.
  */
 
 export const BUG_LABEL = "bug"
@@ -48,9 +46,14 @@ export function bugs(issues: readonly Issue[]) {
   return issues.filter(isBug)
 }
 
-/** True while any listed bug is a seed ticket — the sample-data notice's gate. */
-export function hasSeedBugs(issues: readonly Issue[]) {
-  return bugs(issues).some((i) => SEED_ISSUE_KEYS.has(i.key))
+/**
+ * The founder's own bug tickets: tagged `bug` and not one of the Agent
+ * Workplace demo board's seed tickets. Bugs never lists the seed (the
+ * board keeps it until it goes too); a ticket the founder adds or tags on
+ * the board shows here.
+ */
+export function userBugs(issues: readonly Issue[]) {
+  return bugs(issues).filter((i) => !SEED_ISSUE_KEYS.has(i.key))
 }
 
 /** Everything not yet Done — what "No open bugs" is the absence of. */
@@ -91,47 +94,24 @@ export const STATUS_TEXT: Record<IssueStatus, string> = {
 
 /* ------------------------------------------------------------- crashes */
 
-/**
- * Sample crash counts. Sentry is not wired up, so this is an invented
- * two-week spread of crashes per day, newest last, laid over the real
- * calendar: index 13 is today. The card sums the trailing seven days and
- * the seven before, the same windows Home's "Cash this week" uses.
- */
-const DAILY_CRASHES = [2, 1, 3, 2, 4, 1, 2, 1, 0, 2, 1, 1, 2, 1] as const
-
-export type CrashCount = {
-  /** Crashes on the seven calendar days ending today, inclusive. */
-  value: number
-  /** Crashes on the seven days before those. */
-  previous: number
-  thisWeek: Period
-  lastWeek: Period
-}
-
-export function dailyCrashes(today: IsoDay | Date): { date: IsoDay; count: number }[] {
-  const days = daysEnding(toDay(today), DAILY_CRASHES.length)
-  return days.map((date, i) => ({ date, count: DAILY_CRASHES[i] }))
-}
-
-export function crashCount(today: IsoDay | Date): CrashCount {
-  const { thisWeek, lastWeek } = weekEnding(today)
-  const rows = dailyCrashes(today)
-  const sum = (p: Period) => rows.filter((r) => inPeriod(r.date, p)).reduce((n, r) => n + r.count, 0)
-  return { value: sum(thisWeek), previous: sum(lastWeek), thisWeek, lastWeek }
-}
-
 export const CRASHES_LABEL = "Crashes"
 
-/** The crash card as a KPI, in Home's shape so the shared delta pill renders it. */
-export function crashKpi(today: IsoDay | Date): Kpi {
-  const { value, previous } = crashCount(today)
-  const t = trendFor(value, previous, "abs", { lowerIsBetter: true })
-  return {
-    id: "crashes",
-    label: CRASHES_LABEL,
-    value: String(value),
-    delta: `${t.text} ${VS_PREVIOUS_WEEK}`,
-    direction: t.flat ? "flat" : t.up ? "up" : "down",
-    lowerIsBetter: true,
-  }
+export type SentryBugs = {
+  /** `loading` until `/api/inbox` first answers; then Sentry's own status. */
+  status: "loading" | InboxSourceStatus
+  /** Sentry rows from `/api/inbox`, newest first. Empty unless connected or stale. */
+  rows: RealInboxItem[]
+}
+
+/**
+ * The crash list's rows: only `/api/inbox`'s Sentry rows (unresolved
+ * error/fatal issues in `chlk/chlk-ios`), never a fixture. Pure, so the
+ * screen and its tests agree on what each status shows.
+ */
+export function sentryBugs(view: InboxView): SentryBugs {
+  if (view.phase === "loading") return { status: "loading", rows: [] }
+  const status = view.inbox.sources.sentry.status
+  const rows =
+    status === "connected" || status === "stale" ? view.inbox.items.filter((i) => i.source === "sentry") : []
+  return { status, rows }
 }

@@ -3,15 +3,24 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
+import { configureGmailSummary } from "@/hooks/use-gmail-summary"
+import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
+import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { configureWorkboard } from "@/hooks/use-workboard"
+import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
+import { NOTION_NOT_CONNECTED } from "@/lib/notion-roadmap"
 import { POSTHOG_NOT_CONNECTED } from "@/lib/posthog-summary"
+import { MRR_CASH_NOT_CONNECTED } from "@/lib/stripe-mrr-cash"
 import { NOT_CONNECTED } from "@/lib/stripe-summary"
+import { WORKBOARD_NOT_CONNECTED } from "@/lib/workboard-view"
 
-// Stripe and PostHog start not connected in every test (no fetch to a
-// server that is not there): screens show their sample figures, labelled.
+// Stripe, PostHog and Gmail start not connected in every test (no fetch to
+// a server that is not there): screens show their sample figures, labelled.
 // A test that wants live figures configures them itself (see
-// src/test/stripe.ts and src/test/posthog.ts).
+// src/test/stripe.ts, src/test/posthog.ts and src/test/gmail.ts).
 beforeEach(() => {
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
@@ -20,6 +29,25 @@ beforeEach(() => {
   configurePosthogSummary({
     initial: { phase: "ready", summary: POSTHOG_NOT_CONNECTED },
     fetcher: async () => POSTHOG_NOT_CONNECTED,
+  })
+  // Notion likewise: the Roadmap shows its local board under Not connected,
+  // empty to start (a test that needs bets to edit hands it the fixture
+  // with configureRoadmapBoard). See src/test/notion.ts for live rows.
+  configureRoadmapBoard(null)
+  configureNotionRoadmap({
+    initial: { phase: "ready", summary: NOTION_NOT_CONNECTED },
+    fetcher: async () => NOTION_NOT_CONNECTED,
+  })
+  configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
+  // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
+  configureGmailSummary({
+    initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },
+    fetcher: async () => GMAIL_NOT_CONNECTED,
+  })
+  // The workboard too (src/test/workboard.ts for live rows, connecting, stale).
+  configureWorkboard({
+    initial: { phase: "ready", summary: WORKBOARD_NOT_CONNECTED },
+    fetcher: async () => WORKBOARD_NOT_CONNECTED,
   })
 })
 

@@ -26,12 +26,14 @@ import {
   type Glyph,
   type TickerVariant,
 } from "@/lib/subscriber-ticker"
+import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { formatWallClock } from "@/lib/clock"
 import { staleLabel, type SubscriberSource, type TickerState } from "@/lib/subscriber-source"
 import { cn } from "@/lib/utils"
 import { useReducedMotion } from "@/hooks/use-reduced-motion"
+import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
-import { SampleDataTag } from "@/components/sample-data"
+import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 
@@ -401,7 +403,7 @@ function rowFor(state: TickerState, maxTiles: number) {
 /**
  * The Grand Central subscriber ticker (option A). `header` is the Home
  * header from tablet up ("Subscribers" + up to 7 tiles); `bar` is the phone
- * top bar (tiles only, up to 5, with the compact Sample chip). Both read
+ * top bar (tiles only, up to 5). Both read
  * one shared store, so they always show the same number.
  *
  * role=status + aria-live=polite carries the figure as sr-only text (no
@@ -425,7 +427,15 @@ export function SubscriberTicker({
   /** Pins the ticker to one source (tests); by default it follows Stripe. */
   source?: SubscriberSource
 }) {
-  const { state, refresh, sample, timeZone, breakdown } = useSubscriberTicker(source)
+  const { state, refresh, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
+  // #50: a key is set and the first sync (Stripe, or App Store's group) is
+  // running. The row stays the loading placeholder and says Connecting….
+  const feed = useStripeFeed()
+  const connecting =
+    !source &&
+    state.status === "loading" &&
+    ((feed.kind === "loading" && Boolean(feed.connecting)) ||
+      (feed.kind === "live" && isAppStoreConnecting(feed.appStore)))
   const describedBy = `${React.useId()}-breakdown`
   const reduced = useReducedMotion()
   const row = rowFor(state, MAX_TILES[variant])
@@ -446,6 +456,30 @@ export function SubscriberTicker({
   const mode = reading ? "value" : state.status
   const header = variant === "header"
 
+  // Stripe not connected: no count at all. Say so plainly instead of
+  // ticking a number.
+  if (notConnected) {
+    return (
+      <div
+        data-testid="subscriber-ticker"
+        data-variant={variant}
+        data-state="not_connected"
+        className={cn("flex min-w-0 flex-none items-center gap-2", className)}
+      >
+        {header && (
+          <span className="text-caption text-muted-foreground font-medium tracking-tight">Subscribers</span>
+        )}
+        <Link
+          href="/settings#connected-data"
+          aria-label="Subscribers: not connected. Open Connected data in Settings"
+          className="focus-visible:ring-ring/50 flex min-h-11 items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none xl:min-h-0"
+        >
+          <NotConnectedBadge className={cn(!header && "px-2")} />
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <div
       data-testid="subscriber-ticker"
@@ -456,7 +490,8 @@ export function SubscriberTicker({
       {/* Room for four digits, kept on the far left: the ticker is
           right-anchored, so growth to 1,000 moves nothing. */}
       <span aria-hidden className="flex-none" style={{ width: reserveGap(row.glyphs, variant) }} />
-      {sample && <SampleDataTag compact={!header} className={cn(header && "h-6 px-2")} />}
+      {/* Header only: the phone bar has no room beside the tiles. */}
+      {connecting && header && <ConnectingBadge />}
       <Tooltip disabled={!breakdown}>
         {/* The link is named outright: Chromium does not name a link from
             text inside a live region, and the region's copy may lag. */}

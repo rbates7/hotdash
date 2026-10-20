@@ -4,7 +4,6 @@ import * as React from "react"
 
 import {
   LOADING_STATE,
-  createSampleSource,
   createTickerStore,
   initialState,
   type SubscriberSource,
@@ -16,9 +15,6 @@ import { liveSubscribers, type SubscriberBreakdownView } from "@/lib/live-metric
 import { breakdownText } from "@/lib/subscriber-total"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
-
-/** The ticker's figures while Stripe is not connected. */
-export const subscriberSource: SubscriberSource = createSampleSource()
 
 const stores = new WeakMap<SubscriberSource, Map<string, TickerStore>>()
 
@@ -44,40 +40,46 @@ const IDLE: TickerStore = {
  * - Stripe connected → the Subscribers total (`subscriberTotal`: Stripe
  *   paying + App Store + free accounts) and today's net change, as of the
  *   last sync, with its breakdown; stale → the same, marked stale.
- * - Stripe not connected → the sample source, wearing the Sample chip.
+ * - Stripe not connected → no count at all (`notConnected`); the
+ *   simulated sample store is never created, and the ticker says Not
+ *   connected.
  * - Until the summary answers → the loading tiles (the server render too).
  *
- * Passing `source` pins the ticker to it (tests).
+ * Passing `source` pins the ticker to it (tests only).
  */
 export function useSubscriberTicker(source?: SubscriberSource): {
   state: TickerState
   refresh: () => void
-  sample: boolean
+  /** Stripe has no key: nothing to count, and the ticker says so. */
+  notConnected: boolean
   timeZone: string
   /** The total's groups (live only), as rows and as one sentence. */
   breakdown: { view: SubscriberBreakdownView; text: string } | null
 } {
   const { timeZone } = useSettings()
   const feed = useStripeFeed()
-  const sampleSource = source ?? subscriberSource
-  const useSample = Boolean(source) || feed.kind === "sample"
-  const store = useSample ? storeFor(sampleSource, timeZone) : IDLE
+  // Only a pinned source (tests) ever runs a simulated store; a real page
+  // never creates one.
+  const store = source ? storeFor(source, timeZone) : IDLE
   const [serverState] = React.useState(() => (source ? initialState(source, { timeZone }) : LOADING_STATE))
   const sampleState = React.useSyncExternalStore(store.subscribe, store.getState, () => serverState)
 
-  if (useSample) {
-    return { state: sampleState, refresh: store.refresh, sample: sampleSource.sample, timeZone, breakdown: null }
+  if (source) {
+    return { state: sampleState, refresh: store.refresh, notConnected: false, timeZone, breakdown: null }
+  }
+  if (feed.kind === "not_connected") {
+    return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: true, timeZone, breakdown: null }
   }
   // Still connecting (Stripe, or App Store for its group): no total yet.
   if (feed.kind === "loading" || isAppStoreConnecting(feed.appStore)) {
-    return { state: LOADING_STATE, refresh: IDLE.refresh, sample: false, timeZone, breakdown: null }
+    return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: false, timeZone, breakdown: null }
   }
   const { total, breakdown } = liveSubscribers(feed, timeZone)
   const reading = { total: total.value, today: total.today, at: feed.lastSyncedAt }
   return {
     state: feed.stale ? { status: "stale", reading, failures: 1 } : { status: "ready", reading },
     refresh: IDLE.refresh,
-    sample: false,
+    notConnected: false,
     timeZone,
     breakdown: { view: breakdown, text: breakdownText(total, timeZone) },
   }

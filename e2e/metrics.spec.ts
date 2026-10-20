@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
 import {
-  addDays,
   formatDate,
   formatPeriod,
   now,
@@ -11,6 +10,7 @@ import {
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
 import { setTheme } from "./support/theme"
 import { NOTE, countWrites, expectWritesSettled, persistenceNote, resetDemoData } from "./support/persistence"
+import { DEFAULT_METRIC_IDS } from "../src/lib/metrics"
 
 const STORAGE_KEY = "hotdash.metrics.v2"
 
@@ -40,11 +40,36 @@ const table = (page: Page, name: "New subscribers" | "Churned subscribers" | "Ex
   const owner = name === "New subscribers" ? "New Subscribers" : name === "Churned subscribers" ? "Churned Subscribers" : "Expenses"
   return panel(page, owner).getByRole("table", { name, exact: true })
 }
-const sampleNote = (page: Page) => page.getByRole("note", { name: "Sample data" })
+/** The Metrics connection notice (Not connected / Connecting / Partly live). */
+const connectionNote = (page: Page) => page.getByTestId("metrics-connection-notice")
 const header = (page: Page) => page.locator("main header").first()
 const headerTag = (page: Page) => header(page).getByTestId("sample-data-tag")
 const resetButton = (page: Page) => header(page).getByRole("button", { name: "Reset", exact: true })
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard" })
+
+/**
+ * A saved board with one founder expense ($160 Vercel, dated today), so the
+ * Expenses card has a figure and a chart. Nothing on the page is seeded.
+ */
+async function withFounderExpense(page: Page, path = "/metrics") {
+  await page.goto(path)
+  const day = today()
+  await page.evaluate(
+    ({ key, state }) => localStorage.setItem(key, JSON.stringify(state)),
+    {
+      key: STORAGE_KEY,
+      state: {
+        visible: [...DEFAULT_METRIC_IDS],
+        charts: {},
+        expenses: [{ id: "exp-9", category: "Vercel", amount: 160, date: day, recurring: true }],
+        nextExpenseId: 10,
+        seededAt: day,
+      },
+    }
+  )
+  await page.reload()
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+}
 
 async function freshMetrics(page: Page, path = "/metrics") {
   await page.goto(path)
@@ -76,47 +101,45 @@ test.describe("Metrics", () => {
     await expect(tab(page, "Overview")).toHaveAttribute("aria-selected", "true")
 
     await expect(grid(page).getByRole("article")).toHaveCount(8)
+    // No key in e2e: Stripe's cards say Not connected, with no figure and no chart.
     const mrr = card(page, "MRR")
-    await expect(mrr.getByTestId("metric-value")).toHaveText("$26,190")
-    await expect(mrr.getByTestId("trend")).toHaveText("+4.2%")
-    await expect(mrr.getByText("vs previous 28 days")).toBeVisible()
-    // Recharts draws once it has measured its box; the name says what the
-    // six points really are (28-day windows, not months) and their values.
-    await expect(mrr.getByRole("img", { name: /^MRR, bar chart of six 28-day windows, .*to \d+ \w+ \$26,190$/ })).toBeVisible()
+    await expect(mrr).toHaveAttribute("data-source", "not_connected")
+    await expect(mrr.getByTestId("metric-value")).toHaveText("—")
+    await expect(mrr.getByTestId("metric-not-connected")).toHaveText("No figures until Stripe is connected.")
+    await expect(mrr.getByRole("img")).toHaveCount(0)
   })
 
-  test("labels every hard-coded number as sample data, in both themes, at ≥ 4.5:1 on every text node", async ({ page }) => {
+  test("no invented figures: Not connected notice and cards, no Sample label, in both themes, at ≥ 4.5:1", async ({ page }) => {
     await freshMetrics(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
-      await expect(sampleNote(page)).toBeVisible()
-      await expect(sampleNote(page)).toContainText("Every number on this page is illustrative")
-      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
-        await expect(card(page, name).getByTestId("sample-data-tag")).toBeVisible()
-        await expect(card(page, name).getByTestId("sample-data-tag")).toHaveText("Sample data")
+      await expect(connectionNote(page)).toBeVisible()
+      await expect(connectionNote(page)).toContainText("so no card has a figure")
+      await expect(connectionNote(page)).not.toContainText("illustrative")
+      await expect(headerTag(page)).toHaveCount(0)
+      await expect(grid(page).getByTestId("sample-data-tag")).toHaveCount(0)
+      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions"]) {
+        await expect(card(page, name)).toHaveAttribute("data-source", "not_connected")
+        await expect(card(page, name).getByTestId("not-connected")).toHaveText("Not connected")
       }
+      // Expenses counts only the founder's entries: none yet, so no figure.
+      await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("—")
+      await expect(card(page, "Expenses").getByTestId("metric-entries-note")).toBeVisible()
 
-      // Overview: header tag + notice + eight card tags + the picker's tag.
-      await expectReadable(sampleNote(page), `${theme}/notice`, expect)
-      await expectReadable(headerTag(page), `${theme}/header badge`, expect)
-      for (const tag of await grid(page).getByTestId("sample-data-tag").all()) {
-        await expectReadable(tag, `${theme}/card tag`, expect)
-      }
-      // The picker fades in; the probe waits for that to finish before it
-      // measures (it read 1.45:1 mid-animation before the shared fix).
-      await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
-      const picker = page.getByRole("dialog", { name: "Add a metric" })
-      const pickerTag = await expectReadable(picker.getByTestId("sample-data-tag"), `${theme}/picker tag`, expect)
-      expect(pickerTag.every((n) => n.ratio >= 4.5)).toBe(true)
-      await page.keyboard.press("Escape")
+      await expectReadable(connectionNote(page), `${theme}/notice`, expect)
+      await expectReadable(card(page, "MRR"), `${theme}/not-connected card`, expect)
+      await expectReadable(card(page, "Expenses"), `${theme}/expenses card`, expect)
 
-      // Expenses: the card's tag and the table strip (tag + explanatory line).
+      // Expenses tab: no seed table and no Sample strip. With no founder
+      // entries it is an empty state, readable in this theme.
       await tab(page, "Expenses").click()
-      const strip = panel(page, "Expenses").getByTestId("sample-data-strip")
-      await expect(strip).toBeVisible()
-      const stripNodes = await expectReadable(strip, `${theme}/table strip`, expect)
-      expect(stripNodes.some((n) => /illustrative/.test(n.text))).toBe(true)
-      await expectReadable(expensesCard(page).getByTestId("sample-data-tag"), `${theme}/expenses card tag`, expect)
+      const empty = panel(page, "Expenses").getByRole("region", { name: "No expenses yet" })
+      await expect(empty).toBeVisible()
+      await expect(panel(page, "Expenses").getByTestId("sample-data-strip")).toHaveCount(0)
+      await expect(panel(page, "Expenses").getByRole("table")).toHaveCount(0)
+      await expect(empty.getByRole("button", { name: "Add expense", exact: true })).toBeVisible()
+      await expectReadable(empty, `${theme}/expenses empty state`, expect)
+      await expect(expensesCard(page).getByTestId("sample-data-tag")).toHaveCount(0)
       await tab(page, "Overview").click()
     }
     await setTheme(page, "light")
@@ -126,10 +149,18 @@ test.describe("Metrics", () => {
     await freshMetrics(page)
     // One shared probe for every screen; if it stopped seeing unreadable
     // text, every contrast assertion above would pass vacuously.
-    await expectProbeCatchesSabotage(sampleNote(page), "notice", expect)
-    await expectProbeCatchesSabotage(card(page, "MRR").getByTestId("sample-data-tag"), "card tag", expect)
+    await expectProbeCatchesSabotage(connectionNote(page), "notice", expect)
+    await expectProbeCatchesSabotage(card(page, "MRR").getByTestId("not-connected"), "card badge", expect)
+    // The picker: its choices carry the Not connected word where a figure
+    // would be (no fixture numbers), and the probe still sees it.
+    await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
+    const picker = page.getByRole("dialog", { name: "Add a metric" })
+    const choice = picker.getByRole("button", { name: /^CAC/ })
+    await expect(choice).toContainText("Not connected")
+    await expectProbeCatchesSabotage(choice.getByText("Not connected", { exact: true }), "picker Not connected", expect)
+    await page.keyboard.press("Escape")
     await setTheme(page, "dark")
-    await expectProbeCatchesSabotage(headerTag(page), "header tag (dark)", expect)
+    await expectProbeCatchesSabotage(connectionNote(page), "notice (dark)", expect)
     await setTheme(page, "light")
   })
 
@@ -157,7 +188,8 @@ test.describe("Metrics", () => {
   })
 
   test("sparklines are images, not stops: tabbing through the Overview never lands in a chart", async ({ page }) => {
-    await freshMetrics(page)
+    // A founder expense gives the board a chart to walk past (Not connected cards draw none).
+    await withFounderExpense(page)
     await expect(grid(page).getByRole("article")).toHaveCount(8)
     // Recharts must not add a role=application / focusable layer inside the img.
     // (Its z-index <g> layers carry tabindex="-1" regardless of accessibilityLayer;
@@ -167,7 +199,8 @@ test.describe("Metrics", () => {
     await expect(grid(page).locator('[role="img"] [tabindex]:not([tabindex="-1"])')).toHaveCount(0)
     await expect(grid(page).locator('[role="img"] svg[tabindex], [role="img"] svg[role]')).toHaveCount(0)
     // Values are in the accessible name, so a screen reader gets the numbers.
-    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, bar chart of six 28-day windows, .*\$26,190$/ })).toBeVisible()
+    await expect(card(page, "Expenses").getByRole("img", { name: /^Expenses, bar chart of six 28-day windows, .*\$160$/ })).toBeVisible()
+    await expect(card(page, "MRR").getByRole("img")).toHaveCount(0)
 
     await page.getByRole("heading", { level: 1, name: "Metrics" }).focus()
     // Start from the Overview panel's first stop so the walk is deterministic.
@@ -188,7 +221,7 @@ test.describe("Metrics", () => {
     expect(seen.filter((s) => s.includes("IN-CHART"))).toEqual([])
   })
 
-  test("switches views and each table shows its locked columns", async ({ page }) => {
+  test("switches views: subscriber lists say Not connected, Expenses is empty, and Back works", async ({ page }) => {
     await page.goto("/metrics")
 
     // The tab can be clicked before hydration attaches its handler; retry the
@@ -197,30 +230,23 @@ test.describe("Metrics", () => {
       await tab(page, "New Subscribers").click()
       await expect(page).toHaveURL(/tab=new$/, { timeout: 1000 })
     }).toPass({ timeout: 10_000 })
-    const fresh = table(page, "New subscribers")
-    await expect(fresh.getByRole("columnheader")).toHaveText(["Name / Email", "Plan", "Signup Date"])
-    await expect(fresh.getByRole("row")).toHaveCount(9)
-    await expect(fresh.getByRole("row", { name: /Alisha Patel/ })).toContainText(formatDate(addDays(today(), -3)))
-    // Every seed row sits inside the header's trailing-28-day period.
-    const period = periodEnding(today())
-    await expect(fresh.getByRole("row", { name: /Troy Nguyen/ })).toContainText(formatDate(period.start))
+    // No per-customer source yet: the lists say Not connected, with no rows.
+    const fresh = panel(page, "New Subscribers").getByRole("region", { name: "New subscribers: not connected" })
+    await expect(fresh).toBeVisible()
+    await expect(panel(page, "New Subscribers").getByRole("table")).toHaveCount(0)
 
     await tab(page, "Churned Subscribers").click()
     await expect(page).toHaveURL(/tab=churned$/)
-    const churned = table(page, "Churned subscribers")
-    await expect(churned.getByRole("columnheader")).toHaveText([
-      "Name / Email",
-      "Signup Date",
-      "Churn Date",
-      "Lifetime Value",
-    ])
-    await expect(churned.getByRole("row")).toHaveCount(6)
-    await expect(churned.getByRole("row", { name: /Nina Cho/ })).toContainText("$398")
+    await expect(panel(page, "Churned Subscribers").getByRole("region", { name: "Churned subscribers: not connected" })).toBeVisible()
+    await expect(panel(page, "Churned Subscribers").getByRole("table")).toHaveCount(0)
 
     await tab(page, "Expenses").click()
     await expect(page).toHaveURL(/tab=expenses$/)
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,240")
-    await expect(table(page, "Expenses").getByRole("row")).toHaveCount(9)
+    // No seed rows: with no founder entries the tab is an empty state and the card has no figure.
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("—")
+    await expect(expensesCard(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    await expect(panel(page, "Expenses").getByRole("region", { name: "No expenses yet" })).toBeVisible()
+    await expect(panel(page, "Expenses").getByRole("table")).toHaveCount(0)
 
     await page.goBack()
     await expect(page).toHaveURL(/tab=churned$/)
@@ -246,7 +272,8 @@ test.describe("Metrics", () => {
     ])
     await picker.getByRole("button", { name: /^CAC/ }).click()
     await expect(picker).toBeHidden()
-    await expect(card(page, "CAC").getByTestId("metric-value")).toHaveText("$142")
+    // No fixture figure: CAC has no source yet.
+    await expect(card(page, "CAC").getByTestId("metric-value")).toHaveText("—")
     await expect(grid(page).getByRole("article")).toHaveCount(9)
 
     await card(page, "ARR").getByRole("button", { name: "Remove ARR" }).click()
@@ -254,7 +281,8 @@ test.describe("Metrics", () => {
 
     await card(page, "MRR").getByRole("button", { name: "MRR: line chart" }).click()
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
-    await expect(card(page, "MRR").getByRole("img", { name: /^MRR, line chart of six 28-day windows, / })).toBeVisible()
+    // Not connected cards draw no chart; the choice is still remembered.
+    await expect(card(page, "MRR").getByRole("img")).toHaveCount(0)
     // Only now, after real edits, is there a save — under the v2 key — and the note says so.
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     const saved = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
@@ -278,7 +306,10 @@ test.describe("Metrics", () => {
   test("adds an expense, the card follows, and it persists across reload", async ({ page }) => {
     await freshMetrics(page, "/metrics?tab=expenses")
 
-    await panel(page, "Expenses").getByRole("button", { name: "Add expense", exact: true }).click()
+    // No founder entries yet: the empty state carries the one Add expense.
+    const empty = panel(page, "Expenses").getByRole("region", { name: "No expenses yet" })
+    await expect(empty).toBeVisible()
+    await empty.getByRole("button", { name: "Add expense", exact: true }).click()
     const dialog = page.getByRole("dialog", { name: "Add expense" })
     await dialog.getByRole("textbox", { name: "Category" }).fill("Vercel")
     await dialog.getByRole("spinbutton", { name: "Amount" }).fill("160")
@@ -296,20 +327,22 @@ test.describe("Metrics", () => {
     await expect(row).toContainText("$160")
     await expect(row).toContainText(formatDate(day))
     await expect(row).toContainText("Yes")
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
+    await expect(empty).toHaveCount(0)
+    await expect(expenses.getByRole("row")).toHaveCount(2)
 
     await page.reload()
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
     await expect(expenses.getByRole("row", { name: /Vercel/ })).toBeVisible()
-    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(expensesCard(page).getByTestId("metric-value")).toHaveText("$160")
 
     // The Overview card is the same number.
     await tab(page, "Overview").click()
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,400")
+    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$160")
 
-    // Reset (behind its confirm) clears the key and puts the seed back.
+    // Reset (behind its confirm) clears the key: an empty board again, no entries, no figure.
     await resetDemoData(page)
-    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("$8,240")
+    await expect(card(page, "Expenses").getByTestId("metric-value")).toHaveText("—")
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
     await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
   })

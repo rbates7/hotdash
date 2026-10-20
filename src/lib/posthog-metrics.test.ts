@@ -108,9 +108,9 @@ describe("parsePosthogSummary", () => {
 })
 
 describe("posthogFeedOf", () => {
-  it("loading, sample when not connected, live with stale flag otherwise", () => {
+  it("loading, not_connected with no key (never sample), live with stale flag otherwise", () => {
     expect(posthogFeedOf({ phase: "loading" })).toEqual({ kind: "loading" })
-    expect(posthogFeedOf({ phase: "ready", summary: POSTHOG_NOT_CONNECTED })).toEqual({ kind: "sample" })
+    expect(posthogFeedOf({ phase: "ready", summary: POSTHOG_NOT_CONNECTED })).toEqual({ kind: "not_connected" })
     const feed = posthogFeedOf({ phase: "ready", summary: livePosthogSummary("stale") })
     expect(feed).toMatchObject({ kind: "live", stale: true, metrics: LIVE_POSTHOG_METRICS })
   })

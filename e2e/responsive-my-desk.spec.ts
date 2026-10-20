@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { EMPTY_COPY, SCRATCH_PLACEHOLDER } from "../src/components/my-desk/my-desk-screen"
 import { addDays, now, todayIn } from "../src/lib/clock"
 import { carryFromLabel } from "../src/lib/my-desk"
 import { expectReadable, settleAnimations } from "./support/contrast"
-import { NOTE, persistenceNote } from "./support/persistence"
+import { NOTE, clearMyEntries, persistenceNote } from "./support/persistence"
 import {
   expectFocusTrapped,
   expectNoOverflowX,
@@ -18,7 +19,9 @@ import { setTheme } from "./support/theme"
  * My Desk at phone / tablet / desktop. No My Desk frame in Deke
  * `mEEFvPkzpt9woPbW5wATec`; phone cards + sheet and tablet cards follow
  * Sales #29 / Bugs #31. 1180 uses the 820 stacked panes. Desktop (≥1280)
- * stays develop's two-column list.
+ * stays develop's two-column list. The desk starts empty, so the layout
+ * checks first load three of the founder's own rows (a copy saved earlier
+ * in this browser) to have something to measure.
  */
 
 const STORAGE_KEY = "hotdash.my-desk.v2"
@@ -30,10 +33,31 @@ const VIEWPORTS = {
   desktop: { width: 1440, height: 900 },
 } as const
 
+/** The founder's own rows: two open, one done today. */
+const FIRST = "Call the AD"
+const FIRST_NOTE = "Friday walk-through"
+const SECOND = "Book the clinic room"
+const DONE = "Send the packet"
+
+function userDesk(day: string) {
+  return {
+    todos: [
+      { id: "todo-8", title: FIRST, note: FIRST_NOTE, done: false, createdOn: day, doneOn: null },
+      { id: "todo-9", title: SECOND, note: "Houston — Saturday", done: false, createdOn: day, doneOn: null },
+      { id: "todo-10", title: DONE, note: "11-personnel", done: true, createdOn: day, doneOn: day },
+    ],
+    nextId: 11,
+    scratch: "Packet before Friday.",
+    scratchUpdatedAt: new Date().toISOString(),
+  }
+}
+
 const main = (page: Page) => page.getByRole("main")
 const header = (page: Page) => main(page).locator("header").first()
 const todayList = (page: Page) => page.getByRole("region", { name: "Today list", exact: true })
 const notes = (page: Page) => page.getByRole("region", { name: "Notes", exact: true })
+const emptyState = (page: Page) => page.getByRole("status", { name: "No to-dos", exact: true })
+const clearButton = (page: Page) => header(page).getByRole("button", { name: "Clear my entries", exact: true })
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true })
 const todoBox = (page: Page, title: string) =>
   todayList(page).getByRole("checkbox", { name: title, exact: true })
@@ -44,13 +68,30 @@ const sheet = (page: Page, title: string) => page.getByRole("dialog", { name: ti
 const sheetActions = (page: Page, title: string) =>
   sheet(page, title).getByRole("group", { name: "To-do actions", exact: true }).getByRole("button")
 
-async function fresh(page: Page) {
+/** Nothing saved: the empty desk, with Clear my entries off. */
+async function emptyDesk(page: Page) {
   await page.goto("/my-desk")
   await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
   await page.reload()
   await waitForHydration(page)
   await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-  await expect(todayList(page).locator("[data-todo]")).toHaveCount(7)
+  await expect(todayList(page).locator("[data-todo]")).toHaveCount(0)
+  await expect(emptyState(page)).toContainText(EMPTY_COPY)
+  await expect(clearButton(page)).toHaveAttribute("aria-disabled", "true")
+}
+
+/** The founder's three rows, loaded from this browser's saved copy. */
+async function fresh(page: Page) {
+  await page.goto("/my-desk")
+  await page.evaluate(
+    ([key, value]) => localStorage.setItem(key, value),
+    [STORAGE_KEY, JSON.stringify(userDesk(todayIn(now())))] as const
+  )
+  await page.reload()
+  await waitForHydration(page)
+  await expect(persistenceNote(page)).toHaveText(NOTE.saved)
+  await expect(todayList(page).locator("[data-todo]")).toHaveCount(3)
+  await expect(clearButton(page)).toBeEnabled()
 }
 
 async function expectTapTarget(locator: Locator, label: string) {
@@ -111,9 +152,30 @@ async function expectSideBySidePanes(page: Page, label: string) {
   expect(notesBox!.x, `${label}: Notes beside Today`).toBeGreaterThan(todayBox!.x + todayBox!.width - 2)
 }
 
+/**
+ * The empty desk below 1280: the empty state and its inline Add, the
+ * disabled Clear my entries and the placeholder note, every control 44px,
+ * nothing sideways.
+ */
+async function expectEmptyDesk44(page: Page, label: string) {
+  await emptyDesk(page)
+  await expectStackedPanes(page, label)
+  await expect(notes(page).getByLabel("Scratch")).toHaveValue("")
+  await expect(notes(page).getByLabel("Scratch")).toHaveAttribute("placeholder", SCRATCH_PLACEHOLDER)
+  await expectTapTarget(clearButton(page), `${label} disabled Clear my entries`)
+  await expectTapTarget(
+    emptyState(page).getByRole("button", { name: "Add to-do", exact: true }),
+    `${label} empty-state Add to-do`
+  )
+  await expectTapTarget(header(page).getByRole("button", { name: "Add to-do", exact: true }), `${label} Add to-do`)
+  expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+  await expectNoOverflowX(page)
+  await expectAllTargets44(main(page), `${label} empty main`)
+}
+
 type Size = "390" | "820" | "1180"
 
-async function openDialog(page: Page, size: Size, what: "Add" | "Edit" | "Delete", title = "Call Aledo") {
+async function openDialog(page: Page, size: Size, what: "Add" | "Edit" | "Delete", title = FIRST) {
   if (what === "Add") {
     await header(page).getByRole("button", { name: "Add to-do", exact: true }).click()
     return dialog(page, "Add to-do")
@@ -148,9 +210,19 @@ async function expectDialogs44(page: Page, size: Size) {
     await expect(d).toBeHidden()
     if (size === "390" && what !== "Add") {
       await page.keyboard.press("Escape")
-      await expect(sheet(page, "Call Aledo")).toBeHidden()
+      await expect(sheet(page, FIRST)).toBeHidden()
     }
   }
+
+  // Clear my entries' confirm is the shared PersistenceNote dialog (no
+  // My Desk sizing classes); it must at least fit the screen.
+  await clearButton(page).click()
+  const clear = dialog(page, "Clear my entries?")
+  await expect(clear).toBeVisible()
+  await settleAnimations(page)
+  await expect(clear, `${size} Clear confirm fits the screen`).toBeInViewport({ ratio: 1 })
+  await clear.getByRole("button", { name: "Keep my edits", exact: true }).click()
+  await expect(clear).toBeHidden()
 }
 
 const settle = (locator: Locator) => settleAnimations(locator.page())
@@ -160,19 +232,24 @@ const settle = (locator: Locator) => settleAnimations(locator.page())
 test.describe("responsive My Desk (phone 390)", () => {
   test.use({ viewport: VIEWPORTS.phone })
 
+  test("an empty desk stacks its cards, keeps 44px controls and does not scroll sideways", async ({ page }) => {
+    await expectEmptyDesk44(page, "390")
+  })
+
   test("stacks Today over Notes as cards and does not scroll sideways", async ({ page }) => {
     await fresh(page)
     await expectStackedPanes(page, "390")
-    await expect(openTodo(page, "Call Aledo")).toBeVisible()
-    await expect(todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })).toBeHidden()
-    await expect(todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })).toBeHidden()
-    await expect(todoRow(page, "Call Aledo")).toContainText("HC — Friday walk-through")
-    await expect(todoRow(page, "Call Aledo").getByTestId("sample-data-tag")).toBeVisible()
+    await expect(openTodo(page, FIRST)).toBeVisible()
+    await expect(todayList(page).getByRole("button", { name: `Edit ${FIRST}`, exact: true })).toBeHidden()
+    await expect(todayList(page).getByRole("button", { name: `Delete ${FIRST}`, exact: true })).toBeHidden()
+    await expect(todoRow(page, FIRST)).toContainText(FIRST_NOTE)
+    await expect(main(page).getByTestId("sample-data-tag")).toHaveCount(0)
 
     const add = header(page).getByRole("button", { name: "Add to-do", exact: true })
     await expectTapTarget(add, "Add to-do")
-    await expectTapTarget(todoBox(page, "Call Aledo"), "checkbox")
-    await expectTapTarget(openTodo(page, "Call Aledo"), "open")
+    await expectTapTarget(clearButton(page), "Clear my entries")
+    await expectTapTarget(todoBox(page, FIRST), "checkbox")
+    await expectTapTarget(openTodo(page, FIRST), "open")
 
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
     await expectNoOverflowX(page)
@@ -181,12 +258,12 @@ test.describe("responsive My Desk (phone 390)", () => {
 
   test("a card opens the bottom sheet; every desktop action stays reachable", async ({ page }) => {
     await fresh(page)
-    await openTodo(page, "Call Aledo").click()
-    const s = sheet(page, "Call Aledo")
+    await openTodo(page, FIRST).click()
+    const s = sheet(page, FIRST)
     await expect(s).toBeVisible()
     await expect(s).toHaveAttribute("data-side", "bottom")
-    await expect(s).toContainText("HC — Friday walk-through")
-    const actions = sheetActions(page, "Call Aledo")
+    await expect(s).toContainText(FIRST_NOTE)
+    const actions = sheetActions(page, FIRST)
     await expect(actions).toHaveCount(3)
     await expect(actions.nth(0)).toHaveText("Mark done")
     await expect(actions.nth(1)).toHaveText("Edit")
@@ -198,18 +275,18 @@ test.describe("responsive My Desk (phone 390)", () => {
 
     await page.keyboard.press("Escape")
     await expect(s).toBeHidden()
-    await expect(todoBox(page, "Call Aledo")).toHaveAttribute("aria-checked", "true")
-    await expect(openTodo(page, "Call Aledo")).toBeFocused()
+    await expect(todoBox(page, FIRST)).toHaveAttribute("aria-checked", "true")
+    await expect(openTodo(page, FIRST)).toBeFocused()
 
-    await openTodo(page, "Call Aledo").click()
-    await sheetActions(page, "Call Aledo").filter({ hasText: "Edit" }).click()
+    await openTodo(page, FIRST).click()
+    await sheetActions(page, FIRST).filter({ hasText: "Edit" }).click()
     const edit = dialog(page, "Edit to-do")
     await expect(edit).toBeVisible()
     await expect(s).toBeHidden()
-    await expect(edit.getByLabel("Title")).toHaveValue("Call Aledo")
+    await expect(edit.getByLabel("Title")).toHaveValue(FIRST)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
-    await expect(openTodo(page, "Call Aledo")).toBeFocused()
+    await expect(openTodo(page, FIRST)).toBeFocused()
 
     await header(page).getByRole("button", { name: "Add to-do", exact: true }).click()
     const add = dialog(page, "Add to-do")
@@ -222,8 +299,8 @@ test.describe("responsive My Desk (phone 390)", () => {
     page,
   }) => {
     await fresh(page)
-    await openTodo(page, "Clinic follow-up").click()
-    const s = sheet(page, "Clinic follow-up")
+    await openTodo(page, SECOND).click()
+    const s = sheet(page, SECOND)
     await expect(s).toBeVisible()
     await expectScrollLock(page, true)
     await expectFocusTrapped(page, s)
@@ -233,18 +310,18 @@ test.describe("responsive My Desk (phone 390)", () => {
     const box = (await close.boundingBox())!
     expect(Math.round(box.width)).toBe(44)
     expect(Math.round(box.height)).toBe(44)
-    const title = (await s.getByRole("heading", { name: "Clinic follow-up" }).boundingBox())!
+    const title = (await s.getByRole("heading", { name: SECOND }).boundingBox())!
     expect(title.x + title.width, "title clear of the ×").toBeLessThanOrEqual(box.x)
     await close.click()
     await expect(s).toBeHidden()
-    await expect(openTodo(page, "Clinic follow-up")).toBeFocused()
+    await expect(openTodo(page, SECOND)).toBeFocused()
     await expectScrollLock(page, false)
 
-    await openTodo(page, "Clinic follow-up").click()
+    await openTodo(page, SECOND).click()
     await expect(s).toBeVisible()
     await sheetOverlay(page).click({ position: { x: 195, y: 40 } })
     await expect(s).toBeHidden()
-    await expect(openTodo(page, "Clinic follow-up")).toBeFocused()
+    await expect(openTodo(page, SECOND)).toBeFocused()
     await expectScrollLock(page, false)
   })
 
@@ -282,16 +359,15 @@ test.describe("responsive My Desk (phone 390)", () => {
 
   test("after Delete from the sheet, focus moves to the next card", async ({ page }) => {
     await fresh(page)
-    const titles = await todayList(page)
+    const ids = await todayList(page)
       .locator("[data-todo]")
       .evaluateAll((els) => els.map((el) => el.getAttribute("data-todo")))
-    const i = titles.indexOf("todo-1")
-    expect(i).toBeGreaterThanOrEqual(0)
-    await openTodo(page, "Call Aledo").click()
-    await sheetActions(page, "Call Aledo").filter({ hasText: "Delete" }).click()
+    expect(ids).toEqual(["todo-8", "todo-9", "todo-10"])
+    await openTodo(page, FIRST).click()
+    await sheetActions(page, FIRST).filter({ hasText: "Delete" }).click()
     await dialog(page, "Delete this to-do?").getByRole("button", { name: "Delete", exact: true }).click()
-    await expect(todoBox(page, "Call Aledo")).toHaveCount(0)
-    await expect(openTodo(page, "Clinic follow-up")).toBeFocused()
+    await expect(todoBox(page, FIRST)).toHaveCount(0)
+    await expect(openTodo(page, SECOND)).toBeFocused()
   })
 
   test("dialogs are 44px: fields, buttons, ×, checkbox; note does not clip 280 characters", async ({
@@ -308,25 +384,30 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
   test.describe(`responsive My Desk (${name} ${VIEWPORTS[name].width})`, () => {
     test.use({ viewport: VIEWPORTS[name] })
 
+    test("an empty desk stacks its cards, keeps 44px controls and does not scroll sideways", async ({ page }) => {
+      await expectEmptyDesk44(page, String(VIEWPORTS[name].width))
+    })
+
     test("stacks Today over Notes as cards with 44px Edit / Delete", async ({ page }) => {
       await fresh(page)
       await expectStackedPanes(page, String(VIEWPORTS[name].width))
-      await expect(openTodo(page, "Call Aledo")).toBeHidden()
-      const edit = todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })
-      const del = todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })
+      await expect(openTodo(page, FIRST)).toBeHidden()
+      const edit = todayList(page).getByRole("button", { name: `Edit ${FIRST}`, exact: true })
+      const del = todayList(page).getByRole("button", { name: `Delete ${FIRST}`, exact: true })
       await expect(edit).toBeVisible()
       await expect(del).toBeVisible()
       await expectTapTarget(edit, "Edit")
       await expectTapTarget(del, "Delete")
-      await expectTapTarget(todoBox(page, "Call Aledo"), "checkbox")
+      await expectTapTarget(todoBox(page, FIRST), "checkbox")
       await expectTapTarget(
         header(page).getByRole("button", { name: "Add to-do", exact: true }),
         "Add to-do"
       )
+      await expectTapTarget(clearButton(page), "Clear my entries")
 
       await edit.click()
       const d = dialog(page, "Edit to-do")
-      await expect(d.getByLabel("Title")).toHaveValue("Call Aledo")
+      await expect(d.getByLabel("Title")).toHaveValue(FIRST)
       await page.keyboard.press("Escape")
       await expect(d).toBeHidden()
       await expect(edit).toBeFocused()
@@ -353,12 +434,12 @@ test.describe("responsive My Desk (desktop 1440)", () => {
   test("is unchanged: two columns, inline Edit / Delete, no open control", async ({ page }) => {
     await fresh(page)
     await expectSideBySidePanes(page, "1440")
-    await expect(openTodo(page, "Call Aledo")).toBeHidden()
-    await expect(todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true })).toBeVisible()
-    await expect(todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true })).toBeVisible()
+    await expect(openTodo(page, FIRST)).toBeHidden()
+    await expect(todayList(page).getByRole("button", { name: `Edit ${FIRST}`, exact: true })).toBeVisible()
+    await expect(todayList(page).getByRole("button", { name: `Delete ${FIRST}`, exact: true })).toBeVisible()
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
 
-    await todayList(page).getByRole("button", { name: "Edit Call Aledo", exact: true }).click()
+    await todayList(page).getByRole("button", { name: `Edit ${FIRST}`, exact: true }).click()
     const edit = dialog(page, "Edit to-do")
     await expect(edit).toBeVisible()
     await settle(edit)
@@ -370,6 +451,14 @@ test.describe("responsive My Desk (desktop 1440)", () => {
     expect(note!.height, "note stays develop rows").toBeLessThan(90)
     await page.keyboard.press("Escape")
     await expect(edit).toBeHidden()
+  })
+
+  test("an empty desk keeps two columns and develop's 24px Clear my entries", async ({ page }) => {
+    await emptyDesk(page)
+    await expectSideBySidePanes(page, "1440 empty")
+    // DESK_RESET grows it to 44px only below 1280.
+    await expect(clearButton(page)).toHaveCSS("height", "24px")
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
 
@@ -488,17 +577,16 @@ for (const [size, viewport] of [
 
     test(`a Tab-focused control shows its ring inside the card at ${size}`, async ({ page }) => {
       await fresh(page)
-      const card = size === "390" ? todoRow(page, "Call Aledo") : todoRow(page, "Clinic follow-up")
-      const control =
-        size === "390" ? openTodo(page, "Call Aledo") : todoBox(page, "Clinic follow-up")
+      const card = size === "390" ? todoRow(page, FIRST) : todoRow(page, SECOND)
+      const control = size === "390" ? openTodo(page, FIRST) : todoBox(page, SECOND)
       await card.scrollIntoViewIfNeeded()
       await page.mouse.move(viewport.width - 1, viewport.height - 1)
       const unfocused = await control.screenshot({ animations: "disabled" })
 
       if (size === "390") {
-        await todoBox(page, "Call Aledo").focus()
+        await todoBox(page, FIRST).focus()
       } else {
-        await todayList(page).getByRole("button", { name: "Delete Call Aledo", exact: true }).focus()
+        await todayList(page).getByRole("button", { name: `Delete ${FIRST}`, exact: true }).focus()
       }
       await page.keyboard.press("Tab")
       await expect(control).toBeFocused()
@@ -535,8 +623,9 @@ for (const theme of ["light", "dark"] as const) {
         await expectReadable(header(page).getByRole("heading", { level: 1 }), `${label}/title`, expect)
         await expectReadable(header(page).locator("p").first(), `${label}/subtitle`, expect)
         await expectReadable(persistenceNote(page), `${label}/note`, expect)
-        await expectReadable(header(page).getByTestId("sample-data-tag"), `${label}/header tag`, expect)
         await expectReadable(todayList(page), `${label}/today`, expect)
+        await expectReadable(todoRow(page, DONE), `${label}/done row`, expect)
+        await expectReadable(notes(page), `${label}/notes`, expect)
         await expectReadable(
           header(page).getByRole("button", { name: "Add to-do", exact: true }),
           `${label}/Add to-do`,
@@ -544,8 +633,8 @@ for (const theme of ["light", "dark"] as const) {
         )
 
         if (size === "390") {
-          await openTodo(page, "Call Aledo").click()
-          const s = sheet(page, "Call Aledo")
+          await openTodo(page, FIRST).click()
+          const s = sheet(page, FIRST)
           await expect(s).toBeVisible()
           await expectReadable(s, `${label}/sheet`, expect)
           await expectReadable(s.getByRole("button", { name: "Close", exact: true }), `${label}/sheet ×`, expect)
@@ -580,19 +669,16 @@ for (const theme of ["light", "dark"] as const) {
           await expect(d).toBeHidden()
         }
 
-        await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({
-          todos: [],
-          nextId: 1,
-          scratch: "",
-          scratchUpdatedAt: new Date().toISOString(),
-        })), STORAGE_KEY)
-        await page.reload()
-        await waitForHydration(page)
-        await expect(persistenceNote(page)).toHaveText(NOTE.saved)
-        const reset = header(page).getByRole("button", { name: "Reset", exact: true })
-        await expect(reset).toBeEnabled()
-        await expectTapTarget(reset, `${label}/Reset`)
-        await expectReadable(reset, `${label}/enabled Reset`, expect)
+        const clear = clearButton(page)
+        await expect(clear).toBeEnabled()
+        await expectTapTarget(clear, `${label}/Clear my entries`)
+        await expectReadable(clear, `${label}/enabled Clear my entries`, expect)
+
+        await clearMyEntries(page, header(page))
+        await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
+        await expect(emptyState(page)).toContainText(EMPTY_COPY)
+        await expectReadable(emptyState(page), `${label}/empty`, expect)
+        await expectTapTarget(clear, `${label}/disabled Clear my entries`)
       })
     })
   }

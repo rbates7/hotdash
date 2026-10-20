@@ -67,14 +67,29 @@ export type RoadmapItem = {
   /** True when the bet came in through the Feature Request intake. */
   fromFeatureRequest?: true
   /**
-   * True for the invented examples shipped with the page. Cleared the moment
-   * the words (title, why, window) are rewritten, because then they are the
-   * founder's, not ours. Moving or re-owning a bet keeps the tag.
+   * Set only on the invented bets the page once shipped. No board shows
+   * one: `parseSavedBoard` leaves them out of an old saved copy, and
+   * nothing creates one. Kept so that copy can be recognised.
    */
   sample?: true
   /** When the bet was signed. ISO instant. */
   signedAt: string
   updatedAt: string
+}
+
+/**
+ * What a card on the board shows: a saved bet (`RoadmapItem`) or a row read
+ * from Notion (`LiveRoadmapItem`, `@/lib/notion-roadmap`). Notion rows can
+ * have any owner (or none) and carry no ticket count, so those two are
+ * looser here than on a saved bet.
+ */
+export type BoardItem = Pick<
+  RoadmapItem,
+  "id" | "title" | "why" | "window" | "column" | "order" | "fromFeatureRequest" | "sample"
+> & {
+  owner: string | null
+  /** Absent on a Notion row: Notion does not know the ticket count. */
+  linkedTickets?: number
 }
 
 export type RoadmapState = {
@@ -86,7 +101,10 @@ export type RoadmapState = {
 /* --------------------------------------------------------------- ordering */
 
 /** Items in `column`, top to bottom. Ties on `order` fall back to id so the order is total. */
-export function inColumn(items: readonly RoadmapItem[], column: RoadmapColumn): RoadmapItem[] {
+export function inColumn<T extends Pick<RoadmapItem, "id" | "column" | "order">>(
+  items: readonly T[],
+  column: RoadmapColumn
+): T[] {
   return items
     .filter((i) => i.column === column)
     .sort((a, b) => a.order - b.order || idNumber(a.id) - idNumber(b.id))

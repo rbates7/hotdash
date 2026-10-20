@@ -3,12 +3,11 @@
 import { CheckCircleIcon, FlameIcon } from "lucide-react"
 
 import { formatCrmRelative, listTriageThreads } from "@/lib/crm/crm"
-import { isSeedThread } from "@/lib/crm/fixture"
-import { SampleDataTag } from "@/components/sample-data"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 import { TriageActions } from "@/components/crm/triage-actions"
+import { GmailNotConnected } from "@/components/crm/gmail-not-connected"
 
 export function TriageScreen() {
   const store = useCrm()
@@ -26,6 +25,9 @@ export function TriageScreen() {
         </p>
       </div>
 
+      {store.gmail.kind === "not_connected" ? (
+        <GmailNotConnected screen="triage" />
+      ) : (
       <div className="flex flex-col gap-3">
         {threads.length === 0 ? (
           <div
@@ -52,7 +54,6 @@ export function TriageScreen() {
                     <span className="flex flex-col leading-tight">
                       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
                         {thread.senderName ?? thread.senderEmail}
-                        {isSeedThread(thread.threadId) ? <SampleDataTag /> : null}
                       </span>
                       <span className="text-muted-foreground text-xs">{thread.senderEmail}</span>
                     </span>
@@ -83,6 +84,7 @@ export function TriageScreen() {
           ))
         )}
       </div>
+      )}
     </div>
   )
 }

@@ -10,7 +10,7 @@ test.describe("Agent Workplace", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Agent Workplace" })).toBeVisible()
 
     const tabs = page.getByRole("tab")
-    await expect(tabs).toHaveText(["Issues", "Backlog", "Agents", "Chat", "Autopilots", "Inbox"])
+    await expect(tabs).toHaveText(["Issues", "Backlog", "Work board", "Agents", "Chat", "Autopilots", "Inbox"])
 
     for (const col of ["To Do", "In Progress", "In Review", "Done", "Blocked"]) {
       await expect(page.getByRole("region", { name: col })).toBeVisible()
@@ -82,10 +82,11 @@ test.describe("Agent Workplace", () => {
     await page.getByRole("tab", { name: "Autopilots" }).click()
     await expect(page.getByRole("row")).toHaveCount(4)
 
+    // The Inbox is live (/api/inbox); with no GitHub or Sentry token in e2e
+    // it says Not connected rather than showing sample rows.
     await page.getByRole("tab", { name: "Inbox" }).click()
-    await page.getByRole("button", { name: /Agent blocked/ }).click()
-    await expect(page).toHaveURL(/issue=CHLK-412/)
-    await expect(page.getByText("Waiting on Stripe dashboard access.")).toBeVisible()
+    await expect(page.getByTestId("inbox-not-connected")).toContainText("Not connected")
+    await expect(page.getByRole("tabpanel", { name: "Inbox" }).getByRole("listitem")).toHaveCount(0)
   })
 
   test("two tabs: an edit in A shows in B, Reset in A re-seeds B, and the writes settle", async ({ context }) => {

@@ -11,8 +11,10 @@ import {
   saveState,
 } from "@/components/metrics/metrics-store"
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
-import { SAMPLE_DATA_LABEL } from "@/components/sample-data"
-import { MOCK_DAY } from "@/lib/kpis"
+import { ChurnedSubscribersTable, NewSubscribersTable, SUBSCRIBER_LIST_HINT } from "@/components/metrics/subscribers-tables"
+import { NO_EXPENSES_BODY, NO_EXPENSES_TITLE } from "@/components/metrics/expenses-panel"
+import { MOCK_DAY, seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis"
+import { NO_EXPENSES_TEXT, NO_PRIOR_EXPENSES_TEXT } from "@/lib/live-metrics"
 
 /** The day the mock was drawn, so rows and labels match it verbatim. */
 const TODAY = MOCK_DAY
@@ -52,6 +54,17 @@ function renderTabs(search = "", today = TODAY) {
     <MetricsProvider nowMs={Date.parse(`${today}T18:00:00.000Z`)}>
       <MetricsTabs />
     </MetricsProvider>
+  )
+}
+
+/** A board with one founder expense ($160 Vercel, dated today), saved before mount. */
+function saveVercel(today = TODAY) {
+  saveState(
+    window.localStorage,
+    reducer(initialState(today), {
+      type: "add-expense",
+      input: { category: "Vercel", amount: 160, date: today, recurring: true },
+    })
   )
 }
 
@@ -131,67 +144,82 @@ describe("MetricsTabs", () => {
     })
   })
 
-  describe("sample data labelling", () => {
-    it("every metric card carries a visible Sample data tag", () => {
+  describe("no sample data", () => {
+    it("no metric card carries a Sample data tag; with nothing connected each says Not connected", () => {
       renderTabs()
-      for (const c of cards()) {
-        expect(within(c).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
-      }
       expect(cards()).toHaveLength(8)
+      for (const c of cards()) {
+        expect(within(c).queryByTestId("sample-data-tag")).toBeNull()
+      }
+      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions"]) {
+        expect(card(name)).toHaveAttribute("data-source", "not_connected")
+        expect(within(card(name)).getByTestId("metric-value")).toHaveTextContent("\u2014")
+        expect(within(card(name)).getByTestId("metric-not-connected")).toBeInTheDocument()
+      }
     })
 
-    it("an added extra carries it too", async () => {
+    it("an added extra is Not connected too, never a fixture figure", async () => {
       const user = userEvent.setup()
       renderTabs()
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       await user.click(await screen.findByRole("button", { name: /^NPS/ }))
-      expect(within(card("NPS")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      expect(within(card("NPS")).queryByTestId("sample-data-tag")).toBeNull()
+      expect(card("NPS")).toHaveAttribute("aria-label", "NPS not connected")
+      expect(within(card("NPS")).getByTestId("metric-value")).toHaveTextContent("\u2014")
     })
 
     it.each([
       ["tab=new", "New subscribers"],
       ["tab=churned", "Churned subscribers"],
-      ["tab=expenses", "Expenses"],
-    ])("the %s table is labelled as sample data", (search, tableName) => {
+    ])("the %s tab says Not connected, with no rows", (search, title) => {
       renderTabs(search)
-      const table = screen.getByRole("table", { name: tableName })
-      const strip = table.closest("[class*='rounded-xl']")!.querySelector("[data-testid=sample-data-tag]")
-      expect(strip).toHaveTextContent(SAMPLE_DATA_LABEL)
+      const panel = screen.getByRole("region", { name: `${title}: not connected` })
+      expect(panel).toHaveTextContent(SUBSCRIBER_LIST_HINT)
+      expect(screen.queryByRole("table")).toBeNull()
+      expect(screen.queryByTestId("sample-data-tag")).toBeNull()
     })
 
-    it("the Expenses tab card is labelled as sample data", () => {
+    it("the Expenses tab has no seed table and no Sample strip: an empty state with Add expense", () => {
       renderTabs("tab=expenses")
-      expect(within(card("Expenses")).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      expect(screen.queryByRole("table", { name: "Expenses" })).toBeNull()
+      expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+      const empty = screen.getByRole("region", { name: NO_EXPENSES_TITLE })
+      expect(empty).toHaveTextContent(NO_EXPENSES_BODY)
+      // One Add expense on the tab, inside the empty state, 44px below 1280.
+      const add = screen.getByRole("button", { name: "Add expense" })
+      expect(empty).toContainElement(add)
+      expect(add.className).toContain("max-xl:min-h-11!")
+      const exp = card("Expenses")
+      expect(exp).toHaveAttribute("aria-label", "Expenses no expenses entered")
+      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("—")
+      expect(within(exp).getByTestId("metric-entries-note")).toHaveTextContent(NO_EXPENSES_TEXT)
     })
   })
 
   describe("clock-derived content", () => {
     it("charts name their six 28-day windows ending today, with values", () => {
+      saveVercel()
       renderTabs()
       expect(
-        within(card("MRR")).getByRole("img", {
-          name: /^MRR, bar chart of six 28-day windows, 7 Mar – 21 Aug 2026: to 3 Apr \$23,800, .*to 21 Aug \$26,190$/,
+        within(card("Expenses")).getByRole("img", {
+          name: /^Expenses, bar chart of six 28-day windows, 7 Mar – 21 Aug 2026: .*to 21 Aug \$160$/,
         })
       ).toHaveAttribute("data-windows", "2026-04-03 2026-05-01 2026-05-29 2026-06-26 2026-07-24 2026-08-21")
-
-      renderTabs("", "2026-10-07")
-      expect(
-        within(screen.getAllByRole("article", { name: /^MRR\b/ }).at(-1)!).getByRole("img", {
-          name: /^MRR, bar chart of six 28-day windows, 23 Apr – 7 Oct 2026/,
-        })
-      ).toBeInTheDocument()
     })
 
-    it("seed tables and the add-expense default follow today", async () => {
+    it("on another day the windows and the add-expense default follow it", async () => {
       const user = userEvent.setup()
-      renderTabs("tab=new", "2026-10-07")
-      const rows = within(screen.getByRole("table", { name: "New subscribers" })).getAllByRole("row").slice(1)
-      expect(within(rows[0]).getByText("4 Oct 2026")).toBeInTheDocument() // today − 3
-      expect(within(rows[7]).getByText("10 Sep 2026")).toBeInTheDocument() // today − 27, inside the period
+      saveVercel("2026-10-07")
+      renderTabs("", "2026-10-07")
+      expect(
+        within(card("Expenses")).getByRole("img", {
+          name: /^Expenses, bar chart of six 28-day windows, 23 Apr – 7 Oct 2026/,
+        })
+      ).toBeInTheDocument()
 
       renderTabs("tab=expenses", "2026-10-07")
       const table = screen.getAllByRole("table", { name: "Expenses" }).at(-1)!
-      expect(within(table).getByRole("row", { name: /Stripe fees/ })).toHaveTextContent("7 Oct 2026")
+      expect(within(table).getByRole("row", { name: /Vercel/ })).toHaveTextContent("7 Oct 2026")
       await user.click(screen.getAllByRole("button", { name: "Add expense" }).at(-1)!)
       const dialog = await screen.findByRole("dialog", { name: "Add expense" })
       expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-10-07")
@@ -235,41 +263,41 @@ describe("MetricsTabs", () => {
     it("a persisted row outside the period stays in the table but not in the card", () => {
       saveState(window.localStorage, {
         ...initialState(TODAY),
-        expenses: [
-          ...initialState(TODAY).expenses,
-          { id: "exp-9", category: "Old", amount: 1_000, date: "2026-07-01", recurring: false },
-        ],
+        expenses: [{ id: "exp-9", category: "Old", amount: 1_000, date: "2026-07-01", recurring: false }],
         nextExpenseId: 10,
       })
       renderTabs("tab=expenses")
       const table = screen.getByRole("table", { name: "Expenses" })
       expect(within(table).getByRole("row", { name: /Old/ })).toBeInTheDocument()
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$8,240")
+      // Only the founder's row counts, and it is in the window before.
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$0")
+      expect(within(card("Expenses")).getByTestId("trend")).toHaveTextContent("−100.0%")
     })
   })
 
   describe("Overview", () => {
-    it("shows the eight default cards, in order, with value, trend and caption", () => {
+    it("shows the eight default cards, in order: Not connected, and Expenses empty", () => {
       renderTabs()
       const names = cards().map((a) => a.getAttribute("aria-label"))
       expect(names).toEqual([
-        "MRR $26,190 +4.2%",
-        "ARR $314,280 +4.2%",
-        "Churn Rate 2.7% −1.5 pts",
-        "Revenue $28,410 +6.1%",
-        "Retention 97.3% +1.5 pts",
-        "Subscribers 186 +3",
-        "Trial Conversions 28% +3.1 pts",
-        "Expenses $8,240 +2.4%",
+        "MRR not connected",
+        "ARR not connected",
+        "Churn Rate not connected",
+        "Revenue not connected",
+        "Retention not connected",
+        "Subscribers not connected",
+        "Trial Conversions not connected",
+        "Expenses no expenses entered",
       ])
       const mrr = card("MRR")
-      expect(within(mrr).getByTestId("metric-value")).toHaveTextContent("$26,190")
-      expect(within(mrr).getByTestId("trend")).toHaveTextContent("+4.2%")
-      expect(within(mrr).getByTestId("trend")).toHaveAttribute("data-good", "true")
-      expect(within(mrr).getByText("vs previous 28 days")).toBeInTheDocument()
+      expect(within(mrr).getByTestId("metric-value")).toHaveTextContent("\u2014")
+      expect(within(mrr).queryByTestId("trend")).toBeNull()
+      expect(within(mrr).queryByRole("img")).toBeNull()
+      expect(mrr).not.toHaveTextContent("$26,190")
 
       const exp = card("Expenses")
-      expect(within(exp).getByTestId("trend")).toHaveAttribute("data-good", "false")
+      expect(within(exp).queryByTestId("trend")).toBeNull()
+      expect(within(exp).queryByTestId("sample-data-tag")).toBeNull()
     })
 
     it("each card has a bar/line toggle reflecting its default", () => {
@@ -285,7 +313,16 @@ describe("MetricsTabs", () => {
       await user.click(within(card("MRR")).getByRole("button", { name: "MRR: line chart" }))
       expect(within(card("MRR")).getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
       expect(within(card("MRR")).getByRole("button", { name: "MRR: bar chart" })).toHaveAttribute("aria-pressed", "false")
-      expect(within(card("MRR")).getByRole("img", { name: /^MRR, line chart of six 28-day windows, 7 Mar – 21 Aug 2026/ })).toBeInTheDocument()
+    })
+
+    it("a charted card draws the chosen type", async () => {
+      const user = userEvent.setup()
+      saveVercel()
+      renderTabs()
+      await user.click(within(card("Expenses")).getByRole("button", { name: "Expenses: line chart" }))
+      expect(
+        within(card("Expenses")).getByRole("img", { name: /^Expenses, line chart of six 28-day windows, 7 Mar – 21 Aug 2026/ })
+      ).toBeInTheDocument()
     })
 
     it("removes a card and offers it again in the picker after the extras", async () => {
@@ -298,25 +335,26 @@ describe("MetricsTabs", () => {
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
       const items = within(picker).getAllByRole("button").map((b) => b.textContent)
+      // No fixture figures in the picker: each choice says Not connected.
       expect(items).toEqual([
-        "Active Users731",
-        "CAC$142",
-        "LTV$1,680",
-        "ARPU$141",
-        "NRR108%",
-        "Runway14 mo",
-        "NPS52",
-        "Valuation$1.10M",
-        "Revenue$28,410",
+        "Active UsersNot connected",
+        "CACNot connected",
+        "LTVNot connected",
+        "ARPUNot connected",
+        "NRRNot connected",
+        "RunwayNot connected",
+        "NPSNot connected",
+        "ValuationNot connected",
+        "RevenueNot connected",
       ])
     })
 
-    it("the picker is itself labelled as sample data", async () => {
+    it("the picker carries no Sample data tag", async () => {
       const user = userEvent.setup()
       renderTabs()
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       const picker = await screen.findByRole("dialog", { name: "Add a metric" })
-      expect(within(picker).getByTestId("sample-data-tag")).toHaveTextContent(SAMPLE_DATA_LABEL)
+      expect(within(picker).queryByTestId("sample-data-tag")).toBeNull()
     })
 
     it("adds an extra metric from the picker and closes it", async () => {
@@ -325,8 +363,9 @@ describe("MetricsTabs", () => {
       await user.click(screen.getByRole("button", { name: "Add metric" }))
       await user.click(await screen.findByRole("button", { name: /^Valuation/ }))
       const valuation = card("Valuation")
-      expect(within(valuation).getByTestId("metric-value")).toHaveTextContent("$1.10M")
-      expect(within(valuation).getByText("ARR × 3.5 · illustrative only")).toBeInTheDocument()
+      expect(within(valuation).getByTestId("metric-value")).toHaveTextContent("\u2014")
+      // The illustrative derivation note only ever described a fixture figure.
+      expect(within(valuation).queryByText(/illustrative/)).toBeNull()
       expect(cards()).toHaveLength(9)
       expect(screen.queryByRole("dialog", { name: "Add a metric" })).not.toBeInTheDocument()
     })
@@ -360,8 +399,8 @@ describe("MetricsTabs", () => {
   })
 
   describe("subscriber tables", () => {
-    it("New Subscribers lists the eight rows, newest first, with plan pills", () => {
-      renderTabs("tab=new")
+    it("New Subscribers lists given rows, newest first, with plan pills (fixture rows, tests only)", () => {
+      render(<NewSubscribersTable rows={seedNewSubscribers(TODAY)} />)
       const table = screen.getByRole("table", { name: "New subscribers" })
       expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
         "Name / Email",
@@ -371,26 +410,25 @@ describe("MetricsTabs", () => {
       const rows = within(table).getAllByRole("row").slice(1)
       expect(rows).toHaveLength(8)
       expect(within(rows[0]).getByText("Alisha Patel")).toBeInTheDocument()
-      expect(within(rows[0]).getByText("apatel@canyonridgesports.com")).toBeInTheDocument()
       expect(within(rows[0]).getByText("Monthly")).toBeInTheDocument()
       expect(within(rows[0]).getByText("18 Aug 2026")).toBeInTheDocument()
       expect(within(rows[7]).getByText("Troy Nguyen")).toBeInTheDocument()
+      expect(screen.queryByTestId("sample-data-tag")).toBeNull()
     })
 
     it("sorts New Subscribers by a column when its header is clicked", async () => {
       const user = userEvent.setup()
-      renderTabs("tab=new")
+      render(<NewSubscribersTable rows={seedNewSubscribers(TODAY)} />)
       await user.click(screen.getByRole("button", { name: "Name / Email" }))
       const table = screen.getByRole("table", { name: "New subscribers" })
       expect(within(table).getAllByRole("columnheader")[0]).toHaveAttribute("aria-sort", "ascending")
-      const first = within(table).getAllByRole("row")[1]
-      expect(within(first).getByText("Alisha Patel")).toBeInTheDocument()
+      expect(within(within(table).getAllByRole("row")[1]).getByText("Alisha Patel")).toBeInTheDocument()
       await user.click(screen.getByRole("button", { name: "Name / Email" }))
       expect(within(within(table).getAllByRole("row")[1]).getByText("Troy Nguyen")).toBeInTheDocument()
     })
 
-    it("Churned Subscribers lists the five rows with lifetime value", () => {
-      renderTabs("tab=churned")
+    it("Churned Subscribers lists given rows with lifetime value", () => {
+      render(<ChurnedSubscribersTable rows={seedChurnedSubscribers(TODAY)} />)
       const table = screen.getByRole("table", { name: "Churned subscribers" })
       expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
         "Name / Email",
@@ -401,17 +439,16 @@ describe("MetricsTabs", () => {
       const rows = within(table).getAllByRole("row").slice(1)
       expect(rows).toHaveLength(5)
       expect(within(rows[0]).getByText("Brett Holloway")).toBeInTheDocument()
-      expect(within(rows[0]).getByText("12 Jan 2026")).toBeInTheDocument()
-      expect(within(rows[0]).getByText("8 Aug 2026")).toBeInTheDocument()
       expect(within(rows[0]).getByText("$199")).toBeInTheDocument()
     })
   })
 
   describe("Expenses", () => {
-    it("shows the Expenses card without a remove button, plus the eight rows", () => {
+    it("shows the Expenses card without a remove button; a founder row fills the table", () => {
+      saveVercel()
       renderTabs("tab=expenses")
       const exp = card("Expenses")
-      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("$8,240")
+      expect(within(exp).getByTestId("metric-value")).toHaveTextContent("$160")
       expect(within(exp).queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument()
 
       const table = screen.getByRole("table", { name: "Expenses" })
@@ -423,15 +460,17 @@ describe("MetricsTabs", () => {
         "Actions",
       ])
       const rows = within(table).getAllByRole("row").slice(1)
-      expect(rows).toHaveLength(8)
-      expect(within(rows[0]).getByText("AWS")).toBeInTheDocument()
-      expect(within(rows[0]).getByText("$5,410")).toBeInTheDocument()
+      expect(rows).toHaveLength(1)
+      expect(within(rows[0]).getByText("Vercel")).toBeInTheDocument()
+      expect(within(rows[0]).getByText("$160")).toBeInTheDocument()
       expect(within(rows[0]).getByText("Yes")).toBeInTheDocument()
-      expect(within(rows[1]).getByText("Stripe fees")).toBeInTheDocument()
-      expect(within(rows[1]).getByText("No")).toBeInTheDocument()
+      // With rows, Add expense sits beside the card and the empty state is gone.
+      expect(screen.queryByRole("region", { name: NO_EXPENSES_TITLE })).toBeNull()
+      expect(screen.getAllByRole("button", { name: "Add expense" })).toHaveLength(1)
+      expect(screen.queryByTestId("sample-data-tag")).toBeNull()
     })
 
-    it("adds an expense through the dialog and the card total follows", async () => {
+    it("adds an expense through the empty state's dialog and the card total follows", async () => {
       const user = userEvent.setup()
       renderTabs("tab=expenses")
       await user.click(screen.getByRole("button", { name: "Add expense" }))
@@ -451,19 +490,23 @@ describe("MetricsTabs", () => {
       expect(within(vercel).getByText("$160")).toBeInTheDocument()
       expect(within(vercel).getByText("21 Aug 2026")).toBeInTheDocument()
       expect(within(vercel).getByText("Yes")).toBeInTheDocument()
-      expect(within(table).getAllByRole("row").slice(1)).toHaveLength(9)
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$8,400")
-      expect(within(card("Expenses")).getByTestId("trend")).toHaveTextContent("+4.3%")
+      expect(within(table).getAllByRole("row").slice(1)).toHaveLength(1)
+      expect(screen.queryByRole("region", { name: NO_EXPENSES_TITLE })).toBeNull()
+      // The card counts the founder's row: $160, nothing in the window before.
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$160")
+      expect(within(card("Expenses")).queryByTestId("trend")).toBeNull()
+      expect(within(card("Expenses")).getByTestId("metric-entries-note")).toHaveTextContent(NO_PRIOR_EXPENSES_TEXT)
     })
 
-    it("removes an expense and the card total follows", async () => {
+    it("removes the last expense: back to the empty state and an empty card", async () => {
       const user = userEvent.setup()
+      saveVercel()
       renderTabs("tab=expenses")
-      await user.click(screen.getByRole("button", { name: "Remove AWS" }))
-      const table = screen.getByRole("table", { name: "Expenses" })
-      expect(within(table).queryByText("AWS")).not.toBeInTheDocument()
-      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("$2,830")
-      expect(within(card("Expenses")).getByTestId("trend")).toHaveAttribute("data-good", "true")
+      await user.click(screen.getByRole("button", { name: "Remove Vercel" }))
+      expect(screen.queryByRole("table", { name: "Expenses" })).toBeNull()
+      expect(screen.getByRole("region", { name: NO_EXPENSES_TITLE })).toBeInTheDocument()
+      expect(within(card("Expenses")).getByTestId("metric-value")).toHaveTextContent("—")
+      expect(within(card("Expenses")).getByTestId("metric-entries-note")).toHaveTextContent(NO_EXPENSES_TEXT)
     })
 
     it("the Expenses card shares its chart choice with the Overview card", async () => {
@@ -481,5 +524,20 @@ describe("MetricsTabs", () => {
         })
       ).toHaveAttribute("aria-pressed", "true")
     })
+  })
+})
+
+describe("Overview: MRR and cash this week", () => {
+  beforeEach(mockDesktop)
+  afterEach(() => {
+    window.matchMedia = nativeMatchMedia
+  })
+
+  it("is mounted under the cards, and says Stripe not connected without a key (no sample figures)", async () => {
+    renderTabs()
+    const panel = screen.getByRole("region", { name: "MRR and cash this week" })
+    expect(await within(panel).findByText("Stripe not connected")).toBeInTheDocument()
+    expect(within(panel).queryByTestId("sample-data-tag")).toBeNull()
+    expect(grid().compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

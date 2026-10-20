@@ -4,10 +4,15 @@ import path from "node:path"
 import { expect, test, type Page } from "@playwright/test"
 
 /**
- * Review stills for System Status at the four target widths, both themes.
- * Opt-in: `SCREENSHOTS=1 pnpm test:e2e e2e/responsive-system-status-screens.spec.ts`
+ * Review stills for System Status at the four target widths, both themes:
+ * the real page (no checks, Not connected), and the same page at
+ * `?preview=green`, which is ignored (no preview route or control). The
+ * walk and its assertions run in every e2e run (CI included); the PNGs are
+ * written only with
+ * `SCREENSHOTS=1 pnpm test:e2e e2e/responsive-system-status-screens.spec.ts`.
+ * Nothing is hidden: no nextjs-portal override (a production build has none).
  */
-test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
+const CAPTURE = Boolean(process.env.SCREENSHOTS)
 
 const OUT_DIRS = [
   path.resolve("docs/screenshots/responsive/system-status"),
@@ -22,7 +27,7 @@ const SIZES = {
 } as const
 
 async function shoot(page: Page, name: string) {
-  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
+  if (!CAPTURE) return
   await page.waitForTimeout(250)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
@@ -47,18 +52,16 @@ for (const theme of ["light", "dark"] as const) {
       await page.setViewportSize(viewport)
       await page.goto("/system-status")
       await forceTheme(page, theme)
-      await expect(banner(page).getByRole("heading", { level: 2, name: "All systems green" })).toBeVisible()
-      await shoot(page, `system-status-${size}-green-${theme}`)
+      await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
+      await expect(page.getByRole("main").locator("header").getByTestId("not-connected")).toBeVisible()
+      await expect(page.getByRole("main").getByRole("group", { name: "Preview", exact: true })).toHaveCount(0)
+      await shoot(page, `system-status-${size}-no-key-${theme}`)
 
-      await page.goto("/system-status?preview=not-green")
-      await forceTheme(page, theme)
-      await expect(banner(page).getByRole("heading", { level: 2, name: "Not green" })).toBeVisible()
-      await shoot(page, `system-status-${size}-not-green-${theme}`)
-
-      await page.goto("/system-status?preview=empty")
+      await page.goto("/system-status?preview=green")
       await forceTheme(page, theme)
       await expect(banner(page).getByRole("heading", { level: 2, name: "No checks yet" })).toBeVisible()
-      await shoot(page, `system-status-${size}-empty-${theme}`)
+      await expect(page.getByRole("main").getByTestId("sample-data-tag")).toHaveCount(0)
+      await shoot(page, `system-status-${size}-preview-green-ignored-${theme}`)
     })
   }
 }

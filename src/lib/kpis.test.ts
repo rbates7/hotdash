@@ -20,7 +20,6 @@ import {
   netSubscribers,
   priorExpensesTotal,
   seedChurnedSubscribers,
-  seedEventDates,
   seedExpenses,
   seedNewSubscribers,
   snapshotFor,
@@ -127,7 +126,11 @@ describe("the seed reconciles", () => {
 
   it.each(DAYS)("every seed event sits inside the trailing-28-day period shown in the header (%s)", (today) => {
     const period = periodEnding(today)
-    const dates = seedEventDates(today)
+    const dates = [
+      ...seedExpenses(today).map((e) => e.date),
+      ...seedNewSubscribers(today).map((s) => s.signupDate),
+      ...seedChurnedSubscribers(today).map((s) => s.churnDate),
+    ]
     expect(dates.length).toBe(8 + 8 + 5)
     for (const d of dates) expect(inPeriod(d, period), `${d} in ${period.start}..${period.end}`).toBe(true)
     // Churned sign-ups are months before the churn, as churn is; they are
@@ -176,7 +179,8 @@ describe("Expenses are scoped to the period", () => {
   })
 
   it("with no rows in the prior period the baseline alone is the comparison (+2.4%, as the mock)", () => {
-    const snap = snapshotFor("expenses", { today })
+    // The fixture math, fed the old seed rows explicitly (no screen shows them).
+    const snap = snapshotFor("expenses", { today, expenses: seedExpenses(today) })
     expect(snap.value).toBe(8_240)
     expect(snap.previous).toBe(8_050)
     expect(trendFor(snap.value, snap.previous, "percent", { lowerIsBetter: true }).text).toBe("+2.4%")

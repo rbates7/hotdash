@@ -3,18 +3,15 @@
 import Link from "next/link"
 import { BugOffIcon, ChevronRightIcon } from "lucide-react"
 
-import { STATUS_TEXT, groupBugs, hasSeedBugs, openBugs } from "@/lib/bugs"
+import { STATUS_TEXT, groupBugs, openBugs, userBugs } from "@/lib/bugs"
 import { formatRelative } from "@/lib/clock"
 import { PRIORITY_CONFIG, STATUS_CONFIG, actorById, type Actor, type Issue } from "@/lib/issues"
 import { cn } from "@/lib/utils"
 import { ActorAvatar } from "@/components/agent-workplace/actor-avatar"
 import { BugTag } from "@/components/bugs/bug-tag"
-import { SampleDataNotice } from "@/components/sample-data"
-
-export const SEED_BUGS_NOTICE =
-  "These are example tickets from the Agent Workplace demo board. Coach names, crash reports and dates are invented."
 
 export const EMPTY_BUGS = "No open bugs"
+export const EMPTY_BUGS_HINT = "Tag a ticket bug on the Agent Workplace board and it shows here."
 
 /** Where a bug row goes: the same ticket, opened on this page. */
 export function bugHref(key: string) {
@@ -99,16 +96,17 @@ export function BugsList({
   now: Date
   onOpen?: () => void
 }) {
-  const groups = groupBugs(issues)
-  const open = openBugs(issues).length
+  // Only the founder's own tickets: the Workplace demo board's seed tickets
+  // never show here (the board keeps them until it loses its seed too).
+  const mine = userBugs(issues)
+  const groups = groupBugs(mine)
+  const open = openBugs(mine).length
   const fixed = groups.find((g) => g.status === "done")?.bugs.length ?? 0
-  const seedNotice = hasSeedBugs(issues)
 
   return (
     <section aria-label="Bug list" className="flex min-w-0 flex-col gap-3">
-      {seedNotice && <SampleDataNotice>{SEED_BUGS_NOTICE}</SampleDataNotice>}
       <p className="text-caption text-muted-foreground -mt-1 tracking-tight">
-        Agent Workplace tickets tagged <span className="font-mono">bug</span>, grouped by
+        Your Agent Workplace tickets tagged <span className="font-mono">bug</span>, grouped by
         status. {open} open · {fixed} fixed.
       </p>
 
@@ -116,10 +114,15 @@ export function BugsList({
         <p
           role="status"
           aria-label="Empty bug list"
-          className="bg-surface border-surface-border text-label text-muted-foreground flex items-center justify-center gap-2 rounded-xl border px-[18px] py-8"
+          className="bg-surface border-surface-border text-label text-muted-foreground flex flex-wrap items-center justify-center gap-2 rounded-xl border px-[18px] py-8"
         >
           <BugOffIcon className="size-4" aria-hidden />
           {EMPTY_BUGS}
+          {mine.length === 0 ? (
+            <span data-testid="empty-bugs-hint" className="text-caption basis-full text-center tracking-tight">
+              {EMPTY_BUGS_HINT}
+            </span>
+          ) : null}
         </p>
       )}
 

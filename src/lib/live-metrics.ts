@@ -1,7 +1,15 @@
-import { formatWallClock } from "@/lib/clock"
+import { formatWallClock, periodBefore, periodEnding, type IsoDay } from "@/lib/clock"
 import type { Kpi } from "@/lib/home"
-import { VS_PREVIOUS_WINDOW } from "@/lib/kpis"
-import { formatCurrency, formatMetricValue, trendFor, type MetricId, type MetricSnapshot } from "@/lib/metrics"
+import { SEED_EXPENSE_IDS, VS_PREVIOUS_WINDOW } from "@/lib/kpis"
+import {
+  expensesTotal,
+  formatCurrency,
+  formatMetricValue,
+  trendFor,
+  type Expense,
+  type MetricId,
+  type MetricSnapshot,
+} from "@/lib/metrics"
 import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
 import { isAppStoreConnecting } from "@/lib/app-store-summary"
@@ -10,9 +18,10 @@ import { breakdownNote, breakdownRows, subscriberTotal, type BreakdownRow } from
 
 /**
  * Which numbers come from Stripe or PostHog, and how a screen shows them.
- * Everything else on Home and Metrics stays sample, labelled.
+ * No screen ever shows a fixture figure: fixtures are for tests only.
  *
- * - Not connected → the sample figure with its Sample label, as before.
+ * - Not connected → no figure: the card says Not connected (its source has
+ *                   no key) or names that no source feeds it yet.
  * - Connected     → Stripe's figure, no label.
  * - Stale         → Stripe's last figure, no label, "Last updated <time>".
  * - Loading       → a placeholder (never a sample number that then swaps),
@@ -70,7 +79,41 @@ export function liveSubscribers(feed: Extract<StripeFeed, { kind: "live" }>, tim
   return { total, breakdown }
 }
 
-export type LiveState = { kind: "sample" } | { kind: "loading" } | { kind: "live"; metric: LiveMetric }
+/**
+ * What a card shows:
+ * - `not_connected` — no figure. `source` names what would feed it (no key
+ *   yet), or is null when nothing feeds this card yet.
+ * - `loading` — a placeholder; `connecting` while a source with a key runs
+ *   its first sync (#50), so the card says Connecting….
+ * - `live` — the source's figure.
+ * - `entries` — Expenses only: the figure is the sum of the rows the founder
+ *   typed into the Expenses tab in this browser — never the seed rows or the
+ *   fixture baseline. `value` is null until one is entered.
+ */
+export type LiveState =
+  | { kind: "entries"; value: number | null; previous: number | null; series: (number | null)[] }
+  | { kind: "not_connected"; source: LiveSource | null }
+  | { kind: "loading"; connecting?: boolean }
+  | { kind: "live"; metric: LiveMetric }
+
+export type LiveSource = "stripe" | "posthog"
+
+/** A card with no figure, and why. */
+export const notConnected = (source: LiveSource | null): LiveState => ({ kind: "not_connected", source })
+
+/** Which source would feed Metrics card `id`, or null when none does yet. */
+export function sourceFor(id: MetricId): LiveSource | null {
+  return STRIPE_METRIC_IDS.has(id) ? "stripe" : POSTHOG_METRIC_IDS.has(id) ? "posthog" : null
+}
+
+/** The card's one line when it has no figure, in the founder's words. */
+export function notConnectedText(source: LiveSource | null): string {
+  return source === "stripe"
+    ? "No figures until Stripe is connected."
+    : source === "posthog"
+      ? "No figures until PostHog is connected."
+      : "No source connected for this metric yet."
+}
 
 const EMPTY: Partial<Record<MetricId, string>> = {
   churn: "No subscribers at the start of the window",
@@ -79,9 +122,10 @@ const EMPTY: Partial<Record<MetricId, string>> = {
 
 /** What the Metrics card `id` shows for this feed. */
 export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): LiveState {
-  if (!STRIPE_METRIC_IDS.has(id) || feed.kind === "sample") return { kind: "sample" }
-  if (feed.kind === "loading") return { kind: "loading" }
-  if (id === "subscribers" && isAppStoreConnecting(feed.appStore)) return { kind: "loading" }
+  if (!STRIPE_METRIC_IDS.has(id)) return notConnected(sourceFor(id))
+  if (feed.kind === "not_connected") return notConnected("stripe")
+  if (feed.kind === "loading") return feed.connecting ? { kind: "loading", connecting: true } : { kind: "loading" }
+  if (id === "subscribers" && isAppStoreConnecting(feed.appStore)) return { kind: "loading", connecting: true }
   const m = feed.metrics
   const subscribers = id === "subscribers" ? liveSubscribers(feed, timeZone) : null
   const source: { value: Rate; previous: Rate; series: Rate[] } =
@@ -104,7 +148,8 @@ const count = (n: number) => n.toLocaleString("en-US")
 
 /** What the Metrics card `id` shows from PostHog's feed. */
 export function posthogMetric(id: MetricId, feed: PosthogFeed, timeZone: string): LiveState {
-  if (!POSTHOG_METRIC_IDS.has(id) || feed.kind === "sample") return { kind: "sample" }
+  if (!POSTHOG_METRIC_IDS.has(id)) return notConnected(sourceFor(id))
+  if (feed.kind === "not_connected") return notConnected("posthog")
   if (feed.kind === "loading") return { kind: "loading" }
   const updated = feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null
   if (id === "active") {
@@ -141,8 +186,42 @@ export function posthogMetric(id: MetricId, feed: PosthogFeed, timeZone: string)
   }
 }
 
-/** What Metrics card `id` shows: PostHog's figure for its cards, Stripe's for Stripe's, sample otherwise. */
-export function liveCard(id: MetricId, stripe: StripeFeed, posthog: PosthogFeed, timeZone: string): LiveState {
+/** The Expenses card's line before the founder has entered a row. */
+export const NO_EXPENSES_TEXT = "No expenses entered yet. Rows you add on the Expenses tab count here."
+/** The Expenses card with entries this window but none in the one before. */
+export const NO_PRIOR_EXPENSES_TEXT = "No expenses entered for the previous 28 days"
+
+/** How many 28-day windows a card's chart shows (oldest first). */
+const WINDOWS = 6
+
+/**
+ * The Expenses card from the rows the founder entered: six 28-day windows
+ * ending `today`, oldest first. Seed rows (`SEED_EXPENSE_IDS`) and the
+ * fixture baseline never count, so with nothing entered there is no figure.
+ */
+export function ownExpenses(expenses: readonly Expense[], today: IsoDay | Date): LiveState {
+  const own = expenses.filter((e) => !SEED_EXPENSE_IDS.has(e.id))
+  if (own.length === 0) return { kind: "entries", value: null, previous: null, series: [] }
+  const series: number[] = []
+  let period = periodEnding(today)
+  for (let i = 0; i < WINDOWS; i++) {
+    series.unshift(expensesTotal(own, period))
+    period = periodBefore(period)
+  }
+  // Nothing entered in the window before: no comparison, rather than "+0.0%".
+  const previous = series[WINDOWS - 2] === 0 ? null : series[WINDOWS - 2]
+  return { kind: "entries", value: series[WINDOWS - 1], previous, series }
+}
+
+/** What Metrics card `id` shows: PostHog's figure for its cards, Stripe's for Stripe's, the founder's entries for Expenses, Not connected otherwise. */
+export function liveCard(
+  id: MetricId,
+  stripe: StripeFeed,
+  posthog: PosthogFeed,
+  timeZone: string,
+  entries: { expenses: readonly Expense[]; today: IsoDay | Date }
+): LiveState {
+  if (id === "expenses") return ownExpenses(entries.expenses, entries.today)
   return POSTHOG_METRIC_IDS.has(id) ? posthogMetric(id, posthog, timeZone) : liveMetric(id, stripe, timeZone)
 }
 
@@ -164,18 +243,33 @@ function direction(t: ReturnType<typeof trendFor>): Kpi["direction"] {
   return t.flat ? "flat" : t.up ? "up" : "down"
 }
 
+/** A KPI card with no figure: an em dash, no delta, never a fixture number. */
+export function notConnectedKpi(kpi: Kpi): Kpi {
+  return { id: kpi.id, label: kpi.label, value: "\u2014", delta: "", direction: "flat", source: "not_connected" }
+}
+
 /**
- * Home's KPI cards with Stripe's figures swapped in where Stripe feeds
- * them (Subscribers and Cash this week on the truth strip; MRR, Subscribers
- * and Churn if the growth set is on). Others pass through as sample.
+ * Home's KPI cards from Stripe's feed. `kpis` supplies only the cards'
+ * ids and labels: a card Stripe feeds shows Stripe's figure (or a
+ * placeholder while it loads or connects); every other card, and every
+ * card while Stripe has no key, is Not connected. No fixture figure ever
+ * passes through.
  */
 export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id: MetricId) => MetricSnapshot, timeZone: string): Kpi[] {
-  return kpis.map((kpi) => {
+  return kpis.map((kpi): Kpi => {
     const isCash = kpi.id === "cash-this-week"
     const isMetric = STRIPE_METRIC_IDS.has(kpi.id as MetricId)
-    if ((!isCash && !isMetric) || feed.kind === "sample") return kpi
-    const loading = { ...kpi, value: "–", delta: "", direction: "flat" as const, source: "loading" as const }
-    if (feed.kind === "loading") return loading
+    if ((!isCash && !isMetric) || feed.kind === "not_connected") return notConnectedKpi(kpi)
+    const loading = (connecting: boolean): Kpi => ({
+      id: kpi.id,
+      label: kpi.label,
+      value: "–",
+      delta: "",
+      direction: "flat",
+      source: "loading",
+      ...(connecting && { connecting: true }),
+    })
+    if (feed.kind === "loading") return loading(Boolean(feed.connecting))
     const updated = feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null
     if (isCash) {
       const { value, previous } = feed.metrics.cashThisWeek
@@ -191,8 +285,8 @@ export function liveKpis(kpis: readonly Kpi[], feed: StripeFeed, snapshots: (id:
     }
     const snap = snapshots(kpi.id as MetricId)
     const state = liveMetric(kpi.id as MetricId, feed, timeZone)
-    if (state.kind === "loading") return loading
-    if (state.kind !== "live") return kpi
+    if (state.kind === "loading") return loading(Boolean(state.connecting))
+    if (state.kind !== "live") return notConnectedKpi(kpi)
     const { value, previous } = state.metric
     if (value === null) {
       return { ...kpi, value: "—", delta: state.metric.empty ?? "", direction: "flat", source: "stripe", updated }

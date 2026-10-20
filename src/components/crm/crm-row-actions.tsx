@@ -38,9 +38,6 @@ export const SHEET_CLOSE = "max-xl:[&>[data-slot=sheet-close]]:size-11!"
 export const SHEET_ACTION =
   "hover:bg-muted focus-visible:ring-ring/50 flex h-12 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium focus-visible:ring-[3px] focus-visible:outline-none [&_svg]:size-4 [&_svg]:shrink-0"
 
-/** Phone cards: the tag keeps its own width instead of stretching across the card. */
-export const CARD = "[&_[data-testid=sample-data-tag]]:self-start"
-
 /** Phone card list: no rule under the last card (the TableCard has its own border). */
 export const CARD_LIST = "[&_[role=listitem]:last-child>*]:border-b-0"
 

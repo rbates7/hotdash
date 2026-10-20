@@ -1,31 +1,43 @@
 import fs from "node:fs"
 import path from "node:path"
 
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { EMPTY_BUGS, EMPTY_BUGS_HINT, SENTRY_TITLE, freshBugs, seededBugs } from "./support/bugs"
 import { settleAnimations } from "./support/contrast"
-import { NOTE, persistenceNote, resetDemoData } from "./support/persistence"
+import { liveInbox, mockInbox } from "./support/inbox"
+import { resetDemoData } from "./support/persistence"
+import { vetUnmockedApi, writeShotShas } from "./support/shots"
 import { setTheme } from "./support/theme"
 
 /**
  * Review screenshots for the Bugs page, every main state in both themes
- * at desktop width. Opt-in: `pnpm screens:bugs` (CI=true so Playwright
- * starts the production server — the Next.js dev badge must never cover
- * Logout). Output goes to docs/screenshots/bugs and, when SCREENSHOT_DIR
- * is set, there as well.
+ * at desktop width. The walk and its assertions run in every e2e run (CI
+ * included), so the states it shoots stay true; the PNGs are written only
+ * with SCREENSHOTS=1 (`pnpm screens:bugs`, CI=true so Playwright starts the
+ * production server). Output goes to docs/screenshots/bugs and, when
+ * SCREENSHOT_DIR is set, there as well. The Next portal is left visible.
+ *
+ * States: nothing connected and nothing of the founder's own (Sentry Not
+ * connected, the empty list and its hint); Sentry live (mocked
+ * /api/inbox, invented issues); the founder's own bug tickets (a saved
+ * Workplace copy); a ticket open on Bugs and on the board; every bug fixed.
  */
-test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
+const CAPTURE = Boolean(process.env.SCREENSHOTS)
 
 const OUT_DIRS = [
   path.resolve("docs/screenshots/bugs"),
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
-const STORAGE_KEY = "hotdash.agent-workplace.v2"
-
 test.use({ viewport: { width: 1440, height: 900 } })
 
-async function shoot(page: Page, name: string, locator?: ReturnType<Page["locator"]>) {
+test.beforeAll(() => {
+  if (CAPTURE) for (const dir of OUT_DIRS) writeShotShas(dir, "bugs stills")
+})
+
+async function shoot(page: Page, name: string, locator?: Locator) {
+  if (!CAPTURE) return
   await settleAnimations(page)
   for (const dir of OUT_DIRS) {
     fs.mkdirSync(dir, { recursive: true })
@@ -37,53 +49,87 @@ async function shoot(page: Page, name: string, locator?: ReturnType<Page["locato
   }
 }
 
-async function fresh(page: Page, path = "/bugs") {
-  await page.goto(path)
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-}
+const list = (page: Page) => page.getByRole("region", { name: "Bug list", exact: true })
+const props = (page: Page) => page.getByRole("complementary", { name: "Ticket properties" })
+const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes: not connected", exact: true })
 
 for (const theme of ["light", "dark"] as const) {
   test(`captures every Bugs state (${theme})`, async ({ page }) => {
-    await fresh(page)
-    await setTheme(page, theme)
-    await expect(page.getByRole("region", { name: "Bug list" })).toBeVisible()
-    await expect(page.getByRole("article", { name: "Crashes" }).getByTestId("crash-count")).toHaveText("8")
+    // A still must never show live data: any /api call not mocked below is vetted.
+    const noLiveData = CAPTURE ? await vetUnmockedApi(page) : () => undefined
 
+    // Nothing connected, nothing saved: Sentry's Not connected panel and the
+    // empty list with its hint. No seed bug anywhere.
+    await freshBugs(page)
+    await setTheme(page, theme)
+    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("—No figure")
+    await expect(crashCard(page).getByTestId("not-connected")).toHaveText("Not connected")
+    const sentryOff = page.getByTestId("sentry-not-connected")
+    await expect(sentryOff).toContainText(SENTRY_TITLE)
+    await expect(list(page).getByRole("status", { name: "Empty bug list" })).toContainText(EMPTY_BUGS)
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+    await expect(list(page).getByRole("link")).toHaveCount(0)
+    await shoot(page, `bugs-not-connected-${theme}`)
+    await shoot(page, `bugs-crash-card-${theme}`, crashCard(page))
+    await shoot(page, `bugs-sentry-not-connected-${theme}`, sentryOff)
+
+    // The founder's own bug tickets, from a saved Workplace copy.
+    await seededBugs(page)
+    await setTheme(page, theme)
+    await expect(list(page).getByText("3 open · 1 fixed")).toBeVisible()
+    await expect(list(page).getByRole("link")).toHaveCount(4)
+    await expect(list(page).getByRole("link", { name: /\bCHLK-419\b/ })).toHaveCount(0)
     await shoot(page, `bugs-list-${theme}`)
-    await shoot(page, `bugs-crash-card-${theme}`, page.getByRole("article", { name: "Crashes", exact: true }))
 
     // Ticket open on Bugs — the Workplace TicketView, editing in place.
-    await page.getByRole("region", { name: "Bug list" }).getByRole("link", { name: /CHLK-419/ }).click()
-    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-419/)
+    await list(page).getByRole("link", { name: /\bCHLK-919\b/ }).click()
+    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-919/)
     await expect(page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeVisible()
-    await expect(page.getByRole("complementary", { name: "Ticket properties" }).getByRole("button", { name: "Untag bug" })).toBeVisible()
+    await expect(props(page).getByRole("button", { name: "Untag bug" })).toBeVisible()
     await shoot(page, `bugs-ticket-${theme}`)
 
     // The same ticket on the Workplace board, so the tag is visible there too.
-    await page.goto("/agent-workplace?issue=CHLK-419")
+    await page.goto("/agent-workplace?issue=CHLK-919")
     await expect(page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeVisible()
+    await expect(props(page).getByRole("button", { name: "Untag bug" })).toBeVisible()
     await expect(page.getByTestId("bug-tag")).toHaveText("Bug · Crash")
     await shoot(page, `bugs-workplace-ticket-${theme}`)
 
-    await page.goto("/bugs")
+    // Every open bug fixed: "No open bugs", the fixed ones still listed.
     for (const [key, from] of [
-      ["CHLK-419", "To Do"],
-      ["CHLK-404", "In Progress"],
-      ["CHLK-420", "In Review"],
+      ["CHLK-919", "To Do"],
+      ["CHLK-904", "In Progress"],
+      ["CHLK-920", "In Review"],
     ] as const) {
       await page.goto(`/bugs?issue=${key}`)
-      const rail = page.getByRole("complementary", { name: "Ticket properties" })
-      await rail.getByRole("button", { name: from, exact: true }).click()
+      await props(page).getByRole("button", { name: from, exact: true }).click()
       await page.getByRole("dialog").getByRole("button", { name: "Done", exact: true }).click()
       await page.keyboard.press("Escape")
+      await expect(props(page).getByRole("button", { name: "Done", exact: true })).toBeVisible()
     }
     await page.goto("/bugs")
-    await expect(page.getByRole("status", { name: "Empty bug list" })).toHaveText("No open bugs")
-    await shoot(page, `bugs-empty-${theme}`)
+    await expect(list(page).getByRole("status", { name: "Empty bug list" })).toHaveText(EMPTY_BUGS)
+    await expect(list(page).getByText("0 open · 4 fixed")).toBeVisible()
+    await shoot(page, `bugs-all-fixed-${theme}`)
 
+    // Reset discards the saved copy: back to the empty list and its hint.
     await resetDemoData(page, page.locator("main header").first())
-    await expect(page.getByRole("region", { name: "Bug list" }).getByText("3 open · 1 fixed")).toBeVisible()
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+    noLiveData()
+  })
+
+  test(`captures Sentry connected (${theme})`, async ({ page }) => {
+    const noLiveData = CAPTURE ? await vetUnmockedApi(page) : () => undefined
+    // Mocked after the vet so the newest route (this one) answers /api/inbox.
+    await mockInbox(page, liveInbox(Date.now()))
+    await freshBugs(page)
+    await setTheme(page, theme)
+    const sentry = page.getByTestId("sentry-crashes")
+    await expect(sentry).toHaveAttribute("data-state", "connected")
+    await expect(sentry.getByRole("link")).toHaveCount(3)
+    await expect(page.getByTestId("sentry-not-connected")).toHaveCount(0)
+    await shoot(page, `bugs-sentry-live-${theme}`)
+    await shoot(page, `bugs-sentry-rows-${theme}`, sentry)
+    noLiveData()
   })
 }

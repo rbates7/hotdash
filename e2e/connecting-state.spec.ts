@@ -6,6 +6,7 @@ import { waitForHydration } from "./support/shell"
 import { expectReadable } from "./support/contrast"
 import { mockStripe } from "./support/stripe"
 import { setTheme } from "./support/theme"
+import { OTHER_CARDS_TEXT, STRIPE_CONNECTING_TEXT } from "../src/components/metrics/metrics-sample-notice"
 
 /**
  * "Connecting": the server has a key and its first sync is still running
@@ -52,6 +53,13 @@ test.describe("Stripe connecting (1440)", () => {
     await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
     await expect(ticker(page)).toHaveAttribute("data-state", "loading")
     await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
+    // Home's own copy of the connecting state: Connecting…, never Not connected.
+    for (const name of ["Subscribers", "Cash this week"]) {
+      await expect(kpi(page, name).getByTestId("connecting")).toHaveText("Connecting…")
+    }
+    await expect(ticker(page).getByTestId("connecting")).toBeVisible()
+    await expect(page.getByRole("region", { name: "Metrics" }).getByTestId("connecting")).toBeVisible()
+    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(2) // Workplace + Inbox doors
   })
 
   test("Metrics: the Stripe cards carry no Sample label", async ({ page }) => {
@@ -60,7 +68,7 @@ test.describe("Stripe connecting (1440)", () => {
     for (const name of ["MRR", "Churn Rate", "Trial Conversions", "Subscribers"]) {
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    const notice = main(page).getByTestId("sample-data-notice")
+    const notice = main(page).getByTestId("metrics-connection-notice")
     await expect(notice).toContainText("Stripe’s first sync is in progress")
     await expect(notice).not.toContainText(/nothing is connected/i)
   })
@@ -98,19 +106,21 @@ test.describe("Stripe connecting (1440)", () => {
 test.describe("no key at all (the real server)", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test("is still the honest Not connected, with the labelled sample", async ({ page }) => {
+  test("is still the honest Not connected (Settings and Home)", async ({ page }) => {
     await open(page, "/settings")
     await expect(stripeRow(page)).toContainText("Not connected")
     await open(page, "/home")
-    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "sample")
+    // Home carries no sample data: no key reads as Not connected there.
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "not_connected")
+    await expect(kpi(page, "Subscribers").getByTestId("not-connected")).toBeVisible()
   })
 })
 
 /* --------------------------------------------- connecting copy, readable */
 
-const NOTICE_COPY =
-  "Connecting. Stripe’s first sync is in progress; MRR, Churn Rate, Trial Conversions and Subscribers will appear when it finishes. Every other number on this page is illustrative"
-const SETTINGS_COPY = "Stripe is connecting (first sync in progress); its figures show a placeholder until then. Every other number is still sample data."
+// The page's own constants, so the copy here cannot drift from the screen.
+const NOTICE_COPY = `Connecting. ${STRIPE_CONNECTING_TEXT}. PostHog is not connected yet. ${OTHER_CARDS_TEXT}`
+const SETTINGS_COPY = "Stripe is connecting (first sync in progress); its cards say Connecting\u2026 until then."
 
 for (const width of [390, 820, 1440] as const) {
   for (const theme of ["light", "dark"] as const) {
@@ -121,7 +131,7 @@ for (const width of [390, 820, 1440] as const) {
         await mockStripe(page, connectingSummary())
         await open(page, "/metrics")
         await setTheme(page, theme)
-        const notice = main(page).getByTestId("sample-data-notice")
+        const notice = main(page).getByTestId("metrics-connection-notice")
         await expect(notice).toContainText(NOTICE_COPY)
         await expect(notice).not.toContainText(/nothing is connected/i)
         await expectReadable(notice, `metrics connecting notice ${width} ${theme}`, expect)
@@ -134,6 +144,7 @@ for (const width of [390, 820, 1440] as const) {
         await setTheme(page, theme)
         const section = main(page).getByRole("region", { name: "Sample data" })
         await expect(section).toContainText(SETTINGS_COPY)
+        await expect(section).not.toContainText(/every (other )?number is still sample/i)
         await expectReadable(section, `settings connecting copy ${width} ${theme}`, expect)
         await expect(stripeRow(page).getByTestId("stripe-status")).toHaveText("Connecting…")
       })

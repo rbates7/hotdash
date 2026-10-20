@@ -61,19 +61,19 @@ export function parsePosthogSummary(value: unknown): PosthogSummary | null {
 export type PosthogView = { phase: "loading" } | { phase: "ready"; summary: PosthogSummary }
 
 /**
- * What a PostHog-backed number shows — `loading` (a placeholder), `sample`
- * (not connected: the sample figure, labelled) or `live` (PostHog's
- * figure; `stale` adds "Last updated …").
+ * What a PostHog-backed number shows — `loading` (a placeholder),
+ * `not_connected` (no key: no figure, never a sample one) or `live`
+ * (PostHog's figure; `stale` adds "Last updated …").
  */
 export type PosthogFeed =
   | { kind: "loading" }
-  | { kind: "sample" }
+  | { kind: "not_connected" }
   | { kind: "live"; stale: boolean; lastSyncedAt: Date; metrics: PosthogMetrics }
 
 export function posthogFeedOf(view: PosthogView): PosthogFeed {
   if (view.phase === "loading") return { kind: "loading" }
   const { summary } = view
-  if (summary.status === "not_connected") return { kind: "sample" }
+  if (summary.status === "not_connected") return { kind: "not_connected" }
   return {
     kind: "live",
     stale: summary.status === "stale",

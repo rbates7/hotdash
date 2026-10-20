@@ -1,6 +1,6 @@
 import * as React from "react"
 import { act, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type LoadResult, type RejectedCopy } from "@/lib/persistence"
 import { buildSeed, seedState } from "@/lib/roadmap/fixture"
@@ -10,6 +10,7 @@ import {
   RoadmapProvider,
   STORAGE_KEY,
   clearState,
+  configureRoadmapBoard,
   initialRoadmapShell,
   loadState,
   reducer,
@@ -31,9 +32,49 @@ const AT = "2026-10-07T15:00:00.000Z"
 const titlesIn = (state: RoadmapState, column: "now" | "next" | "later") =>
   inColumn(state.items, column).map((i) => i.title)
 
+// The suites below exercise the editing and persistence machinery on the
+// fixture's bets, untagged (tests only); the app starts from an empty board, pinned
+// in "the starting board" below.
+beforeEach(() => {
+  configureRoadmapBoard(ownBets)
+})
+
+/** The fixture as a founder's own bets (no sample tag), which a saved copy keeps. */
+const ownBets = (nowMs = NOW): RoadmapState => {
+  const state = seedState(nowMs)
+  return {
+    ...state,
+    items: state.items.map((item) => {
+      const own = { ...item }
+      delete own.sample
+      return own
+    }),
+  }
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
+})
+
+describe("the starting board (no Notion, nothing saved)", () => {
+  it("is empty in the app: no sample bets", () => {
+    configureRoadmapBoard(null)
+    expect(initialRoadmapShell(NOW).data).toEqual({ items: [], nextId: 1 })
+    expect(hydrated().data).toEqual({ items: [], nextId: 1 })
+    expect(shellReducer(hydrated(), { type: "reset", nowMs: NOW }).data).toEqual({ items: [], nextId: 1 })
+  })
+
+  it("leaves out bets still tagged sample in a copy saved before #45 (no sample bet is shown)", () => {
+    const old = seedState(NOW)
+    const mine = { ...old.items[0], id: "rm-99", title: "Mine" }
+    delete mine.sample
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: [...old.items, mine], nextId: 100 }))
+    const result = loadState(window.localStorage)
+    expect(result.status).toBe("saved")
+    expect(result.state?.items.map((i) => i.title)).toEqual(["Mine"])
+    expect(result.state?.nextId).toBe(100)
+  })
 })
 
 const empty: LoadResult<RoadmapState> = { state: null, status: "empty" }
@@ -88,7 +129,7 @@ describe("reducer", () => {
     expect(parseState(JSON.parse(JSON.stringify(state)))).toEqual(state)
   })
 
-  it("edits title, why, owner and window; rewriting the words drops the sample tag", () => {
+  it("edits title, why, owner and window", () => {
     const state = reducer(seedState(NOW), {
       type: "patch",
       id: "rm-1",
@@ -97,28 +138,9 @@ describe("reducer", () => {
     })
     const i = state.items.find((x) => x.id === "rm-1")!
     expect(i).toMatchObject({ title: "Flag 2026", why: "Flag.", owner: "Mace", window: "Q1 2027", updatedAt: AT })
-    expect(i.sample).toBeUndefined()
   })
 
-  it("rewriting rm-4's title drops the sample leftovers: no tag, 0 tickets, no source, signedAt = at", () => {
-    const seed = seedState(NOW).items.find((x) => x.id === "rm-4")!
-    expect(seed).toMatchObject({ sample: true, fromFeatureRequest: true, linkedTickets: 1 })
-    expect(seed.signedAt).not.toBe(AT)
-    const state = reducer(seedState(NOW), {
-      type: "patch",
-      id: "rm-4",
-      patch: { title: "Import a play from a HUDL link" },
-      at: AT,
-    })
-    const i = state.items.find((x) => x.id === "rm-4")!
-    expect(i.sample).toBeUndefined()
-    expect(i.fromFeatureRequest).toBeUndefined()
-    expect(i.linkedTickets).toBe(0)
-    expect(i.signedAt).toBe(AT)
-    expect(i.title).toBe("Import a play from a HUDL link")
-  })
-
-  it("re-owning a bet keeps the sample tag; it is still our words", () => {
+  it("re-owning a bet changes only the owner and updatedAt", () => {
     const state = reducer(seedState(NOW), { type: "patch", id: "rm-1", patch: { owner: "Mace" }, at: AT })
     const i = state.items.find((x) => x.id === "rm-1")!
     expect(i.owner).toBe("Mace")
@@ -197,7 +219,7 @@ describe("shell (through the shared persistence shell)", () => {
   it("starts unhydrated, unsaved and never-edited, seeded from and holding the request clock", () => {
     const shell = initialRoadmapShell(NOW)
     expect(shell).toMatchObject({ persisted: false, saved: false, edited: false, saveFailed: false, edits: 0, savedEdits: 0, nowMs: NOW })
-    expect(shell.data).toEqual(seedState(NOW))
+    expect(shell.data).toEqual(ownBets(NOW))
   })
 
   it("the first hydrate applies a saved copy (saved, not edited, clock unmoved) or seeds lazily from the request clock", () => {
@@ -206,11 +228,11 @@ describe("shell (through the shared persistence shell)", () => {
     expect(withCopy).toMatchObject({ data: saved, persisted: true, saved: true, edited: false, nowMs: NOW })
     const none = hydrated(NOW)
     expect(none).toMatchObject({ persisted: true, saved: false, edited: false, nowMs: NOW })
-    expect(none.data).toEqual(seedState(NOW))
+    expect(none.data).toEqual(ownBets(NOW))
   })
 
   it("the storage parses with the validator, so unknown keys never reach the board", () => {
-    const saved = seedState(NOW)
+    const saved = ownBets(NOW)
     const withExtras = { ...saved, version: 1, items: saved.items.map((i) => ({ ...i, extra: true })) }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(withExtras))
     expect(loadState(window.localStorage)).toEqual({ state: saved, status: "saved" })
@@ -264,7 +286,7 @@ describe("shell (through the shared persistence shell)", () => {
     shell = shellReducer(shell, { type: "save-result", ok: true })
     shell = shellReducer(shell, { type: "hydrate", result: empty, nowMs: LATE_EVENING_CT_MS })
     expect(shell).toMatchObject({ edited: false, saved: false, nowMs: LATE_EVENING_CT_MS })
-    expect(shell.data).toEqual(seedState(LATE_EVENING_CT_MS))
+    expect(shell.data).toEqual(ownBets(LATE_EVENING_CT_MS))
   })
 
   it("reset rebuilds the seed from the instant it is handed and moves the clock", () => {
@@ -274,7 +296,7 @@ describe("shell (through the shared persistence shell)", () => {
     const later = Date.parse("2027-03-01T15:00:00.000Z")
     const reset = shellReducer(shell, { type: "reset", nowMs: later })
     expect(reset).toMatchObject({ persisted: true, saved: false, edited: false, saveFailed: false, nowMs: later, edits: shell.edits, savedEdits: shell.edits })
-    expect(reset.data).toEqual(seedState(later))
+    expect(reset.data).toEqual(ownBets(later))
     expect(reset.data.items[0].window).toBe("Q1 2027")
   })
 })
@@ -288,7 +310,7 @@ describe("storage (shared createStorage, roadmap key)", () => {
   })
 
   it("round-trips a state and reports success", () => {
-    const state = reducer(seedState(NOW), { type: "add", input: { title: "Round trip" }, at: AT })
+    const state = reducer(ownBets(NOW), { type: "add", input: { title: "Round trip" }, at: AT })
     expect(saveState(window.localStorage, state)).toBe(true)
     expect(loadState(window.localStorage)).toEqual({ state, status: "saved" })
   })
@@ -298,13 +320,13 @@ describe("storage (shared createStorage, roadmap key)", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError")
     })
-    expect(saveState(window.localStorage, seedState(NOW))).toBe(false)
-    expect(saveState(undefined, seedState(NOW))).toBe(false)
+    expect(saveState(window.localStorage, ownBets(NOW))).toBe(false)
+    expect(saveState(undefined, ownBets(NOW))).toBe(false)
   })
 
   it("load() is pure: a copy with one bad item is refused and left in place; the first save parks it", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const good = seedState(NOW)
+    const good = ownBets(NOW)
     const bad = { ...good, items: good.items.map((i, n) => (n === 2 ? { ...i, owner: "Dan" } : i)) }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
@@ -327,7 +349,7 @@ describe("storage (shared createStorage, roadmap key)", () => {
   })
 
   it("does not re-write an identical copy", () => {
-    const state = seedState(NOW)
+    const state = ownBets(NOW)
     expect(saveState(window.localStorage, state)).toBe(true)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     expect(saveState(window.localStorage, state)).toBe(true)
@@ -417,7 +439,7 @@ describe("RoadmapProvider", () => {
   })
 
   it("does not re-write a copy it merely found on load", () => {
-    const state = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT })
+    const state = reducer(ownBets(NOW), { type: "add", input: { title: "Mine" }, at: AT })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     const setItem = vi.spyOn(Storage.prototype, "setItem")
     mount()
@@ -508,7 +530,7 @@ describe("RoadmapProvider", () => {
 
   it("falls back to the seed when the saved copy has one bad item; the copy is parked on the first save", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const bad = reducer(seedState(NOW), { type: "add", input: { title: "Mine" }, at: AT })
+    const bad = reducer(ownBets(NOW), { type: "add", input: { title: "Mine" }, at: AT })
     bad.items[3] = { ...bad.items[3], column: "shipped" as never }
     const raw = JSON.stringify(bad)
     window.localStorage.setItem(STORAGE_KEY, raw)
@@ -530,7 +552,7 @@ describe("RoadmapProvider", () => {
   it("follows a change made in another tab without writing anything back, clock unmoved", () => {
     mount()
     click("add") // this tab has saved edits of its own
-    const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
+    const other = reducer(ownBets(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
     const raw = JSON.stringify(other)
     window.localStorage.setItem(STORAGE_KEY, raw)
     const setItem = vi.spyOn(Storage.prototype, "setItem")
@@ -567,7 +589,7 @@ describe("RoadmapProvider", () => {
 
   it("after taking another tab's copy, the next real edit writes exactly once", () => {
     mount()
-    const other = reducer(seedState(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
+    const other = reducer(ownBets(NOW), { type: "add", input: { title: "From another tab", column: "now" }, at: AT })
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(other))
     act(() => fireStorageEvent(STORAGE_KEY, JSON.stringify(other)))
     const setItem = vi.spyOn(Storage.prototype, "setItem")

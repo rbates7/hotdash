@@ -48,10 +48,10 @@ test.describe("Settings (desktop 1440)", () => {
       await expect(section(page, name)).toBeVisible()
     }
     const connected = section(page, "Connected data")
-    for (const source of ["Stripe", "PostHog", "Sentry", "Gmail"]) {
+    for (const source of ["Stripe", "PostHog", "Sentry", "Gmail", "Notion"]) {
       await expect(connected.getByText(source, { exact: true })).toBeVisible()
     }
-    await expect(connected.getByText("Not connected", { exact: true })).toHaveCount(4)
+    await expect(connected.getByText("Not connected", { exact: true })).toHaveCount(5)
   })
 
   test("appearance drives the real theme provider", async ({ page }) => {
@@ -153,7 +153,6 @@ test.describe("Settings (desktop 1440)", () => {
     await appearance(page).getByRole("button", { name: "Light" }).click()
     await section(page, "Goals and targets").getByLabel("Trial-to-paid target").fill("18")
     await section(page, "Goals and targets").getByRole("button", { name: "Save goals" }).click()
-    await section(page, "Sample data").getByRole("switch", { name: "Show Sample data labels" }).click()
     await section(page, "Time zone").getByRole("combobox").click()
     await page.getByRole("option", { name: "Pacific" }).click()
     await expect(page.getByTestId("settings-clock")).toContainText(/P[DS]T/)
@@ -163,7 +162,9 @@ test.describe("Settings (desktop 1440)", () => {
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/)
     await expect(appearance(page).getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "true")
     await expect(section(page, "Goals and targets").getByLabel("Trial-to-paid target")).toHaveValue("18")
-    await expect(section(page, "Sample data").getByRole("switch", { name: "Show Sample data labels" })).not.toBeChecked()
+    // The Sample data card has no switch (the labels are always on).
+    await expect(section(page, "Sample data").getByRole("switch")).toHaveCount(0)
+    await expect(section(page, "Sample data")).toContainText("there is no switch to hide it")
     await expect(section(page, "Time zone").getByRole("combobox")).toContainText("Pacific")
     await expect(sidebar.getByRole("switch", { name: "Show Bugs" })).not.toBeChecked()
     await expect.poll(() => navLabels(page)).toEqual(
@@ -175,7 +176,7 @@ test.describe("Settings (desktop 1440)", () => {
     await waitForHydration(page)
     await expect(page.getByRole("heading", { level: 1, name: "Bugs" })).toBeVisible()
 
-    // Sample data off reaches the screens that use the shared helper.
+    // Home has no sample left to label, so no Sample data tag renders there.
     await page.goto("/home")
     await waitForHydration(page)
     await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)

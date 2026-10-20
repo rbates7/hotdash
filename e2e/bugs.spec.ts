@@ -1,6 +1,17 @@
 import { expect, test, type Page } from "@playwright/test"
 
+import {
+  EMPTY_BUGS,
+  EMPTY_BUGS_HINT,
+  SENTRY_EMPTY,
+  SENTRY_HINT,
+  SENTRY_TITLE,
+  WORKPLACE_KEY as STORAGE_KEY,
+  freshBugs,
+  seededBugs,
+} from "./support/bugs"
 import { expectProbeCatchesSabotage, expectReadable } from "./support/contrast"
+import { connectingInbox, emptyInbox, liveInbox, mockInbox } from "./support/inbox"
 import {
   NOTE,
   countWrites,
@@ -10,24 +21,21 @@ import {
 } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
-/** Bugs has no key of its own: it reads and writes the Workplace's. */
-const STORAGE_KEY = "hotdash.agent-workplace.v2"
+/** The Workplace seed's bug tickets: still on the board, never on Bugs. */
+const SEED_BUG_KEYS = ["CHLK-404", "CHLK-419", "CHLK-420", "CHLK-421"] as const
 
 const rail = (page: Page) => page.getByRole("navigation", { name: "Founder dashboard" })
 const list = (page: Page) => page.getByRole("region", { name: "Bug list", exact: true })
 const group = (page: Page, name: string) => list(page).getByRole("region", { name, exact: true })
 const bug = (page: Page, key: string) => list(page).getByRole("link", { name: new RegExp(`\\b${key}\\b`) })
-const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes", exact: true })
+const crashCard = (page: Page) => page.getByRole("article", { name: "Crashes: not connected", exact: true })
+const sentryOff = (page: Page) => page.getByRole("region", { name: `${SENTRY_TITLE}: not connected`, exact: true })
+const sentry = (page: Page) => page.getByTestId("sentry-crashes")
+const emptyStatus = (page: Page) => list(page).getByRole("status", { name: "Empty bug list" })
 const props = (page: Page) => page.getByRole("complementary", { name: "Ticket properties" })
 const pageHeader = (page: Page) => page.locator("main header").first()
-
-async function freshBugs(page: Page, path = "/bugs") {
-  await page.goto(path)
-  await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
-  await page.reload()
-  await expect(persistenceNote(page)).toHaveText(NOTE.unsaved)
-  await expect(pageHeader(page).getByRole("button", { name: "Reset", exact: true })).toBeDisabled()
-}
+const card = (page: Page, column: string, key: string) =>
+  page.getByRole("region", { name: column, exact: true }).getByRole("button", { name: new RegExp(`\\b${key}\\b`) })
 
 async function setStatus(page: Page, from: string, to: string) {
   await props(page).getByRole("button", { name: from, exact: true }).click()
@@ -37,13 +45,93 @@ async function setStatus(page: Page, from: string, to: string) {
 }
 
 test.describe("Bugs", () => {
-  test("is reachable from the sidebar and shows the Workplace's bugs grouped by status, plus the crash card", async ({ page }) => {
+  test("is reachable from the sidebar; with no keys and no tickets of the founder's own it shows Sentry Not connected, the crash card and the empty list", async ({ page }) => {
     await page.goto("/home")
+    await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
     await rail(page).getByRole("link", { name: "Bugs", exact: true }).click()
     await expect(page).toHaveURL(/\/bugs$/)
     await expect(page.getByRole("heading", { level: 1, name: "Bugs" })).toBeVisible()
     await expect(rail(page).getByRole("link", { name: "Bugs", exact: true })).toHaveAttribute("data-active")
     await expect(page.getByText("Yo-Yo's page. Coach-reported and crashes.")).toBeVisible()
+    await expect(pageHeader(page).getByText("Dummy / design mock")).toHaveCount(0)
+
+    // The e2e server has no Sentry token: /api/inbox says not connected, so
+    // the Sentry list is the Not connected panel, never rows.
+    await expect(sentryOff(page)).toBeVisible()
+    await expect(sentryOff(page)).toHaveAttribute("data-testid", "sentry-not-connected")
+    await expect(sentryOff(page)).toContainText("Not connected")
+    await expect(sentryOff(page)).toContainText(SENTRY_TITLE)
+    await expect(sentryOff(page)).toContainText(SENTRY_HINT)
+    await expect(sentry(page)).toHaveCount(0)
+
+    // Sentry is not connected: the crash card has no figure and no Sample label.
+    await expect(crashCard(page)).toHaveAttribute("data-source", "not_connected")
+    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("—No figure")
+    await expect(crashCard(page).getByTestId("crash-count").getByText("No figure", { exact: true })).toHaveClass(/\bsr-only\b/)
+    await expect(crashCard(page).getByTestId("not-connected")).toHaveText("Not connected")
+    await expect(crashCard(page).getByText(/no figure until Sentry is connected/)).toBeVisible()
+    await expect(crashCard(page).getByText(/vs previous 7 days/)).toHaveCount(0)
+
+    // The Workplace seed carries four bug tickets; none is the founder's, so
+    // the list is empty and says where bugs come from.
+    await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
+    await expect(emptyStatus(page)).toContainText(EMPTY_BUGS)
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+    await expect(list(page).getByRole("heading", { level: 2 })).toHaveCount(0)
+    await expect(list(page).getByRole("link")).toHaveCount(0)
+    for (const key of SEED_BUG_KEYS) await expect(page.getByText(key, { exact: true })).toHaveCount(0)
+    await expect(page.getByText("Crash opening a shared playbook on iPad")).toHaveCount(0)
+    await expect(page.getByRole("note", { name: "Sample data" })).toHaveCount(0)
+    await expect(page.getByTestId("sample-data-tag")).toHaveCount(0)
+
+    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
+  })
+
+  test("Sentry connected (mocked /api/inbox): its unresolved issues list as rows that open Sentry", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
+    await freshBugs(page)
+
+    await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+    await expect(sentryOff(page)).toHaveCount(0)
+    await expect(sentry(page).getByRole("heading", { level: 2, name: SENTRY_TITLE })).toBeVisible()
+    const rows = sentry(page).getByRole("link")
+    // Only the Sentry rows: the inbox's GitHub PRs stay on the Workplace Inbox.
+    await expect(rows).toHaveCount(3)
+    await expect(sentry(page).getByText("3", { exact: true })).toBeVisible()
+    await expect(sentry(page).getByText(/PR ready for review|#912/)).toHaveCount(0)
+
+    const first = rows.first()
+    await expect(first).toContainText("Crash · New issue")
+    await expect(first).toContainText("CHLK-IOS-4F Crash opening a practice plan · 12 events, 4 users")
+    await expect(first).toHaveAttribute("href", "https://chlk.sentry.io/issues/7001/")
+    await expect(first).toHaveAttribute("target", "_blank")
+    await expect(first).toHaveAccessibleName(/\(opens Sentry\)$/)
+    // Dated 95, 240 and 600 minutes back from now: default `ago` style.
+    await expect(sentry(page).getByTestId("sentry-age")).toHaveText(["2h ago", "4h ago", "10h ago"])
+    await expect(rows.nth(1)).toContainText("Error · Regressed")
+    await expect(rows.nth(2)).toContainText("Error · Ongoing")
+
+    // The weekly crash count still has no source, so the card stays honest.
+    await expect(crashCard(page)).toHaveAttribute("data-source", "not_connected")
+  })
+
+  test("Sentry connected with nothing open, and while its first sync runs, shows no rows", async ({ page }) => {
+    await mockInbox(page, emptyInbox(Date.now()))
+    await freshBugs(page)
+    await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+    await expect(sentry(page).getByRole("status")).toHaveText(SENTRY_EMPTY)
+    await expect(sentry(page).getByRole("link")).toHaveCount(0)
+
+    await page.unroute("**/api/inbox")
+    await mockInbox(page, connectingInbox(Date.now()))
+    await page.reload()
+    await expect(sentry(page)).toHaveAttribute("data-state", "connecting")
+    await expect(sentry(page).getByText("Connecting to Sentry… first sync in progress.")).toBeVisible()
+    await expect(sentry(page).getByRole("link")).toHaveCount(0)
+  })
+
+  test("lists the founder's own bug tickets grouped by status; the seed's bug tickets never show", async ({ page }) => {
+    await seededBugs(page)
 
     await expect(list(page).getByRole("heading", { level: 2 })).toHaveText([
       "To Do",
@@ -56,31 +144,47 @@ test.describe("Bugs", () => {
     await expect(group(page, "In Progress").getByRole("link")).toHaveText([/Undo stack for iPad canvas/])
     await expect(group(page, "In Review").getByRole("link")).toHaveText([/Route arrows vanish after undo/])
     await expect(group(page, "Done").getByRole("link")).toHaveText([/Crash exporting a book to PDF/])
+    await expect(emptyStatus(page)).toHaveCount(0)
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveCount(0)
 
-    await expect(bug(page, "CHLK-419").getByTestId("bug-tag")).toHaveText("Bug · Crash")
-    await expect(bug(page, "CHLK-420").getByTestId("bug-tag")).toHaveText("Bug · Coach-reported")
-    await expect(bug(page, "CHLK-419")).toContainText("Yo-Yo")
-    await expect(bug(page, "CHLK-419")).toContainText("Urgent")
-    // Seeded five hours before the page's instant: default `ago` style.
-    await expect(bug(page, "CHLK-419").getByTestId("bug-age")).toHaveText("5h ago")
-    await expect(bug(page, "CHLK-404").getByTestId("bug-age")).toHaveText("17h ago")
-    await expect(bug(page, "CHLK-421").getByTestId("bug-age")).toHaveText("4d ago")
+    await expect(bug(page, "CHLK-919").getByTestId("bug-tag")).toHaveText("Bug · Crash")
+    await expect(bug(page, "CHLK-920").getByTestId("bug-tag")).toHaveText("Bug · Coach-reported")
+    await expect(bug(page, "CHLK-919")).toContainText("Yo-Yo")
+    await expect(bug(page, "CHLK-919")).toContainText("Urgent")
+    await expect(bug(page, "CHLK-919")).toHaveAttribute("href", "/bugs?issue=CHLK-919")
+    // Saved five hours before the page's instant: default `ago` style.
+    await expect(bug(page, "CHLK-919").getByTestId("bug-age")).toHaveText("5h ago")
+    await expect(bug(page, "CHLK-904").getByTestId("bug-age")).toHaveText("17h ago")
+    await expect(bug(page, "CHLK-921").getByTestId("bug-age")).toHaveText("4d ago")
 
-    expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
-
-    await expect(crashCard(page).getByTestId("crash-count")).toHaveText("8")
-    await expect(crashCard(page).getByText("−7 vs previous 7 days")).toBeVisible()
-    await expect(crashCard(page).getByTestId("sample-data-tag")).toHaveText("Sample data")
-    await expect(crashCard(page).getByText(/Sentry not connected/)).toBeVisible()
-    await expect(list(page).getByRole("note", { name: "Sample data" })).toBeVisible()
-    await expect(page.getByTestId("sample-data-tag")).toHaveCount(1)
+    // The same saved board holds the seed's bug tickets; Bugs skips them.
+    await expect(list(page).getByRole("link")).toHaveCount(4)
+    for (const key of SEED_BUG_KEYS) await expect(bug(page, key)).toHaveCount(0)
+    await expect(list(page).getByRole("note", { name: "Sample data" })).toHaveCount(0)
   })
 
-  test("happy path: a bug opens its ticket, a status edit here shows on the Workplace board, a tag there shows here, Reset puts the seed back", async ({ page }) => {
-    await freshBugs(page)
+  test("the Agent Workplace board keeps its seed tickets, seed bugs included", async ({ page }) => {
+    await freshBugs(page, "/agent-workplace")
+    await expect(card(page, "In Progress", "CHLK-404")).toContainText("Undo stack for iPad canvas")
+    await expect(card(page, "In Progress", "CHLK-404").getByTestId("bug-tag")).toHaveText("Bug")
+    await expect(card(page, "To Do", "CHLK-419").getByTestId("bug-tag")).toHaveText("Bug")
+    await expect(card(page, "To Do", "CHLK-402")).toContainText("Copy-link expires after 7 days")
+    await card(page, "In Progress", "CHLK-404").click()
+    await expect(page).toHaveURL(/issue=CHLK-404/)
+    await expect(page.getByRole("heading", { level: 1, name: "Undo stack for iPad canvas" })).toBeVisible()
 
-    await bug(page, "CHLK-419").click()
-    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-419$/)
+    // …and Bugs, reading the same board, lists none of them.
+    await rail(page).getByRole("link", { name: "Bugs", exact: true }).click()
+    await expect(page).toHaveURL(/\/bugs$/)
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+    await expect(list(page).getByRole("link")).toHaveCount(0)
+  })
+
+  test("happy path: a bug opens its ticket, a status edit here shows on the Workplace board, a ticket created and tagged there shows here, Reset clears them", async ({ page }) => {
+    await seededBugs(page)
+
+    await bug(page, "CHLK-919").click()
+    await expect(page).toHaveURL(/\/bugs\?issue=CHLK-919$/)
     await expect(page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })).toBeVisible()
     await expect(page.getByTestId("bug-tag")).toHaveText("Bug · Crash")
     await expect(props(page).getByRole("button", { name: "Untag bug", exact: true })).toHaveAttribute(
@@ -99,20 +203,25 @@ test.describe("Bugs", () => {
     await expect(page).toHaveURL(/\/bugs$/)
     await expect(group(page, "Blocked").getByRole("link")).toHaveText([/Crash opening a shared playbook on iPad/])
     await expect(list(page).getByRole("region", { name: "To Do", exact: true })).toHaveCount(0)
-    await expect(bug(page, "CHLK-419")).toContainText("May")
+    await expect(bug(page, "CHLK-919")).toContainText("May")
 
     await rail(page).getByRole("link", { name: "Agent Workplace", exact: true }).click()
-    const blocked = page.getByRole("region", { name: "Blocked", exact: true })
-    const card = blocked.getByRole("button", { name: /Crash opening a shared playbook on iPad/ })
-    await expect(card).toBeVisible()
-    await expect(card).toContainText("May")
-    await expect(card.getByTestId("bug-tag")).toHaveText("Bug")
-    await expect(
-      page.getByRole("region", { name: "To Do", exact: true }).getByText("Crash opening a shared playbook on iPad")
-    ).toHaveCount(0)
+    const moved = card(page, "Blocked", "CHLK-919")
+    await expect(moved).toBeVisible()
+    await expect(moved).toContainText("May")
+    await expect(moved.getByTestId("bug-tag")).toHaveText("Bug")
+    await expect(card(page, "To Do", "CHLK-919")).toHaveCount(0)
+    // The seed ticket it was copied from is untouched.
+    await expect(card(page, "To Do", "CHLK-419")).toBeVisible()
 
-    await page.getByRole("button", { name: /Copy-link expires after 7 days/ }).click()
-    await expect(page).toHaveURL(/issue=CHLK-402/)
+    // A ticket the founder files and tags on the board is a bug of their own.
+    await page.getByRole("button", { name: "New issue" }).click()
+    await page.getByRole("textbox", { name: "Issue title" }).fill("Roster sync drops a coach's email")
+    await page.getByRole("button", { name: /^Create Issue/ }).click()
+    const filed = card(page, "To Do", "CHLK-922")
+    await expect(filed).toContainText("Roster sync drops a coach's email")
+    await filed.click()
+    await expect(page).toHaveURL(/issue=CHLK-922/)
     await props(page).getByRole("button", { name: "Tag as bug", exact: true }).click()
     await expect(props(page).getByRole("button", { name: "Untag bug", exact: true })).toHaveAttribute(
       "aria-pressed",
@@ -122,13 +231,15 @@ test.describe("Bugs", () => {
 
     await rail(page).getByRole("link", { name: "Bugs", exact: true }).click()
     await expect(list(page).getByText("4 open · 1 fixed")).toBeVisible()
-    await expect(group(page, "To Do").getByRole("link")).toHaveText([/Copy-link expires after 7 days/])
-    await expect(bug(page, "CHLK-402").getByTestId("bug-tag")).toHaveText("Bug · Coach-reported")
+    await expect(group(page, "To Do").getByRole("link")).toHaveText([/Roster sync drops a coach's email/])
+    await expect(bug(page, "CHLK-922").getByTestId("bug-tag")).toHaveText("Bug · Coach-reported")
 
+    // Reset discards the saved board: the founder's tickets go with it.
     await resetDemoData(page, pageHeader(page))
-    await expect(list(page).getByText("3 open · 1 fixed")).toBeVisible()
-    await expect(bug(page, "CHLK-402")).toHaveCount(0)
-    await expect(group(page, "To Do").getByRole("link")).toHaveText([/Crash opening a shared playbook on iPad/])
+    await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
+    await expect(bug(page, "CHLK-922")).toHaveCount(0)
+    await expect(bug(page, "CHLK-919")).toHaveCount(0)
     expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull()
   })
 
@@ -138,71 +249,79 @@ test.describe("Bugs", () => {
 
     const bugs = await context.newPage()
     const board = await context.newPage()
-    await freshBugs(bugs, "/bugs?issue=CHLK-420")
+    // The seeding write happens before the reload, so the counter starts at 0.
+    await seededBugs(bugs, "/bugs?issue=CHLK-920")
     await board.goto("/agent-workplace")
-    await expect(persistenceNote(board)).toHaveText(NOTE.unsaved)
-    const review = board.getByRole("region", { name: "In Review", exact: true })
-    await expect(review.getByRole("button", { name: /Route arrows vanish after undo/ })).toBeVisible()
+    await expect(persistenceNote(board)).toHaveText(NOTE.saved)
+    await expect(card(board, "In Review", "CHLK-920")).toContainText("Route arrows vanish after undo")
     await settled(bugs, 0)
     await settled(board, 0)
 
     await setStatus(bugs, "In Review", "Done")
     await expect(persistenceNote(bugs)).toHaveText(NOTE.saved)
-    const done = board.getByRole("region", { name: "Done", exact: true })
-    await expect(done.getByRole("button", { name: /Route arrows vanish after undo/ })).toBeVisible()
-    await expect(review.getByText("Route arrows vanish after undo")).toHaveCount(0)
+    await expect(card(board, "Done", "CHLK-920")).toBeVisible()
+    await expect(card(board, "In Review", "CHLK-920")).toHaveCount(0)
     await expect(persistenceNote(board)).toHaveText(NOTE.saved)
     await settled(bugs, 1)
     await settled(board, 0)
 
+    // Reset there re-seeds here: the founder's ticket was only in the saved copy.
     await resetDemoData(board, board.locator("main header").first())
-    await expect(props(bugs).getByRole("button", { name: "In Review", exact: true })).toBeVisible()
+    await expect(bugs.getByText("Issue CHLK-920 not found")).toBeVisible()
     await expect(persistenceNote(bugs)).toHaveText(NOTE.unsaved)
     await settled(bugs, 1)
     await settled(board, 0)
   })
 
-  test("empty state: every open bug fixed reads 'No open bugs' while the fixed ones stay listed", async ({ page }) => {
-    await freshBugs(page)
+  test("every open bug fixed reads 'No open bugs' while the fixed ones stay listed", async ({ page }) => {
+    await seededBugs(page)
     for (const [key, from] of [
-      ["CHLK-419", "To Do"],
-      ["CHLK-404", "In Progress"],
-      ["CHLK-420", "In Review"],
+      ["CHLK-919", "To Do"],
+      ["CHLK-904", "In Progress"],
+      ["CHLK-920", "In Review"],
     ] as const) {
       await page.goto(`/bugs?issue=${key}`)
       await setStatus(page, from, "Done")
     }
     await page.goto("/bugs")
-    await expect(list(page).getByRole("status", { name: "Empty bug list" })).toHaveText("No open bugs")
+    await expect(emptyStatus(page)).toHaveText(EMPTY_BUGS)
+    // The founder has bugs (all fixed), so no "tag a ticket" hint.
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveCount(0)
     await expect(list(page).getByText("0 open · 4 fixed")).toBeVisible()
     await expect(list(page).getByRole("heading", { level: 2 })).toHaveText(["Done"])
     await expect(group(page, "Done").getByRole("link")).toHaveCount(4)
 
     await resetDemoData(page, pageHeader(page))
-    await expect(list(page).getByRole("status", { name: "Empty bug list" })).toHaveCount(0)
-    await expect(list(page).getByText("3 open · 1 fixed")).toBeVisible()
+    await expect(list(page).getByText("0 open · 0 fixed")).toBeVisible()
+    await expect(list(page).getByTestId("empty-bugs-hint")).toHaveText(EMPTY_BUGS_HINT)
   })
 
   test("every text node reads at ≥ 4.5:1 in both themes, solid, no opacity", async ({ page }) => {
+    // Nothing saved: the Sentry panel and the empty list with its hint.
     await freshBugs(page)
     for (const theme of ["light", "dark"] as const) {
       await setTheme(page, theme)
       await expectReadable(page.getByRole("heading", { level: 1, name: "Bugs" }), `${theme}/title`, expect)
       await expectReadable(crashCard(page), `${theme}/crash card`, expect)
-      await expect(list(page).getByRole("note", { name: "Sample data" })).toBeVisible()
+      const panel = await expectReadable(sentryOff(page), `${theme}/sentry not connected`, expect)
+      expect(panel.some((n) => n.text === SENTRY_HINT), `${theme}: measured the Sentry hint`).toBe(true)
+      const empty = await expectReadable(list(page), `${theme}/empty bug list`, expect)
+      expect(empty.some((n) => n.text === EMPTY_BUGS_HINT), `${theme}: measured the empty hint`).toBe(true)
+    }
+
+    // The founder's own bugs: every group heading and both chip sources.
+    await seededBugs(page)
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
       const nodes = await expectReadable(list(page), `${theme}/bug list`, expect)
       for (const heading of ["To Do", "In Progress", "In Review", "Done"]) {
         expect(nodes.some((n) => n.text === heading), `${theme}: measured "${heading}"`).toBe(true)
       }
-      expect(nodes.some((n) => n.text === "Sample data")).toBe(true)
-      expect(
-        nodes.some((n) => n.text.includes("example tickets from the Agent Workplace demo board"))
-      ).toBe(true)
       expect(nodes.some((n) => n.text === "Bug · Crash")).toBe(true)
       expect(nodes.some((n) => n.text === "Bug · Coach-reported")).toBe(true)
 
-      await bug(page, "CHLK-419").click()
-      await expect(page).toHaveURL(/issue=CHLK-419/)
+      await bug(page, "CHLK-919").click()
+      await expect(page).toHaveURL(/issue=CHLK-919/)
       await expect(
         page.getByRole("heading", { level: 1, name: "Crash opening a shared playbook on iPad" })
       ).toBeVisible()
@@ -220,10 +339,24 @@ test.describe("Bugs", () => {
     await setTheme(page, "light")
   })
 
-  test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
+  test("Sentry rows read at ≥ 4.5:1 in both themes", async ({ page }) => {
+    await mockInbox(page, liveInbox(Date.now()))
     await freshBugs(page)
+    await expect(sentry(page)).toHaveAttribute("data-state", "connected")
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme)
+      const nodes = await expectReadable(sentry(page), `${theme}/sentry rows`, expect)
+      expect(nodes.some((n) => n.text === "Crash · New issue"), `${theme}: measured a row title`).toBe(true)
+      expect(nodes.some((n) => n.text === "2h ago"), `${theme}: measured a row age`).toBe(true)
+    }
+    await setTheme(page, "light")
+  })
+
+  test("the contrast probe itself catches sabotage (negative control)", async ({ page }) => {
+    await seededBugs(page)
     await expectProbeCatchesSabotage(crashCard(page), "crash card", expect)
-    await expectProbeCatchesSabotage(bug(page, "CHLK-419"), "bug row", expect)
+    await expectProbeCatchesSabotage(sentryOff(page), "sentry panel", expect)
+    await expectProbeCatchesSabotage(bug(page, "CHLK-919"), "bug row", expect)
     await setTheme(page, "dark")
     await expectProbeCatchesSabotage(group(page, "Done"), "Done group (dark)", expect)
     await setTheme(page, "light")

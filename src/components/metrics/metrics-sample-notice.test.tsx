@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { livePosthogSummary, setPosthogSummaryForTest } from "@/test/posthog"
 import { LIVE_METRICS, liveSummary, setStripeSummaryForTest } from "@/test/stripe"
 import { APP_STORE_ZERO } from "@/test/stripe-fixture"
-import { MetricsSampleNotice, PARTLY_LIVE_LABEL } from "@/components/metrics/metrics-sample-notice"
+import { MetricsSampleNotice, OTHER_CARDS_TEXT, PARTLY_LIVE_LABEL } from "@/components/metrics/metrics-sample-notice"
 
 /**
  * The combined Metrics notice after #44 (PostHog) met #48 (App Store suspect
@@ -32,7 +32,9 @@ describe("Metrics notice: PostHog live + App Store suspect 0", () => {
     expect(text).toContain(SUSPECT_LINE)
     expect(text).toContain(POSTHOG_LINE)
     expect(text).not.toContain(APP_STORE_COUNTED)
-    expect(text).toContain("Supabase is not connected yet")
+    // The rest are covered by one line: Not connected, no invented figure.
+    expect(text).toContain(OTHER_CARDS_TEXT)
+    expect(text).not.toMatch(/illustrative|sample/i)
   })
 
   it("PostHog live only: PostHog wording, no Stripe or suspect line", () => {
@@ -42,7 +44,9 @@ describe("Metrics notice: PostHog live + App Store suspect 0", () => {
     expect(text).toContain(POSTHOG_LINE)
     expect(text).not.toContain(SUSPECT_LINE)
     expect(text).not.toContain(STRIPE_LINE)
-    expect(text).toContain("Stripe and Supabase are not connected yet")
+    // The rest are covered by one line: Not connected, no invented figure.
+    expect(text).toContain(OTHER_CARDS_TEXT)
+    expect(text).not.toMatch(/illustrative|sample/i)
   })
 
   it("suspect zero only (PostHog not connected): suspect line, no PostHog wording", () => {
@@ -52,6 +56,8 @@ describe("Metrics notice: PostHog live + App Store suspect 0", () => {
     expect(text).toContain(SUSPECT_LINE)
     expect(text).not.toContain(POSTHOG_LINE)
     expect(text).not.toContain(APP_STORE_COUNTED)
-    expect(text).toContain("Supabase and PostHog are not connected yet")
+    // The rest are covered by one line: Not connected, no invented figure.
+    expect(text).toContain(OTHER_CARDS_TEXT)
+    expect(text).not.toMatch(/illustrative|sample/i)
   })
 })

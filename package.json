@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "check:bundle": "node scripts/check-client-bundle.mjs",
+    "gmail:consent": "node scripts/gmail-consent.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -41,7 +42,9 @@
     "screens:responsive-crm": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-crm-screens.spec.ts",
     "screens:responsive-my-desk": "CI=true SCREENSHOTS=1 playwright test e2e/responsive-my-desk-screens.spec.ts",
     "screens:stripe-live": "CI=true SCREENSHOTS=1 playwright test e2e/stripe-live-screens.spec.ts",
-    "screens:posthog-live": "CI=true SCREENSHOTS=1 playwright test e2e/posthog-live-screens.spec.ts"
+    "screens:mrr-cash": "CI=true SCREENSHOTS=1 playwright test e2e/mrr-cash-screens.spec.ts",
+    "screens:posthog-live": "CI=true SCREENSHOTS=1 playwright test e2e/posthog-live-screens.spec.ts",
+    "screens:crm-gmail": "CI=true SCREENSHOTS=1 playwright test e2e/crm-gmail-screens.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

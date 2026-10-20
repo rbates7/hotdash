@@ -94,7 +94,7 @@ describe("counts and lists", () => {
     expect(countTriagePending(seedMessages(NOW))).toBe(2)
     expect(threads[0]!.senderName).toBe("Riley Nash")
     expect(threads[1]!.messageCount).toBe(2)
-    expect(threads[1]!.senderEmail).toBe("alex@oakmontcoaches.net")
+    expect(threads[1]!.senderEmail).toBe("alex@example.com")
   })
 })
 
@@ -102,19 +102,19 @@ describe("new-contact email", () => {
   it("rejects malformed and duplicate addresses", () => {
     const existing = seedContacts(NOW).map((c) => c.email)
     expect(newContactEmailError("not-an-email", existing)).toBe("Enter a valid email address.")
-    expect(newContactEmailError("mhale@westfieldfb.org", existing)).toBe(
+    expect(newContactEmailError("mhale@example.org", existing)).toBe(
       "A contact with this email already exists."
     )
-    expect(newContactEmailError("  MHALE@westfieldfb.org ", existing)).toBe(
+    expect(newContactEmailError("  MHALE@example.org ", existing)).toBe(
       "A contact with this email already exists."
     )
-    expect(newContactEmailError("pat@katyisd.org", existing)).toBeNull()
+    expect(newContactEmailError("pat@example.org", existing)).toBeNull()
   })
 })
 
 describe("display", () => {
   it("falls back to email when a contact has no name", () => {
-    expect(contactDisplayName({ firstName: null, lastName: null, email: "x@y.com" })).toBe("x@y.com")
+    expect(contactDisplayName({ firstName: null, lastName: null, email: "x@example.com" })).toBe("x@example.com")
   })
 
   it("formats datetimes in Central even when UTC has moved on", () => {

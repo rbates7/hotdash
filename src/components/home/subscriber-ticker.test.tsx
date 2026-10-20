@@ -14,12 +14,11 @@ const AT = new Date("2026-10-13T14:41:00Z")
 const reading = (total: number, today = 0): SubscriberReading => ({ total, today, at: AT })
 
 /** A source the test drives: `set` changes the count and pushes; `fail` makes reads reject. */
-function controlled(start: SubscriberReading | null, { sample = true } = {}) {
+function controlled(start: SubscriberReading | null) {
   let current: SubscriberReading | null = start
   let failing = false
   const listeners = new Set<() => void>()
   const source: SubscriberSource = {
-    sample,
     initial: () => start,
     read: async () => {
       if (failing || !current) throw new Error("down")
@@ -92,30 +91,18 @@ describe("SubscriberTicker", () => {
     expect(screen.getByText("+3")).toBeInTheDocument()
   })
 
-  it("wears the shared Sample chip, which follows Settings › Sample data", async () => {
+  it("never wears a Sample chip: no source the app can reach is sample", () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="header" source={source} />)
-    expect(screen.getByTestId("sample-data-tag")).toHaveTextContent("Sample data")
-    act(() => updateSettings((s) => ({ ...s, sampleData: false })))
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    // Only the label goes; the number stays.
     expect(spoken()).toBe("Subscribers: 186, no change today")
-    act(() => updateSettings((s) => ({ ...s, sampleData: true })))
   })
 
-  it("the phone bar uses the compact chip and no visible label", () => {
+  it("the phone bar shows no visible label", () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="bar" source={source} />)
-    const tag = screen.getByTestId("sample-data-tag")
-    expect(tag).toHaveAttribute("title", "Sample data")
-    expect(tag).toHaveTextContent("Sample data") // sr-only
-    expect(screen.queryByText("Subscribers")).not.toBeInTheDocument()
-  })
-
-  it("has no Sample chip for a real source", () => {
-    const { source } = controlled(reading(186), { sample: false })
-    render(<SubscriberTicker variant="header" source={source} />)
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.queryByText("Subscribers")).not.toBeInTheDocument()
   })
 
   it("compacts on the bar past 5 digits", () => {
@@ -126,7 +113,7 @@ describe("SubscriberTicker", () => {
   })
 
   it("loading: en-dash tiles, aria-busy, never a number", () => {
-    const source: SubscriberSource = { sample: true, initial: () => null, read: () => new Promise(() => {}) }
+    const source: SubscriberSource = { initial: () => null, read: () => new Promise(() => {}) }
     render(<SubscriberTicker variant="header" source={source} />)
     expect(status()).toHaveAttribute("aria-busy", "true")
     expect(spoken()).toBe(LOADING_LABEL)
@@ -351,5 +338,21 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.hover(link())
     await new Promise((r) => setTimeout(r, 300))
     expect(screen.queryByTestId("ticker-breakdown")).toBeNull()
+  })
+})
+
+describe("SubscriberTicker with Stripe not connected", () => {
+  beforeEach(() => vi.useRealTimers())
+
+  it.each(["header", "bar"] as const)("%s: says Not connected, no simulated count, links to Connected data", (variant) => {
+    render(<SubscriberTicker variant={variant} />)
+    const ticker = screen.getByTestId("subscriber-ticker")
+    expect(ticker).toHaveAttribute("data-state", "not_connected")
+    expect(screen.getByTestId("not-connected")).toHaveTextContent("Not connected")
+    expect(screen.queryByTestId("ticker-tiles")).toBeNull()
+    expect(screen.queryByTestId("sample-data-tag")).toBeNull()
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings#connected-data")
+    expect(screen.getByRole("link").className).toContain("min-h-11")
   })
 })

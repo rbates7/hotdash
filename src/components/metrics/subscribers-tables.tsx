@@ -12,8 +12,7 @@ import {
   type Plan,
   type Sort,
 } from "@/lib/metrics"
-import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis"
-import { useMetrics } from "@/components/metrics/metrics-store"
+import { NotConnectedPanel } from "@/components/not-connected-panel"
 import {
   METRICS_SORT,
   METRICS_SORT_HEAD,
@@ -119,9 +118,16 @@ function SortMenu<K extends string>({
   )
 }
 
+/** Stripe's summary carries counts, not customers: the lists wait for a per-customer source. */
+export const SUBSCRIBER_LIST_HINT =
+  "Names and emails will list here once a per-customer Stripe source is connected. Counts are on the Overview tab."
+
+/**
+ * `rows` is the list to show. With none (no per-customer source is wired
+ * yet) the tab says Not connected; fixture rows are for tests only.
+ */
 export function NewSubscribersTable({ rows }: { rows?: NewSubscriber[] }) {
-  const { today } = useMetrics()
-  const data = rows ?? seedNewSubscribers(today)
+  const data = rows ?? []
   const [sort, setSort] = React.useState<Sort<NewKey> | null>({
     key: "signupDate",
     dir: "desc",
@@ -130,8 +136,10 @@ export function NewSubscribersTable({ rows }: { rows?: NewSubscriber[] }) {
   const onSort = (key: NewKey) =>
     setSort((s) => toggleSort(s, key, key === "signupDate" ? "desc" : "asc"))
 
+  if (!rows) return <NotConnectedPanel title="New subscribers" hint={SUBSCRIBER_LIST_HINT} />
+
   return (
-    <TableCard note="Illustrative sign-ups, not real customers.">
+    <TableCard>
       <SortMenu
         keys={["name", "plan", "signupDate"] as const}
         labels={NEW_SORT_LABEL}
@@ -147,7 +155,6 @@ export function NewSubscribersTable({ rows }: { rows?: NewSubscriber[] }) {
             className="[&>svg]:hidden"
             title={s.name}
             status={<Pill tone={PLAN_TONE[s.plan]}>{s.plan}</Pill>}
-            sample
             meta={[
               { label: "Email", value: s.email },
               { label: "Signup date", value: formatDate(s.signupDate) },
@@ -203,8 +210,7 @@ const CHURN_SORT_LABEL: Record<ChurnKey, string> = {
 }
 
 export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }) {
-  const { today } = useMetrics()
-  const data = rows ?? seedChurnedSubscribers(today)
+  const data = rows ?? []
   const [sort, setSort] = React.useState<Sort<ChurnKey> | null>({
     key: "churnDate",
     dir: "desc",
@@ -213,8 +219,10 @@ export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }
   const onSort = (key: ChurnKey) =>
     setSort((s) => toggleSort(s, key, key === "name" ? "asc" : "desc"))
 
+  if (!rows) return <NotConnectedPanel title="Churned subscribers" hint={SUBSCRIBER_LIST_HINT} />
+
   return (
-    <TableCard note="Illustrative churn, not real customers.">
+    <TableCard>
       <SortMenu
         keys={["name", "signupDate", "churnDate", "lifetimeValue"] as const}
         labels={CHURN_SORT_LABEL}
@@ -236,7 +244,6 @@ export function ChurnedSubscribersTable({ rows }: { rows?: ChurnedSubscriber[] }
                 {formatCurrency(s.lifetimeValue)}
               </Pill>
             }
-            sample
             meta={[
               { label: "Email", value: s.email },
               {

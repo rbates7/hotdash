@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { now } from "@/lib/clock"
+import { notionFeedOf, type LiveRoadmap } from "@/lib/notion-roadmap"
 import {
   createStorage,
   initialShell,
@@ -13,7 +14,6 @@ import {
   type PersistenceShell,
   type PersistenceStore,
 } from "@/lib/persistence"
-import { seedState } from "@/lib/roadmap/fixture"
 import {
   DEFAULT_OWNER,
   MAX_TITLE,
@@ -27,6 +27,7 @@ import {
   type RoadmapOwner,
   type RoadmapState,
 } from "@/lib/roadmap/roadmap"
+import { useNotionRoadmapView } from "@/hooks/use-notion-roadmap"
 
 export type NewItemInput = {
   title: string
@@ -94,15 +95,6 @@ export function reducer(state: RoadmapState, edit: Edit): RoadmapState {
       const rewritten =
         next.title !== target.title || next.why !== target.why || next.window !== target.window
       if (!rewritten && next.owner === target.owner) return state
-      // Rewriting the words makes the bet the founder's; a sample tag on
-      // text we did not write would be a lie. Re-owning keeps the tag.
-      // The invented ticket count, source flag and signed date go with it.
-      if (rewritten && next.sample) {
-        delete next.sample
-        delete next.fromFeatureRequest
-        next.linkedTickets = 0
-        next.signedAt = edit.at
-      }
       next.updatedAt = edit.at
       return { ...state, items: state.items.map((i) => (i === target ? next : i)) }
     }
@@ -159,11 +151,11 @@ export function reducer(state: RoadmapState, edit: Edit): RoadmapState {
 
 /**
  * Board state is saved to this browser's localStorage through the shared
- * persistence helper — from the first real edit on, never the untouched
- * seed, never on mount, never because another tab wrote. Bump the version
- * whenever the seed or the shape changes so stale saves are discarded
- * instead of half-applied. There is no server copy and no API behind this
- * page.
+ * persistence helper — from the first real edit on, never on mount, never
+ * because another tab wrote. Bump the version whenever the shape changes so
+ * stale saves are discarded instead of half-applied. This is the board
+ * while Notion is not connected; it starts empty (no sample bets — the
+ * fixture in `@/lib/roadmap/fixture` is for tests only).
  */
 export const STORAGE_KEY = "hotdash.product-roadmap.v1"
 
@@ -173,12 +165,38 @@ export const REJECTED_KEY = `${STORAGE_KEY}.rejected`
 /**
  * `parse` is the screen's validator proper: every item field-checked, ids
  * unique, `nextId` above every id, unknown keys stripped — one bad item and
- * the whole copy is refused (parked under `REJECTED_KEY`, seed shown).
+ * the whole copy is refused (parked under `REJECTED_KEY`, empty board
+ * shown). Bets still tagged sample (a copy saved before #45 dropped the
+ * sample board, with the untouched sample bets in it) are left out: no
+ * sample bet is ever shown.
  */
+export function parseSavedBoard(value: unknown): RoadmapState | null {
+  const state = parseState(value)
+  if (!state || !state.items.some((i) => i.sample)) return state
+  return { ...state, items: state.items.filter((i) => !i.sample) }
+}
+
 export const roadmapStorage = createStorage<RoadmapState>({
   key: STORAGE_KEY,
-  parse: parseState,
+  parse: parseSavedBoard,
 })
+
+/** The board with nothing saved: empty, never sample bets. */
+export function emptyBoard(): RoadmapState {
+  return { items: [], nextId: 1 }
+}
+
+let startingBoard: (nowMs: number) => RoadmapState = emptyBoard
+
+/**
+ * Tests (and only tests): what the board starts from with nothing saved,
+ * e.g. the fixture in `@/lib/roadmap/fixture`, so the editing tests have
+ * bets to move. The app never calls this; the test setup puts the empty
+ * board back after each test.
+ */
+export function configureRoadmapBoard(start: ((nowMs: number) => RoadmapState) | null) {
+  startingBoard = start ?? emptyBoard
+}
 
 export const loadState = roadmapStorage.load
 export const saveState = roadmapStorage.save
@@ -200,9 +218,8 @@ export type Action =
  * Routes every action through the shared shell: hydrate / reset / save
  * results are the shared transitions; a screen edit becomes a shared `edit`
  * event carrying the reducer's output, so a no-op (same object back) leaves
- * the shell untouched — nothing marked edited, no write. The seed is built
- * lazily from whichever clock the event carries: the request's on the first
- * hydrate, `now()` for a Reset or a re-seed after another tab's Reset.
+ * the shell untouched — nothing marked edited, no write. With nothing
+ * saved (first visit, a Reset, another tab's Reset) the board is empty.
  */
 export function shellReducer(shell: Shell, action: Action): Shell {
   switch (action.type) {
@@ -211,25 +228,40 @@ export function shellReducer(shell: Shell, action: Action): Shell {
         type: "hydrate",
         result: action.result,
         nowMs: action.nowMs,
-        fallback: seedState,
+        fallback: startingBoard,
       })
     case "save-result":
       return persistenceShellReducer(shell, action)
     case "reset":
-      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: seedState })
+      return persistenceShellReducer(shell, { type: "reset", nowMs: action.nowMs, seed: startingBoard })
     default:
       return persistenceShellReducer(shell, { type: "edit", data: reducer(shell.data, action) })
   }
 }
 
 export function initialRoadmapShell(nowMs: number): Shell {
-  return initialShell(seedState(nowMs), nowMs)
+  return initialShell(startingBoard(nowMs), nowMs)
 }
 
 /* ------------------------------------------------------------------ store */
 
+/** Notion's rows while it is connected (or stale), shown read-only. */
+export type LiveBoard = LiveRoadmap & { stale: boolean; lastSyncedAt: Date }
+
 export type Store = RoadmapState &
   PersistenceStore & {
+    /**
+     * Where the board comes from: `loading` until Notion's first answer
+     * (skeleton); `connecting` while the server's first Notion sync runs
+     * (skeleton plus "Connecting to Notion…", never sample bets); `local`
+     * when Notion is not connected (this browser's own bets, empty to start,
+     * shown under a Not connected notice); or `notion` (read-only).
+     */
+    source: "loading" | "connecting" | "local" | "notion"
+    /** Notion's rows when `source` is `notion`, else null. */
+    live: LiveBoard | null
+    /** True while Notion is the source: every edit below is a no-op. */
+    readOnly: boolean
     /**
      * The instant the screen measures from: the request's on first render,
      * then the moment of a Reset (or of a re-seed after another tab's Reset).
@@ -254,18 +286,19 @@ export function RoadmapProvider({
 }) {
   const [shell, dispatch] = React.useReducer(shellReducer, requestNowMs, initialRoadmapShell)
   const { data, nowMs, persisted, edited, saved, saveFailed } = shell
+  const view = useNotionRoadmapView()
 
   // The server has no localStorage, so it renders with `persisted: false` and
-  // the page shows skeletons rather than the seed. On the client the saved
+  // the page shows skeletons rather than an empty board. On the client the saved
   // copy is read in a *layout* effect — before the browser paints — so the
-  // first frame a user sees is already their data, never the seed. This
+  // first frame a user sees is already their data. This
   // first hydrate is the only one dated from the request.
   React.useLayoutEffect(() => {
     dispatch({ type: "hydrate", result: roadmapStorage.load(window.localStorage), nowMs: requestNowMs })
   }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes (another
-  // tab's copy is theirs; their Reset re-seeds this tab, dated from the
+  // tab's copy is theirs; their Reset empties this tab, dated from the
   // `now()` the hook reads); only a moving edit count does, and an identical
   // copy is never re-written. The write's result feeds the note.
   const onHydrate = React.useCallback(
@@ -275,9 +308,24 @@ export function RoadmapProvider({
   const onSaved = React.useCallback((ok: boolean) => dispatch({ type: "save-result", ok }), [])
   usePersistenceSync({ storage: roadmapStorage, shell, onHydrate, onSaved })
 
+  // Notion, when connected, is the roadmap: shown read-only, never mixed
+  // with this browser's edits (they stay saved here, untouched, and come
+  // back if Notion is disconnected). See docs/notion-roadmap.md.
+  const feed = React.useMemo(() => notionFeedOf(view), [view])
+  const live = React.useMemo<LiveBoard | null>(
+    () => (feed.kind === "live" ? { ...feed.roadmap, stale: feed.stale, lastSyncedAt: feed.lastSyncedAt } : null),
+    [feed]
+  )
+  const source: Store["source"] =
+    feed.kind === "loading" ? (feed.connecting ? "connecting" : "loading") : live ? "notion" : "local"
+  const readOnly = source !== "local"
+
   const value = React.useMemo<Store>(() => {
     // Edits are stamped at the moment they happen, through the shared clock.
     const at = () => now().toISOString()
+    const edit = (action: () => void) => {
+      if (!readOnly) action()
+    }
     return {
       ...data,
       nowMs,
@@ -285,20 +333,24 @@ export function RoadmapProvider({
       edited,
       saved,
       saveFailed,
-      addItem: (input) => dispatch({ type: "add", input, at: at() }),
-      patchItem: (id, patch) => dispatch({ type: "patch", id, patch, at: at() }),
-      moveItem: (id, column) => dispatch({ type: "move", id, column, at: at() }),
-      reorderItem: (id, direction) => dispatch({ type: "reorder", id, direction, at: at() }),
-      removeItem: (id) => dispatch({ type: "remove", id }),
+      source,
+      live,
+      readOnly,
+      addItem: (input) => edit(() => dispatch({ type: "add", input, at: at() })),
+      patchItem: (id, patch) => edit(() => dispatch({ type: "patch", id, patch, at: at() })),
+      moveItem: (id, column) => edit(() => dispatch({ type: "move", id, column, at: at() })),
+      reorderItem: (id, direction) => edit(() => dispatch({ type: "reorder", id, direction, at: at() })),
+      removeItem: (id) => edit(() => dispatch({ type: "remove", id })),
       resetDemoData: () => {
+        if (readOnly) return
         // Clear first, then regenerate from the moment of the click (the
         // shared clock read every store uses for a reset): the browser
-        // returns to the never-edited state with a seed dated today.
+        // returns to the never-edited state: an empty board.
         roadmapStorage.clear(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
     }
-  }, [data, nowMs, persisted, edited, saved, saveFailed])
+  }, [data, nowMs, persisted, edited, saved, saveFailed, source, live, readOnly])
 
   return <RoadmapContext.Provider value={value}>{children}</RoadmapContext.Provider>
 }
