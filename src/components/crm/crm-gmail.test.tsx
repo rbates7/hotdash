@@ -14,7 +14,7 @@ import { liveGmailSummary, setGmailLoadingForTest, setGmailSummaryForTest } from
 import { CLEAR_COPY } from "@/components/persistence-note"
 import { STORAGE_KEY, CrmProvider, initialState, reducer, saveState } from "@/components/crm/crm-store"
 import { CRM_MENU_LABEL, GMAIL_CONNECT } from "@/components/crm/crm-header-menu"
-import { CONNECTING_LEDE, CrmShell, LEDE, liveLede } from "@/components/crm/crm-shell"
+import { CONNECTING_LEDE, CrmShell, EXPIRED_LEDE, LEDE, liveLede } from "@/components/crm/crm-shell"
 import { GMAIL_HINT, GMAIL_PANEL_TITLES } from "@/components/crm/gmail-not-connected"
 import { ContactsScreen } from "@/components/crm/contacts-screen"
 import { ContactNewDialog, NEW_CONTACT_LIVE, NEW_CONTACT_PENDING } from "@/components/crm/contact-dialogs"
@@ -179,6 +179,13 @@ describe("CRM with the login session expired (401)", () => {
     const source = within(await openMenu()).getByTestId("crm-source")
     expect(source).toHaveAttribute("data-source", "unauthorized")
     expect(source).toHaveTextContent("Session expired")
+  })
+
+  it("the subtitle asks to sign in again instead of 'once Gmail is connected'", () => {
+    setCrmUnauthorizedForTest()
+    renderCrm(<OverviewScreen />)
+    expect(screen.getByText(EXPIRED_LEDE)).toBeInTheDocument()
+    expect(screen.queryByText(LEDE)).not.toBeInTheDocument()
   })
 })
 

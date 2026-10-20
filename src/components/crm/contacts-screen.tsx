@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/table"
 import { CELL, HEAD, TableCard } from "@/components/table-bits"
 import { ResponsiveTable, RowCollapse, type RowCollapseMeta } from "@/components/responsive-table"
-import { PlanBadge } from "@/components/crm/case-badges"
 import { ContactEditDialog, ContactNewDialog } from "@/components/crm/contact-dialogs"
 import { CrmAvatar } from "@/components/crm/crm-avatar"
 import { ContactDeleteDialog } from "@/components/crm/crm-delete-dialogs"
@@ -61,9 +60,6 @@ export function contactCardMeta(
     },
   ]
 }
-
-/** The card and sheet plan pill; `plan-pill` stays the table column's. */
-export const CARD_PLAN_PILL = "card-plan-pill"
 
 /** Tablet (768–1279) folds Email under Name. */
 const TABLET_HIDE = "md:max-xl:hidden"
@@ -179,11 +175,6 @@ function ContactSheet({
         onClosed={flush}
         finalFocus={backToCard}
         title={contactDisplayName(contact)}
-        pill={
-          contact.plan ? (
-            <PlanBadge plan={contact.plan} planStatus={contact.planStatus} testId={CARD_PLAN_PILL} />
-          ) : undefined
-        }
         lines={contactCardMeta(contact, org, openCaseCount(store.cases, contact.id)).map((line) => line.value)}
         actionsLabel="Contact actions"
       >
@@ -303,11 +294,6 @@ export function ContactsScreen() {
               <RowCollapse
                 key={contact.id}
                 title={contactDisplayName(contact)}
-                status={
-                  contact.plan ? (
-                    <PlanBadge plan={contact.plan} planStatus={contact.planStatus} testId={CARD_PLAN_PILL} />
-                  ) : undefined
-                }
                 meta={contactCardMeta(
                   contact,
                   orgOf(store.organizations, contact.organizationId),
@@ -326,7 +312,6 @@ export function ContactsScreen() {
                 <TableHead className={HEAD}>Name</TableHead>
                 <TableHead className={cn(HEAD, TABLET_HIDE)}>Email</TableHead>
                 <TableHead className={HEAD}>Organization</TableHead>
-                <TableHead className={HEAD}>Plan</TableHead>
                 <TableHead className={`${HEAD} text-right`}>Open cases</TableHead>
                 <TableHead className={cn(HEAD, TABLET_ONLY, "w-14")}>
                   <span className="sr-only">Actions</span>
@@ -365,9 +350,6 @@ export function ContactsScreen() {
                     </TableCell>
                     <TableCell className={`${CELL} text-muted-foreground`}>
                       {org?.name ?? "—"}
-                    </TableCell>
-                    <TableCell className={CELL}>
-                      <PlanBadge plan={contact.plan} planStatus={contact.planStatus} />
                     </TableCell>
                     <TableCell className={`${CELL} text-right`}>
                       {openCaseCount(store.cases, contact.id) || (

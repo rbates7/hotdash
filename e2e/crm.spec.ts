@@ -591,14 +591,8 @@ test.describe("CRM, Gmail connected (mocked)", () => {
 
       await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
       await expect(page.getByRole("table", { name: "Contacts" })).toBeVisible()
-      const pills = page.getByTestId("plan-pill")
-      await expect(pills).toHaveCount(2)
-      await expect(page.getByRole("row", { name: new RegExp(LIVE_PEOPLE.ben.name) }).getByTestId("plan-pill")).toHaveClass(
-        /line-through/
-      )
-      for (const pill of await pills.all()) {
-        await expectReadable(pill, `${theme}/plan pill`, expect)
-      }
+      // No Plan column or card pill any more (follow-up to #71): plans have no Gmail source.
+      await expect(page.getByTestId("plan-pill")).toHaveCount(0)
 
       await crmNav(page).getByRole("link", { name: /Triage/ }).click()
       await expect(triageCards(page)).toHaveCount(2)

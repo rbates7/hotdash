@@ -344,11 +344,12 @@ test.describe("session expired (401 from the login gate)", () => {
 test.describe("phone (390)", () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  for (const path of ["/crm", "/crm/cases", "/crm/accounts"]) {
+  for (const path of ["/crm", "/crm/cases", "/crm/accounts", "/crm/triage", "/crm/contacts"]) {
     test(`${path} never scrolls sideways`, async ({ page }) => {
       await mockGmail(page, LIVE)
       await open(page, path)
-      await expect(liveRegion(page)).not.toContainText("Connecting")
+      // Triage and Contacts have no live region; wait for the rows to replace "Connecting…" instead.
+      await expect(main(page)).not.toContainText("Connecting")
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
     })
@@ -377,6 +378,29 @@ test.describe("phone (390)", () => {
     await expect(sheet).toHaveAttribute("data-expanded", "true")
     expect((await sheet.boundingBox())!.height).toBeGreaterThan(844 * 0.9)
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
+  })
+
+  test("the open case panel never scrolls the page sideways", async ({ page }) => {
+    await mockCrm(page, { summary: HILL, thread: crmFixtureThreadBody(Date.now()) })
+    await open(page, "/crm/cases")
+    await main(page).getByTestId("case-list").getByRole("link").filter({ hasText: FIXTURE_SUBJECTS.urgent }).click()
+    const sheet = page.getByRole("dialog", { name: FIXTURE_SUBJECTS.urgent })
+    await expect(sheet).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
+    expect(await sheet.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  })
+
+  test("the tab bar shows a scroll cue at the right edge until the strip is scrolled to the end", async ({ page }) => {
+    await mockGmail(page, LIVE)
+    await open(page, "/crm")
+    const bar = page.getByTestId("crm-tab-bar")
+    await expect(bar).toHaveAttribute("data-fade-end", "")
+    await expect(bar.getByTestId("crm-tab-fade-end")).toHaveCSS("opacity", "1")
+    const nav = page.getByRole("navigation", { name: "CRM sections", exact: true })
+    await nav.evaluate((el) => el.scrollTo({ left: el.scrollWidth }))
+    await expect(bar).not.toHaveAttribute("data-fade-end", "")
+    await expect(bar).toHaveAttribute("data-fade-start", "")
   })
 
   test("the CRM tabs are exactly Overview · Cases · Accounts · Triage · Contacts, 44px, scrolling in their own strip", async ({ page }) => {

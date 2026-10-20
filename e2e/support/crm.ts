@@ -16,7 +16,7 @@ export const CRM_STORAGE_KEY = "hotdash.crm.v1"
 
 /** Mirrored from `LEDE` / `CONNECTING_LEDE` in `@/components/crm/crm-shell`. */
 export const CRM_LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
-export const CRM_CONNECTING_LEDE = "Conversations, contacts, and triage"
+export const CRM_CONNECTING_LEDE = "Loading your cases…"
 /** `liveLede("info@chlkapp.com")`: the lede once the fixture inbox (or the stale copy) has answered. */
 export const CRM_LIVE_LEDE = "Conversations, contacts, and triage from info@chlkapp.com"
 
