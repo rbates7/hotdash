@@ -178,7 +178,7 @@ test.describe("Gmail connected (mocked, 1440: split view)", () => {
     await expect(main(page).getByText("No cases waiting on you")).toBeVisible()
     await expect(main(page).getByRole("link", { name: "0 Open" })).toBeVisible()
     await open(page, "/crm/cases")
-    await expect(main(page).getByText(/^No cases yet/)).toBeVisible()
+    await expect(main(page).getByText(/^No cases yet\./)).toBeVisible()
   })
 
   test("stale: the rows plus Last updated", async ({ page }) => {
