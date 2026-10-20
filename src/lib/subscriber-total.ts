@@ -13,7 +13,7 @@ import type { CountSeries, StripeMetrics } from "@/lib/stripe-metrics"
  * Home card, the ticker and Metrics › Subscribers all show this total,
  * never one part of it.
  *
- *   (1) Stripe paying   — `isPaying`: active or past_due, has paid.
+ *   (1) Stripe paying   — `isPaying`: active (not past_due, since Oct 20), has paid.
  *   (2) App Store       — App Store payers with no Stripe/invoice
  *                         subscription, from Chlk's database; only when
  *                         that source has answered with a believable

@@ -206,15 +206,15 @@ for (const theme of ["light", "dark"] as const) {
       await expectReadable(expired, `${theme} session expired`, expect)
     })
 
-    test("a server without the provisional fields: em dashes, never a made-up figure", async ({ page }) => {
+    test("the #77 summary: real figures on every new card, never the missing-field em dash", async ({ page }) => {
       await mockStripe(page, liveSummary("connected"))
       await open(page, "/metrics")
       await setTheme(page, theme)
       for (const name of ["ARR", "Revenue", "Trials per day"]) {
-        await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText("\u2014")
-        await expect(metricCard(page, name)).toContainText("Not in Stripe\u2019s figures yet")
+        await expect(metricCard(page, name).getByTestId("metric-value")).not.toHaveText("\u2014")
+        await expect(metricCard(page, name)).not.toContainText("Not in Stripe\u2019s figures yet")
       }
-      await expect(metricCard(page, "Subscribers").locator("[data-row='pastDue'] dd")).toHaveText("\u2014")
+      await expect(metricCard(page, "Subscribers").locator("[data-row='pastDue'] dd")).toHaveText("31 · $1,519 MRR")
     })
   })
 }

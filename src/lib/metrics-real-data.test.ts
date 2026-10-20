@@ -19,6 +19,7 @@ import {
   APP_STORE_ZERO,
   LIVE_EXTRAS,
   LIVE_METRICS,
+  LIVE_METRICS_CORE,
   LIVE_METRICS_FULL,
   NEW_ROWS,
   SYNCED_AT,
@@ -41,13 +42,12 @@ describe("parseExtras: tolerant, optional, known keys only", () => {
   it("keeps every well-formed field", () => {
     expect(parseExtras({ ...LIVE_EXTRAS })).toEqual(LIVE_EXTRAS)
   })
-  it("drops a malformed field without rejecting the summary", () => {
-    const body = { ...liveSummary("connected", LIVE_METRICS_FULL), metrics: { ...LIVE_METRICS_FULL, arr: { value: "x" }, nrr: null, junk: 1 } }
-    const parsed = parseStripeSummary(JSON.parse(JSON.stringify(body)))!
-    expect(parsed.metrics!.arr).toBeUndefined()
-    expect(parsed.metrics!.nrr).toBeUndefined()
-    expect(parsed.metrics!.revenue).toEqual(LIVE_EXTRAS.revenue)
-    expect((parsed.metrics as Record<string, unknown>).junk).toBeUndefined()
+  it("copies only known keys; a malformed field rejects the summary (#77 always sends them)", () => {
+    const ok = parseStripeSummary(JSON.parse(JSON.stringify({ ...liveSummary("connected", LIVE_METRICS_FULL), metrics: { ...LIVE_METRICS_FULL, junk: 1 } })))!
+    expect(ok.metrics!.revenue).toEqual(LIVE_EXTRAS.revenue)
+    expect((ok.metrics as Record<string, unknown>).junk).toBeUndefined()
+    const bad = { ...liveSummary("connected", LIVE_METRICS_FULL), metrics: { ...LIVE_METRICS_FULL, arr: { value: "x" } } }
+    expect(parseStripeSummary(JSON.parse(JSON.stringify(bad)))).toBeNull()
   })
   it("null rates are fine; bad days or negative counts drop trials", () => {
     expect(parseExtras({ arpu: { value: null, previous: null } }).arpu).toEqual({ value: null, previous: null })
@@ -76,7 +76,7 @@ describe("Metrics cards from the provisional fields", () => {
     expect(t.kind === "live" && t.metric.previous).toBe(32)
   })
   it("a missing field is an em dash with why, and no Last updated", () => {
-    const s = card("arr", live(LIVE_METRICS, true))
+    const s = card("arr", live(LIVE_METRICS_CORE, true))
     expect(s).toMatchObject({ kind: "live", metric: { value: null, empty: NOT_IN_SYNC_TEXT, updated: null } })
   })
   it("a null rate says why", () => {
@@ -91,7 +91,7 @@ describe("Metrics cards from the provisional fields", () => {
     for (const id of ["cac", "nps", "runway", "valuation"] as const) expect(card(id)).toEqual({ kind: "not_connected", source: null })
   })
   it("the notice names only the cards this sync feeds", () => {
-    expect(listOf(stripeLiveLabels(LIVE_METRICS))).toBe("MRR, Churn Rate, Trial Conversions and Subscribers")
+    expect(listOf(stripeLiveLabels(LIVE_METRICS_CORE))).toBe("MRR, Churn Rate, Trial Conversions and Subscribers")
     expect(stripeLiveLabels(LIVE_METRICS_FULL)).toContain("Trials per day")
   })
 })
@@ -113,7 +113,7 @@ describe("Metrics › Subscribers lines", () => {
       label: "Past due",
       value: "0",
     })
-    expect(metricsSubscriberRows(LIVE_METRICS, APP_STORE_CONNECTED, TZ).note).toBe(PAST_DUE_UNSPLIT_NOTE)
+    expect(metricsSubscriberRows(LIVE_METRICS_CORE, APP_STORE_CONNECTED, TZ).note).toBe(PAST_DUE_UNSPLIT_NOTE)
     expect(metricsSubscriberRows(LIVE_METRICS, APP_STORE_ZERO, TZ).note).toMatch(/App Store read 0/)
   })
   it("does not wait for the App Store (not in the headline)", () => {

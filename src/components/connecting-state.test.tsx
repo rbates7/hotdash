@@ -140,7 +140,7 @@ describe("Stripe live, App Store still connecting", () => {
     render(<MetricsSampleNotice />)
     const note = screen.getByRole("note")
     expect(note).toHaveTextContent("Retention and Active Users are live from PostHog")
-    expect(note).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
+    expect(note).toHaveTextContent("MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe")
     expect(note).not.toHaveTextContent("also shows App Store payers")
     expect(note).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
   })
@@ -215,7 +215,7 @@ describe("page-level wording: Stripe live, App Store connecting", () => {
 
   it("Metrics notice keeps the Stripe wording, says App Store is on its first read, and does not say Supabase is not connected", () => {
     renderMetricsHeader()
-    expect(notice()).toHaveTextContent("MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe")
+    expect(notice()).toHaveTextContent("MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe")
     expect(notice()).toHaveTextContent(APP_STORE_CONNECTING_NOTE)
     expect(notice()).not.toHaveTextContent("also shows App Store payers")
   })

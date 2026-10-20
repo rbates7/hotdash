@@ -117,7 +117,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     // Home's Stripe paying row is Metrics' headline; App Store and Free are the same lines on both.
     expect(homeRows.stripePaying).toBe(paying)
     expect(metricsRows).toEqual([
-      ["pastDue", "\u2014"],
+      ["pastDue", "31 · $1,519 MRR"],
       ["appStore", homeRows.appStore],
       ["freeAccounts", homeRows.freeAccounts],
     ])

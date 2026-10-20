@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { CENTRAL } from "@/lib/clock"
 import { createAppStoreSource } from "@/lib/server/app-store"
-import { computeStripeMetrics, isFreeAccount, isPaying, type StripeSubscription } from "@/lib/stripe-metrics"
+import { computeStripeMetrics, isFreeAccount, isPastDue, isPaying, type StripeSubscription } from "@/lib/stripe-metrics"
 import { subscriberTotal } from "@/lib/subscriber-total"
 import R from "@/lib/__fixtures__/stripe-reconcile-2026-10-14.json"
 
@@ -77,10 +77,11 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
     expect(FIXTURE.filter((s) => s.status === "active" && hasFullCouponNow(s)).length).toBe(R.coulson.active_with_100pct_coupon)
   })
 
-  it("Stripe paying is the 1,110 headline: active and past_due that have paid", () => {
+  it("Stripe paying is 1,079 since Oct 20 (active only): Oct 14's 1,110 headline less its 31 past_due", () => {
     const m = computeStripeMetrics({ subscriptions: FIXTURE, charges: [] }, { now: NOW, timeZone: CENTRAL })
-    expect(m.subscribers.value).toBe(1110)
-    expect(m.subscribers.value).toBe(R.paying.headline)
+    expect(m.subscribers.value).toBe(1079)
+    expect(m.subscribers.value).toBe(R.paying.headline - R.paying.past_due)
+    expect(m.pastDue.value).toBe(R.paying.past_due)
     expect(FIXTURE.filter((s) => isPaying(s) && s.status === "active").length).toBe(1079)
   })
 
@@ -91,7 +92,9 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
     expect(FIXTURE.filter((s) => isFreeAccount(s) && isPaying(s))).toHaveLength(0)
     // Never-paid trialing and past_due are in neither group.
     const neither = FIXTURE.filter((s) => s.ended_at === null && !isPaying(s) && !isFreeAccount(s))
-    expect(neither).toHaveLength(R.never_paid_not_ended.trialing + R.never_paid_not_ended.past_due)
+    // Paid-once past_due is now its own figure (pastDue), in neither group too.
+    expect(neither.filter((s) => !isPastDue(s))).toHaveLength(R.never_paid_not_ended.trialing + R.never_paid_not_ended.past_due)
+    expect(neither.filter(isPastDue)).toHaveLength(R.paying.past_due)
   })
 
   it("the total is 1,337 = 1,110 + 53 + 174, with the App Store from a mocked provider", async () => {
@@ -104,22 +107,24 @@ describe("reconciliation with Bobbi's Oct 14 counts", () => {
     await appStore.read() // starts the count in the background
     await appStore.settled()
     const total = subscriberTotal(m, await appStore.read())
-    expect([total.stripePaying, total.appStore, total.freeAccounts]).toEqual([1110, 53, 174])
-    expect(total.value).toBe(1337)
-    expect(total.value).toBe(R.total_headline)
+    // Oct 20 (active only): 1,079 + 53 + 174 = 1,306, Oct 14's 1,337 less its 31 past_due.
+    expect([total.stripePaying, total.appStore, total.freeAccounts]).toEqual([1079, 53, 174])
+    expect(total.value).toBe(1306)
+    expect(total.value).toBe(R.total_headline - R.paying.past_due)
 
     // The App Store not connected: the total leaves it out, never counts it as 0 payers.
     const off = createAppStoreSource({ env: () => ({}) })
     const without = subscriberTotal(m, await off.read())
     expect(without.appStore).toBeNull()
-    expect(without.value).toBe(1110 + 174)
+    expect(without.value).toBe(1079 + 174)
   })
 
   it("Coulson's old method gives 1,156 on the same list, and the bridge explains the gap", () => {
     expect(coulson(FIXTURE)).toBe(1156)
     expect(coulson(FIXTURE)).toBe(R.coulson.result)
 
-    const paying = FIXTURE.filter(isPaying)
+    // The bridge is from Oct 14's paying set (active or past_due, paid once).
+    const paying = FIXTURE.filter((s) => isPaying(s) || isPastDue(s))
     const pastDue = paying.filter((s) => s.status === "past_due").length
     const neverPaidActiveNoCoupon = FIXTURE.filter(
       (s) => s.status === "active" && !isPaying(s) && !hasFullCouponNow(s)

@@ -54,15 +54,16 @@ answers on the other statuses. That means:
 
 **How this differs from Subscribers:** the Subscribers card in the same row
 uses different rules (see [stripe-live.md](./stripe-live.md), "Subscribers").
-- Its Stripe paying group counts `active` **or `past_due`** with at least one
-  paid invoice.
+- Its Stripe paying group counts `active` with at least one paid invoice
+  (since Oct 20, `past_due` is the separate pastDue figure, see
+  [stripe-metrics.md](./stripe-metrics.md)).
 - It adds App Store-only payers and free accounts.
 
 So the two cards measure different things, and their figures will differ.
 
 ## Layout (#67)
 
-Deke approved the 1280+ layout and 1180 (two columns plus full-width Inbox) from the box shot after/home-1440-light-after.png. There is no Figma frame.
+Deke approved every width on Oct 20, from the box screenshots (there is no Figma frame): 1180 and 1280+ at about 9:39 AM CT, 820 and 390 at about 10:20 AM CT, both on 279e450, and he re-confirmed 1440 on 279e450 at about 10:24 AM CT.
 
 - **1024px and up:** three even columns. The rows on desktop match heights,
   and the methods stack as label and value rows.
@@ -79,6 +80,8 @@ Deke approved the 1280+ layout and 1180 (two columns plus full-width Inbox) from
   Agent Workplace and Inbox) never stretch to the row's height: they are
   top-aligned (`self-start`) and only as tall as their content.
 - **Numbers:** tabular figures.
+
+**Follow-up:** tighten the gap under the TRUTH STRIP at 390.
 
 ## States (#50)
 

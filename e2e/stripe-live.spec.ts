@@ -137,16 +137,17 @@ test.describe("Stripe connected (1440)", () => {
       await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
-    // Stripe's, but this summary has no ARR or Revenue yet (Hill's fields): an em dash, never a figure.
+    // Stripe's real ARR and Revenue since #77, never the missing-field em dash.
+    await expect(metricCard(page, "ARR").getByTestId("metric-value")).toHaveText("$734,815")
     for (const name of ["ARR", "Revenue"]) {
-      await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText("\u2014")
-      await expect(metricCard(page, name)).toContainText("Not in Stripe\u2019s figures yet")
+      await expect(metricCard(page, name)).toHaveAttribute("data-source", "stripe")
+      await expect(metricCard(page, name)).not.toContainText("Not in Stripe\u2019s figures yet")
     }
     // Expenses is the founder's own entries (none yet), never a sample figure.
     await expect(metricCard(page, "Expenses")).toHaveAttribute("data-source", "entries")
     await expect(metricCard(page, "Expenses").getByTestId("sample-data-tag")).toHaveCount(0)
     const notice = page.getByRole("note", { name: "Partly live" })
-    await expect(notice).toContainText(/^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe/)
+    await expect(notice).toContainText(/^Partly live\. MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe/)
     await expect(notice).not.toContainText("Sample data")
     // The page is not all sample any more: the header chip goes.
     await expect(metricsHeaderTag(page)).toHaveCount(0)
@@ -260,7 +261,7 @@ test.describe("Subscribers total, App Store connected (1440)", () => {
     const metrics = metricCard(page, "Subscribers")
     await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
     expect(await rowsOf(metrics)).toEqual([
-      ["Past due", "\u2014"],
+      ["Past due", "31 · $1,519 MRR"],
       ["App Store", "53"],
       ["Free (never paid)", "174"],
     ])
@@ -332,12 +333,12 @@ test.describe("Subscribers total, App Store not connected (1440)", () => {
     const metrics = metricCard(page, "Subscribers")
     await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
     expect(await rowsOf(metrics)).toEqual([
-      ["Past due", "\u2014"],
+      ["Past due", "31 · $1,519 MRR"],
       ["App Store", "Not connected"],
       ["Free (never paid)", "174"],
     ])
-    // The headline never held the App Store, so no "excludes" note; this summary has no past-due split yet.
-    await expect(metrics.getByTestId("subscriber-breakdown-note")).toHaveText("Includes past due until Stripe\u2019s figures split them out")
+    // The headline never held the App Store, so no "excludes" note; past due is its own line since #77.
+    await expect(metrics).not.toContainText("Includes past due")
     const notice = page.getByRole("note", { name: "Partly live" })
     await expect(notice).not.toContainText("App Store")
   })
@@ -387,7 +388,7 @@ test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
       const metrics = metricCard(page, "Subscribers")
       await expect(metrics.getByTestId("metric-value")).toHaveText("1,110")
       expect(await rowsOf(metrics)).toEqual([
-        ["Past due", "\u2014"],
+        ["Past due", "31 · $1,519 MRR"],
         ["App Store", "Check source"],
         ["Free (never paid)", "174"],
       ])

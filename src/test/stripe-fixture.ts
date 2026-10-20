@@ -24,7 +24,23 @@ export const LIVE_METRICS: StripeMetrics = {
   mrr: { value: 61_234.56, previous: 59_000, series: [52_000, 54_000, 56_000, 57_500, 59_000, 61_234.56] },
   churn: { value: 2.7, previous: 3.1, series: [3.5, 3.4, 3.2, 3.3, 3.1, 2.7], churned: 34, base: 1_250 },
   trialToPaid: { value: 41.2, previous: null, series: [null, null, 30, 35, null, 41.2], converted: 7, ended: 17 },
+  pastDue: { value: 31, mrr: 1_519 },
+  arr: { value: 734_814.72, previous: 708_000, series: [624_000, 648_000, 672_000, 690_000, 708_000, 734_814.72] },
+  revenue: { value: 58_765.43, previous: 55_100, series: [47_000, 49_500, 51_200, 53_800, 55_100, 58_765.43], invoices: 1_204 },
+  arpu: { value: 55.17, previous: 54.63 },
+  ltv: { value: 1_885.36, previous: 1_617.12 },
+  nrr: { value: 98.6, previous: 97.9, series: [97.1, 97.5, 98, 97.2, 97.9, 98.6], basis: "current_prices" },
+  trialsStartedPerDay: {
+    series: Array.from({ length: 28 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 16 + i)).toISOString().slice(0, 10), count: i % 4 })),
+    total: 42,
+    previousTotal: 39,
+  },
 }
+
+/** The pre-#77 shape (core figures only), as a cached summary from before the deploy may hold. */
+export const LIVE_METRICS_CORE = Object.fromEntries(
+  Object.entries(LIVE_METRICS).filter(([k]) => !["pastDue", "arr", "revenue", "arpu", "ltv", "nrr", "trialsStartedPerDay"].includes(k))
+) as unknown as StripeMetrics
 
 /** The App Store source answering with Bobbi's Oct 14 count. */
 export const APP_STORE_CONNECTED: AppStoreSummary = { status: "connected", count: 53, asOf: SYNCED_AT }
@@ -69,7 +85,7 @@ export const LIVE_EXTRAS: Required<StripeMetricExtras> = {
   revenue: { value: 63_410, previous: 60_250, series: [51_000, 53_900, 55_400, 58_100, 60_250, 63_410], invoices: 1_204 },
   arpu: { value: 55.17, previous: 54.63 },
   ltv: { value: 1_874.12, previous: 1_604.5 },
-  nrr: { value: 101.4, previous: 99.8, series: [98.2, 99.1, 100.5, 99.3, 99.8, 101.4] },
+  nrr: { value: 101.4, previous: 99.8, series: [98.2, 99.1, 100.5, 99.3, 99.8, 101.4], basis: "current_prices" },
   trialsStartedPerDay: { series: TRIAL_DAYS, total: TRIAL_COUNTS.reduce((a, b) => a + b, 0), previousTotal: 32 },
 }
 
