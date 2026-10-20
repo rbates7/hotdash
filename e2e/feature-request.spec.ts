@@ -71,7 +71,7 @@ test.describe("Feature Request", () => {
     const main = page.getByRole("main")
     await expect(main.getByRole("heading", { level: 1, name: "Feature Request" })).toBeVisible()
     await expect(main.getByText("Dan’s intake · funnels into Product Roadmap")).toBeVisible()
-    await expect(persistence(page)).toHaveText(/save[ds]? in this browser/)
+    await expect(persistence(page)).toHaveText(/save[ds]? in this browser/i)
 
     await expect(cardsIn(page, "Inbox")).toHaveCount(3)
     await expect(cardsIn(page, "Triaged")).toHaveCount(3)
