@@ -6,3 +6,5 @@ export function serverEnv(source: Record<string, string | undefined>, extra?: Re
 export function blankSecretLike(source: Record<string, string | undefined>, known?: string[]): Record<string, string>
 export function parseEnvLines(text: string): Record<string, string>
 export function liveDataPaths(body: unknown, at?: string): string[]
+export const THROWAWAY_GATE: Record<"DASHBOARD_LOGIN_EMAIL" | "DASHBOARD_GATE_SECRET", RegExp>
+export function isThrowawayGateValue(name: string, value: string | undefined): boolean

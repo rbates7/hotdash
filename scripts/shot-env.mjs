@@ -16,8 +16,25 @@
 export const ALLOWED = ["PATH", "HOME", "LANG", "LC_ALL", "TZ", "TMPDIR", "NODE_ENV", "PORT", "NEXT_TELEMETRY_DISABLED", "COREPACK_HOME"]
 
 /** Integration prefixes and secret-ish words; matched case-insensitively. */
-const SECRET_PREFIX = /^(SENTRY|NOTION|STRIPE|GMAIL|GOOGLE|POSTHOG|GITHUB|GH|SUPABASE|DATABASE|VERCEL|SLACK|OPENAI|ANTHROPIC|AWS|NEXT_PUBLIC)_/i
+const SECRET_PREFIX = /^(SENTRY|NOTION|STRIPE|GMAIL|GOOGLE|POSTHOG|GITHUB|GH|SUPABASE|DATABASE|VERCEL|SLACK|OPENAI|ANTHROPIC|AWS|NEXT_PUBLIC|DASHBOARD)_/i
 const SECRET_WORD = /(TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL|AUTH|COOKIE|SESSION|DSN|PRIVATE|DB_URL|DATABASE_URL|github_read_only)/i
+
+/**
+ * Throwaway login-gate values a gated screenshot or e2e server may carry:
+ * an `@example.invalid` email and a password starting `TEST-ONLY-`. Real
+ * values can never match (example.invalid cannot receive mail), so a server
+ * with real gate settings is still refused.
+ */
+export const THROWAWAY_GATE = {
+  DASHBOARD_LOGIN_EMAIL: /^[a-z0-9.+-]+@example\.invalid$/,
+  DASHBOARD_GATE_SECRET: /^TEST-ONLY-[A-Za-z0-9-]{8,64}$/,
+}
+
+/** @param {string} name @param {string | undefined} value */
+export function isThrowawayGateValue(name, value) {
+  const pattern = /** @type {Record<string, RegExp>} */ (THROWAWAY_GATE)[name]
+  return Boolean(pattern && value && pattern.test(value))
+}
 
 /** @param {string} name */
 export function isSecretLike(name) {
@@ -30,7 +47,7 @@ export function isSecretLike(name) {
  */
 export function secretLikeSet(env) {
   return Object.keys(env)
-    .filter((name) => isSecretLike(name) && (env[name] ?? "") !== "")
+    .filter((name) => isSecretLike(name) && (env[name] ?? "") !== "" && !isThrowawayGateValue(name, env[name]))
     .sort()
 }
 
