@@ -384,8 +384,9 @@ test.describe("phone (390)", () => {
     await mockCrm(page, { summary: HILL, thread: crmFixtureThreadBody(Date.now()) })
     await open(page, "/crm/cases")
     const list = main(page).getByTestId("case-list")
+    await expect(list.getByRole("link").first()).toBeVisible()
+    await expect.poll(() => list.getByRole("link").count()).toBeGreaterThan(1)
     const before = await list.getByRole("link").count()
-    expect(before).toBeGreaterThan(1)
     // The inline segment is hidden on a phone; only the trigger shows.
     await expect(main(page).getByRole("group", { name: "Status filter" })).toBeHidden()
     const trigger = main(page).getByTestId("crm-filters-trigger")

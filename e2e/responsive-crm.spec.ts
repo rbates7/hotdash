@@ -248,13 +248,14 @@ test.describe("44px sweep (negative control)", () => {
   test("a single 43px target fails the sweep", async ({ page }) => {
     await live(page)
     expect((await smallTargets(main(page))).small).toEqual([])
-    // On a phone the status filter lives in the Filters sheet, so shrink the trigger instead.
+    // On a phone the status filter lives in the Filters sheet; shrink the search box
+    // (a plain input whose style React never rewrites) instead.
     await main(page)
-      .getByTestId("crm-filters-trigger")
+      .getByRole("searchbox", { name: "Search cases" })
       .evaluate((el) => el.setAttribute("style", "min-height: 0 !important; height: 43px !important"))
     const { small } = await smallTargets(main(page))
     expect(small).toHaveLength(1)
-    expect(small[0]).toMatch(/^button "Filters" \d+\.\d×43\.0$/)
+    expect(small[0]).toMatch(/^input "Search cases" \d+\.\d×43\.0$/)
   })
 })
 
