@@ -17,7 +17,7 @@ import {
   sslOption,
   type Connect,
 } from "@/lib/server/app-store"
-import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
+import { withTimeout } from "@/lib/server/time-limit"
 import postgres from "postgres"
 
 /**
@@ -29,7 +29,16 @@ import postgres from "postgres"
  * One read per `CACHE_TTL_MS` (5 min), in the background; the last good
  * counts are kept, so an outage shows them as stale (as `stripe.ts` does).
  * Schema owner: Radcliffe.
+ *
+ * Each method row is distinct coaches within that method; the total is
+ * distinct coaches across all methods, so a coach with two active methods
+ * is in two rows and once in the total. `count(distinct user_id)` would
+ * drop rows with no user_id; there were 0 such active rows on Oct 19 2026
+ * (checked read-only), so none are special-cased.
  */
+
+/** A read gives up after this: under the route's `maxDuration` (30 s), so `after()` is never cut off. */
+export const PAYING_SYNC_TIMEOUT_MS = 20_000
 export const PAYING_COACHES_SQL = `select method, count(distinct user_id)::int as n
 from chlk.subscriptions
 where subscription_status = 'active'
@@ -81,7 +90,7 @@ export function createPayingSource({
   clock = () => Date.now(),
   ttlMs = CACHE_TTL_MS,
   retryMs = RETRY_AFTER_MS,
-  timeoutMs = SYNC_TIMEOUT_MS,
+  timeoutMs = PAYING_SYNC_TIMEOUT_MS,
   log = (kind: string) => console.warn(`[paying-coaches] read failed: ${kind}`),
 }: {
   env?: () => Env

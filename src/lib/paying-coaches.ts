@@ -18,9 +18,13 @@ export type PayingCounts = {
   appStore: number
   stripe: number
   invoice: number
-  /** Active subscriptions with any other method (new or unexpected values). */
+  /** Distinct coaches with an active subscription of any other method (new or unexpected values). */
   other: number
-  /** Distinct coaches with an active subscription, across every method. */
+  /**
+   * Distinct coaches with an active subscription, across every method. A
+   * coach active under two methods is in both rows but once here, so the
+   * rows can add up to MORE than the total.
+   */
   total: number
 }
 
@@ -74,6 +78,16 @@ export function parsePayingCoaches(value: unknown): PayingCoachesSummary | null 
   const counts = Object.fromEntries(keys.map((k) => [k, c[k]])) as PayingCounts
   return { status: v.status, counts, asOf: v.asOf }
 }
+
+/**
+ * The status set counted (Radcliffe via Simmons): `active` only, pending
+ * Radcliffe's answer on past_due / grace. Pinned by tests. NOT the same as
+ * Subscribers' Stripe paying (`active` or `past_due`, see stripe-live.md).
+ */
+export const PAYING_STATUSES = ["active"] as const
+
+/** Under the rows: a coach paying more than one way counts in each row (the total counts them once). */
+export const PAYING_OVERLAP_NOTE = "Coaches with more than one method count in each row"
 
 export const PAYING_LABELS = { appStore: "App Store", stripe: "Stripe", invoice: "Invoice", other: "Other" } as const
 

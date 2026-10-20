@@ -33,6 +33,8 @@ HEAD_SHA=$(git -C "$REPO" rev-parse "$HEAD_REF")
 BASE_SHA=$(git -C "$REPO" rev-parse "$BASE_REF")
 OUT="$OUT_ROOT/${HEAD_SHA:0:7}-vs-develop-${BASE_SHA:0:7}"
 mkdir -p "$OUT/before" "$OUT/after"
+# The run log sits next to the stills on the box (never in git).
+exec > >(tee "$OUT/reshoot.log") 2>&1
 WT_HEAD=/tmp/paying-head-${HEAD_SHA:0:7}
 WT_BASE=/tmp/paying-base-${BASE_SHA:0:7}
 SERVER_PID=

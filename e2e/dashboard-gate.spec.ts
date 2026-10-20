@@ -51,6 +51,12 @@ test.describe("dashboard login gate", () => {
     }
   })
 
+  test("GET /api/subscriptions/paying is 401 without the cookie, with no counts (#67)", async ({ request }) => {
+    const res = await request.get("/api/subscriptions/paying", { maxRedirects: 0 })
+    expect(res.status()).toBe(401)
+    expect(await res.text()).not.toMatch(/counts|appStore|stripe|invoice/i)
+  })
+
   test("an off-site next is ignored", async ({ page }) => {
     await page.goto("/unlock?next=//example.com")
     await page.getByLabel("Email").fill(email)

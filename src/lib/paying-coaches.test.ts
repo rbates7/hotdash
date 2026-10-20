@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import fixture from "@/lib/__fixtures__/paying-coaches.json"
 import {
   PAYING_CONNECTING,
+  PAYING_STATUSES,
   PAYING_NOT_CONNECTED,
   TOTAL_ROW,
   countsFromRows,
@@ -82,5 +83,32 @@ describe("payingCoachesView", () => {
     if (v.kind !== "live") throw new Error("expected live")
     expect(v.rows.map((r) => r.key)).toEqual(["appStore", "stripe", "invoice", "other"])
     expect(v.updated).toMatch(/^Last updated .*3:00\sPM CDT$/)
+  })
+})
+
+describe("overlap: rows can add up to more than the total", () => {
+  const rows = [
+    { method: "AppStore", n: 40 },
+    { method: "Stripe", n: 900 },
+    { method: "invoice", n: 60 },
+    { method: TOTAL_ROW, n: 990 },
+  ]
+  it("keeps the distinct total as the database gave it, not the rows' sum", () => {
+    const c = countsFromRows(rows)!
+    expect(c.appStore + c.stripe + c.invoice + c.other).toBe(1000)
+    expect(c.total).toBe(990)
+    expect(c.appStore + c.stripe + c.invoice + c.other).toBeGreaterThan(c.total)
+  })
+  it("the tile shows the total and each row as given", () => {
+    const v = payingCoachesView({ status: "connected", counts: countsFromRows(rows)!, asOf: "2026-10-19T20:00:00.000Z" }, TZ)
+    if (v.kind !== "live") throw new Error("expected live")
+    expect(v.total).toBe("990")
+    expect(v.rows.map((r) => r.value)).toEqual(["40", "900", "60"])
+  })
+})
+
+describe("status set", () => {
+  it("is active only (pending Radcliffe), not Subscribers' active + past_due", () => {
+    expect(PAYING_STATUSES).toEqual(["active"])
   })
 })

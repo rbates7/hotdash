@@ -19,4 +19,11 @@ export async function GET() {
   return Response.json(body, { headers: { "Cache-Control": "no-store" } })
 }
 
-export const maxDuration = 300
+/**
+ * A request never waits for the database (the read runs in `after()`), and
+ * one read is bounded: connect 10 s, statement 10 s, the whole read 20 s
+ * (`PAYING_SYNC_TIMEOUT_MS`). 30 s covers that with room; the 300 s the
+ * Stripe routes need (a full Stripe sync) would only let a stuck read hold
+ * a function open.
+ */
+export const maxDuration = 30

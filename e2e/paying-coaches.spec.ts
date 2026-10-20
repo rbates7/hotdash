@@ -66,8 +66,8 @@ for (const s of STATES) {
   }
 }
 
-test("the KPI row leaves no empty slot: at two columns Paying coaches spans the row", async ({ page }) => {
-  for (const width of [820, 1180, 1440]) {
+test("KPI row (Deke, #67): three even columns from 1024px; below that Paying coaches spans the row", async ({ page }) => {
+  for (const width of [820, 1024, 1180, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto("/")
     await waitForHydration(page)
@@ -76,7 +76,32 @@ test("the KPI row leaves no empty slot: at two columns Paying coaches spans the 
     const first = (await cards.nth(0).boundingBox())!
     const second = (await cards.nth(1).boundingBox())!
     const tile = (await cards.nth(2).boundingBox())!
-    if (width >= 1280) expect(Math.abs(tile.y - first.y), `one row at ${width}`).toBeLessThanOrEqual(1)
-    else expect(Math.abs(tile.x + tile.width - (second.x + second.width)), `full row at ${width}`).toBeLessThanOrEqual(1)
+    if (width >= 1024) {
+      expect(Math.abs(tile.y - first.y), `one row at ${width}`).toBeLessThanOrEqual(1)
+      expect(Math.abs(tile.width - first.width), `even columns at ${width}`).toBeLessThanOrEqual(1)
+      expect(Math.abs(second.width - first.width), `even columns at ${width}`).toBeLessThanOrEqual(1)
+    } else expect(Math.abs(tile.x + tile.width - (second.x + second.width)), `full row at ${width}`).toBeLessThanOrEqual(1)
   }
+})
+
+test("Not connected cards are only as tall as their content at 390 (Deke, #67)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto("/")
+  await waitForHydration(page)
+  const cards = page.getByRole("region", { name: "KPI strip" }).getByRole("article")
+  for (const card of await cards.all()) {
+    await expect(card).toHaveAttribute("data-source", "not_connected")
+    // Header, dash and one muted line: well under the old 124px minimum plus reserves.
+    expect((await card.boundingBox())!.height).toBeLessThan(124)
+  }
+})
+
+test("live tile below 1024px: the methods sit inline on one line under the total (Deke, #67)", async ({ page }) => {
+  await mockPaying(page, livePaying("connected"))
+  await page.setViewportSize({ width: 820, height: 1180 })
+  await page.goto("/")
+  await waitForHydration(page)
+  const rows = page.getByTestId("paying-breakdown").locator("[data-row]")
+  const ys = await Promise.all((await rows.all()).map(async (r) => (await r.boundingBox())!.y))
+  expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(1)
 })

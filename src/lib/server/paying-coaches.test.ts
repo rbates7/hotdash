@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { PayingCounts } from "@/lib/paying-coaches"
 import { CACHE_TTL_MS, RETRY_AFTER_MS, type Connect } from "@/lib/server/app-store"
+import { PAYING_STATUSES } from "@/lib/paying-coaches"
 import { PAYING_COACHES_SQL, createPayingSource, postgresPayingQuery } from "@/lib/server/paying-coaches"
 
 /** A made-up URL: loopback, a fake role, never a real database. */
@@ -27,6 +28,18 @@ describe("PAYING_COACHES_SQL", () => {
     expect(PAYING_COACHES_SQL).toContain("count(distinct user_id)")
     expect(PAYING_COACHES_SQL).toContain("'__total__'")
     expect(PAYING_COACHES_SQL).not.toMatch(/email|name\b/i)
+  })
+})
+
+describe("PAYING_COACHES_SQL status filter (pinned)", () => {
+  it("filters on exactly the documented statuses, in both halves, and nothing else", () => {
+    const filters = PAYING_COACHES_SQL.match(/where [^\n]*/g)
+    expect(filters).toEqual(["where subscription_status = 'active'", "where subscription_status = 'active'"])
+    expect(PAYING_STATUSES).toEqual(["active"])
+    for (const other of ["past_due", "trialing", "billing_retry", "grace", "canceled", "unpaid", "paused"]) {
+      expect(PAYING_COACHES_SQL).not.toContain(other)
+    }
+    expect(PAYING_COACHES_SQL).not.toMatch(/subscription_status\s+in\s*\(/i)
   })
 })
 
