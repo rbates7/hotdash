@@ -173,7 +173,9 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-w-0 flex-1 flex-col gap-4">
       {/* Deke's header: the title and lede; on the right "Find a contact…"
           (⌘K) and the ⋯ menu, which holds Gmail's state and where edits
-          live. Phone: title and ⋯ on one row, the full-width finder below. */}
+          live. Phone: title and ⋯ on one row, the full-width finder below.
+          Heights carry `!`: Nova's unlayered `.cn-button-size-default` (h-8)
+          beats a plain `h-*` utility. */}
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0 flex-1 basis-60">
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
@@ -184,7 +186,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
         <div className="mt-1 flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
-            className="text-muted-foreground h-9 w-72 justify-start gap-2 px-3 font-normal max-xl:h-11! max-md:hidden"
+            className="text-muted-foreground h-9! w-72 justify-start gap-2 px-3 font-normal max-xl:h-11! max-md:hidden"
             onClick={() => setSearchOpen(true)}
           >
             <SearchIcon aria-hidden />
@@ -195,7 +197,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
         </div>
         <Button
           variant="outline"
-          className="text-muted-foreground h-11 w-full justify-start gap-2 px-3 font-normal md:hidden"
+          className="text-muted-foreground h-11! w-full justify-start gap-2 px-3 font-normal md:hidden"
           onClick={() => setSearchOpen(true)}
         >
           <SearchIcon aria-hidden />

@@ -170,11 +170,14 @@ async function smallTargets(scope: Locator) {
         el.getAttribute("aria-label") ?? (el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 48)
       // Base UI Select's form-value <input> is aria-hidden and visually hidden: not a target.
       const formValue = el.tagName === "INPUT" && el.getAttribute("aria-hidden") === "true"
+      // A non-modal Base UI portal (the case panel at 1180–1439) leaves two
+      // visually hidden 1×1 focus guards in place to keep tab order: not targets.
+      const focusGuard = el.hasAttribute("data-base-ui-focus-guard")
       return {
         name: `${el.tagName.toLowerCase()} "${name}"`,
         width: r.width,
         height: r.height,
-        painted: r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && !formValue,
+        painted: r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && !formValue && !focusGuard,
       }
     })
   )
@@ -447,6 +450,8 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
     }) => {
       const portrait = name === "tablet-portrait"
       await live(page)
+      // Dark is the app's default; the scrim below is checked at its light 40%.
+      await setTheme(page, "light")
       const t = table(page, "Cases")
       await expect(main(page).getByTestId("case-list")).toBeHidden()
       // Priority from 1180; Channel only from 1440.

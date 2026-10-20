@@ -166,6 +166,8 @@ test.describe("Gmail connected (mocked, 1440: split view)", () => {
   test("New (waiting on you) badges use info-text on a 12% / 18% info tint", async ({ page }) => {
     await mockCrm(page, { summary: HILL })
     await open(page, "/crm")
+    // Dark is the app's default: switch to light first.
+    await setTheme(page, "light")
     const badge = main(page).getByRole("list", { name: "Oldest waiting on you" }).getByTestId("crm-status-badge").first()
     await expect(badge).toHaveCSS("color", "rgb(0, 98, 184)")
     await setTheme(page, "dark")
@@ -304,15 +306,24 @@ test.describe("case panel below 1440", () => {
   test("820–1179: a sheet over a literal black scrim, 40% light / 60% dark", async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 800 })
     await mockCrm(page, { summary: HILL, thread: crmFixtureThreadBody(Date.now()) })
-    await open(page, "/crm/cases?case=case-1")
-    const sheet = page.getByRole("dialog", { name: FIXTURE_SUBJECTS.urgent })
-    await expect(sheet).toHaveAttribute("data-mode", "modal")
-    const scrim = page.locator("[data-slot=sheet-overlay]")
-    await expect(scrim).toBeVisible()
-    const bg = await scrim.evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(bg).toMatch(/0\.4\)|\/ 0\.4\)|40%/)
-    await page.keyboard.press("Escape")
-    await expect(page).toHaveURL(/\/crm\/cases$/)
+    // Dark is the app's default. Pick the theme with no sheet open (the modal
+    // sheet makes the toggle inert); next-themes keeps it across the goto.
+    await open(page, "/crm/cases")
+    for (const [theme, alpha] of [
+      ["light", /0\.4\)|\/ 0\.4\)|40%/],
+      ["dark", /0\.6\)|\/ 0\.6\)|60%/],
+    ] as const) {
+      await setTheme(page, theme)
+      await open(page, "/crm/cases?case=case-1")
+      const sheet = page.getByRole("dialog", { name: FIXTURE_SUBJECTS.urgent })
+      await expect(sheet).toHaveAttribute("data-mode", "modal")
+      const scrim = page.locator("[data-slot=sheet-overlay]")
+      await expect(scrim).toBeVisible()
+      const bg = await scrim.evaluate((el) => getComputedStyle(el).backgroundColor)
+      expect(bg, `${theme} scrim`).toMatch(alpha)
+      await page.keyboard.press("Escape")
+      await expect(page).toHaveURL(/\/crm\/cases$/)
+    }
   })
 })
 

@@ -211,9 +211,9 @@ describe("shell, triage and error state", () => {
     )
     // jsdom applies no CSS, so both finders (desktop ⌘K one, phone full-width one) are in the tree.
     const [desktop, phone] = screen.getAllByRole("button", { name: /^Find a contact…/ })
-    expect(desktop).toHaveClass("max-xl:h-11!", "max-md:hidden")
+    expect(desktop).toHaveClass("h-9!", "max-xl:h-11!", "max-md:hidden")
     expect(desktop).toHaveTextContent("⌘K")
-    expect(phone).toHaveClass("h-11", "w-full", "md:hidden")
+    expect(phone).toHaveClass("h-11!", "w-full", "md:hidden")
     const menu = screen.getByRole("button", { name: CRM_MENU_LABEL })
     expect(menu).toHaveClass(CRM_ICON_44)
     await user.click(menu)

@@ -545,7 +545,8 @@ test.describe("CRM, Gmail connected (mocked)", () => {
     await liveCrm(page)
     const dana = LIVE_PEOPLE.dana.name
     await crmNav(page).getByRole("link", { name: "Contacts", exact: true }).click()
-    await page.getByRole("link", { name: new RegExp(dana) }).click()
+    // Scoped to the table: until Contacts renders, Overview's activity links also name Dana.
+    await page.getByRole("table", { name: "Contacts" }).getByRole("link", { name: new RegExp(dana) }).click()
     await page.getByRole("button", { name: `Delete ${dana}` }).click()
     const contactConfirm = dialog(page, "Delete this contact?")
     await expect(contactConfirm).toBeVisible()
