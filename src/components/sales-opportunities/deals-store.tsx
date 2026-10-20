@@ -7,9 +7,8 @@ import {
   CAPS,
   clampText,
   dealsAreConsistent,
-  highestDealId,
   isDeal,
-  seedDeals,
+  SEED_DEAL_IDS,
   stripDeal,
   type Deal,
   type DealInput,
@@ -112,7 +111,6 @@ export function reducer(state: State, action: EditAction): State {
         lastTouch: action.at,
         createdAt: action.at,
         updatedAt: action.at,
-        sample: false,
       }
       return { ...state, deals: [...state.deals, deal], nextId: state.nextId + 1 }
     }
@@ -154,16 +152,31 @@ export function reducer(state: State, action: EditAction): State {
   }
 }
 
-/** The seed for the moment the page was requested. */
-export function initialState(nowMs: number): State {
-  const deals = seedDeals(nowMs)
-  return { deals, nextId: highestDealId(deals) + 1 }
+/**
+ * A fresh pipeline: no deals. No sample rows, labelled or not (Rashad's
+ * Oct 16 rule). Ids start after the old sample's so a new deal never takes
+ * one of theirs. `nowMs` is unused, kept so the shell can pass its clock.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function initialState(_nowMs: number): State {
+  return { deals: [], nextId: SEED_DEAL_IDS.size + 1 }
+}
+
+/**
+ * A copy saved before the sample was removed still holds it: every sample
+ * deal (by id) is dropped, edited or not; the founder's deals stay and the
+ * id counter never moves back.
+ */
+export function dropSeed(state: State): State {
+  const deals = state.deals.filter((d) => !SEED_DEAL_IDS.has(d.id))
+  if (deals.length === state.deals.length) return state
+  return { deals, nextId: Math.max(state.nextId, SEED_DEAL_IDS.size + 1) }
 }
 
 /**
  * Store actions mapped onto the shared persistence shell, which owns the
  * rules every screen shares: a hydrate never counts as an edit (and so never
- * writes), an empty or removed key re-seeds from `nowMs` and moves the
+ * writes), an empty or removed key empties the list at `nowMs` and moves the
  * clock, a pending local edit wins over an incoming copy, a no-op edit
  * returns the same shell, `saved` follows the write's result.
  */
@@ -195,8 +208,8 @@ export function shellReducer(shell: Shell, action: Action): Shell {
 /**
  * Deals are saved to this browser's localStorage under the shared policy in
  * `@/lib/persistence`: only after a real edit, never an identical copy,
- * validated whole on load, Reset clears the key. Bump the version when the
- * seed or the shape changes.
+ * validated whole on load, Clear my entries clears the key, and the old
+ * sample is dropped on load. Bump the version when the shape changes.
  */
 export const STORAGE_KEY = "hotdash.sales-opportunities.v1"
 
@@ -218,9 +231,9 @@ export function fromSaved(saved: State): State {
   return { deals: saved.deals.map(stripDeal), nextId: saved.nextId }
 }
 
-/** What `load` hands back: the stripped copy, or null to reject it. */
+/** What `load` hands back: the stripped copy without the old sample, or null to reject it. */
 export function parseState(value: unknown): State | null {
-  return isState(value) ? fromSaved(value) : null
+  return isState(value) ? dropSeed(fromSaved(value)) : null
 }
 
 export const dealsStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
@@ -244,7 +257,7 @@ type Store = State &
   PersistenceStore & {
     /**
      * The instant this page measures from: the request's on mount, then the
-     * moment of a Reset (or of a re-seed after another tab's Reset). Held by
+     * moment of a Clear (or of another tab's Clear). Held by
      * the shared shell; never read from a client clock in render.
      */
     nowMs: number
@@ -280,16 +293,16 @@ export function DealsProvider({
   const today = shellToday(shell)
 
   // The server has no localStorage, so it renders with `persisted: false` and
-  // the page shows skeletons rather than the seed. On the client the saved
+  // the page shows skeletons rather than an empty list. On the client the saved
   // copy is read in a layout effect — before the browser paints — so the
-  // first visible frame is already the user's data, never the seed. This is
+  // first visible frame is already the user's data, never a flash of the empty list. This is
   // the one hydrate dated by the request's instant.
   React.useLayoutEffect(() => {
     dispatch({ type: "hydrate", result: dealsStorage.load(window.localStorage), nowMs: requestNowMs })
   }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
-  // moving edit count does. The hook reads `now()` for a cross-tab re-seed.
+  // moving edit count does. The hook reads `now()` for a cross-tab clear.
   const onHydrate = React.useCallback(
     (result: LoadResult<State>, at: number) => dispatch({ type: "hydrate", result, nowMs: at }),
     []
@@ -319,7 +332,7 @@ export function DealsProvider({
       resetDemoData: () => {
         // Clear first, then regenerate from now — the one post-mount clock
         // read, shared by every screen — so the browser returns to the
-        // never-edited state with a seed dated today.
+        // never-edited state with an empty list dated today.
         clearState(window.localStorage)
         dispatch({ type: "reset", nowMs: reseedNowMs() })
       },
