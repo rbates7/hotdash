@@ -1,6 +1,6 @@
 # Dashboard login gate
 
-One email plus one password locks the whole dashboard. Approved by Rashad through Coulson; GO from Simmons on Mon Oct 19, 2026, 7:17 PM CT. Based on the gate plan (Option A), changed from a shared password to email + password.
+One email plus one password locks the whole dashboard. Approved by Rashad via Coulson, Mon Oct 19 2026, 7:17 PM CT; GO to build from Simmons at the same time, fail-closed confirmed. Plan: [plans/dashboard-gate-plan.md](plans/dashboard-gate-plan.md).
 
 ## Settings (names only; never commit or paste a value)
 
