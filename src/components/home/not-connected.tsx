@@ -18,12 +18,16 @@ export function NotConnectedBadge({ className }: { className?: string }) {
 /** Re-exported so Home imports both states from one place. */
 export { ConnectingBadge } from "@/components/connecting-badge"
 
-/** Door body for a source that is not connected: no sample rows, one line on what will feed it. */
+/**
+ * Door body for a source that is not connected: no sample rows, one line on
+ * what will feed it. Deke (#67): only as tall as its content and top-aligned
+ * (no flex-1, no vertical centring), so it never stretches to fill the door.
+ */
 export function DoorNotConnected({ hint }: { hint: string }) {
   return (
     <div
       data-testid="door-not-connected"
-      className="border-surface-border flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center"
+      className="border-surface-border flex flex-none flex-col items-center justify-start self-start w-full gap-2 rounded-lg border border-dashed px-4 py-5 text-center"
     >
       <NotConnectedBadge />
       <p className="text-caption text-muted-foreground tracking-tight">{hint}</p>

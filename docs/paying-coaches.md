@@ -60,18 +60,24 @@ uses different rules (see [stripe-live.md](./stripe-live.md), "Subscribers").
 
 So the two cards measure different things, and their figures will differ.
 
-## Layout (#67; design sign-off pending: Simmons is confirming with Deke)
+## Layout (#67)
+
+Deke approved the 1280+ layout and 1180 (two columns plus full-width Inbox) from the box shot after/home-1440-light-after.png. There is no Figma frame.
 
 - **1024px and up:** three even columns. The rows on desktop match heights,
   and the methods stack as label and value rows.
-- **Below 1024px:** the tile spans the full row. The methods sit inline under
-  the total: "App Store 40 · Stripe 900 · Invoice 60".
+- **Below 1024px:** the tile spans the full row. The methods are label and
+  value rows in a grid capped at 420px wide: one column on phones, two from
+  640px. It never has three columns.
 - **Not connected** cards, including the KPI cards, are only as tall as
   their content: the badge, the dash and one muted line ("Connect the
   database to see this" here, "Connect Stripe to see this" on the Stripe
   cards). Loading and Connecting… cards keep their room. So when the answer
   is "connected" nothing moves, but when it is "not connected" the strip can
   shrink and the doors move up. It never grows and pushes them down.
+- **Not connected** cards (KPI cards, this tile, and the door bodies such as
+  Agent Workplace and Inbox) never stretch to the row's height: they are
+  top-aligned (`self-start`) and only as tall as their content.
 - **Numbers:** tabular figures.
 
 ## States (#50)

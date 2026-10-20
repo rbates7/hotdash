@@ -18,6 +18,7 @@ describe("PayingCoachesCard", () => {
     expect(within(card).queryByTestId("paying-breakdown")).toBeNull()
     expect(within(card).queryByTestId("paying-overlap-note")).toBeNull()
     expect(card).not.toHaveClass("min-h-[124px]")
+    expect(card).toHaveClass("self-start")
     expect(card.textContent).not.toMatch(/\d/)
   })
   it("connecting: badge and busy, rows' room kept but hidden", () => {
@@ -39,14 +40,17 @@ describe("PayingCoachesCard", () => {
     expect(screen.getByTestId("paying-overlap-note")).toHaveTextContent(PAYING_OVERLAP_NOTE)
     expect(screen.queryByTestId("paying-updated")).toBeNull()
   })
-  it("rows are inline below 1024px and stacked from lg (Deke)", () => {
+  it("breakdown: 1 column on phones, 2 from sm, width capped below lg, 1 stacked column from lg (Deke)", () => {
     render(<PayingCoachesCard view={live()} />)
     const dl = screen.getByTestId("paying-breakdown")
-    expect(dl).toHaveClass("flex", "flex-wrap", "lg:flex-col")
-    // A "·" separator before every row but the first, hidden from lg.
-    const seps = [...dl.querySelectorAll("[data-row] > span[aria-hidden]")]
-    expect(seps).toHaveLength(2)
-    for (const s of seps) expect(s).toHaveClass("lg:hidden")
+    expect(dl).toHaveClass("grid", "grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-1", "max-w-[420px]", "lg:max-w-none")
+    expect([...dl.classList].some((c) => /grid-cols-3/.test(c))).toBe(false)
+    expect(dl.querySelectorAll("[data-row]")).toHaveLength(3)
+    expect(dl.querySelectorAll("[data-row] > span[aria-hidden]")).toHaveLength(0)
+  })
+  it("live is not self-start (keeps matched heights on desktop)", () => {
+    render(<PayingCoachesCard view={live()} />)
+    expect(screen.getByRole("article", { name: "Paying coaches" })).not.toHaveClass("self-start")
   })
   it("overlapping counts: rows add to more than the total, shown as given", () => {
     render(<PayingCoachesCard view={live({ appStore: 40, stripe: 900, invoice: 60, other: 0, total: 990 })} />)

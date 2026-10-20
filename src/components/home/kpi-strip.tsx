@@ -69,7 +69,8 @@ export function KpiCard({ kpi }: { kpi: Kpi }) {
       className={cn(
         "bg-surface border-surface-border flex flex-col rounded-xl border px-[18px] pt-[18px] pb-4",
         // Deke (#67): a Not connected card is only as tall as its content.
-        !notConnected && "min-h-[124px]"
+        // and does not stretch to the row's height (self-start).
+        notConnected ? "self-start" : "min-h-[124px]"
       )}
     >
       {/* min-h-5: a badge's height, held when there is none. */}

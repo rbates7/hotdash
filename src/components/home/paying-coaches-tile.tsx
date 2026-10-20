@@ -13,9 +13,9 @@ export const PAYING_NOT_CONNECTED_HINT = "Connect the database to see this"
  * Paying coaches: the KPI card's look (`KpiCard`), the total as the headline
  * and one entry per payment method under it.
  *
- * Deke's design pass (#67): from 1024px the methods stack as label/value
- * rows; below that (the card spans the row) they sit inline under the total,
- * "App Store 40 · Stripe 900 · Invoice 60". Figures are tabular. Not
+ * Deke (#67): the methods are label/value rows in a capped-width grid:
+ * one column on phones, two from 640px (the card spans the row), one stacked
+ * column from 1024px. Figures are tabular. Not
  * connected is only as tall as its content: badge, dash, one muted line.
  * Loading and Connecting… keep the rows' room (invisible) so the card does
  * not jump when counts land. Never a sample number.
@@ -33,7 +33,7 @@ export function PayingCoachesCard({ view }: { view: PayingCoachesView }) {
       data-source={view.kind}
       className={cn(
         "bg-surface border-surface-border flex flex-col rounded-xl border px-[18px] pt-[18px] pb-4",
-        !notConnected && "min-h-[124px]"
+        notConnected ? "self-start" : "min-h-[124px]"
       )}
     >
       <div className="flex min-h-5 items-start justify-between gap-2">
@@ -74,18 +74,13 @@ export function PayingCoachesCard({ view }: { view: PayingCoachesView }) {
             aria-hidden={!live || undefined}
             data-testid="paying-breakdown"
             className={cn(
-              "text-caption mt-2.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 tracking-tight",
-              "lg:flex-col lg:flex-nowrap lg:items-stretch",
+              "text-caption mt-2.5 grid w-full max-w-[420px] grid-cols-1 gap-x-6 gap-y-0.5 tracking-tight",
+              "sm:grid-cols-2 lg:max-w-none lg:grid-cols-1",
               !live && "invisible"
             )}
           >
-            {rows.map((row, i) => (
-              <div key={row.key} data-row={row.key} className="flex items-baseline gap-1 lg:justify-between lg:gap-3">
-                {i > 0 && (
-                  <span aria-hidden className="text-muted-foreground lg:hidden">
-                    ·{" "}
-                  </span>
-                )}
+            {rows.map((row) => (
+              <div key={row.key} data-row={row.key} className="flex min-w-0 items-baseline justify-between gap-3">
                 <dt className="text-muted-foreground truncate">{row.label}</dt>
                 <dd className="text-foreground flex-none font-medium tabular-nums">{row.value}</dd>
               </div>

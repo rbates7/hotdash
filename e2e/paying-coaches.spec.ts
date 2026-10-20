@@ -96,12 +96,15 @@ test("Not connected cards are only as tall as their content at 390 (Deke, #67)",
   }
 })
 
-test("live tile below 1024px: the methods sit inline on one line under the total (Deke, #67)", async ({ page }) => {
-  await mockPaying(page, livePaying("connected"))
-  await page.setViewportSize({ width: 820, height: 1180 })
-  await page.goto("/")
-  await waitForHydration(page)
-  const rows = page.getByTestId("paying-breakdown").locator("[data-row]")
-  const ys = await Promise.all((await rows.all()).map(async (r) => (await r.boundingBox())!.y))
-  expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(1)
-})
+for (const [width, cols] of [[390, 1], [820, 2]] as const) {
+  test(`live tile at ${width}: the methods are ${cols} column(s), never 3 (Deke, #67)`, async ({ page }) => {
+    await mockPaying(page, livePaying("connected"))
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1180 })
+    await page.goto("/")
+    await waitForHydration(page)
+    const dl = page.getByTestId("paying-breakdown")
+    const boxes = await Promise.all((await dl.locator("[data-row]").all()).map(async (r) => (await r.boundingBox())!))
+    expect(new Set(boxes.map((b) => Math.round(b.x))).size).toBe(cols)
+    expect((await dl.boundingBox())!.width).toBeLessThanOrEqual(421)
+  })
+}
