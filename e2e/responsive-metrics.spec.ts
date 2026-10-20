@@ -811,7 +811,7 @@ for (const [size, viewport] of [
         await fresh(page)
         await setTheme(page, theme)
         const groups = page.getByRole("group", { name: / chart type$/ })
-        await expect(groups).toHaveCount(8)
+        await expect(groups).toHaveCount(9)
         for (const group of await groups.all()) {
           const name = (await group.getAttribute("aria-label")) ?? "chart type"
           await expectPressedContrast(group, `${size}/${theme} ${name}`)

@@ -127,7 +127,7 @@ for (const theme of ["light", "dark"] as const) {
       expect(names.indexOf("trials_per_day")).toBe(names.indexOf("trials") + 1)
       const trials = metricCard(page, "Trials per day")
       await expect(trials).toContainText("Trials started in the last 28 days")
-      await expect(trials.getByRole("img")).toHaveAttribute("aria-label", /bar chart of 28 days/)
+      await expect(trials.getByRole("img", { name: /^Trials per day, bar chart of 28 days, 16 Sep to 13 Oct:/ })).toBeVisible()
       await expect(trials.getByTestId("trend")).toHaveText("+25.0%")
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
     })
