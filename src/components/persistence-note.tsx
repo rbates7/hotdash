@@ -57,6 +57,16 @@ export const RESET_DISABLED_HINT = "Nothing is saved in this browser yet, so the
  * instead of Reset: the same confirm and the same store call, worded for
  * what it does there — there is no demo data to bring back.
  */
+/** The confirm dialog's footer buttons: a 44px hit below 1280, like every control. */
+export const CONFIRM_FOOTER_BUTTON = "max-xl:h-11! max-xl:min-w-11!"
+
+/**
+ * The red confirm reads in the text-safe danger token (4.5:1 on its tinted
+ * fill in light and dark) instead of Nova's `text-destructive`, which is
+ * too light on `bg-destructive/10`.
+ */
+export const CONFIRM_DESTRUCTIVE = "text-danger-text!"
+
 export const CLEAR_COPY = {
   button: "Clear my entries",
   title: "Clear my entries?",
@@ -167,11 +177,12 @@ export function PersistenceNote({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
+            <Button variant="outline" className={CONFIRM_FOOTER_BUTTON} onClick={() => setConfirming(false)}>
               Keep my edits
             </Button>
             <Button
               variant="destructive"
+              className={cn(CONFIRM_FOOTER_BUTTON, CONFIRM_DESTRUCTIVE)}
               onClick={() => {
                 store.resetDemoData()
                 setConfirming(false)
