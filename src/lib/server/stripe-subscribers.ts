@@ -60,7 +60,7 @@ export function createSubscriberLists({
   const lists = new Map<string, { at: number; body: StripeSubscriberListResponse }>()
   const customers = new Map<string, { at: number; value: Customer }>()
 
-  /** Drop expired customers, then the oldest beyond `customerMax`. */
+  /** After a successful lookup only: drop expired customers, then the oldest beyond `customerMax`. */
   function pruneCustomers() {
     const now = clock()
     for (const [k, v] of customers) if (now - v.at >= customerTtlMs) customers.delete(k)
@@ -115,7 +115,11 @@ export function createSubscriberLists({
       lists.set(key, { at: clock(), body })
       return body
     },
-    /** Tests only: how many customers are held. */
+    /**
+     * Tests only: how many customers are held. Not part of the service's
+     * contract; no route or component may call it.
+     * @internal
+     */
     customerCacheSize() {
       return customers.size
     },
