@@ -7,6 +7,8 @@ import { snapshotFor } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { combineStaleNotes, inboxScreen, sourceList } from "@/lib/inbox-sources"
 import { useInboxView } from "@/hooks/use-inbox"
+import { usePayingCoaches } from "@/hooks/use-paying-coaches"
+import { payingCoachesView } from "@/lib/paying-coaches"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 import { useWallClock } from "@/hooks/use-wall-clock"
@@ -15,6 +17,7 @@ import { DevBoardDoor } from "@/components/home/dev-board-door"
 import { KpiStrip } from "@/components/home/kpi-strip"
 import { MetricsDoor } from "@/components/home/metrics-door"
 import { NeedsYouDoor } from "@/components/home/needs-you-door"
+import { PayingCoachesCard } from "@/components/home/paying-coaches-tile"
 import { NumberOneStrip } from "@/components/home/number-one-strip"
 import { SubscriberTicker } from "@/components/home/subscriber-ticker"
 import {
@@ -55,6 +58,8 @@ export function HomeScreen() {
   // `connecting`. With no key, every card is Not connected.
   const strip = liveKpis(kpis(today), feed, (id) => snapshotFor(id, { today }), timeZone)
   const mrr = liveMetric("mrr", feed, timeZone)
+  // Paying coaches (active subscriptions by method), from /api/subscriptions/paying.
+  const paying = payingCoachesView(usePayingCoaches(), timeZone)
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -82,6 +87,9 @@ export function HomeScreen() {
         {/* No source for the #1 yet (My Desk is not wired), so the honest empty state. */}
         <NumberOneStrip item={null} />
         <KpiStrip kpis={strip} title={kpiStripTitle} />
+        <section aria-label="Paying coaches" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <PayingCoachesCard view={paying} />
+        </section>
         <div role="group" aria-label="Doors" className={HOME_DOORS}>
           <MetricsDoor
             // MRR always has a value (a sum, never a ratio), so no point is null.
