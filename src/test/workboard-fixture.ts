@@ -15,11 +15,9 @@ export function workboardItem(over: Partial<WorkboardItem> = {}): WorkboardItem 
     title: "Suspect-zero guard",
     url: `https://github.com/rbates7/hotdash/pull/${number}`,
     owner: "simmons-bot",
-    branch: "feat/suspect-zero",
     state: "ready_for_review",
     ci: "passing",
     review: "pending",
-    proofLinks: ["https://github.com/user-attachments/assets/example.png"],
     updatedAt: "2026-10-16T22:10:00Z",
     mergedAt: null,
     ...over,
@@ -28,10 +26,10 @@ export function workboardItem(over: Partial<WorkboardItem> = {}): WorkboardItem 
 
 /** One row per column, so every column and badge tone is on screen. */
 export const LIVE_ITEMS: WorkboardItem[] = [
-  workboardItem({ number: 52, title: "Inbox: GitHub and Sentry", owner: "hill-bot", branch: "feat/inbox", state: "working", ci: "pending", review: "none", proofLinks: [] }),
-  workboardItem({ number: 50, title: "Connecting state", owner: "koenig-bot", branch: "feat/connecting", state: "needs_fix", ci: "failing", review: "changes_requested", proofLinks: [] }),
+  workboardItem({ number: 52, title: "Inbox: GitHub and Sentry", owner: "hill-bot", state: "working", ci: "pending", review: "none" }),
+  workboardItem({ number: 50, title: "Connecting state", owner: "koenig-bot", state: "needs_fix", ci: "failing", review: "changes_requested" }),
   workboardItem(),
-  workboardItem({ number: 46, title: "CRM: read-only Gmail source", owner: "rbates7", branch: "feat/crm-gmail", state: "merged", ci: "none", review: "none", proofLinks: [], mergedAt: "2026-10-16T15:00:00Z" }),
+  workboardItem({ number: 46, title: "CRM: read-only Gmail source", owner: "rbates7", state: "merged", ci: "none", review: "none", mergedAt: "2026-10-16T15:00:00Z" }),
 ]
 
 export function workboardSummary(

@@ -4,6 +4,7 @@ import { expectReadable } from "./support/contrast"
 import { waitForHydration } from "./support/shell"
 import { expectTapTarget } from "./support/tap-target"
 import { setTheme } from "./support/theme"
+import type { WorkboardResponse } from "../src/lib/workboard"
 import { LIVE_ITEMS, WORKBOARD_URL, mockWorkboard, workboardSummary } from "./support/workboard"
 
 /**
@@ -71,8 +72,40 @@ test("live rows sit in their columns with 44px links on tablet", async ({ page }
     await expect(link).toHaveAttribute("href", `https://github.com/rbates7/hotdash/pull/${n}`)
     await expectTapTarget(link, `PR #${n}`)
   }
-  await expectTapTarget(board(page).getByRole("link", { name: "Proof" }), "Proof")
   await expect(board(page).getByTestId("workboard-stale")).toHaveCount(0)
+})
+
+test("a payload carrying PR bodies and proof links renders none of them: PR links only", async ({ page }) => {
+  // What an older or misbehaving server might send: description text and
+  // links taken from it, in every shape the old board knew.
+  const leaky = {
+    ...workboardSummary("connected"),
+    items: LIVE_ITEMS.map((item) => ({
+      ...item,
+      body: `BODY-TEXT-${item.number} ![proof](https://example.com/body-shot-${item.number}.png) [plan](https://example.com/body-link-${item.number})`,
+      bodyHTML: `<p>BODY-HTML-${item.number}</p>`,
+      proofLinks: [`https://example.com/proof-${item.number}.png`, "https://github.com/user-attachments/assets/leak"],
+      links: [`https://example.com/link-${item.number}`],
+      branch: `feat/leak-${item.number}`,
+    })),
+  } as unknown as WorkboardResponse
+  await mockWorkboard(page, leaky)
+  await open(page)
+  const panel = board(page)
+  await expect(panel.getByTestId("work-card")).toHaveCount(LIVE_ITEMS.length)
+  for (const item of LIVE_ITEMS) await expect(panel.getByText(item.title, { exact: true })).toBeVisible()
+
+  const text = (await panel.textContent()) ?? ""
+  for (const leak of ["BODY-TEXT", "BODY-HTML", "body-shot", "body-link", "proof-", "user-attachments", "example.com", "feat/leak"]) {
+    expect(text, leak).not.toContain(leak)
+  }
+  await expect(panel.getByRole("link", { name: /Proof/ })).toHaveCount(0)
+  await expect(panel.locator("img")).toHaveCount(0)
+
+  // The only links on the board are GitHub's PR URLs, one per card.
+  const hrefs = await panel.getByRole("link").evaluateAll((els) => els.map((el) => el.getAttribute("href")))
+  expect(hrefs.sort()).toEqual(LIVE_ITEMS.map((i) => `https://github.com/rbates7/hotdash/pull/${i.number}`).sort())
+  expect(await panel.locator('a[href*="example.com"], a[href*="user-attachments"], img[src*="example.com"]').count()).toBe(0)
 })
 
 for (const theme of ["light", "dark"] as const) {

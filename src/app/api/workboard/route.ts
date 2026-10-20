@@ -1,7 +1,7 @@
 import { after } from "next/server"
 
 import { workboardService } from "@/lib/server/workboard"
-import { notConnected, type WorkboardResponse } from "@/lib/workboard"
+import { notConnected, publicWorkboardResponse, type WorkboardResponse } from "@/lib/workboard"
 
 // Per request, never at build: the build must not call GitHub.
 export const dynamic = "force-dynamic"
@@ -12,11 +12,15 @@ export const dynamic = "force-dynamic"
  * sync lands, it is `connecting`; no token, or a first sync that failed, is
  * `not_connected` with no items; a failed sync after a good one is the last
  * good items, `stale`. A due sync runs after the response (`after`), and
- * the next poll picks it up.
+ * the next poll picks it up. Items carry title, status, owner, dates, the
+ * number and GitHub's PR URL only (`publicWorkboardResponse`): no PR
+ * description and no link taken from one.
  */
 export async function GET() {
   after(() => workboardService.settled())
-  const body: WorkboardResponse = await workboardService.read().catch(() => notConnected(new Date()))
+  const body: WorkboardResponse = publicWorkboardResponse(
+    await workboardService.read().catch(() => notConnected(new Date()))
+  )
   return Response.json(body, { headers: { "Cache-Control": "no-store" } })
 }
 
