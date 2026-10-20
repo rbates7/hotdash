@@ -140,12 +140,23 @@ for (const { vp, answer } of SETTLE_CASES) {
       await page.goto("/home")
       const doors = page.getByRole("group", { name: "Doors" })
       await expect(page.getByRole("article", { name: "Subscribers" })).toHaveAttribute("data-source", "loading")
+      // Only Stripe is held. The Paying coaches tile in the same strip has
+      // its own fetch (/api/subscriptions/paying, not connected on the e2e
+      // server); a Not connected card is shorter than its loading
+      // placeholder (Deke, #67), so if it lands after `before` the doors
+      // move up for a reason that is not Stripe's. Let it settle first.
+      await expect(page.getByRole("article", { name: "Paying coaches" })).not.toHaveAttribute("data-source", "loading")
+      await page.evaluate(() => document.fonts.ready)
       const before = await doors.boundingBox()
       release()
       await stripeSettled(page)
       const after = await doors.boundingBox()
       expect(before && after, "doors painted").toBeTruthy()
-      expect(after!.y, "placeholders hold the loaded height").toBe(before!.y)
+      if (answer === "connected") expect(after!.y, "placeholders hold the loaded height").toBe(before!.y)
+      // Deke (#67): a Not connected card is only as tall as its content, so
+      // when the answer is "not connected" the strip may shrink (the doors
+      // move up), but it never grows and pushes them down.
+      else expect(after!.y, "Not connected never pushes the doors down").toBeLessThanOrEqual(before!.y)
     })
   })
 }

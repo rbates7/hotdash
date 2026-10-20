@@ -14,8 +14,8 @@ import { MetricsSampleNotice, OTHER_CARDS_TEXT, PARTLY_LIVE_LABEL } from "@/comp
 
 const POSTHOG_LINE = "Retention and Active Users are live from PostHog (read-only, iOS app events only)"
 const SUSPECT_LINE = "Subscribers leaves out App Store payers until Chlk’s database read is checked (it read 0)"
-const STRIPE_LINE = "MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe (read-only)"
-const APP_STORE_COUNTED = "Subscribers also counts App Store payers"
+const STRIPE_LINE = "MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe (read-only)"
+const APP_STORE_COUNTED = "Subscribers also shows App Store payers"
 
 function noticeText() {
   render(<MetricsSampleNotice />)

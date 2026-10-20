@@ -80,13 +80,13 @@ for (const theme of ["light", "dark"] as const) {
     await shoot(page, `metrics-overview-persisted-after-reload-${theme}`)
 
     // Empty board.
-    for (const name of ["MRR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses", "Valuation"]) {
+    for (const name of ["MRR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Trials per day", "Expenses", "Valuation"]) {
       await card(page, name).getByRole("button", { name: `Remove ${name}` }).click()
     }
     await expect(panel(page, "Overview").getByRole("status", { name: "Empty board" })).toBeVisible()
     await shoot(page, `metrics-overview-empty-${theme}`)
     await resetDemoData(page)
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
 
     // Subscriber lists: Not connected (no per-customer source yet).
     await tab(page, "New Subscribers").click()

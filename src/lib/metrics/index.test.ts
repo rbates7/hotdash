@@ -30,6 +30,8 @@ const MOCK: Record<MetricId, [value: string, trend: string, good: boolean]> = {
   // The mock said +12; the seed now reconciles with its own tables (8 new − 5 churned).
   subscribers: ["186", "+3", true],
   trials: ["28%", "+3.1 pts", true],
+  // Not in the mock: the fixture behind the Stripe-fed Trials per day card.
+  trials_per_day: ["38", "+5.6%", true],
   expenses: ["$8,240", "+2.4%", false],
   // Not in the mock: the sample behind the PostHog-fed Active Users card.
   active: ["731", "+5.9%", true],

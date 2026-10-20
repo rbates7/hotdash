@@ -97,7 +97,6 @@ const source = crmSource
 const clearButton = clearMenuItem
 const casePanel = (page: Page) => page.getByTestId("case-panel")
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM sections", exact: true })
-const statusFilter = (page: Page) => main(page).getByRole("group", { name: "Status filter", exact: true })
 const cardList = (page: Page) => main(page).locator("[data-slot='responsive-table']").getByRole("list")
 const cards = (page: Page) => cardList(page).locator("[data-slot='row-collapse']")
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -249,12 +248,14 @@ test.describe("44px sweep (negative control)", () => {
   test("a single 43px target fails the sweep", async ({ page }) => {
     await live(page)
     expect((await smallTargets(main(page))).small).toEqual([])
-    await statusFilter(page)
-      .getByRole("button", { name: "Open", exact: true })
+    // On a phone the status filter lives in the Filters sheet; shrink the search box
+    // (a plain input whose style React never rewrites) instead.
+    await main(page)
+      .getByRole("searchbox", { name: "Search cases" })
       .evaluate((el) => el.setAttribute("style", "min-height: 0 !important; height: 43px !important"))
     const { small } = await smallTargets(main(page))
     expect(small).toHaveLength(1)
-    expect(small[0]).toMatch(/^button "Open" \d+\.\d×43\.0$/)
+    expect(small[0]).toMatch(/^input "Search cases" \d+\.\d×43\.0$/)
   })
 })
 
@@ -364,7 +365,7 @@ test.describe("responsive CRM (phone 390)", () => {
 
   // Old Cases phone UI (full-width segmented tabs, filter strip, RowCollapse case cards) removed by the CRM rebuild; the filters are covered by e2e/crm-rebuild.spec.ts.
 
-  test("Contacts: the panel, then cards with Name, Plan, Email, 'Organization · N open cases'", async ({ page }) => {
+  test("Contacts: the panel, then cards with Name, Email, 'Organization · N open cases'", async ({ page }) => {
     await own(page)
     await expectGmailPanel(page, "contacts")
     await expect(cards(page)).toHaveCount(OWN_CONTACTS.length)
@@ -378,9 +379,9 @@ test.describe("responsive CRM (phone 390)", () => {
     await expectTapTarget(main(page).getByRole("button", { name: "New contact", exact: true }), "New contact")
     await expect(main(page).getByRole("textbox", { name: "Search contacts" })).toHaveCSS("height", "44px")
 
-    // A plan, when there is one, shows as the card's pill (live, with plans).
+    // No plan pill on the cards, even with plans in the data (no Gmail source).
     await live(page, "/crm/contacts", withPlans(liveGmailSummary(Date.now())))
-    await expect(card(page, DANA_NAME).getByTestId("card-plan-pill")).toHaveText("Annual")
+    await expect(card(page, DANA_NAME).getByTestId("card-plan-pill")).toHaveCount(0)
     await expect(card(page, DANA_NAME)).toContainText(/example\.org · 2 open cases/)
   })
 
@@ -523,10 +524,10 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       await expectGmailPanel(page, "contacts")
       await expect(cardList(page)).toBeHidden()
       const t = table(page, "Contacts")
-      await expect(t.getByRole("columnheader")).toHaveText(["Name", "Organization", "Plan", "Open cases", "Actions"])
+      await expect(t.getByRole("columnheader")).toHaveText(["Name", "Organization", "Open cases", "Actions"])
       const row = t.getByRole("row", { name: new RegExp(PAT) })
       await expect(row.getByRole("cell").first().getByText("pat.reyes@example.org")).toBeVisible()
-      await expect(row.getByRole("cell")).toHaveCount(5)
+      await expect(row.getByRole("cell")).toHaveCount(4)
       const more = row.getByRole("button", { name: `More actions for ${PAT}` })
       await expectTapTarget(more, "contact …")
       await more.click()
@@ -600,13 +601,19 @@ for (const [size, viewport] of TOUCH_SIZES) {
 
       // Cases (live): priority filter options, then a row's priority picker options.
       await live(page)
-      await main(page).getByRole("combobox", { name: "Priority filter" }).click()
+      // Phone: the priority filter is inside the Filters sheet.
+      if (viewport.width < 768) await main(page).getByTestId("crm-filters-trigger").click()
+      await page.getByRole("combobox", { name: "Priority filter" }).filter({ visible: true }).click()
       const options = page.getByRole("listbox")
       await expect(options).toBeVisible()
       await settle(options)
       await expectAllTargets44(options, `${size} priority filter options`)
       await page.keyboard.press("Escape")
       await expect(options).toBeHidden()
+      if (viewport.width < 768) {
+        await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click()
+        await expect(page.getByRole("dialog", { name: "Filters" })).toBeHidden()
+      }
       // The case's priority picker, in the case panel at every width (the
       // list rows below 820 have no pickers; the table's Priority column is
       // 1180 up), and the panel's 44px status segments.
@@ -677,7 +684,6 @@ test.describe("responsive CRM (desktop 1440)", () => {
       "Name",
       "Email",
       "Organization",
-      "Plan",
       "Open cases",
     ])
     await expect(main(page).getByRole("button", { name: /^More actions for / })).toHaveCount(0)

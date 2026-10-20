@@ -6,10 +6,13 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { configureRoadmapBoard } from "@/components/product-roadmap/roadmap-store"
 import { configureCrmSummary } from "@/hooks/use-crm-summary"
 import { configureGmailSummary } from "@/hooks/use-gmail-summary"
+import { configurePayingCoaches } from "@/hooks/use-paying-coaches"
 import { configureNotionRoadmap } from "@/hooks/use-notion-roadmap"
 import { configurePosthogSummary } from "@/hooks/use-posthog-summary"
 import { configureMrrCash } from "@/hooks/use-stripe-mrr-cash"
 import { configureStripeSummary } from "@/hooks/use-stripe-summary"
+import { configureSubscriberLists } from "@/hooks/use-stripe-subscribers"
+import { subscriberListNotConnected } from "@/lib/stripe-subscribers"
 import { configureWorkboard } from "@/hooks/use-workboard"
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { CRM_NOT_CONNECTED } from "@/lib/crm/case-view"
@@ -24,6 +27,8 @@ import { WORKBOARD_NOT_CONNECTED } from "@/lib/workboard-view"
 // A test that wants live figures configures them itself (see
 // src/test/stripe.ts, src/test/posthog.ts and src/test/gmail.ts).
 beforeEach(() => {
+  // Paying coaches: not connected unless a test says otherwise (no fetch).
+  configurePayingCoaches(async () => ({ status: "not_connected" }))
   configureStripeSummary({
     initial: { phase: "ready", summary: NOT_CONNECTED },
     fetcher: async () => NOT_CONNECTED,
@@ -41,6 +46,11 @@ beforeEach(() => {
     fetcher: async () => NOTION_NOT_CONNECTED,
   })
   configureMrrCash({ fetcher: async () => MRR_CASH_NOT_CONNECTED })
+  // The New and Churned Subscribers lists (src/test/stripe-subscribers.ts for live, stale, 401).
+  configureSubscriberLists({
+    initial: (list) => ({ phase: "ready", list: subscriberListNotConnected(list) }),
+    fetcher: async (list) => ({ kind: "ok", data: subscriberListNotConnected(list) }),
+  })
   // Gmail too: the CRM shows its labelled sample (src/test/gmail.ts for live).
   configureGmailSummary({
     initial: { phase: "ready", summary: GMAIL_NOT_CONNECTED },

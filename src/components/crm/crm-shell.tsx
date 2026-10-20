@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   SearchIcon,
   TriangleAlertIcon,
+  ChevronRightIcon,
 } from "lucide-react"
 
 import { countTriagePending } from "@/lib/crm/crm"
@@ -24,7 +25,27 @@ export const FIND_CONTACT = "Find a contact…"
 
 export const LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
 /** While Gmail's first sync runs. */
-export const CONNECTING_LEDE = "Conversations, contacts, and triage"
+export const CONNECTING_LEDE = "Loading your cases…"
+
+/** What each CRM section lists, for the loading and session-expired subtitles. */
+export function sectionNoun(pathname: string) {
+  if (pathname.startsWith("/crm/contacts")) return "contacts"
+  if (pathname.startsWith("/crm/triage")) return "triage"
+  if (pathname.startsWith("/crm/accounts")) return "accounts"
+  return "cases"
+}
+
+export function loadingLede(pathname: string) {
+  const noun = sectionNoun(pathname)
+  return noun === "triage" ? "Loading triage…" : `Loading your ${noun}…`
+}
+
+export function expiredLede(pathname: string) {
+  const noun = sectionNoun(pathname)
+  return noun === "triage" ? "Sign in again to see triage" : `Sign in again to see your ${noun}`
+}
+/** The login gate's 401: the session ran out, Gmail is still connected. */
+export const EXPIRED_LEDE = "Sign in again to see your cases"
 
 export function liveLede(mailbox: string) {
   return `Conversations, contacts, and triage from ${mailbox}`
@@ -143,13 +164,16 @@ function CrmTabs({ pathname, triageCount }: { pathname: string; triageCount: num
       <span
         aria-hidden
         data-testid="crm-tab-fade-start"
-        className="from-background pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
+        className="from-background via-background/80 pointer-events-none absolute inset-y-0 left-0 w-12 rounded-l-lg bg-gradient-to-r to-transparent opacity-0 transition-opacity group-data-[fade-start]/tabbar:opacity-100"
       />
       <span
         aria-hidden
         data-testid="crm-tab-fade-end"
-        className="from-background pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l to-transparent opacity-0 transition-opacity group-data-[fade-end]/tabbar:opacity-100"
-      />
+        className="from-background via-background/80 pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end rounded-r-lg bg-gradient-to-l to-transparent pr-1 opacity-0 transition-opacity group-data-[fade-end]/tabbar:opacity-100"
+      >
+        {/* Scroll cue: more tabs (Triage, Contacts) sit past the edge on a phone. */}
+        <ChevronRightIcon className="text-muted-foreground size-4" />
+      </span>
     </div>
   )
 }
@@ -167,7 +191,10 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
   // browser and say so themselves, so the read-only note is for the others.
   const rebuilt = isRebuiltScreen(pathname)
   // The login gate's 401: the data is behind the login, not disconnected.
-  const unauthorized = useCrmView().phase === "unauthorized"
+  const viewPhase = useCrmView().phase
+  const unauthorized = viewPhase === "unauthorized"
+  // First load or Gmail's first sync: the subtitle says the cases are loading.
+  const loading = connecting || viewPhase === "loading" || gmail.kind === "loading"
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -180,7 +207,13 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 flex-1 basis-60">
           <h1 className="text-display-sm font-semibold tracking-tight">CRM</h1>
           <p className="text-label text-muted-foreground mt-[5px] tracking-tight">
-            {gmail.kind === "live" ? liveLede(gmail.mailbox) : connecting ? CONNECTING_LEDE : LEDE}
+            {unauthorized
+              ? expiredLede(pathname)
+              : gmail.kind === "live"
+                ? liveLede(gmail.mailbox)
+                : loading
+                  ? loadingLede(pathname)
+                  : LEDE}
           </p>
         </div>
         <div className="mt-1 flex shrink-0 items-center gap-2">

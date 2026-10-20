@@ -59,7 +59,7 @@ test.describe("Stripe connecting (1440)", () => {
     }
     await expect(ticker(page).getByTestId("connecting")).toBeVisible()
     await expect(page.getByRole("region", { name: "Metrics" }).getByTestId("connecting")).toBeVisible()
-    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(2) // Workplace + Inbox doors
+    await expect(page.locator("main").getByTestId("not-connected").filter({ visible: true })).toHaveCount(3) // Workplace + Inbox doors + Paying coaches (no database URL here)
   })
 
   test("Metrics: the Stripe cards carry no Sample label", async ({ page }) => {
@@ -90,7 +90,7 @@ test.describe("Stripe connecting (1440)", () => {
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
     // The browser asks again within ~5 s while connecting (not the minute it waits once live).
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe", { timeout: 15_000 })
-    await expect(kpi(page, "Subscribers").getByText("1,337")).toBeVisible()
+    await expect(kpi(page, "Subscribers").getByText("1,306")).toBeVisible()
     await expect(ticker(page)).toHaveAttribute("data-state", "ready")
   })
 
@@ -181,7 +181,7 @@ test.describe("our endpoint fails after connecting (1440)", () => {
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
     // App Store no longer on its way: the total shows without it, and says so.
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe", { timeout: 15_000 })
-    await expect(kpi(page, "Subscribers")).toContainText("1,284")
+    await expect(kpi(page, "Subscribers")).toContainText("1,253")
     await expect(kpi(page, "Subscribers")).toContainText("Total excludes App Store (not connected)")
   })
 })

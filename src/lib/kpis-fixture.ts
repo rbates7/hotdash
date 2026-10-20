@@ -59,6 +59,7 @@ const SERIES: Record<MetricId, number[]> = {
   retention: [95.6, 95.7, 95.8, 95.8, 95.8, 0],
   subscribers: [158, 164, 169, 172, 0, 186],
   trials: [22, 23, 24, 24.5, 24.9, 28],
+  trials_per_day: [30, 32, 31, 34, 36, 38],
   // The second-to-last point is the prior period's total; the last is
   // summed live from the table.
   expenses: [7_800, 7_900, 7_960, 8_000, 8_050, 0],

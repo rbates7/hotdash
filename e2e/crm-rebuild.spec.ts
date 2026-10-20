@@ -334,7 +334,7 @@ test.describe("session expired (401 from the login gate)", () => {
       await open(page, path)
       const expired = main(page).getByTestId("crm-session-expired").first()
       await expect(expired).toContainText("Your session expired.")
-      await expect(expired.getByRole("link", { name: "Log in again" })).toHaveAttribute("href", /^\/unlock\?next=/)
+      await expect(expired.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", /^\/unlock\?next=/)
       await expect(main(page).getByTestId("crm-not-connected")).toHaveCount(0)
       await expect(main(page).getByTestId("not-connected")).toHaveCount(0)
     })
@@ -344,11 +344,12 @@ test.describe("session expired (401 from the login gate)", () => {
 test.describe("phone (390)", () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  for (const path of ["/crm", "/crm/cases", "/crm/accounts"]) {
+  for (const path of ["/crm", "/crm/cases", "/crm/accounts", "/crm/triage", "/crm/contacts"]) {
     test(`${path} never scrolls sideways`, async ({ page }) => {
       await mockGmail(page, LIVE)
       await open(page, path)
-      await expect(liveRegion(page)).not.toContainText("Connecting")
+      // Triage and Contacts have no live region; wait for the rows to replace "Connecting…" instead.
+      await expect(main(page)).not.toContainText("Connecting")
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
     })
@@ -377,6 +378,62 @@ test.describe("phone (390)", () => {
     await expect(sheet).toHaveAttribute("data-expanded", "true")
     expect((await sheet.boundingBox())!.height).toBeGreaterThan(844 * 0.9)
     expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
+  })
+
+  test("filters live in a bottom sheet behind a Filters button with the active count; 44px controls; no sideways scroll", async ({ page }) => {
+    await mockCrm(page, { summary: HILL, thread: crmFixtureThreadBody(Date.now()) })
+    await open(page, "/crm/cases")
+    const list = main(page).getByTestId("case-list")
+    await expect(list.getByRole("link").first()).toBeVisible()
+    await expect.poll(() => list.getByRole("link").count()).toBeGreaterThan(1)
+    const before = await list.getByRole("link").count()
+    // The inline segment is hidden on a phone; only the trigger shows.
+    await expect(main(page).getByRole("group", { name: "Status filter" })).toBeHidden()
+    const trigger = main(page).getByTestId("crm-filters-trigger")
+    await expect(trigger).toHaveAccessibleName("Filters")
+    await expectTapTarget(trigger, "Filters")
+    await trigger.click()
+    const sheet = page.getByRole("dialog", { name: "Filters" })
+    await expect(sheet).toBeVisible()
+    for (const b of await sheet.getByRole("group", { name: "Status filter" }).getByRole("button").all())
+      await expectTapTarget(b, "status filter")
+    await expectTapTarget(sheet.getByRole("button", { name: "Needs my reply" }), "Needs my reply")
+    await expectTapTarget(sheet.getByRole("combobox", { name: "Priority filter" }), "priority")
+    await expectTapTarget(sheet.getByRole("button", { name: "Clear" }), "Clear")
+    await expectTapTarget(sheet.getByRole("button", { name: "Done" }), "Done")
+    expect(await sheet.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await sheet.getByRole("group", { name: "Status filter" }).getByRole("button", { name: "Closed" }).click()
+    await expect(page).toHaveURL(/status=closed/)
+    await expect.poll(() => list.getByRole("link").count()).toBeLessThan(before)
+    await sheet.getByRole("button", { name: "Done" }).click()
+    await expect(sheet).toBeHidden()
+    await expect(trigger).toHaveAccessibleName("Filters, 1 on")
+    await expect(main(page).getByTestId("crm-filters-count")).toHaveText("1")
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
+  })
+
+  test("the open case panel never scrolls the page sideways", async ({ page }) => {
+    await mockCrm(page, { summary: HILL, thread: crmFixtureThreadBody(Date.now()) })
+    await open(page, "/crm/cases")
+    await main(page).getByTestId("case-list").getByRole("link").filter({ hasText: FIXTURE_SUBJECTS.urgent }).click()
+    const sheet = page.getByRole("dialog", { name: FIXTURE_SUBJECTS.urgent })
+    await expect(sheet).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(0)
+    expect(await sheet.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  })
+
+  test("the tab bar shows a scroll cue at the right edge until the strip is scrolled to the end", async ({ page }) => {
+    await mockGmail(page, LIVE)
+    await open(page, "/crm")
+    const bar = page.getByTestId("crm-tab-bar")
+    await expect(bar).toHaveAttribute("data-fade-end", "")
+    await expect(bar.getByTestId("crm-tab-fade-end")).toHaveCSS("opacity", "1")
+    const nav = page.getByRole("navigation", { name: "CRM sections", exact: true })
+    await nav.evaluate((el) => el.scrollTo({ left: el.scrollWidth }))
+    await expect(bar).not.toHaveAttribute("data-fade-end", "")
+    await expect(bar).toHaveAttribute("data-fade-start", "")
   })
 
   test("the CRM tabs are exactly Overview · Cases · Accounts · Triage · Contacts, 44px, scrolling in their own strip", async ({ page }) => {

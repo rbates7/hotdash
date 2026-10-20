@@ -13,6 +13,7 @@ import {
   googleErrorDetail,
   readGmailConfig,
 } from "@/lib/server/gmail"
+import { createGmailGate } from "@/lib/server/gmail-limit"
 import { gmailApiThread, gmailFixtureThreads } from "@/test/gmail-fixture"
 
 /** Fake credentials: shaped like Google's, valid nowhere. */
@@ -116,7 +117,7 @@ describe("the loader's errors and the log line", () => {
     const { fetchImpl } = fakeGoogle({
       api: () => Response.json({ error: { code: 403, message: "slow down", errors: [{ reason: "userRateLimitExceeded" }] } }, { status: 403 }),
     })
-    const error = await gmailLoader(fetchImpl)(CONFIG).catch((e: unknown) => e)
+    const error = await gmailLoader(fetchImpl, undefined, createGmailGate({ sleep: async () => {} }))(CONFIG).catch((e: unknown) => e)
     expect(failureKind(error)).toBe("GmailRateLimited")
     expect(failureDetail(error)).toBe("rate limited: api status=403 reason=userRateLimitExceeded")
   })

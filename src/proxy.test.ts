@@ -75,7 +75,7 @@ describe("proxy, gate on", () => {
     if (next) expect(new URL(next, ORIGIN).origin).toBe(ORIGIN)
   })
 
-  it.each(["/api/inbox", "/api/stripe/mrr-cash", "/api/crm/gmail", "/api/health/stripe", "/api/health/gmail", "/api"])(
+  it.each(["/api/inbox", "/api/stripe/mrr-cash", "/api/stripe/subscribers?list=new", "/api/stripe/subscribers?list=churned", "/api/crm/gmail", "/api/health/stripe", "/api/health/gmail", "/api"])(
     "401s %s with JSON",
     async (path) => {
       const res = await proxy(req(path))

@@ -98,7 +98,7 @@ describe("Stripe live, App Store still connecting", () => {
   it("once it connects, the total includes it", () => {
     const live = feedOf({ phase: "ready", summary: liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTED) })
     const state = liveMetric("subscribers", live, TZ)
-    expect(state.kind === "live" && state.metric.value).toBe(1_337)
+    expect(state.kind === "live" && state.metric.value).toBe(1_306)
   })
 })
 

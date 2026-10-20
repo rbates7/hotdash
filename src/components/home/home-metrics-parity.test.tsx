@@ -89,23 +89,38 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     }
   })
 
-  it("with Stripe connected, Home's Subscribers, ticker and MRR door match the live Metrics cards", () => {
+  it("with Stripe connected, Home's Subscribers total breaks down into the Metrics lines; ticker and MRR door match", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     const metrics = renderMetrics()
     const grid = screen.getByRole("region", { name: "Metric cards" })
     const subsCard = within(grid).getByRole("article", { name: /^Subscribers\b/ })
-    const subs = within(subsCard).getByTestId("metric-value").textContent
-    const subsTrend = within(subsCard).getByTestId("trend").textContent
-    const subsRows = within(subsCard).getByTestId("subscriber-breakdown").textContent
+    // Metrics' headline is active paying only; Home keeps the Oct 14 total (pending Simmons).
+    const paying = within(subsCard).getByTestId("metric-value").textContent
+    const metricsRows = [...within(subsCard).getByTestId("subscriber-breakdown").querySelectorAll("[data-row]")].map((r) => [
+      r.getAttribute("data-row"),
+      r.querySelector("dd")?.textContent,
+    ])
     const mrrName = within(within(grid).getByRole("article", { name: /^MRR\b/ })).getByRole("img").getAttribute("aria-label")!
     metrics.unmount()
 
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    expect(subs).toBe("1,337")
-    expect(within(homeCard).getByText(subs!)).toBeInTheDocument()
-    expect(homeCard).toHaveTextContent(`${subsTrend} vs previous`)
-    expect(within(homeCard).getByTestId("subscriber-breakdown").textContent).toBe(subsRows)
+    const subs = "1,306"
+    expect(paying).toBe("1,079")
+    expect(within(homeCard).getByText(subs)).toBeInTheDocument()
+    const homeRows = Object.fromEntries(
+      [...within(homeCard).getByTestId("subscriber-breakdown").querySelectorAll("[data-row]")].map((r) => [
+        r.getAttribute("data-row"),
+        r.querySelector("dd")?.textContent,
+      ])
+    )
+    // Home's Stripe paying row is Metrics' headline; App Store and Free are the same lines on both.
+    expect(homeRows.stripePaying).toBe(paying)
+    expect(metricsRows).toEqual([
+      ["pastDue", "31 · $1,519 MRR"],
+      ["appStore", homeRows.appStore],
+      ["freeAccounts", homeRows.freeAccounts],
+    ])
     expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Subscribers: ${subs}`)
     // Same six MRR points: $52,000 … $61,235 on the card, $52k → $61.2k on the door.
     expect(mrrName).toContain("$52,000")

@@ -109,7 +109,7 @@ test.describe("PostHog connected (1440)", () => {
     await expect(metricCard(page, "MRR")).toHaveAttribute("data-source", "stripe")
     await expect(metricCard(page, "Retention")).toHaveAttribute("data-source", "posthog")
     await expect(page.getByRole("note", { name: "Partly live" })).toContainText(
-      "live from Stripe (read-only); Subscribers also counts App Store payers from Chlk’s database (read-only); Retention and Active Users are live from PostHog"
+      "live from Stripe (read-only); Subscribers also shows App Store payers from Chlk’s database (read-only) on their own line; Retention and Active Users are live from PostHog"
     )
   })
 
@@ -225,7 +225,7 @@ for (const vp of [
         await expect(notice).toContainText(
           "Subscribers leaves out App Store payers until Chlk’s database read is checked (it read 0)"
         )
-        await expect(notice).not.toContainText("Subscribers also counts App Store payers")
+        await expect(notice).not.toContainText("Subscribers also shows App Store payers")
         await expectReadable(notice, `${vp.width} ${theme} combined notice`, expect)
       })
     }

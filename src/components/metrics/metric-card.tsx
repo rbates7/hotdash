@@ -251,6 +251,7 @@ export function MetricCard({
             label={snapshot.label}
             unit={snapshot.unit}
             today={today}
+            days={figure?.days}
           />
         ) : (
           <div aria-hidden className="h-[52px] w-[120px] flex-none" />

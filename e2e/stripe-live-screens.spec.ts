@@ -124,8 +124,8 @@ test(`stale 1440 ${theme} (Home + Settings)`, async ({ page }) => {
 }
 
 /**
- * The paying-subscribers PR set (24 files), all mocked — 1,110 + 53 + 174
- * = 1,337, never real Stripe or database figures:
+ * The paying-subscribers PR set (24 files), all mocked — 1,079 + 53 + 174
+ * = 1,306, never real Stripe or database figures:
  * - Home and Metrics, Stripe and the App Store connected, at 1440, 1180,
  *   820 and 390, both themes (16);
  * - the ticker's breakdown open at 1440 (hover) and 390 (keyboard focus:
@@ -201,7 +201,7 @@ for (const vp of PHONE_AND_DESKTOP) {
 /**
  * The App Store suspect-zero set (8 files): Stripe connected, the App
  * Store connected but reading 0 — the row warns ("Check source"), the
- * total leaves it out (1,284). Home at 390, 820, 1180 and 1440, both
+ * total leaves it out (1,253). Home at 390, 820, 1180 and 1440, both
  * themes. Mocked; run on its own into its own folder:
  *
  *   STRIPE_READONLY_KEY= SCREENSHOT_DIR=/workspace/hotdash-shots/appstore-zero pnpm screens:stripe-live -g appstore-zero
