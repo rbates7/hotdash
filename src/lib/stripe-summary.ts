@@ -45,6 +45,26 @@ function withAppStore<T extends StripeSummary>(summary: T, raw: unknown): T {
   return appStore ? { ...summary, appStore } : summary
 }
 
+const isMaybe = (v: unknown) => v === null || isNum(v)
+
+/** The Oct 20 figures: pastDue, arr, revenue, arpu, ltv, nrr, trialsStartedPerDay. */
+function hasNewFigures(m: Record<string, Record<string, unknown>>) {
+  const { pastDue: pd, arr, revenue: r, arpu, ltv, nrr, trialsStartedPerDay: tr } = m
+  return Boolean(
+    pd && isNum(pd.value) && isNum(pd.mrr) &&
+    arr && isNum(arr.value) && isNum(arr.previous) && isNums(arr.series) &&
+    r && isNum(r.value) && isNum(r.previous) && isNums(r.series) && isNum(r.invoices) &&
+    arpu && isMaybe(arpu.value) && isMaybe(arpu.previous) &&
+    ltv && isMaybe(ltv.value) && isMaybe(ltv.previous) &&
+    nrr && isRate(nrr.value) && isRate(nrr.previous) && isNums(nrr.series, isRate) && nrr.basis === "current_prices" &&
+    tr && isNum(tr.total) && isNum(tr.previousTotal) &&
+    isNums(tr.series, (d) => {
+      const x = d as Record<string, unknown> | null
+      return Boolean(x) && typeof x!.date === "string" && isNum(x!.count)
+    })
+  )
+}
+
 /**
  * A response body read back defensively: anything that is not a complete
  * summary is null, and the caller treats it like an unreachable endpoint.
@@ -66,7 +86,8 @@ export function parseStripeSummary(value: unknown): StripeSummary | null {
     churn && isRate(churn.value) && isRate(churn.previous) && isNums(churn.series, isRate) &&
     isNum(churn.churned) && isNum(churn.base) &&
     t && isRate(t.value) && isRate(t.previous) && isNums(t.series, isRate) &&
-    isNum(t.converted) && isNum(t.ended)
+    isNum(t.converted) && isNum(t.ended) &&
+    hasNewFigures(m)
   if (!ok) return null
   return withAppStore({ status: v.status, lastSyncedAt: v.lastSyncedAt, metrics: m as unknown as StripeMetrics }, v.appStore)
 }

@@ -131,6 +131,8 @@ export const loadFromStripe: Loader = async (config, now) => {
   return {
     subscriptions: subscriptions.map((s) => ({
       id: s.id,
+      // The id only, for the gated lists' on-demand lookup; never a name or email.
+      customer: typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null),
       first_paid_at: firstPaid.get(s.id) ?? null,
       status: s.status,
       currency: s.currency,
@@ -148,6 +150,7 @@ export const loadFromStripe: Loader = async (config, now) => {
           discounts: item.discounts.map(slimDiscount),
           price: {
             currency: item.price.currency,
+            nickname: item.price.nickname ?? null,
             unit_amount: item.price.unit_amount,
             unit_amount_decimal: item.price.unit_amount_decimal === null ? null : String(item.price.unit_amount_decimal),
             recurring: item.price.recurring && {
@@ -167,7 +170,22 @@ export const loadFromStripe: Loader = async (config, now) => {
       captured: c.captured,
       created: c.created,
     })),
+    invoices: paidInvoicesOf(paidInvoices),
   }
+}
+
+/** The paid invoices revenue reads: amount, currency and when paid. Nothing else. */
+export function paidInvoicesOf(
+  invoices: ReadonlyArray<{
+    amount_paid: number
+    currency: string
+    created: number
+    status_transitions?: { paid_at?: number | null } | null
+  }>
+) {
+  return invoices
+    .filter((inv) => inv.amount_paid > 0)
+    .map((inv) => ({ amount_paid: inv.amount_paid, currency: inv.currency, paid_at: inv.status_transitions?.paid_at ?? inv.created }))
 }
 
 /** Earliest paid moment per subscription, over invoices with `amount_paid > 0`. */
@@ -246,6 +264,14 @@ export type StripeService = {
    */
   mrrCash(timeZone: string): Promise<MrrCashSummary>
   health(): Promise<StripeHealth>
+  /**
+   * The raw copy and its status, for server-side derived views (the
+   * New/Churned lists). Never sent to a browser as is.
+   */
+  snapshot(): Promise<
+    | { status: "connected" | "stale"; syncedAt: number; data: StripeData }
+    | { status: "connecting" | "not_connected" }
+  >
   /**
    * Settles when the background sync running now (if any) is done. Routes
    * hand it to `after()` so the platform keeps the sync alive past the
@@ -368,6 +394,12 @@ export function createStripeService({
         lastSyncedAt: new Date(snapshot.syncedAt).toISOString(),
         ...mrrCashFor(snapshot, timeZone),
       }
+    },
+    async snapshot() {
+      const { fresh, connecting } = read()
+      const snapshot = lastGood
+      if (!snapshot) return { status: connecting ? ("connecting" as const) : ("not_connected" as const) }
+      return { status: fresh ? ("connected" as const) : ("stale" as const), syncedAt: snapshot.syncedAt, data: snapshot.data }
     },
     async health() {
       const { fresh, configured, connecting } = read()
