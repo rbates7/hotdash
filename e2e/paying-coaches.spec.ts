@@ -65,3 +65,18 @@ for (const s of STATES) {
     })
   }
 }
+
+test("the KPI row leaves no empty slot: at two columns Paying coaches spans the row", async ({ page }) => {
+  for (const width of [820, 1180, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto("/")
+    await waitForHydration(page)
+    const strip = page.getByRole("region", { name: "KPI strip" })
+    const cards = strip.getByRole("article")
+    const first = (await cards.nth(0).boundingBox())!
+    const second = (await cards.nth(1).boundingBox())!
+    const tile = (await cards.nth(2).boundingBox())!
+    if (width >= 1280) expect(Math.abs(tile.y - first.y), `one row at ${width}`).toBeLessThanOrEqual(1)
+    else expect(Math.abs(tile.x + tile.width - (second.x + second.width)), `full row at ${width}`).toBeLessThanOrEqual(1)
+  }
+})

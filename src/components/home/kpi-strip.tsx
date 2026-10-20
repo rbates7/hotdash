@@ -142,6 +142,8 @@ export function KpiStrip({ kpis, title, children }: { kpis: Kpi[]; title: string
           // Home stays one strip high and still fits 1440×900.
           extra === 0 && kpis.length > 2 && "xl:grid-cols-4",
           extra > 0 && cards === 3 && "xl:grid-cols-3",
+          // Three cards on a two-column row: the last spans it, no empty slot.
+          extra > 0 && cards === 3 && "sm:[&>*:last-child]:col-span-2 xl:[&>*:last-child]:col-span-1",
           extra > 0 && cards === 4 && "xl:grid-cols-4",
           extra > 0 && cards > 4 && "xl:grid-cols-5"
         )}
