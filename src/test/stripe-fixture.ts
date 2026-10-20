@@ -23,6 +23,17 @@ export const LIVE_METRICS: StripeMetrics = {
   mrr: { value: 61_234.56, previous: 59_000, series: [52_000, 54_000, 56_000, 57_500, 59_000, 61_234.56] },
   churn: { value: 2.7, previous: 3.1, series: [3.5, 3.4, 3.2, 3.3, 3.1, 2.7], churned: 34, base: 1_250 },
   trialToPaid: { value: 41.2, previous: null, series: [null, null, 30, 35, null, 41.2], converted: 7, ended: 17 },
+  pastDue: { value: 31, mrr: 1_519 },
+  arr: { value: 734_814.72, previous: 708_000, series: [624_000, 648_000, 672_000, 690_000, 708_000, 734_814.72] },
+  revenue: { value: 58_765.43, previous: 55_100, series: [47_000, 49_500, 51_200, 53_800, 55_100, 58_765.43], invoices: 1_204 },
+  arpu: { value: 55.17, previous: 54.63 },
+  ltv: { value: 1_885.36, previous: 1_617.12 },
+  nrr: { value: 98.6, previous: 97.9, series: [97.1, 97.5, 98, 97.2, 97.9, 98.6], basis: "current_prices" },
+  trialsStartedPerDay: {
+    series: Array.from({ length: 28 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 16 + i)).toISOString().slice(0, 10), count: i % 4 })),
+    total: 42,
+    previousTotal: 39,
+  },
 }
 
 /** The App Store source answering with Bobbi's Oct 14 count. */

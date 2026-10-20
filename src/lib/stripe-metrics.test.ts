@@ -99,7 +99,8 @@ describe("paying subscriber count", () => {
       sub({ status: "incomplete_expired", first_paid_at: null, ended_at: NOW_SEC - DAY }),
       sub({ status: "active", first_paid_at: null }), // never paid
     ])
-    expect(m.subscribers.value).toBe(3)
+    expect(m.subscribers.value).toBe(2) // past_due is its own figure since Oct 20
+    expect(m.pastDue).toEqual({ value: 1, mrr: 49 })
   })
 
   it("previous is the count at the start of the 28-day window", () => {
@@ -161,9 +162,9 @@ describe("paying subscriber count", () => {
 const FREE = [{ source: { coupon: { percent_off: 100, amount_off: null, duration: "forever" } }, start: NOW_SEC - 30 * DAY }]
 
 describe("isPaying (Rashad + Bobbi, final, Oct 14 2026)", () => {
-  it("active and past_due with paid history count: the customer has not left", () => {
+  it("active with paid history counts; past_due does not (Oct 20: active only)", () => {
     expect(isPaying(sub({ status: "active" }))).toBe(true)
-    expect(isPaying(sub({ status: "past_due" }))).toBe(true)
+    expect(isPaying(sub({ status: "past_due" }))).toBe(false)
   })
 
   it("trialing, unpaid and paused never count, even if they have paid before", () => {
@@ -326,7 +327,7 @@ describe("payingAt (history)", () => {
       sub({ status: "incomplete_expired", ended_at: NOW_SEC - DAY }),
     ]
     expect(payingCountAt(subs, NOW_SEC)).toBe(subs.filter(isPaying).length)
-    expect(payingCountAt(subs, NOW_SEC)).toBe(2)
+    expect(payingCountAt(subs, NOW_SEC)).toBe(1)
   })
 
   it("unpaid, paused and trialing subscriptions that paid before are in no past point either", () => {
@@ -420,13 +421,14 @@ describe("MRR", () => {
       sub({ status: "trialing", trial_start: NOW_SEC - DAY, trial_end: NOW_SEC + DAY, first_paid_at: null }),
       sub({ status: "canceled", ended_at: NOW_SEC - DAY }),
     ]
-    expect(mrrAt(subs, NOW_SEC)).toBe(137)
+    expect(mrrAt(subs, NOW_SEC)).toBe(88) // past_due's $49 is out (pastDue.mrr)
     const m = metrics(subs)
-    expect(m.mrr.value).toBe(137)
+    expect(m.mrr.value).toBe(88)
     // 28 days ago the canceled one was still paying.
-    expect(m.mrr.previous).toBe(186)
+    expect(m.mrr.previous).toBe(137)
     expect(m.mrr.series).toHaveLength(6)
-    expect(m.mrr.series.at(-1)).toBe(137)
+    expect(m.mrr.series.at(-1)).toBe(88)
+    expect(m.pastDue.mrr).toBe(49)
   })
 })
 
@@ -434,14 +436,14 @@ describe("MRR uses only the paying set", () => {
   it("leaves out never-paid subscriptions, even active at full price", () => {
     const subs = [
       sub(), // $49, paying
-      sub({ status: "past_due" }), // $49, paying
+      sub({ status: "past_due" }), // $49, past due: out since Oct 20
       sub({ first_paid_at: null }), // active, never paid, no coupon now: $0 of MRR
       sub({ status: "trialing", first_paid_at: null }),
       sub({ status: "unpaid", first_paid_at: NOW_SEC - 90 * DAY }), // paid before, but unpaid now: out, like Subscribers
       sub({ status: "paused", first_paid_at: NOW_SEC - 90 * DAY }), // out
     ]
-    expect(mrrAt(subs, NOW_SEC)).toBe(98)
-    expect(metrics(subs).mrr.value).toBe(98)
+    expect(mrrAt(subs, NOW_SEC)).toBe(49)
+    expect(metrics(subs).mrr.value).toBe(49)
   })
 
   it("a paid-once subscription now on a 100% coupon counts as a subscriber at $0", () => {

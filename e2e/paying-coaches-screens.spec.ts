@@ -13,8 +13,8 @@ import { setTheme } from "./support/theme"
  * themes. STATE: not-connected (real key-less server, nothing mocked),
  * connecting, connected, stale (mocked from fixtures, never real data).
  * SCREENSHOT_TAG before (develop) / after (head). Production builds only:
- * each shot asserts there is no Next.js portal. See
- * scripts/paying-coaches-reshoot.sh. Stills stay on the box.
+ * each shot asserts there is no Next.js portal. Serve with
+ * scripts/shot-server.sh (allow-listed env). Stills stay on the box.
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 

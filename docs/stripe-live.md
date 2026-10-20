@@ -1,5 +1,7 @@
 # Live Stripe (read-only) and App Store payers
 
+> **Oct 20, 2026:** subscribers, MRR and churn count `active` only. `past_due` is the separate `pastDue` figure. New figures and the subscriber lists are in [stripe-metrics.md](stripe-metrics.md).
+
 Home, Metrics and Settings read live figures from Stripe, and the
 Subscribers total also counts App Store payers read from Chlk's Supabase
 Postgres. A card with no live source says Not connected; nothing on the

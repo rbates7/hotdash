@@ -46,6 +46,8 @@ export type StripePrice = {
   currency: string
   unit_amount: number | null
   unit_amount_decimal?: unknown
+  /** Shown as the plan name in the New/Churned lists; never used in a figure. */
+  nickname?: string | null
   recurring: {
     interval: "day" | "week" | "month" | "year" | (string & {})
     interval_count: number
@@ -78,6 +80,20 @@ export type StripeSubscription = {
    * `null`/absent: it has never paid (e.g. a 100%-off launch annual).
    */
   first_paid_at?: number | null
+  /**
+   * The Stripe customer id (`cus_…`), only so the gated New/Churned lists
+   * can look the name and email up on demand. No customer data is kept.
+   */
+  customer?: string | null
+}
+
+/** A paid invoice: only what revenue reads. */
+export type StripeInvoice = {
+  /** Minor units (cents). */
+  amount_paid: number
+  currency: string
+  /** When it was paid (`status_transitions.paid_at`, else `created`), unix seconds. */
+  paid_at: number
 }
 
 export type StripeCharge = {
@@ -93,6 +109,8 @@ export type StripeCharge = {
 export type StripeData = {
   subscriptions: StripeSubscription[]
   charges: StripeCharge[]
+  /** Every paid invoice. Absent in older test data: revenue is then 0. */
+  invoices?: StripeInvoice[]
 }
 
 /* ---------------------------------------------------------------- output */
@@ -133,6 +151,28 @@ export type StripeMetrics = {
   churn: { value: Rate; previous: Rate; series: Rate[]; churned: number; base: number }
   /** % of trials ending inside a window that became paid subscriptions. */
   trialToPaid: { value: Rate; previous: Rate; series: Rate[]; converted: number; ended: number }
+  /**
+   * Paid-once subscriptions whose renewal is failing (`past_due`) now, and
+   * their monthly-equivalent revenue at risk in dollars. Not in
+   * `subscribers` or `mrr`. No history: Stripe cannot date a past due spell.
+   */
+  pastDue: { value: number; mrr: number }
+  /** `mrr` × 12, at the same points. */
+  arr: { value: number; previous: number; series: number[] }
+  /** Paid invoices (USD, gross of refunds) per 28-day window, in dollars; `invoices` counts the current one. */
+  revenue: { value: number; previous: number; series: number[]; invoices: number }
+  /** MRR ÷ Stripe paying subscribers, dollars; null when there are none. */
+  arpu: { value: number | null; previous: number | null }
+  /** ARPU ÷ monthly churn, dollars; null when churn is 0 or unknown. */
+  ltv: { value: number | null; previous: number | null }
+  /**
+   * Net revenue retention, %: the MRR at a window's end of the subscribers
+   * paying at its start, over their MRR at its start. `basis` says how it
+   * was priced: Stripe has no price history, so both ends use today's prices.
+   */
+  nrr: { value: Rate; previous: Rate; series: Rate[]; basis: "current_prices" }
+  /** Trials started on each day of the current 28-day window (founder's zone), oldest first. */
+  trialsStartedPerDay: { series: { date: string; count: number }[]; total: number; previousTotal: number }
 }
 
 /* ------------------------------------------------------------ definitions */
@@ -140,23 +180,25 @@ export type StripeMetrics = {
 const SECOND = 1000
 
 /**
- * Statuses that count as an active subscription for churn and its history
- * (`activeAt`), and the statuses `isPaying` allows: `active`, plus
- * `past_due` (a renewal failed and Stripe is still retrying — the customer
- * has not left, and Stripe's own dashboard counts them). `trialing` is not
- * counted: trials are measured by trial-to-paid. `unpaid`, `paused`,
- * `incomplete*` and `canceled` are not active.
+ * Statuses that count as an active subscription for Subscribers, MRR,
+ * churn and their history: `active` only (Rashad via Coulson, Oct 20 2026,
+ * replacing Oct 14's active + past_due). `past_due` (a renewal failing,
+ * Stripe still retrying) is its own figure, `pastDue`. `trialing` is
+ * measured by trial-to-paid. `unpaid`, `paused`, `incomplete*` and
+ * `canceled` are not active.
  */
-export const COUNTED_STATUSES: ReadonlySet<string> = new Set(["active", "past_due"])
+export const ACTIVE_STATUSES: ReadonlySet<string> = new Set(["active"])
+export const PAST_DUE_STATUSES: ReadonlySet<string> = new Set(["past_due"])
+/** The statuses `isCounted` allows: `ACTIVE_STATUSES`. */
+export const COUNTED_STATUSES = ACTIVE_STATUSES
 
 export function isCounted(sub: Pick<StripeSubscription, "status">) {
   return COUNTED_STATUSES.has(sub.status)
 }
 
 /**
- * A paying Stripe subscriber now (Rashad + Bobbi, Data, final, Oct 14
- * 2026): status `active` or `past_due` (a renewal failed and Stripe is
- * still retrying — the customer has not left) **and** at least one paid
+ * A paying Stripe subscriber now (Oct 14 2026 definition, narrowed to
+ * `active` only on Oct 20): status `active` **and** at least one paid
  * invoice with `amount_paid > 0`. `trialing`, `unpaid` and `paused` do not
  * count, paid before or not. No "has a coupon now" filter: a launch annual
  * that paid once and now sits on a coupon still counts. Group (1) of the
@@ -164,6 +206,11 @@ export function isCounted(sub: Pick<StripeSubscription, "status">) {
  */
 export function isPaying(sub: Pick<StripeSubscription, "status" | "first_paid_at">) {
   return isCounted(sub) && sub.first_paid_at != null
+}
+
+/** Paid at least once and `past_due` now: the `pastDue` figure, never in `isPaying`. */
+export function isPastDue(sub: Pick<StripeSubscription, "status" | "first_paid_at">) {
+  return PAST_DUE_STATUSES.has(sub.status) && sub.first_paid_at != null
 }
 
 /**
@@ -405,6 +452,92 @@ export function grossChargesCents(charges: readonly StripeCharge[], fromSec: num
   }, 0)
 }
 
+/* ---------------------------------------------------------------- revenue */
+
+/** Paid invoices in the reporting currency with `paid_at` in `[fromSec, toSec)`, cents and count. */
+export function paidInvoicesIn(invoices: readonly StripeInvoice[], fromSec: number, toSec: number) {
+  let cents = 0
+  let count = 0
+  for (const inv of invoices) {
+    if (!(inv.amount_paid > 0) || inv.currency.toLowerCase() !== REPORTING_CURRENCY) continue
+    if (inv.paid_at < fromSec || inv.paid_at >= toSec) continue
+    cents += inv.amount_paid
+    count += 1
+  }
+  return { cents, count }
+}
+
+/* ---------------------------------------------------- derived money figures */
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/** MRR ÷ paying subscribers; null when there are none. */
+export function arpuOf(mrr: number, subscribers: number): number | null {
+  return subscribers > 0 ? round2(mrr / subscribers) : null
+}
+
+/** Days per average month, to turn 28-day churn into monthly churn. */
+const DAYS_PER_MONTH = 365.25 / 12
+
+/**
+ * Lifetime value: ARPU ÷ monthly churn, where monthly churn is the 28-day
+ * churn rate scaled to an average month (× 30.44 / 28). Null when either is
+ * unknown or churn is 0 (an endless lifetime is not a figure).
+ */
+export function ltvOf(arpu: number | null, churnPct: Rate): number | null {
+  if (arpu === null || churnPct === null || churnPct <= 0) return null
+  const monthly = (churnPct / 100) * (DAYS_PER_MONTH / PERIOD_DAYS)
+  return round2(arpu / Math.min(1, monthly))
+}
+
+/**
+ * Net revenue retention over a window: the subscriptions paying at its
+ * start (`payingAt`), their MRR at its end (0 once ended) over their MRR at
+ * its start, in %. Today's prices at both ends (no price history), so only
+ * churn, quantity and discount changes move it. Null with no MRR at start.
+ */
+export function nrrFor(subs: readonly StripeSubscription[], w: Window): Rate {
+  let start = 0
+  let end = 0
+  for (const s of subs) {
+    if (!payingAt(s, w.startSec)) continue
+    start += subscriptionMrrCents(s, w.startSec)
+    if (payingAt(s, w.endSec)) end += subscriptionMrrCents(s, w.endSec)
+  }
+  return start > 0 ? Math.round((end / start) * 1000) / 10 : null
+}
+
+/**
+ * Trials started per day: subscriptions whose `trial_start` falls on each
+ * of the `days` founder-zone days ending today, whatever happened to the
+ * trial since. Oldest first.
+ */
+export function trialsStartedByDay(
+  subs: readonly StripeSubscription[],
+  now: Date,
+  timeZone: string,
+  days = PERIOD_DAYS
+) {
+  const today = todayIn(now, timeZone)
+  const dates = Array.from({ length: days }, (_, i) => addDays(today, i - (days - 1)))
+  const bounds = dates.map((d) => toSec(startOfDay(d, timeZone)))
+  const endSec = toSec(startOfDay(addDays(today, 1), timeZone))
+  const counts = dates.map(() => 0)
+  for (const s of subs) {
+    const t = s.trial_start
+    if (t === null || t < bounds[0] || t >= endSec) continue
+    let i = bounds.length - 1
+    while (i > 0 && t < bounds[i]) i -= 1
+    counts[i] += 1
+  }
+  return dates.map((date, i) => ({ date: String(date), count: counts[i] }))
+}
+
+/** Trials started in `[fromSec, toSec)`. */
+export function trialsStartedIn(subs: readonly StripeSubscription[], fromSec: number, toSec: number) {
+  return subs.filter((s) => s.trial_start !== null && s.trial_start >= fromSec && s.trial_start < toSec).length
+}
+
 /* ------------------------------------------------------------------ helpers */
 
 function rate(part: number, whole: number): Rate {
@@ -471,6 +604,20 @@ export function computeStripeMetrics(
   const trials = windows.map((w) => trialToPaidFor(subs, w))
   const last = churns.length - 1
 
+  const mrrSeries = windows.map((w) => mrrAt(subs, w.endSec))
+  const mrrNow = mrrAt(subs, nowSec)
+  const mrrPrev = mrrAt(subs, prior.endSec)
+  const paying = subs.filter(isPaying).length
+  const payingPrev = payingCountAt(subs, prior.endSec)
+  const pastDueSubs = subs.filter(isPastDue)
+  const invoices = data.invoices ?? []
+  const revenues = windows.map((w, i) => paidInvoicesIn(invoices, w.startSec, i === last ? nowSec + 1 : w.endSec))
+  const nrrs = windows.map((w) => nrrFor(subs, w))
+  const arpu = arpuOf(mrrNow, paying)
+  const arpuPrev = arpuOf(mrrPrev, payingPrev)
+  const byDay = trialsStartedByDay(subs, now, timeZone)
+  const firstDaySec = toSec(startOfDay(addDays(todayIn(now, timeZone), -(PERIOD_DAYS - 1)), timeZone))
+
   return {
     subscribers: countSeries(isPaying, payingCountAt),
     freeAccounts: countSeries(isFreeAccount, freeCountAt),
@@ -497,6 +644,29 @@ export function computeStripeMetrics(
       series: trials.map((t) => t.rate),
       converted: trials[last].converted,
       ended: trials[last].ended,
+    },
+    pastDue: {
+      value: pastDueSubs.length,
+      mrr: Math.round(pastDueSubs.reduce((sum, s) => sum + subscriptionMrrCents(s, nowSec), 0)) / 100,
+    },
+    arr: { value: round2(mrrNow * 12), previous: round2(mrrPrev * 12), series: mrrSeries.map((m) => round2(m * 12)) },
+    revenue: {
+      value: revenues[last].cents / 100,
+      previous: revenues[last - 1].cents / 100,
+      series: revenues.map((r) => r.cents / 100),
+      invoices: revenues[last].count,
+    },
+    arpu: { value: arpu, previous: arpuPrev },
+    ltv: { value: ltvOf(arpu, churns[last].rate), previous: ltvOf(arpuPrev, churns[last - 1].rate) },
+    nrr: { value: nrrs[last], previous: nrrs[last - 1], series: nrrs, basis: "current_prices" },
+    trialsStartedPerDay: {
+      series: byDay,
+      total: byDay.reduce((sum, d) => sum + d.count, 0),
+      previousTotal: trialsStartedIn(
+        subs,
+        toSec(startOfDay(addDays(todayIn(now, timeZone), -(2 * PERIOD_DAYS - 1)), timeZone)),
+        firstDaySec
+      ),
     },
   }
 }
