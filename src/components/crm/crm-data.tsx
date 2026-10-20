@@ -87,7 +87,7 @@ function useNow() {
 /* ------------------------------------------------------------- the states */
 
 export const SESSION_EXPIRED = "Your session expired."
-export const LOG_IN_AGAIN = "Log in again"
+export const LOG_IN_AGAIN = "Sign in again"
 
 /** The login gate's 401: never "Not connected", the data is there behind the login. */
 export function CrmSessionExpired({ className }: { className?: string }) {
@@ -142,7 +142,7 @@ export function CrmStaleNote({ data, className }: { data: CrmData; className?: s
 /** A count tile's value: the number, or Not connected / Connecting… — never a 0 that is not real. */
 export function CountValue({ data, value }: { data: CrmData; value: number | undefined }) {
   if (data.phase === "not_connected") return <NotConnectedBadge />
-  if (data.phase === "unauthorized") return <span className="text-muted-foreground text-label">Log in to see</span>
+  if (data.phase === "unauthorized") return <span className="text-muted-foreground text-label">Sign in to see</span>
   if (data.phase !== "live" || value === undefined) return <CrmConnecting />
   return <span className="text-display-sm font-semibold tabular-nums">{value}</span>
 }
