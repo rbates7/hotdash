@@ -5,8 +5,6 @@ import {
   VERDICT_EMPTY,
   VERDICT_GREEN,
   VERDICT_NOT_GREEN,
-  buildPastIncident,
-  buildServices,
   countByStatus,
   formatCentralTime,
   formatChecked,
@@ -17,6 +15,7 @@ import {
   verdictFor,
   type Service,
 } from "@/lib/system-status"
+import { buildPastIncident, buildServices } from "@/lib/system-status-fixture"
 import { FIXED_NOW_MS, LATE_EVENING_CT_MS } from "@/test/clock"
 
 const svc = (over: Partial<Service> & Pick<Service, "id" | "status">): Service => ({

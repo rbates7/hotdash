@@ -13,7 +13,7 @@ import {
 import { MetricsTabs } from "@/components/metrics/metrics-tabs"
 import { ChurnedSubscribersTable, NewSubscribersTable, SUBSCRIBER_LIST_HINT } from "@/components/metrics/subscribers-tables"
 import { NO_EXPENSES_BODY, NO_EXPENSES_TITLE } from "@/components/metrics/expenses-panel"
-import { MOCK_DAY } from "@/lib/kpis"
+import { MOCK_DAY } from "@/lib/kpis-fixture"
 import { seedChurnedSubscribers, seedNewSubscribers } from "@/lib/kpis-fixture"
 import { NO_EXPENSES_TEXT, NO_PRIOR_EXPENSES_TEXT } from "@/lib/live-metrics"
 
