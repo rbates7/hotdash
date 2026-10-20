@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-const { createSubscriberLists } = await import("@/lib/server/stripe-subscribers")
+const { CUSTOMER_CACHE_MAX, createSubscriberLists } = await import("@/lib/server/stripe-subscribers")
 import { pickSubscribers } from "@/lib/stripe-subscribers"
 import type { StripeData, StripeSubscription } from "@/lib/stripe-metrics"
 
@@ -111,7 +111,30 @@ describe("subscriber lists service", () => {
     expect(lists.customerCacheSize()).toBe(1)
   })
 
-  it("evicts expired customers on the next lookup even under the cap", async () => {
+  it("holds at most the real cap of 500: the 501st customer evicts only the oldest", async () => {
+    let batch: StripeSubscription[] = []
+    let syncedAt = NOW.getTime()
+    const snapshot = vi.fn(async () => ({ status: "connected" as const, syncedAt, data: { subscriptions: batch, charges: [] } }))
+    const lookup = vi.fn(async (id: string) => ({ name: `Coach ${id}`, email: `${id}@example.test` }))
+    const lists = createSubscriberLists({ service: { snapshot }, lookup, clock: () => NOW.getTime(), log: vi.fn() })
+    expect(CUSTOMER_CACHE_MAX).toBe(500)
+    const ids = Array.from({ length: 501 }, (_, i) => `cus_cap_${i}`)
+    const read = async (customers: string[]) => {
+      batch = customers.map((customer) => sub({ customer, start_date: NOW_SEC - DAY }))
+      syncedAt += 1 // a new snapshot, so the list cache misses
+      await lists.read("new", "UTC")
+    }
+    for (let i = 0; i < 500; i += 100) await read(ids.slice(i, i + 100))
+    expect(lists.customerCacheSize()).toBe(500)
+    await read([ids[500]!])
+    expect(lists.customerCacheSize()).toBe(500)
+    expect(lookup).toHaveBeenCalledTimes(501)
+    lookup.mockClear()
+    await read([ids[0]!, ids[1]!, ids[500]!])
+    expect(lookup.mock.calls.map(([id]) => id)).toEqual([ids[0]]) // only the oldest was evicted
+  })
+
+  it("evicts expired customers on the next successful lookup even under the cap", async () => {
     const { lists, tick } = setup()
     await lists.read("new", "UTC")
     expect(lists.customerCacheSize()).toBe(2)
