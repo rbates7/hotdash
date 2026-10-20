@@ -173,3 +173,40 @@ describe("retry on rate limit", () => {
   })
 })
 
+
+describe("limiter handoff", () => {
+  /** Calls `fn` after `depth` microtask hops, to land in every gap of the release. */
+  const afterHops = (depth: number, fn: () => void) => {
+    let p = Promise.resolve()
+    for (let i = 0; i < depth; i++) p = p.then(() => {})
+    void p.then(fn)
+  }
+
+  it.each([0, 1, 2, 3, 4, 5, 6])(
+    "a freed slot goes to the oldest waiter, never to a caller arriving %i microtasks later",
+    async (depth) => {
+      const limit = createLimiter(1)
+      const order: string[] = []
+      let active = 0
+      let peak = 0
+      const run = (name: string) => async () => {
+        active += 1
+        peak = Math.max(peak, active)
+        order.push(name)
+        await Promise.resolve()
+        active -= 1
+      }
+      let late: Promise<void> | undefined
+      const first = limit(async () => {
+        await run("first")()
+        afterHops(depth, () => (late = limit(run("late"))))
+      })
+      const queued = limit(run("queued"))
+      await Promise.all([first, queued])
+      await new Promise((r) => setTimeout(r, 0))
+      await late
+      expect(order).toEqual(["first", "queued", "late"])
+      expect(peak).toBe(1)
+    }
+  )
+})

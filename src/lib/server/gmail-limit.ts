@@ -32,17 +32,24 @@ export function isRetryableRateLimit(error: unknown): boolean {
   return detail.status === 403 && reasons.some((r) => typeof r === "string" && RETRY_REASONS.has(r))
 }
 
-/** At most `max` of the given tasks run at once; the rest queue in order. */
+/**
+ * At most `max` of the given tasks run at once; the rest queue in order.
+ * A finished task hands its slot straight to the next waiter (the count
+ * never drops and climbs back), so a caller arriving in between cannot
+ * jump the queue or make it `max + 1`.
+ */
 export function createLimiter(max: number) {
   let active = 0
   const queue: Array<() => void> = []
   const release = () => {
-    active -= 1
-    queue.shift()?.()
+    const next = queue.shift()
+    if (next) next()
+    else active -= 1
   }
   return async function run<T>(task: () => Promise<T>): Promise<T> {
-    if (active >= max) await new Promise<void>((resolve) => queue.push(resolve))
-    active += 1
+    if (active < max) active += 1
+    // The slot is ours when this resolves: `release` passed it on without freeing it.
+    else await new Promise<void>((resolve) => queue.push(resolve))
     try {
       return await task()
     } finally {
