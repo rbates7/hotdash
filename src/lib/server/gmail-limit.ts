@@ -1,5 +1,7 @@
 import "server-only"
 
+import { deadlineOf } from "@/lib/server/time-limit"
+
 /**
  * Keeps Gmail calls polite: at most `GMAIL_CONCURRENCY` in flight at once
  * across every caller in this server instance (the background sync and the
@@ -20,10 +22,27 @@ export const GMAIL_MAX_RETRIES = 3
 /** First backoff; doubles each retry (250, 500, 1000 ms) plus up to as much again of jitter. */
 export const GMAIL_BACKOFF_MS = 250
 
-/** The 403 reasons that mean "slow down and try again", not "not allowed". */
-const RETRY_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded"])
+/**
+ * The 403 reasons that mean "slow down and try again" within seconds.
+ * `gmail.ts` labels these plus the quota reasons (`quotaExceeded`,
+ * `dailyLimitExceeded`) as `GmailRateLimited`; only these are retried,
+ * because a spent quota does not come back within our time budget.
+ */
+export const RETRY_REASONS: ReadonlySet<string> = new Set(["rateLimitExceeded", "userRateLimitExceeded"])
 
 /** Whether a failed call is worth retrying: a 429, or a 403 with a short-term rate reason. */
+/**
+ * Google's `Retry-After` as a wait in ms: whole seconds, or an HTTP date
+ * (measured from `nowMs`). Undefined when absent or unreadable; never negative.
+ */
+export function parseRetryAfter(value: string | null | undefined, nowMs: number = Date.now()): number | undefined {
+  const v = value?.trim()
+  if (!v) return undefined
+  if (/^\d{1,6}$/.test(v)) return Number(v) * 1000
+  const at = Date.parse(v)
+  return Number.isNaN(at) ? undefined : Math.max(0, at - nowMs)
+}
+
 export function isRetryableRateLimit(error: unknown): boolean {
   const detail = (error as { detail?: { status?: unknown; reasons?: unknown } } | null)?.detail
   if (!detail) return false
@@ -38,6 +57,8 @@ export function isRetryableRateLimit(error: unknown): boolean {
  * never drops and climbs back), so a caller arriving in between cannot
  * jump the queue or make it `max + 1`.
  */
+const abortError = (signal: AbortSignal) => signal.reason ?? new DOMException("Aborted", "AbortError")
+
 export function createLimiter(max: number) {
   let active = 0
   const queue: Array<() => void> = []
@@ -46,10 +67,16 @@ export function createLimiter(max: number) {
     if (next) next()
     else active -= 1
   }
-  return async function run<T>(task: () => Promise<T>): Promise<T> {
+  return async function run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (signal?.aborted) throw abortError(signal)
     if (active < max) active += 1
     // The slot is ours when this resolves: `release` passed it on without freeing it.
     else await new Promise<void>((resolve) => queue.push(resolve))
+    // The caller gave up while queued: pass the slot on instead of making a doomed call.
+    if (signal?.aborted) {
+      release()
+      throw abortError(signal)
+    }
     try {
       return await task()
     } finally {
@@ -83,22 +110,29 @@ export function createGmailGate({
   baseMs = GMAIL_BACKOFF_MS,
   sleep = abortableSleep,
   random = Math.random,
+  now = Date.now,
 }: {
   concurrency?: number
   maxRetries?: number
   baseMs?: number
   sleep?: Sleep
   random?: () => number
+  now?: () => number
 } = {}): GmailGate {
   const limit = createLimiter(concurrency)
   return async (call, signal) => {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await limit(call)
+        return await limit(call, signal)
       } catch (error) {
         if (attempt >= maxRetries || !isRetryableRateLimit(error) || signal?.aborted) throw error
         const backoff = baseMs * 2 ** attempt
-        await sleep(backoff + Math.floor(random() * backoff), signal)
+        const retryAfter = (error as { detail?: { retryAfterMs?: unknown } }).detail?.retryAfterMs
+        const wait = typeof retryAfter === "number" ? retryAfter : backoff + Math.floor(random() * backoff)
+        // Google asked for longer than we have left: give up now (the caller falls back to stale).
+        const deadline = deadlineOf(signal)
+        if (deadline !== undefined && wait >= deadline - now()) throw error
+        await sleep(wait, signal)
       }
     }
   }

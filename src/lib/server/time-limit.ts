@@ -23,8 +23,17 @@ export const SYNC_TIMEOUT_MS = 240_000
  * timeout for loaders that can stop early; one that cannot keeps running,
  * but its answer is ignored (a late rejection is handled, never unhandled).
  */
+/** When each `withTimeout` signal will abort (epoch ms), for callers deciding whether a wait still fits. */
+const deadlines = new WeakMap<AbortSignal, number>()
+
+/** The epoch ms at which `signal` (from `withTimeout`) aborts, or undefined when unknown. */
+export function deadlineOf(signal: AbortSignal | undefined): number | undefined {
+  return signal ? deadlines.get(signal) : undefined
+}
+
 export function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
   const controller = new AbortController()
+  deadlines.set(controller.signal, Date.now() + ms)
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
