@@ -15,8 +15,18 @@ export const DEFAULT_METRIC_IDS = [
   "retention",
   "subscribers",
   "trials",
+  "trials_per_day",
   "expenses",
 ] as const
+
+/**
+ * Cards added to the defaults after boards were first saved: a saved board
+ * that has never been offered one gets it once, beside the card it follows
+ * (`metrics-store` `parseState`); removing it afterwards sticks.
+ */
+export const INTRODUCED_METRIC_IDS: readonly { id: MetricId; after: MetricId }[] = [
+  { id: "trials_per_day", after: "trials" },
+]
 
 export const EXTRA_METRIC_IDS = [
   "active",

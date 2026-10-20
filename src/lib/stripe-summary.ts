@@ -1,5 +1,5 @@
 import { APP_STORE_NOT_CONNECTED, parseAppStoreSummary, type AppStoreSummary } from "@/lib/app-store-summary"
-import type { StripeMetrics } from "@/lib/stripe-metrics"
+import type { StripeMetricExtras, StripeMetrics } from "@/lib/stripe-metrics"
 
 /**
  * What `/api/stripe/summary` returns, shared by the route and the browser.
@@ -89,7 +89,46 @@ export function parseStripeSummary(value: unknown): StripeSummary | null {
     isNum(t.converted) && isNum(t.ended) &&
     hasNewFigures(m)
   if (!ok) return null
-  return withAppStore({ status: v.status, lastSyncedAt: v.lastSyncedAt, metrics: m as unknown as StripeMetrics }, v.appStore)
+  const core = {
+    subscribers: s, freeAccounts: f, cashThisWeek: c, mrr, churn, trialToPaid: t,
+  } as unknown as StripeMetrics
+  return withAppStore({ status: v.status, lastSyncedAt: v.lastSyncedAt, metrics: { ...core, ...parseExtras(m) } }, v.appStore)
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v)
+const isDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v))
+const isCount = (v: unknown) => isNum(v) && Number.isInteger(v) && v >= 0
+
+/**
+ * Copies #77's fields out of a summary `hasNewFigures` has already
+ * checked (a summary missing or misreading any of them is rejected
+ * there), so only the known keys reach a screen. Each field is checked
+ * again on its own, which only matters when this is called directly.
+ */
+export function parseExtras(m: Record<string, unknown>): StripeMetricExtras {
+  const out: StripeMetricExtras = {}
+  const { pastDue, arr, revenue, arpu, ltv, nrr, trialsStartedPerDay: trials } = m
+  if (isObj(pastDue) && isCount(pastDue.value) && isNum(pastDue.mrr)) out.pastDue = { value: pastDue.value as number, mrr: pastDue.mrr }
+  if (isObj(arr) && isNum(arr.value) && isNum(arr.previous) && isNums(arr.series)) {
+    out.arr = { value: arr.value, previous: arr.previous, series: [...(arr.series as number[])] }
+  }
+  if (isObj(revenue) && isNum(revenue.value) && isNum(revenue.previous) && isNums(revenue.series) && isCount(revenue.invoices)) {
+    out.revenue = { value: revenue.value, previous: revenue.previous, series: [...(revenue.series as number[])], invoices: revenue.invoices as number }
+  }
+  for (const [key, raw] of [["arpu", arpu], ["ltv", ltv]] as const) {
+    if (isObj(raw) && isRate(raw.value) && isRate(raw.previous)) out[key] = { value: raw.value as number | null, previous: raw.previous as number | null }
+  }
+  if (isObj(nrr) && isRate(nrr.value) && isRate(nrr.previous) && isNums(nrr.series, isRate)) {
+    out.nrr = { value: nrr.value as number | null, previous: nrr.previous as number | null, series: [...(nrr.series as (number | null)[])], basis: "current_prices" }
+  }
+  if (
+    isObj(trials) && isCount(trials.total) && isCount(trials.previousTotal) &&
+    Array.isArray(trials.series) && trials.series.every((d) => isObj(d) && isDay(d.date) && isCount(d.count))
+  ) {
+    const series = (trials.series as { date: string; count: number }[]).map(({ date, count }) => ({ date, count }))
+    out.trialsStartedPerDay = { series, total: trials.total as number, previousTotal: trials.previousTotal as number }
+  }
+  return out
 }
 
 /* ---------------------------------------------------------- in the browser */

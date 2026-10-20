@@ -239,7 +239,7 @@ test.describe("responsive Metrics (phone 390)", () => {
     await fresh(page)
     await expect(main(page).getByRole("heading", { level: 1, name: "Metrics" })).toBeVisible()
     await expect(tab(page, "Overview")).toHaveAttribute("aria-selected", "true")
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
 
     for (const name of ["Overview", "New Subscribers", "Churned Subscribers", "Expenses"]) {
       await expectTapTarget(tab(page, name), `tab ${name}`)
@@ -593,9 +593,9 @@ test.describe("responsive Metrics (B1 tablist)", () => {
 test.describe("responsive Metrics (desktop 1440)", () => {
   test.use({ viewport: VIEWPORTS.desktop })
 
-  test("is unchanged: 8 cards, Not connected lists, desktop-sized dialog chrome", async ({ page }) => {
+  test("is unchanged: 9 cards, Not connected lists, desktop-sized dialog chrome", async ({ page }) => {
     await fresh(page)
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
     await expect(tablist(page).getByRole("tab")).toHaveCount(4)
     await expect(panel(page, "Overview").getByRole("list")).toHaveCount(0)
 
@@ -811,7 +811,7 @@ for (const [size, viewport] of [
         await fresh(page)
         await setTheme(page, theme)
         const groups = page.getByRole("group", { name: / chart type$/ })
-        await expect(groups).toHaveCount(8)
+        await expect(groups).toHaveCount(9)
         for (const group of await groups.all()) {
           const name = (await group.getAttribute("aria-label")) ?? "chart type"
           await expectPressedContrast(group, `${size}/${theme} ${name}`)

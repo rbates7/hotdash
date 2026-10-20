@@ -60,7 +60,25 @@ function DottedColumn(props: BarShapeProps) {
   )
 }
 
-export function MetricChart({
+type MetricChartProps = {
+  /** Null is a window with no reading: no column, a gap in the line. */
+  series: readonly (number | null)[]
+  type: ChartType
+  label: string
+  /** How each point is read aloud, e.g. "$26,190". */
+  unit: MetricUnit
+  /** The page's calendar day; the six points are the six 28-day windows ending on it. */
+  today: IsoDay
+  /** A daily chart instead (Trials per day): each point's YYYY-MM-DD day, oldest first. */
+  days?: readonly string[]
+}
+
+/** A card's sparkline: six 28-day windows, or one point a day when `days` is given. */
+export function MetricChart({ days, ...props }: MetricChartProps) {
+  return days ? <DailyChart {...props} days={days} /> : <WindowChart {...props} />
+}
+
+function WindowChart({
   series,
   type,
   label,
@@ -151,6 +169,78 @@ export function MetricChart({
                 <g key={props.index} />
               )
             }
+            activeDot={false}
+          />
+        </LineChart>
+      )}
+    </ChartContainer>
+  )
+}
+
+/** The dotted column, with nothing at all on a day with no trials (not two dots that read as some). */
+function DailyColumn(props: BarShapeProps) {
+  const v = (props.payload as { v?: number | null } | undefined)?.v
+  return v ? <DottedColumn {...props} /> : <g />
+}
+
+/**
+ * One point a day (Trials per day: the 28 days of the current window), in
+ * the same 120×52 style: today in ink, the days before in the quiet grey.
+ * Its accessible name reads each day, as the window chart reads windows.
+ */
+function DailyChart({
+  series,
+  type,
+  label,
+  unit,
+  days,
+}: {
+  series: readonly (number | null)[]
+  type: ChartType
+  label: string
+  unit: MetricUnit
+  days: readonly string[]
+}) {
+  const data = React.useMemo(
+    () => series.map((v, i) => ({ i, v, day: days[i] ? formatDayShort(days[i] as IsoDay) : "" })),
+    [series, days]
+  )
+  // Counts start at 0, so the bars are honest heights (no padded floor).
+  const domain = React.useMemo<[number, number]>(() => [0, Math.max(1, ...series.filter((v): v is number => v !== null))], [series])
+  const last = data.length - 1
+  const span = data.length > 0 ? `${data[0].day} to ${data[last].day}` : ""
+  const readings = data.map((d) => `${d.day} ${d.v === null ? "no data" : formatMetricValue(d.v, unit)}`)
+  const name = `${label}, ${type} chart of ${data.length} days, ${span}: ${readings.join(", ")}`
+  return (
+    <ChartContainer
+      config={CHART_CONFIG}
+      initialDimension={{ width: WIDTH, height: HEIGHT }}
+      className="aspect-auto h-[52px] w-[120px] flex-none"
+      role="img"
+      aria-label={name}
+      title={`${label}: ${span}`}
+      data-days={days.join(" ")}
+    >
+      {type === "bar" ? (
+        <BarChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }} barCategoryGap="10%" accessibilityLayer={false}>
+          <YAxis hide domain={domain} />
+          <Bar dataKey="v" isAnimationActive={false} shape={DailyColumn}>
+            {data.map((d) => (
+              <Cell key={d.i} fill={d.i === last ? "var(--color-current)" : "var(--color-past)"} />
+            ))}
+          </Bar>
+        </BarChart>
+      ) : (
+        <LineChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }} accessibilityLayer={false}>
+          <YAxis hide domain={domain} />
+          <Line
+            dataKey="v"
+            type="monotone"
+            stroke="var(--color-current)"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            isAnimationActive={false}
+            dot={false}
             activeDot={false}
           />
         </LineChart>

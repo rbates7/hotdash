@@ -71,7 +71,7 @@ describe("reducer", () => {
     expect(s.visible.at(-1)).toBe("cac")
     expect(reducer(s, { type: "add-metric", id: "cac" })).toBe(s)
     s = reducer(s, { type: "add-metric", id: "valuation" })
-    expect(s.visible).toHaveLength(10)
+    expect(s.visible).toHaveLength(11)
   })
 
   it("removes a metric and lets it be added back", () => {

@@ -3,6 +3,7 @@ import path from "node:path"
 
 import { expect, test, type Page } from "@playwright/test"
 
+import { METRIC_IDS } from "../src/lib/metrics"
 import { settleAnimations } from "./support/contrast"
 import { NOTE, persistenceNote } from "./support/persistence"
 import { waitForHydration } from "./support/shell"
@@ -79,7 +80,7 @@ for (const theme of ["light", "dark"] as const) {
       const desktop = size === "desktop"
 
       await open(page, theme, null)
-      await expect(grid(page).getByRole("article")).toHaveCount(8)
+      await expect(grid(page).getByRole("article")).toHaveCount(9)
       await shoot(page, `metrics-${size}-overview-${theme}`)
 
       await panel(page, "Overview").getByRole("button", { name: "Add metric", exact: true }).click()
@@ -104,7 +105,8 @@ for (const theme of ["light", "dark"] as const) {
       await shoot(page, `metrics-${size}-expenses-add-${theme}`, { fullPage: desktop })
       await closeAll(page)
 
-      await open(page, theme, { visible: [], charts: {}, expenses: [], nextExpenseId: 1, seededAt: "2026-08-21" })
+      // `offered`: every card already offered, so no newly introduced card joins the empty board.
+      await open(page, theme, { visible: [], charts: {}, expenses: [], nextExpenseId: 1, seededAt: "2026-08-21", offered: [...METRIC_IDS] })
       await expect(panel(page, "Overview").getByRole("status", { name: "Empty board" })).toBeVisible()
       await shoot(page, `metrics-${size}-overview-empty-${theme}`)
     })

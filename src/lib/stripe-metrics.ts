@@ -172,8 +172,21 @@ export type StripeMetrics = {
    */
   nrr: { value: Rate; previous: Rate; series: Rate[]; basis: "current_prices" }
   /** Trials started on each day of the current 28-day window (founder's zone), oldest first. */
-  trialsStartedPerDay: { series: { date: string; count: number }[]; total: number; previousTotal: number }
+  trialsStartedPerDay: { series: TrialDay[]; total: number; previousTotal: number }
 }
+
+/** One founder-zone day: `date` is YYYY-MM-DD. */
+export type TrialDay = { date: string; count: number }
+
+/**
+ * The fields #77 added, as a partial view for `parseExtras` and the card
+ * code. `parseStripeSummary` rejects a summary missing any of them, so in
+ * practice every live card has its figure; a card given none (only in
+ * tests) shows an em dash.
+ */
+export type StripeMetricExtras = Partial<
+  Pick<StripeMetrics, "pastDue" | "arr" | "revenue" | "arpu" | "ltv" | "nrr" | "trialsStartedPerDay">
+>
 
 /* ------------------------------------------------------------ definitions */
 

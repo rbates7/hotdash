@@ -81,7 +81,7 @@ describe("Home with Stripe connected", () => {
 
   it("Subscribers and Cash this week are Stripe's, with no Sample label", () => {
     renderHome()
-    expect(within(kpi("Subscribers")).getByText("1,337")).toBeInTheDocument()
+    expect(within(kpi("Subscribers")).getByText("1,306")).toBeInTheDocument()
     expect(within(kpi("Subscribers")).getByText(/\+34 vs previous 28 days/)).toHaveAttribute("data-tone", "good")
     expect(within(kpi("Cash this week")).getByText("$4,322")).toBeInTheDocument()
     expect(within(kpi("Cash this week")).getByText(/\+10\.8% vs same time last week/)).toBeInTheDocument()
@@ -97,7 +97,7 @@ describe("Home with Stripe connected", () => {
 
   it("the ticker shows the Subscribers total and today's net change, unlabelled", () => {
     renderHome()
-    expect(spoken()).toBe("Subscribers: 1,337, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,306, up 3 today")
     expect(ticker()).toHaveAttribute("data-state", "ready")
     expect(within(ticker()).queryByTestId("sample-data-tag")).toBeNull()
   })
@@ -120,9 +120,9 @@ describe("Home with Stripe stale", () => {
       expect(within(kpi(name)).getByTestId("kpi-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
       expect(within(kpi(name)).queryByTestId("sample-data-tag")).toBeNull()
     }
-    expect(within(kpi("Subscribers")).getByText("1,337")).toBeInTheDocument()
+    expect(within(kpi("Subscribers")).getByText("1,306")).toBeInTheDocument()
     expect(ticker()).toHaveAttribute("data-state", "stale")
-    expect(spoken()).toBe("Subscribers: 1,337, up 3 today, Last updated 9:41 AM CDT")
+    expect(spoken()).toBe("Subscribers: 1,306, up 3 today, Last updated 9:41 AM CDT")
   })
 
   it("follows the Settings zone", () => {
@@ -173,7 +173,8 @@ describe("Metrics with Stripe connected", () => {
       [/^MRR\b/, "$61,235"],
       [/^Churn Rate\b/, "2.7%"],
       [/^Trial Conversions\b/, "41.2%"],
-      [/^Subscribers\b/, "1,337"],
+      // Metrics' headline is active paying only (Home keeps the 1,306 total).
+      [/^Subscribers\b/, "1,079"],
     ]
     for (const [name, value] of expected) {
       const c = card(name)
@@ -187,9 +188,15 @@ describe("Metrics with Stripe connected", () => {
 
   it("every other card says Not connected (Expenses: the founder's entries), never a sample figure", () => {
     renderMetrics()
-    for (const name of [/^ARR\b/, /^Revenue\b/, /^Retention\b/]) {
+    for (const name of [/^Retention\b/]) {
       expect(within(card(name)).queryByTestId("sample-data-tag")).toBeNull()
       expect(card(name)).toHaveAttribute("data-source", "not_connected")
+    }
+    // Stripe's real figures since #77, never the em dash for a missing field.
+    expect(within(card(/^ARR\b/)).getByTestId("metric-value")).toHaveTextContent("$734,815")
+    for (const name of [/^ARR\b/, /^Revenue\b/]) {
+      expect(card(name)).toHaveAttribute("data-source", "stripe")
+      expect(card(name)).not.toHaveTextContent("Not in Stripe\u2019s figures yet")
     }
     expect(card(/^Expenses\b/)).toHaveAttribute("data-source", "entries")
     expect(within(card(/^Expenses\b/)).queryByTestId("sample-data-tag")).toBeNull()
@@ -207,7 +214,7 @@ describe("Metrics with Stripe connected", () => {
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
     expect(notice).toHaveTextContent(
-      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Subscribers also counts App Store payers from Chlk’s database \(read-only\)\./
+      /^Partly live\. MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe \(read-only\); Subscribers also shows App Store payers from Chlk’s database \(read-only\) on their own line\./
     )
     expect(notice).toHaveTextContent("Every other card says Not connected until its source is wired up")
     expect(notice).not.toHaveTextContent(/sample|illustrative/i)
@@ -225,7 +232,7 @@ describe("Metrics with Stripe connected", () => {
     renderMetrics()
     expect(headerTag()).toBeNull()
     expect(within(card(/^ARR\b/)).queryByTestId("sample-data-tag")).toBeNull()
-    expect(within(card(/^ARR\b/)).getByText("Not connected")).toBeInTheDocument()
+    expect(within(card(/^Retention\b/)).getByText("Not connected")).toBeInTheDocument()
   })
 })
 
@@ -268,7 +275,7 @@ describe("Metrics with Stripe stale", () => {
     setStripeSummaryForTest(liveSummary("stale"))
     renderMetrics()
     expect(within(card(/^MRR\b/)).getByTestId("metric-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
-    expect(within(card(/^ARR\b/)).queryByTestId("metric-updated")).toBeNull()
+    expect(within(card(/^ARR\b/)).getByTestId("metric-updated")).toHaveTextContent("Last updated Tue, Oct 13 · 9:41 AM CDT")
     expect(screen.getByTestId("metrics-connection-notice")).toHaveTextContent("as of their last update")
     expect(screen.getByRole("note", { name: "Partly live" })).toBeInTheDocument()
     expect(headerTag()).toBeNull()
@@ -298,13 +305,13 @@ const rowsOf = (el: HTMLElement) =>
   ])
 
 describe("Subscribers total and its breakdown", () => {
-  it("App Store connected: Home's card shows 1,337 over its three groups, and no caveat", () => {
+  it("App Store connected: Home's card shows 1,306 over its three groups, and no caveat", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderHome()
     const c = kpi("Subscribers")
-    expect(within(c).getByText("1,337")).toBeInTheDocument()
+    expect(within(c).getByText("1,306")).toBeInTheDocument()
     expect(rowsOf(c)).toEqual([
-      ["Stripe paying", "1,110"],
+      ["Stripe paying", "1,079"],
       ["App Store", "53"],
       ["Free (never paid)", "174"],
     ])
@@ -315,10 +322,10 @@ describe("Subscribers total and its breakdown", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     renderHome()
     const c = kpi("Subscribers")
-    expect(within(c).getByText("1,284")).toBeInTheDocument()
+    expect(within(c).getByText("1,253")).toBeInTheDocument()
     expect(rowsOf(c)[1]).toEqual(["App Store", "Not connected"])
     expect(within(c).getByTestId("subscriber-breakdown-note")).toHaveTextContent("Total excludes App Store (not connected)")
-    expect(spoken()).toBe("Subscribers: 1,284, up 3 today")
+    expect(spoken()).toBe("Subscribers: 1,253, up 3 today")
   })
 
   it("a stale App Store count stays in the total and says when it is from", () => {
@@ -329,17 +336,20 @@ describe("Subscribers total and its breakdown", () => {
     )
   })
 
-  it("Metrics › Subscribers shows the same total and rows", () => {
+  it("Metrics › Subscribers: active paying headline, the other groups on their own lines", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
     const c = card(/^Subscribers\b/)
-    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,337")
+    expect(within(c).getByTestId("metric-value")).toHaveTextContent("1,079")
+    expect(c).toHaveTextContent("Active paying coaches")
+    // #77 sends the past-due split: its own amber line, out of the headline.
     expect(rowsOf(c)).toEqual([
-      ["Stripe paying", "1,110"],
+      ["Past due", "31 · $1,519 MRR"],
       ["App Store", "53"],
       ["Free (never paid)", "174"],
     ])
-    expect(within(c).getByTestId("trend")).toHaveTextContent("+34")
+    expect(c).not.toHaveTextContent("Includes past due")
+    expect(within(c).getByTestId("trend")).toHaveTextContent("+30")
   })
 
   it("a loading card keeps the breakdown's room but shows nothing in it; Not connected reserves nothing (Deke, #67)", () => {

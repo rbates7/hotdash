@@ -68,11 +68,13 @@ export const EXCLUDES_APP_STORE = "Total excludes App Store (not connected)"
 export const EXCLUDES_APP_STORE_CONNECTING = "Total excludes App Store (still connecting)"
 
 export type BreakdownRow = {
-  key: keyof typeof BREAKDOWN_LABELS
+  key: keyof typeof BREAKDOWN_LABELS | "pastDue"
   label: string
   value: string
   /** Set when the figure cannot be trusted: the row shows a warning, and this is its accessible label. */
   warning?: string
+  /** Amber figure, no icon: worth a look, not a broken read (Past due). Never a link. */
+  tone?: "attention"
 }
 
 const GROUPED = new Intl.NumberFormat("en-US")
@@ -118,3 +120,47 @@ export function breakdownText(total: SubscriberTotal, timeZone: string) {
   const note = breakdownNote(total, timeZone)
   return `${rows}.${note ? ` ${note}.` : ""}`
 }
+
+/* ------------------------------------------------- Metrics › Subscribers */
+
+export const PAST_DUE_LABEL = "Past due"
+/** The Past due line when this Stripe sync has no split yet. */
+export const PAST_DUE_UNSPLIT_NOTE = "Includes past due until Stripe\u2019s figures split them out"
+
+/**
+ * The lines under Metrics › Subscribers' active-paying headline (pending
+ * Simmons; Home keeps the total): Past due (amber, with its MRR at risk),
+ * App Store and Free — each on its own, none added into the headline. The
+ * App Store line reads as it does under Home's total (Not connected,
+ * Connecting…, a suspect 0). Fine print: the headline still holds past
+ * due (no split from this sync), or the App Store figure's caveat.
+ */
+export function metricsSubscriberRows(
+  metrics: Pick<StripeMetrics, "subscribers" | "freeAccounts" | "pastDue">,
+  appStore: AppStoreSummary,
+  timeZone: string
+): { rows: BreakdownRow[]; note: string | null } {
+  const total = subscriberTotal(metrics, appStore)
+  const [, app, free] = breakdownRows(total)
+  const pd = metrics.pastDue
+  const pastDue: BreakdownRow = pd
+    ? {
+        key: "pastDue",
+        label: PAST_DUE_LABEL,
+        value: pd.mrr > 0 ? `${GROUPED.format(pd.value)} · ${MONEY.format(pd.mrr)} MRR` : GROUPED.format(pd.value),
+        ...(pd.value > 0 && { tone: "attention" as const }),
+      }
+    : { key: "pastDue", label: PAST_DUE_LABEL, value: "\u2014" }
+  const s = total.appStoreSource
+  // One line: a suspect App Store read matters most, then an older App Store count, then the missing split.
+  const note = isSuspectAppStore(s)
+    ? APP_STORE_SUSPECT_NOTE
+    : s.status === "stale"
+      ? `App Store as of ${formatWallClock(new Date(s.asOf), timeZone)}`
+      : !pd
+        ? PAST_DUE_UNSPLIT_NOTE
+        : null
+  return { rows: [pastDue, app, free], note }
+}
+
+const MONEY = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })

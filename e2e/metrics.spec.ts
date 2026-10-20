@@ -100,7 +100,7 @@ test.describe("Metrics", () => {
     }
     await expect(tab(page, "Overview")).toHaveAttribute("aria-selected", "true")
 
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
     // No key in e2e: Stripe's cards say Not connected, with no figure and no chart.
     const mrr = card(page, "MRR")
     await expect(mrr).toHaveAttribute("data-source", "not_connected")
@@ -118,7 +118,7 @@ test.describe("Metrics", () => {
       await expect(connectionNote(page)).not.toContainText("illustrative")
       await expect(headerTag(page)).toHaveCount(0)
       await expect(grid(page).getByTestId("sample-data-tag")).toHaveCount(0)
-      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions"]) {
+      for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Trials per day"]) {
         await expect(card(page, name)).toHaveAttribute("data-source", "not_connected")
         await expect(card(page, name).getByTestId("not-connected")).toHaveText("Not connected")
       }
@@ -190,7 +190,7 @@ test.describe("Metrics", () => {
   test("sparklines are images, not stops: tabbing through the Overview never lands in a chart", async ({ page }) => {
     // A founder expense gives the board a chart to walk past (Not connected cards draw none).
     await withFounderExpense(page)
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
     // Recharts must not add a role=application / focusable layer inside the img.
     // (Its z-index <g> layers carry tabindex="-1" regardless of accessibilityLayer;
     // -1 is not a tab stop and role=img makes the children presentational — the
@@ -274,7 +274,7 @@ test.describe("Metrics", () => {
     await expect(picker).toBeHidden()
     // No fixture figure: CAC has no source yet.
     await expect(card(page, "CAC").getByTestId("metric-value")).toHaveText("—")
-    await expect(grid(page).getByRole("article")).toHaveCount(9)
+    await expect(grid(page).getByRole("article")).toHaveCount(10)
 
     await card(page, "ARR").getByRole("button", { name: "Remove ARR" }).click()
     await expect(card(page, "ARR")).toHaveCount(0)
@@ -291,7 +291,7 @@ test.describe("Metrics", () => {
 
     await page.reload()
     await expect(persistenceNote(page)).toHaveText(NOTE.saved)
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
     await expect(card(page, "CAC")).toBeVisible()
     await expect(card(page, "ARR")).toHaveCount(0)
     await expect(card(page, "MRR").getByRole("button", { name: "MRR: line chart" })).toHaveAttribute("aria-pressed", "true")
@@ -380,7 +380,7 @@ test.describe("Metrics", () => {
 
     // A Reset in B clears the key; A goes back to a fresh seed too.
     await resetDemoData(b)
-    await expect(grid(a).getByRole("article")).toHaveCount(8)
+    await expect(grid(a).getByRole("article")).toHaveCount(9)
     await expect(persistenceNote(a)).toHaveText(NOTE.unsaved)
     await settled(a, 1)
     await settled(b, 1)
@@ -389,12 +389,12 @@ test.describe("Metrics", () => {
 
   test("the board can be emptied and shows an empty state", async ({ page }) => {
     await freshMetrics(page)
-    for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Expenses"]) {
+    for (const name of ["MRR", "ARR", "Churn Rate", "Revenue", "Retention", "Subscribers", "Trial Conversions", "Trials per day", "Expenses"]) {
       await card(page, name).getByRole("button", { name: `Remove ${name}` }).click()
     }
     await expect(grid(page)).toHaveCount(0)
     await expect(panel(page, "Overview").getByRole("status", { name: "Empty board" })).toContainText("No metrics on the board")
     await resetDemoData(page)
-    await expect(grid(page).getByRole("article")).toHaveCount(8)
+    await expect(grid(page).getByRole("article")).toHaveCount(9)
   })
 })

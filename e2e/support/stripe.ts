@@ -13,6 +13,7 @@ import {
 import type { MrrCashSummary } from "../../src/lib/stripe-mrr-cash"
 import type { StripeMetrics } from "../../src/lib/stripe-metrics"
 import type { StripeSummary } from "../../src/lib/stripe-summary"
+import type { StripeSubscriberList } from "../../src/lib/stripe-subscribers"
 
 export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, APP_STORE_ZERO_STALE, LIVE_METRICS, liveSummary }
 
@@ -20,8 +21,8 @@ export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, AP
  * Answer the browser's `/api/stripe/summary` with `summary` — the server's
  * own route (no key and no database URL in e2e) is never reached, and
  * neither is Stripe or Chlk's database. `liveSummary()` has the App Store
- * connected (1,110 + 53 + 174 = 1,337); pass `APP_STORE_OFF` as its third
- * argument for not connected (1,284, "Total excludes App Store").
+ * connected (1,079 + 53 + 174 = 1,306); pass `APP_STORE_OFF` as its third
+ * argument for not connected (1,253, "Total excludes App Store").
  * Pass a function to change the answer mid-test (each poll reads it anew).
  * Returns the time-zone parameters the page asked with.
  */
@@ -94,4 +95,22 @@ export async function mockMrrCash(page: Page, summary: MrrCashSummary) {
   await page.route("**/api/stripe/mrr-cash**", (route) =>
     route.fulfill({ json: summary, headers: { "Cache-Control": "no-store" } })
   )
+}
+
+/**
+ * Answer the browser's `/api/stripe/subscribers?list=…` per list: a body,
+ * or a bare status (401 for the login gate). The real route is never
+ * reached; rows are fictional @example.com coaches only.
+ */
+export async function mockSubscriberLists(
+  page: Page,
+  answers: Partial<Record<"new" | "churned", StripeSubscriberList | number>>
+) {
+  await page.route("**/api/stripe/subscribers**", async (route) => {
+    const list = new URL(route.request().url()).searchParams.get("list") as "new" | "churned"
+    const answer = answers[list]
+    if (answer === undefined) return route.fulfill({ status: 404, json: { error: "not_found" } })
+    if (typeof answer === "number") return route.fulfill({ status: answer, json: { error: "Locked. Sign in at /unlock." } })
+    await route.fulfill({ json: answer, headers: { "Cache-Control": "no-store" } })
+  })
 }

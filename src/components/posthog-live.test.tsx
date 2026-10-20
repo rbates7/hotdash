@@ -107,7 +107,7 @@ describe("Metrics with PostHog connected", () => {
     renderMetrics()
     const notice = screen.getByRole("note", { name: "Partly live" })
     expect(notice).toHaveTextContent(
-      /^Partly live\. MRR, Churn Rate, Trial Conversions and Subscribers are live from Stripe \(read-only\); Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other card says Not connected/
+      /^Partly live\. MRR, Churn Rate, Trial Conversions, Subscribers, ARR, Revenue, Trials per day, ARPU, LTV and NRR are live from Stripe \(read-only\); Retention and Active Users are live from PostHog \(read-only, iOS app events only\)\. Every other card says Not connected/
     )
     expect(card(/^MRR\b/)).toHaveAttribute("data-source", "stripe")
     expect(card(/^Retention\b/)).toHaveAttribute("data-source", "posthog")
@@ -117,7 +117,7 @@ describe("Metrics with PostHog connected", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     renderMetrics()
     expect(screen.getByRole("note", { name: "Partly live" })).toHaveTextContent(
-      "Subscribers also counts App Store payers from Chlk’s database (read-only)"
+      "Subscribers also shows App Store payers from Chlk’s database (read-only) on their own line"
     )
   })
 })
