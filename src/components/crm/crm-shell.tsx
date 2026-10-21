@@ -24,11 +24,13 @@ import { useCrm } from "@/components/crm/crm-store"
 export const FIND_CONTACT = "Find a contact…"
 
 export const LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
-/** While Gmail's first sync runs. */
-export const CONNECTING_LEDE = "Loading your cases…"
+/** While Gmail's first sync runs (Overview; each section names its own list). */
+export const CONNECTING_LEDE = "Loading your CRM…"
 
 /** What each CRM section lists, for the loading and session-expired subtitles. */
 export function sectionNoun(pathname: string) {
+  // Overview is the whole CRM, not its cases.
+  if (pathname === "/crm" || pathname === "/crm/") return "CRM"
   if (pathname.startsWith("/crm/contacts")) return "contacts"
   if (pathname.startsWith("/crm/triage")) return "triage"
   if (pathname.startsWith("/crm/accounts")) return "accounts"
@@ -45,7 +47,7 @@ export function expiredLede(pathname: string) {
   return noun === "triage" ? "Sign in again to see triage" : `Sign in again to see your ${noun}`
 }
 /** The login gate's 401: the session ran out, Gmail is still connected. */
-export const EXPIRED_LEDE = "Sign in again to see your cases"
+export const EXPIRED_LEDE = "Sign in again to see your CRM"
 
 export function liveLede(mailbox: string) {
   return `Conversations, contacts, and triage from ${mailbox}`

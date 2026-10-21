@@ -139,6 +139,8 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
               onClick={() => set({ status: tab.value })}
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors max-xl:min-h-11 max-xl:min-w-11 max-xl:px-3",
+                // Phone sheet: labels never break ("Closed" stays whole) and each row fills evenly.
+                stacked && "flex-1 whitespace-nowrap",
                 active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >

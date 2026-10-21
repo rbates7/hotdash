@@ -170,6 +170,9 @@ describe("CRM while Gmail is connecting (first sync on the server)", () => {
 describe("section subtitles while loading or signed out", () => {
   it("name what each section lists", () => {
     expect(loadingLede("/crm")).toBe(CONNECTING_LEDE)
+    // Overview is the whole CRM, not its cases (#74 follow-up).
+    expect(CONNECTING_LEDE).toBe("Loading your CRM…")
+    expect(EXPIRED_LEDE).toBe("Sign in again to see your CRM")
     expect(loadingLede("/crm/cases")).toBe("Loading your cases…")
     expect(loadingLede("/crm/contacts")).toBe("Loading your contacts…")
     expect(loadingLede("/crm/triage")).toBe("Loading triage…")
