@@ -42,7 +42,7 @@ ending move it, not price changes. The response says so in `nrr.basis:
 - Row: `subscriptionId, customerName, customerEmail, plan (price nickname), interval, mrr, at (ISO), reason (churned only)`.
 - Names and emails are looked up from Stripe customers on the server only,
   with one read-only `customers.retrieve` per row. The sync itself keeps only the customer id.
-- Each list is cached for 2 minutes per list and time zone. Each customer is cached for 2 minutes, with expired entries pruned after each successful Stripe lookup (not on a cache hit or a failed lookup) and at most 500 held (the oldest go first). The browser gets `no-store`.
+- Each list is cached for 2 minutes per list and time zone. Each customer is cached for 2 minutes, After each successful Stripe lookup (never on a cache hit or a failed lookup), every expired customer is dropped and then, if more than 500 remain, the least recently looked-up ones are dropped until 500 are left. A cache hit does not refresh a customer's place or its 2 minutes. The browser gets `no-store`.
 - Names, emails and customer ids are never logged. A failed lookup logs one
   word (the error type) and leaves the name and email null.
 - Status words as everywhere: `connected | stale | connecting | not_connected`. Without a sync, the list is empty.

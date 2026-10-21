@@ -134,6 +134,29 @@ describe("subscriber lists service", () => {
     expect(lookup.mock.calls.map(([id]) => id)).toEqual([ids[0]]) // only the oldest was evicted
   })
 
+  it("never holds more than 500 customers, pruning expired ones as lookups succeed", async () => {
+    let batch: StripeSubscription[] = []
+    let syncedAt = NOW.getTime()
+    let now = NOW.getTime()
+    const snapshot = vi.fn(async () => ({ status: "connected" as const, syncedAt, data: { subscriptions: batch, charges: [] } }))
+    const lookup = vi.fn(async (id: string) => ({ name: `Coach ${id}`, email: `${id}@example.test` }))
+    const lists = createSubscriberLists({ service: { snapshot }, lookup, clock: () => now, log: vi.fn() })
+    let peak = 0
+    for (let round = 0; round < 8; round++) {
+      batch = Array.from({ length: 100 }, (_, i) => sub({ customer: `cus_p_${round}_${i}`, start_date: NOW_SEC - DAY }))
+      syncedAt += 1
+      await lists.read("new", "UTC")
+      peak = Math.max(peak, lists.customerCacheSize())
+      now += 20_000 // 8 rounds x 20 s: early rounds expire after 2 minutes
+    }
+    expect(peak).toBeLessThanOrEqual(CUSTOMER_CACHE_MAX)
+    now += 3 * 60_000 // everything expired
+    batch = [sub({ customer: "cus_p_last", start_date: NOW_SEC - DAY })]
+    syncedAt += 1
+    await lists.read("new", "UTC")
+    expect(lists.customerCacheSize()).toBe(1) // the successful lookup pruned all expired entries
+  })
+
   it("evicts expired customers on the next successful lookup even under the cap", async () => {
     const { lists, tick } = setup()
     await lists.read("new", "UTC")
