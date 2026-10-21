@@ -16,13 +16,14 @@ export const CRM_STORAGE_KEY = "hotdash.crm.v1"
 
 /** Mirrored from `LEDE` / `CONNECTING_LEDE` in `@/components/crm/crm-shell`. */
 export const CRM_LEDE = "Conversations, contacts, and triage — from the support inbox once Gmail is connected"
-export const CRM_CONNECTING_LEDE = "Loading your cases…"
+export const CRM_CONNECTING_LEDE = "Loading your CRM…"
 /** Mirrored from `loadingLede` in `@/components/crm/crm-shell`. */
 export function crmLoadingLede(path: string) {
   if (path.startsWith("/crm/contacts")) return "Loading your contacts…"
   if (path.startsWith("/crm/triage")) return "Loading triage…"
   if (path.startsWith("/crm/accounts")) return "Loading your accounts…"
-  return CRM_CONNECTING_LEDE
+  if (path === "/crm" || path === "/crm/") return CRM_CONNECTING_LEDE
+  return "Loading your cases…"
 }
 /** `liveLede("info@chlkapp.com")`: the lede once the fixture inbox (or the stale copy) has answered. */
 export const CRM_LIVE_LEDE = "Conversations, contacts, and triage from info@chlkapp.com"
