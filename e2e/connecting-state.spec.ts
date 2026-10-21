@@ -90,16 +90,18 @@ test.describe("Stripe connecting (1440)", () => {
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
     // The browser asks again within ~5 s while connecting (not the minute it waits once live).
     await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe", { timeout: 15_000 })
-    await expect(kpi(page, "Subscribers").getByText("1,306")).toBeVisible()
+    await expect(kpi(page, "Subscribers").getByText("1,079")).toBeVisible()
     await expect(ticker(page)).toHaveAttribute("data-state", "ready")
   })
 
-  test("Stripe live, App Store connecting: the headline waits, Cash this week is live", async ({ page }) => {
+  test("Stripe live, App Store connecting: the headline (active paying) does not wait; its App Store line says Connecting…", async ({ page }) => {
     await mockStripe(page, liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING))
     await open(page, "/home")
     await expect(kpi(page, "Cash this week")).toHaveAttribute("data-source", "stripe")
-    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
-    await expect(ticker(page)).toHaveAttribute("data-state", "loading")
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe")
+    await expect(kpi(page, "Subscribers")).toContainText("1,079")
+    await expect(kpi(page, "Subscribers").locator("[data-row='appStore'] dd")).toHaveText("Connecting…")
+    await expect(ticker(page)).toHaveAttribute("data-state", "ready")
   })
 })
 
@@ -178,10 +180,10 @@ test.describe("our endpoint fails after connecting (1440)", () => {
   test("Stripe live, App Store connecting, then 500: stale figures, App Store Not connected", async ({ page }) => {
     await connectingThenError(page, liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING))
     await open(page, "/home")
-    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "loading")
-    // App Store no longer on its way: the total shows without it, and says so.
-    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe", { timeout: 15_000 })
-    await expect(kpi(page, "Subscribers")).toContainText("1,253")
-    await expect(kpi(page, "Subscribers")).toContainText("Total excludes App Store (not connected)")
+    // The headline does not wait for the App Store; after the 500 it stays, stale.
+    await expect(kpi(page, "Subscribers")).toHaveAttribute("data-source", "stripe")
+    await expect(kpi(page, "Subscribers")).toContainText("1,079")
+    await expect(kpi(page, "Subscribers").getByTestId("kpi-updated")).toHaveText(/^Last updated /, { timeout: 15_000 })
+    await expect(kpi(page, "Subscribers")).not.toContainText("Total excludes App Store")
   })
 })

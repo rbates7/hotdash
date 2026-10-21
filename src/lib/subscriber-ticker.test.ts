@@ -286,9 +286,9 @@ describe("planCascade", () => {
 
 describe("labels", () => {
   it("reads the full figure and today's change", () => {
-    expect(tickerLabel(1_284, 3)).toBe("Subscribers: 1,284, up 3 today")
-    expect(tickerLabel(12_400_000, -2)).toBe("Subscribers: 12,400,000, down 2 today")
-    expect(tickerLabel(186, 0)).toBe("Subscribers: 186, no change today")
+    expect(tickerLabel(1_284, 3)).toBe("Paying subscribers: 1,284, up 3 today")
+    expect(tickerLabel(12_400_000, -2)).toBe("Paying subscribers: 12,400,000, down 2 today")
+    expect(tickerLabel(186, 0)).toBe("Paying subscribers: 186, no change today")
   })
 
   it("phrases today and the delta chip", () => {

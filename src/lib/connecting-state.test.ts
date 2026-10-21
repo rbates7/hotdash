@@ -14,7 +14,7 @@ import { kpis } from "@/lib/home-kpis"
 import { metricShell } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { CONNECTING, NOT_CONNECTED, feedOf, parseStripeSummary, type StripeFeed } from "@/lib/stripe-summary"
-import { APP_STORE_CONNECTING_TEXT, EXCLUDES_APP_STORE_CONNECTING, breakdownNote, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
+import { APP_STORE_CONNECTING_TEXT, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
 
 /**
  * "Connecting": the server has a key (or database URL) and its first read
@@ -75,11 +75,11 @@ describe("Stripe-fed figures while connecting", () => {
 describe("Stripe live, App Store still connecting", () => {
   const feed = feedOf({ phase: "ready", summary: liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING) })
 
-  it("the Subscribers total waits (a placeholder), never landing without its App Store group", () => {
-    // Marked connecting: the card says Connecting… while App Store payers are read.
-    expect(liveMetric("subscribers", feed, TZ)).toEqual({ kind: "loading", connecting: true })
+  it("the Subscribers headline (active paying) does not wait: App Store is its own line", () => {
+    const state = liveMetric("subscribers", feed, TZ)
+    expect(state.kind === "live" && state.metric.value).toBe(1_079)
     const sub = liveKpis(kpis(), feed, metricShell, TZ).find((k) => k.id === "subscribers")
-    expect(sub).toMatchObject({ source: "loading", value: "–" })
+    expect(sub).toMatchObject({ source: "stripe", value: "1,079" })
   })
 
   it("the other Stripe figures are live straight away", () => {
@@ -92,13 +92,12 @@ describe("Stripe live, App Store still connecting", () => {
     const total = subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTING)
     expect(total.appStore).toBeNull()
     expect(breakdownRows(total).find((r) => r.key === "appStore")?.value).toBe(APP_STORE_CONNECTING_TEXT)
-    expect(breakdownNote(total, TZ)).toBe(EXCLUDES_APP_STORE_CONNECTING)
   })
 
-  it("once it connects, the total includes it", () => {
+  it("once it connects, the headline is unchanged (App Store is never added in)", () => {
     const live = feedOf({ phase: "ready", summary: liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTED) })
     const state = liveMetric("subscribers", live, TZ)
-    expect(state.kind === "live" && state.metric.value).toBe(1_306)
+    expect(state.kind === "live" && state.metric.value).toBe(1_079)
   })
 })
 

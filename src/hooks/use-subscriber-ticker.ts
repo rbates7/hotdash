@@ -10,9 +10,8 @@ import {
   type TickerState,
   type TickerStore,
 } from "@/lib/subscriber-source"
-import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { liveSubscribers, type SubscriberBreakdownView } from "@/lib/live-metrics"
-import { breakdownText } from "@/lib/subscriber-total"
+import { breakdownViewText } from "@/lib/subscriber-total"
 import { useSettings } from "@/hooks/use-settings"
 import { useStripeFeed } from "@/hooks/use-stripe-summary"
 
@@ -37,8 +36,8 @@ const IDLE: TickerStore = {
  * The subscriber count for the founder's Settings zone, shared by every
  * ticker on the page:
  *
- * - Stripe connected → the Subscribers total (`subscriberTotal`: Stripe
- *   paying + App Store + free accounts) and today's net change, as of the
+ * - Stripe connected → active paying coaches (`liveSubscribers`, the same
+ *   headline as Metrics and Home) and today's net change, as of the
  *   last sync, with its breakdown; stale → the same, marked stale.
  * - Stripe not connected → no count at all (`notConnected`); the
  *   simulated sample store is never created, and the ticker says Not
@@ -70,8 +69,8 @@ export function useSubscriberTicker(source?: SubscriberSource): {
   if (feed.kind === "not_connected") {
     return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: true, timeZone, breakdown: null }
   }
-  // Still connecting (Stripe, or App Store for its group): no total yet.
-  if (feed.kind === "loading" || isAppStoreConnecting(feed.appStore)) {
+  // Still connecting: no count yet. App Store is its own line, so it is not waited on.
+  if (feed.kind === "loading") {
     return { state: LOADING_STATE, refresh: IDLE.refresh, notConnected: false, timeZone, breakdown: null }
   }
   const { total, breakdown } = liveSubscribers(feed, timeZone)
@@ -81,6 +80,6 @@ export function useSubscriberTicker(source?: SubscriberSource): {
     refresh: IDLE.refresh,
     notConnected: false,
     timeZone,
-    breakdown: { view: breakdown, text: breakdownText(total, timeZone) },
+    breakdown: { view: breakdown, text: breakdownViewText(breakdown) },
   }
 }

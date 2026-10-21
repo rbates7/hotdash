@@ -79,14 +79,14 @@ describe("SubscriberTicker", () => {
     render(<SubscriberTicker variant="header" source={source} />)
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(status()).toHaveAttribute("aria-live", "polite")
-    expect(spoken()).toBe("Subscribers: 1,284, up 3 today")
+    expect(spoken()).toBe("Paying subscribers: 1,284, up 3 today")
     // One name, said once: no aria-label repeating the sr-only text.
     expect(status()).not.toHaveAttribute("aria-label")
     expect(status()).toHaveAttribute("aria-busy", "false")
     expect(tiles()).toHaveAttribute("aria-hidden", "true")
     expect(tiles().textContent).toBe("11,228844") // each digit in both halves
     expect(screen.getByRole("link")).toHaveAttribute("href", TICKER_HREF)
-    expect(screen.getByRole("link")).toHaveAccessibleName("Subscribers: 1,284, up 3 today")
+    expect(screen.getByRole("link")).toHaveAccessibleName("Paying subscribers: 1,284, up 3 today")
     // The delta chip, on the header only.
     expect(screen.getByText("+3")).toBeInTheDocument()
   })
@@ -95,7 +95,7 @@ describe("SubscriberTicker", () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="header" source={source} />)
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    expect(spoken()).toBe("Subscribers: 186, no change today")
+    expect(spoken()).toBe("Paying subscribers: 186, no change today")
   })
 
   it("the phone bar shows no visible label", () => {
@@ -109,7 +109,7 @@ describe("SubscriberTicker", () => {
     const { source } = controlled(reading(128_400))
     render(<SubscriberTicker variant="bar" source={source} />)
     expect(tiles().textContent).toBe("112288K")
-    expect(spoken()).toBe("Subscribers: 128,400, no change today")
+    expect(spoken()).toBe("Paying subscribers: 128,400, no change today")
   })
 
   it("loading: en-dash tiles, aria-busy, never a number", () => {
@@ -125,10 +125,10 @@ describe("SubscriberTicker", () => {
     render(<SubscriberTicker variant="header" source={source} />)
     expect(spoken()).toBe(LOADING_LABEL)
     await set(reading(186))
-    expect(spoken()).toBe("Subscribers: 186, no change today")
+    expect(spoken()).toBe("Paying subscribers: 186, no change today")
     await set(reading(187, 1))
     await act(() => vi.advanceTimersByTimeAsync(0))
-    expect(spoken()).toBe("Subscribers: 187, up 1 today")
+    expect(spoken()).toBe("Paying subscribers: 187, up 1 today")
   })
 
   it("error before any value: dashes and a Retry dot, never 0", async () => {
@@ -141,7 +141,7 @@ describe("SubscriberTicker", () => {
     await set(reading(42))
     // The error was just announced: the value waits out the minute.
     await act(() => vi.advanceTimersByTimeAsync(ANNOUNCE_MIN_MS))
-    expect(spoken()).toBe("Subscribers: 42, no change today")
+    expect(spoken()).toBe("Paying subscribers: 42, no change today")
     expect(screen.queryByRole("button")).not.toBeInTheDocument()
     // The first good value after a placeholder paints settled.
     expect(document.querySelector("[data-flap]")).toBeNull()
@@ -154,7 +154,7 @@ describe("SubscriberTicker", () => {
     await act(() => vi.advanceTimersByTimeAsync(0))
     await fail()
     await act(() => vi.advanceTimersByTimeAsync(0))
-    expect(spoken()).toBe("Subscribers: 1,284, up 3 today, Last updated 9:41 AM CDT")
+    expect(spoken()).toBe("Paying subscribers: 1,284, up 3 today, Last updated 9:41 AM CDT")
     expect(screen.getByText("Last updated 9:41 AM CDT")).toHaveAttribute("title", "Tue, Oct 13 · 9:41 AM CDT")
     expect(screen.queryByText("+3")).not.toBeInTheDocument()
   })
@@ -222,7 +222,7 @@ describe("SubscriberTicker", () => {
     expect(document.querySelector(".ticker-fade-out")).toBeNull()
     expect(document.querySelector("[data-flap]")).toBeNull()
     expect(tiles().textContent).toBe("118866")
-    expect(spoken()).toBe("Subscribers: 186, up 2 today")
+    expect(spoken()).toBe("Paying subscribers: 186, up 2 today")
   })
 
   it("dark: the Figma 31:220 tile, identical to light — no border, sheen, split, hinges", () => {
@@ -258,20 +258,20 @@ describe("SubscriberTicker", () => {
     // The first change is spoken straight away.
     await set(reading(185, 1))
     await act(() => vi.advanceTimersByTimeAsync(1_000))
-    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    expect(spoken()).toBe("Paying subscribers: 185, up 1 today")
     // Two more inside the minute: the tiles land, the region holds.
     await set(reading(186, 2))
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     await set(reading(188, 4))
     await act(() => vi.advanceTimersByTimeAsync(1_000))
     expect(tiles().textContent).toBe("118888")
-    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    expect(spoken()).toBe("Paying subscribers: 185, up 1 today")
     // A minute after the last announcement, only the latest is spoken.
     await act(() => vi.advanceTimersByTimeAsync(ANNOUNCE_MIN_MS - 3_000 - 1))
-    expect(spoken()).toBe("Subscribers: 185, up 1 today")
+    expect(spoken()).toBe("Paying subscribers: 185, up 1 today")
     await act(() => vi.advanceTimersByTimeAsync(1))
-    expect(spoken()).toBe("Subscribers: 188, up 4 today")
-    expect(screen.getByRole("link")).toHaveAccessibleName("Subscribers: 188, up 4 today")
+    expect(spoken()).toBe("Paying subscribers: 188, up 4 today")
+    expect(screen.getByRole("link")).toHaveAccessibleName("Paying subscribers: 188, up 4 today")
   })
 })
 
@@ -281,25 +281,25 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
 
   const link = () => screen.getByRole("link")
 
-  it("the total's groups are the link's accessible description; the live region speaks the total only", () => {
+  it("the headline's other lines are the link's accessible description; the live region speaks the headline only", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,306, up 3 today")
+    expect(link()).toHaveAccessibleName("Paying subscribers: 1,079, up 2 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,079, App Store 53, Free (never paid) 174."
+      "Past due 31 · $1,519 MRR, App Store 53, Free (never paid) 174."
     )
     const id = link().getAttribute("aria-describedby")!
     expect(document.getElementById(id)).not.toBeVisible()
-    expect(spoken()).toBe("Subscribers: 1,306, up 3 today")
-    expect(status()).not.toHaveTextContent(/Stripe paying|App Store/)
+    expect(spoken()).toBe("Paying subscribers: 1,079, up 2 today")
+    expect(status()).not.toHaveTextContent(/Past due|App Store/)
   })
 
-  it("App Store not connected: described honestly, and the total leaves it out", () => {
+  it("App Store not connected: described honestly; the headline is unchanged", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,253, up 3 today")
+    expect(link()).toHaveAccessibleName("Paying subscribers: 1,079, up 2 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,079, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
+      "Past due 31 · $1,519 MRR, App Store Not connected, Free (never paid) 174."
     )
   })
 
@@ -311,8 +311,8 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.tab()
     expect(link()).toHaveFocus()
     const tip = await screen.findByTestId("ticker-breakdown")
-    expect(tip).toHaveTextContent("Subscribers1,306")
-    expect(tip).toHaveTextContent("Stripe paying1,079")
+    expect(tip).toHaveTextContent("Subscribers1,079")
+    expect(tip).toHaveTextContent("Past due31 · $1,519 MRR")
     expect(tip).toHaveTextContent("App Store53")
     expect(tip).toHaveTextContent("Free (never paid)174")
     await user.keyboard("{Escape}")
@@ -327,7 +327,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.hover(link())
     const tip = await screen.findByTestId("ticker-breakdown")
     expect(tip).toHaveTextContent("App StoreNot connected")
-    expect(tip).toHaveTextContent("Total excludes App Store (not connected)")
+    expect(tip).not.toHaveTextContent("Total excludes App Store")
   })
 
   it("sample or loading: no description and no tooltip", async () => {
