@@ -126,7 +126,8 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
         aria-label="Status filter"
         className={cn(
           "bg-muted flex max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5",
-          stacked && "w-full"
+          // Phone sheet: an even two-column grid, so no label ("Closed") is left on a ragged row.
+          stacked && "grid w-full grid-cols-2"
         )}
       >
         {STATUS_TABS.map((tab) => {
@@ -139,8 +140,8 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
               onClick={() => set({ status: tab.value })}
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors max-xl:min-h-11 max-xl:min-w-11 max-xl:px-3",
-                // Phone sheet: labels never break ("Closed" stays whole) and each row fills evenly.
-                stacked && "flex-1 whitespace-nowrap",
+                // Phone sheet: labels never break across lines.
+                stacked && "whitespace-nowrap",
                 active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >
