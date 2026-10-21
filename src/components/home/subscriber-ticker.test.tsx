@@ -102,6 +102,7 @@ describe("SubscriberTicker", () => {
     const { source } = controlled(reading(186))
     render(<SubscriberTicker variant="bar" source={source} />)
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
+    expect(screen.queryByText("Paying")).not.toBeInTheDocument()
     expect(screen.queryByText("Subscribers")).not.toBeInTheDocument()
   })
 
@@ -311,7 +312,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.tab()
     expect(link()).toHaveFocus()
     const tip = await screen.findByTestId("ticker-breakdown")
-    expect(tip).toHaveTextContent("Subscribers1,079")
+    expect(tip).toHaveTextContent("Paying1,079")
     expect(tip).toHaveTextContent("Past due31 · $1,519 MRR")
     expect(tip).toHaveTextContent("App Store53")
     expect(tip).toHaveTextContent("Free (never paid)174")

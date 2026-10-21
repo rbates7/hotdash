@@ -36,6 +36,9 @@ import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connec
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
 
+/** The ticker's visible label: active paying coaches, the same as its accessible "Paying subscribers: …". */
+export const TICKER_LABEL = "Paying"
+
 /** Metrics › New Subscribers: the list behind the number. */
 export const TICKER_HREF = "/metrics?tab=new"
 
@@ -346,7 +349,7 @@ function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdow
   return (
     <div data-testid="ticker-breakdown" className="flex min-w-52 flex-col gap-1 py-0.5 text-left">
       <p className="flex items-baseline justify-between gap-4 font-semibold">
-        <span>Subscribers</span>
+        <span>{TICKER_LABEL}</span>
         <span className="tabular-nums">{total}</span>
       </p>
       <dl className="flex flex-col gap-0.5">
@@ -401,7 +404,7 @@ function rowFor(state: TickerState, maxTiles: number) {
 
 /**
  * The Grand Central subscriber ticker (option A). `header` is the Home
- * header from tablet up ("Subscribers" + up to 7 tiles); `bar` is the phone
+ * header from tablet up ("Paying" + up to 7 tiles); `bar` is the phone
  * top bar (tiles only, up to 5). Both read
  * one shared store, so they always show the same number.
  *
@@ -462,7 +465,7 @@ export function SubscriberTicker({
         className={cn("flex min-w-0 flex-none items-center gap-2", className)}
       >
         {header && (
-          <span className="text-caption text-muted-foreground font-medium tracking-tight">Subscribers</span>
+          <span className="text-caption text-muted-foreground font-medium tracking-tight">{TICKER_LABEL}</span>
         )}
         <Link
           href="/settings#connected-data"
@@ -510,7 +513,7 @@ export function SubscriberTicker({
             <span className="sr-only">{announced}</span>
             {header && (
               <span aria-hidden className="text-caption text-muted-foreground font-medium tracking-tight">
-                Subscribers
+                {TICKER_LABEL}
               </span>
             )}
             <span aria-hidden data-testid="ticker-tiles" className="inline-flex">
