@@ -171,6 +171,24 @@ describe("list states", () => {
     // A good read clears it.
     expect(subscriberListReducer(second, { kind: "ok", data: subscriberList("new") }, "new").phase).toBe("ready")
   })
+  it("a failure after a good read shows no Last tried: the count starts again", () => {
+    const at = (m: number) => new Date(`2026-10-14T02:4${m}:00Z`)
+    const e1 = subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new", at(0))
+    const e2 = subscriberListReducer(e1, { kind: "error" }, "new", at(1))
+    expect(subscriberListState(e2)).toMatchObject({ kind: "error", lastTriedAt: at(1) })
+    const ok = subscriberListReducer(e2, { kind: "ok", data: subscriberList("new") }, "new")
+    // With rows: a failure keeps them as stale, with no error line and no Last tried.
+    const afterRows = subscriberListReducer(ok, { kind: "error" }, "new", at(2))
+    expect(subscriberListState(afterRows)).toMatchObject({ kind: "live", stale: true })
+    expect(subscriberListState(afterRows)).not.toHaveProperty("lastTriedAt")
+    // Server said not connected (no rows): a failure keeps Not connected, never Last tried.
+    const off = subscriberListReducer(e2, { kind: "ok", data: subscriberListNotConnected("new") }, "new")
+    expect(subscriberListState(subscriberListReducer(off, { kind: "error" }, "new", at(3)))).toEqual({ kind: "not_connected" })
+    // And a fresh error after recovery starts at 1 (no Last tried yet).
+    const fresh = subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new", at(4))
+    expect(fresh).toMatchObject({ phase: "error", failures: 1 })
+    expect(subscriberListState(fresh)).toEqual({ kind: "error", lastTriedAt: null })
+  })
   it("words for rows", () => {
     expect(whoText({ customerName: null, customerEmail: "a@example.com" })).toEqual({ title: "a@example.com", email: null })
     expect(whoText({ customerName: null, customerEmail: null })).toEqual({ title: "\u2014", email: null })
