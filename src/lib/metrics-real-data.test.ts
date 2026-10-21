@@ -158,9 +158,18 @@ describe("list states", () => {
     expect(subscriberListState(subscriberListReducer(ready, { kind: "unauthorized" }, "new"))).toEqual({ kind: "session_expired" })
     expect(subscriberListState(subscriberListReducer(ready, { kind: "error" }, "new"))).toMatchObject({ kind: "live", stale: true })
     // A failed first read is an error line, not Not connected (Stripe may be live); the server's own not connected stays.
-    expect(subscriberListState(subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new"))).toEqual({ kind: "error" })
+    expect(subscriberListState(subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new"))).toEqual({ kind: "error", lastTriedAt: null })
     const off = { phase: "ready" as const, list: subscriberListNotConnected("new") }
     expect(subscriberListState(subscriberListReducer(off, { kind: "error" }, "new"))).toEqual({ kind: "not_connected" })
+  })
+  it("a persisting list error says when it last tried; one failure does not", () => {
+    const first = subscriberListReducer({ phase: "loading" }, { kind: "error" }, "new", new Date("2026-10-14T02:40:00Z"))
+    expect(subscriberListState(first)).toEqual({ kind: "error", lastTriedAt: null })
+    const second = subscriberListReducer(first, { kind: "error" }, "new", new Date("2026-10-14T02:41:00Z"))
+    expect(second).toMatchObject({ phase: "error", failures: 2 })
+    expect(subscriberListState(second)).toEqual({ kind: "error", lastTriedAt: new Date("2026-10-14T02:41:00Z") })
+    // A good read clears it.
+    expect(subscriberListReducer(second, { kind: "ok", data: subscriberList("new") }, "new").phase).toBe("ready")
   })
   it("words for rows", () => {
     expect(whoText({ customerName: null, customerEmail: "a@example.com" })).toEqual({ title: "a@example.com", email: null })

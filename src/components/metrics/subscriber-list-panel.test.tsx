@@ -19,8 +19,15 @@ describe("SubscriberListPanel", () => {
     expect(screen.getByRole("status", { name: "New subscribers connecting" })).toBeInTheDocument()
     expect(screen.getByTestId("connecting")).toHaveTextContent("Connecting…")
   })
+  it("error that persists: adds Last tried in the founder's zone; none on a first failure", () => {
+    const { rerender } = render(<SubscriberListPanel list="new" state={{ kind: "error", lastTriedAt: null }} timeZone={TZ} />)
+    expect(screen.queryByTestId("subscriber-list-last-tried")).toBeNull()
+    rerender(<SubscriberListPanel list="new" state={{ kind: "error", lastTriedAt: new Date("2026-10-14T02:41:00Z") }} timeZone={TZ} />)
+    expect(screen.getByTestId("subscriber-list-last-tried")).toHaveTextContent(/^Last tried .*9:41 PM/)
+  })
+
   it("error: a neutral retrying line, no figure, never Not connected", () => {
-    render(<SubscriberListPanel list="new" state={{ kind: "error" }} timeZone={TZ} />)
+    render(<SubscriberListPanel list="new" state={{ kind: "error", lastTriedAt: null }} timeZone={TZ} />)
     expect(screen.getByTestId("subscriber-list-error")).toHaveTextContent("Couldn\u2019t load subscribers. Retrying\u2026")
     expect(screen.queryByText("Not connected")).toBeNull()
     expect(screen.queryByRole("table")).toBeNull()
