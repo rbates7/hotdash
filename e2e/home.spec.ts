@@ -104,7 +104,7 @@ test.describe("Home", () => {
         .getByTestId("subscriber-ticker")
         .filter({ visible: true })
         .first()
-        .getByRole("link", { name: /Subscribers: not connected/ })
+        .getByRole("link", { name: /^Paying subscribers: not connected/ })
       await expect(link).toHaveAttribute("href", "/settings#connected-data")
       const box = await link.boundingBox()
       expect(box!.height).toBeGreaterThanOrEqual(44)

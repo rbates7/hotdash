@@ -397,6 +397,7 @@ test.describe("phone (390)", () => {
     await expect(sheet).toBeVisible()
     // Measure only once the open animation has settled: no starting style, no running
     // transitions, and the sheet's box unchanged across two frames.
+    // Note: an animation that never ends would hang this wait until the test times out.
     await expect(sheet).not.toHaveAttribute("data-starting-style")
     await expect
       .poll(() =>
