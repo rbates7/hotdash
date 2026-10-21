@@ -315,9 +315,9 @@ export function deltaChip(today: number) {
   return null
 }
 
-/** The status label: "Subscribers: 1,284, up 3 today". Always the full figure. */
+/** The status label: "Paying subscribers: 1,284, up 3 today". Always the full figure. */
 export function tickerLabel(total: number, today: number) {
-  return `Subscribers: ${formatCount(total)}, ${todayPhrase(today)}`
+  return `Paying subscribers: ${formatCount(total)}, ${todayPhrase(today)}`
 }
 
 /* ---------------------------------------------------- announcements */

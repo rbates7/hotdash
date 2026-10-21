@@ -14,7 +14,7 @@ import { kpis } from "@/lib/home-kpis"
 import { metricShell } from "@/lib/kpis"
 import { liveKpis, liveMetric } from "@/lib/live-metrics"
 import { CONNECTING, NOT_CONNECTED, feedOf, parseStripeSummary, type StripeFeed } from "@/lib/stripe-summary"
-import { APP_STORE_CONNECTING_TEXT, EXCLUDES_APP_STORE_CONNECTING, breakdownNote, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
+import { APP_STORE_CONNECTING_TEXT, breakdownRows, subscriberTotal } from "@/lib/subscriber-total"
 
 /**
  * "Connecting": the server has a key (or database URL) and its first read
@@ -92,7 +92,6 @@ describe("Stripe live, App Store still connecting", () => {
     const total = subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTING)
     expect(total.appStore).toBeNull()
     expect(breakdownRows(total).find((r) => r.key === "appStore")?.value).toBe(APP_STORE_CONNECTING_TEXT)
-    expect(breakdownNote(total, TZ)).toBe(EXCLUDES_APP_STORE_CONNECTING)
   })
 
   it("once it connects, the headline is unchanged (App Store is never added in)", () => {

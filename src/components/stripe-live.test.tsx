@@ -97,7 +97,7 @@ describe("Home with Stripe connected", () => {
 
   it("the ticker shows the Subscribers total and today's net change, unlabelled", () => {
     renderHome()
-    expect(spoken()).toBe("Subscribers: 1,079, up 2 today")
+    expect(spoken()).toBe("Paying subscribers: 1,079, up 2 today")
     expect(ticker()).toHaveAttribute("data-state", "ready")
     expect(within(ticker()).queryByTestId("sample-data-tag")).toBeNull()
   })
@@ -122,7 +122,7 @@ describe("Home with Stripe stale", () => {
     }
     expect(within(kpi("Subscribers")).getByText("1,079")).toBeInTheDocument()
     expect(ticker()).toHaveAttribute("data-state", "stale")
-    expect(spoken()).toBe("Subscribers: 1,079, up 2 today, Last updated 9:41 AM CDT")
+    expect(spoken()).toBe("Paying subscribers: 1,079, up 2 today, Last updated 9:41 AM CDT")
   })
 
   it("follows the Settings zone", () => {
@@ -325,7 +325,7 @@ describe("Subscribers total and its breakdown", () => {
     expect(within(c).getByText("1,079")).toBeInTheDocument()
     expect(rowsOf(c)[1]).toEqual(["App Store", "Not connected"])
     expect(within(c).getByTestId("subscriber-breakdown-note")).toBeEmptyDOMElement()
-    expect(spoken()).toBe("Subscribers: 1,079, up 2 today")
+    expect(spoken()).toBe("Paying subscribers: 1,079, up 2 today")
   })
 
   it("a stale App Store line says when it is from", () => {

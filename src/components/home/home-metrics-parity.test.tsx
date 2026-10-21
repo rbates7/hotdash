@@ -119,7 +119,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
       ["appStore", "53"],
       ["freeAccounts", "174"],
     ])
-    expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Subscribers: ${subs}`)
+    expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Paying subscribers: ${subs}`)
     // Same six MRR points: $52,000 … $61,235 on the card, $52k → $61.2k on the door.
     expect(mrrName).toContain("$52,000")
     expect(mrrName).toContain("$61,235")

@@ -407,9 +407,10 @@ function rowFor(state: TickerState, maxTiles: number) {
  *
  * role=status + aria-live=polite carries the figure as sr-only text (no
  * aria-label of its own, spoken at most once a minute); the tiles are
- * aria-hidden. Only the total is ever announced.
+ * aria-hidden. Only the headline (active paying) is ever announced.
  *
- * With Stripe live, the headline's other groups (Past due, App Store, Free) is the link's accessible description (`aria-describedby`, a
+ * With Stripe live, the headline's other groups (Past due, App Store,
+ * Free) are the link's accessible description (`aria-describedby`, a
  * hidden copy, so it is read on focus and never announced), and a tooltip
  * on hover or keyboard focus. The tooltip is portalled: nothing in the
  * header moves when it opens.

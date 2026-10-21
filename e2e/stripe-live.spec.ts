@@ -117,7 +117,7 @@ test.describe("Stripe connected (1440)", () => {
     await expect(kpi(page, "Cash this week")).toContainText("vs same time last week")
     await expect(strip(page).getByTestId("sample-data-tag")).toHaveCount(0)
     await expect(strip(page).getByTestId("kpi-sample-label")).toHaveCount(0)
-    await expect(spoken(page)).toHaveText("Subscribers: 1,079, up 2 today")
+    await expect(spoken(page)).toHaveText("Paying subscribers: 1,079, up 2 today")
     await expect(ticker(page).getByTestId("sample-data-tag")).toHaveCount(0)
     // Asked in the founder's zone (Central by default).
     expect(zones[0]).toBe("America/Chicago")
@@ -274,9 +274,9 @@ test.describe("Subscribers total, App Store connected (1440)", () => {
     await mockStripe(page, liveSummary("connected"))
     await open(page, "/home")
     const link = ticker(page).getByRole("link")
-    await expect(link).toHaveAccessibleName("Subscribers: 1,079, up 2 today")
+    await expect(link).toHaveAccessibleName("Paying subscribers: 1,079, up 2 today")
     await expect(link).toHaveAccessibleDescription("Past due 31 · $1,519 MRR, App Store 53, Free (never paid) 174.")
-    await expect(spoken(page)).toHaveText("Subscribers: 1,079, up 2 today")
+    await expect(spoken(page)).toHaveText("Paying subscribers: 1,079, up 2 today")
 
     const tip = page.getByTestId("ticker-breakdown")
     const before = await ticker(page).boundingBox()
@@ -372,7 +372,7 @@ test.describe("Subscribers total, App Store read 0 — suspect (1440)", () => {
       await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} suspect breakdown`, expect)
 
       const link = ticker(page).getByRole("link")
-      await expect(link).toHaveAccessibleName("Subscribers: 1,079, up 2 today")
+      await expect(link).toHaveAccessibleName("Paying subscribers: 1,079, up 2 today")
       await expect(link).toHaveAccessibleDescription(
         `Past due 31 · $1,519 MRR, App Store Check source (warning), Free (never paid) 174. ${SUSPECT_NOTE}.`
       )
@@ -437,7 +437,7 @@ test.describe("Subscribers total, App Store stale and read 0 — still suspect (
       await expect(card).not.toContainText(/App Store\s*0\b/)
       await expectReadable(card.getByTestId("subscriber-breakdown"), `${theme} stale suspect breakdown`, expect)
 
-      await expect(ticker(page).getByRole("link")).toHaveAccessibleName("Subscribers: 1,079, up 2 today")
+      await expect(ticker(page).getByRole("link")).toHaveAccessibleName("Paying subscribers: 1,079, up 2 today")
     })
   }
 })

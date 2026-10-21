@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { APP_STORE_SUSPECT_NOTE } from "@/lib/app-store-summary"
-import { CENTRAL } from "@/lib/clock"
 import {
-  EXCLUDES_APP_STORE,
-  breakdownNote,
   breakdownRows,
   subscriberTotal,
 } from "@/lib/subscriber-total"
@@ -60,18 +56,13 @@ describe("breakdown", () => {
     ])
   })
 
-  it("App Store not connected says so, and the total is labelled as excluding it", () => {
+  it("App Store not connected says so, and its row says Not connected", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_OFF)
     expect(breakdownRows(t)[1]).toEqual({ key: "appStore", label: "App Store", value: "Not connected" })
-    expect(breakdownNote(t, CENTRAL)).toBe(EXCLUDES_APP_STORE)
   })
 
-  it("connected: no note; stale: when the App Store count is from", () => {
-    expect(breakdownNote(subscriberTotal(LIVE_METRICS, APP_STORE_CONNECTED), CENTRAL)).toBeNull()
-    expect(breakdownNote(subscriberTotal(LIVE_METRICS, APP_STORE_STALE), CENTRAL)).toBe("App Store as of Tue, Oct 13 · 9:41 AM CDT")
-  })
 
-  it("a suspect 0: the row warns instead of saying 0, and the note says to check database access", () => {
+  it("a suspect 0: the row warns instead of saying 0", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_ZERO)
     expect(breakdownRows(t)[1]).toEqual({
       key: "appStore",
@@ -80,10 +71,6 @@ describe("breakdown", () => {
       warning: "Warning: App Store count is suspect",
     })
     expect(breakdownRows(t).map((r) => r.value)).not.toContain("0")
-    expect(breakdownNote(t, CENTRAL)).toBe(APP_STORE_SUSPECT_NOTE)
-    expect(breakdownNote(subscriberTotal(LIVE_METRICS, APP_STORE_ZERO_STALE), CENTRAL)).toBe(
-      APP_STORE_SUSPECT_NOTE
-    )
   })
 
   it("only the App Store row ever warns", () => {

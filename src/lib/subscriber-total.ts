@@ -62,10 +62,6 @@ export const BREAKDOWN_LABELS = {
 
 export const APP_STORE_NOT_CONNECTED_TEXT = "Not connected"
 export const APP_STORE_CONNECTING_TEXT = "Connecting\u2026"
-/** Said wherever the total is shown without the App Store group. */
-export const EXCLUDES_APP_STORE = "Total excludes App Store (not connected)"
-/** Screens show the total as loading while App Store connects; this is for anything that does not. */
-export const EXCLUDES_APP_STORE_CONNECTING = "Total excludes App Store (still connecting)"
 
 export type BreakdownRow = {
   key: keyof typeof BREAKDOWN_LABELS | "pastDue"
@@ -97,19 +93,6 @@ export function breakdownRows(total: SubscriberTotal): BreakdownRow[] {
         },
     { key: "freeAccounts", label: BREAKDOWN_LABELS.freeAccounts, value: GROUPED.format(total.freeAccounts) },
   ]
-}
-
-/**
- * The fine print under the rows, or null: the total leaves App Store out
- * (not connected, or a suspect 0), or its count is an older one (stale).
- */
-export function breakdownNote(total: SubscriberTotal, timeZone: string): string | null {
-  const s = total.appStoreSource
-  if (s.status === "not_connected") return EXCLUDES_APP_STORE
-  if (s.status === "connecting") return EXCLUDES_APP_STORE_CONNECTING
-  if (isSuspectAppStore(s)) return APP_STORE_SUSPECT_NOTE
-  if (s.status === "stale") return `App Store as of ${formatWallClock(new Date(s.asOf), timeZone)}`
-  return null
 }
 
 /* ------------------------------------------------- Metrics › Subscribers */
