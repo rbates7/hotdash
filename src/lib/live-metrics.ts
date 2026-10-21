@@ -12,15 +12,8 @@ import {
 } from "@/lib/metrics"
 import type { PosthogFeed } from "@/lib/posthog-summary"
 import type { Rate } from "@/lib/stripe-metrics"
-import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import type { StripeFeed } from "@/lib/stripe-summary"
-import {
-  breakdownNote,
-  breakdownRows,
-  metricsSubscriberRows,
-  subscriberTotal,
-  type BreakdownRow,
-} from "@/lib/subscriber-total"
+import { metricsSubscriberRows, type BreakdownRow } from "@/lib/subscriber-total"
 
 /**
  * Which numbers come from Stripe or PostHog, and how a screen shows them.
@@ -39,9 +32,8 @@ import {
 /**
  * The Metrics cards Stripe feeds. Subscribers is here as well as MRR,
  * Churn Rate and Trial Conversions so the card never disagrees with Home's
- * Subscribers card and ticker, which link to it. Subscribers is the total
- * (`subscriberTotal`: Stripe paying + App Store + free accounts), with
- * its breakdown.
+ * Subscribers card and ticker, which link to it. Subscribers is active
+ * paying coaches only (`liveSubscribers`), with its other groups as lines.
  */
 export const HOME_STRIPE_METRIC_IDS: ReadonlySet<MetricId> = new Set(["mrr", "churn", "trials", "subscribers"])
 
@@ -95,11 +87,16 @@ export type LiveMetric = {
 /** The rows under a Subscribers total, and its fine print (or null). */
 export type SubscriberBreakdownView = { rows: BreakdownRow[]; note: string | null }
 
-/** Stripe's figures as the Subscribers total, with its breakdown. */
+/**
+ * The Subscribers headline everywhere (Rashad's active-only rule): Home's
+ * card, the ticker and Metrics › Subscribers all show active paying coaches
+ * (Stripe's paying count), with Past due, App Store and Free on their own
+ * lines, none added in. See `metricsSubscribers`.
+ */
 export function liveSubscribers(feed: Extract<StripeFeed, { kind: "live" }>, timeZone: string) {
-  const total = subscriberTotal(feed.metrics, feed.appStore)
-  const breakdown: SubscriberBreakdownView = { rows: breakdownRows(total), note: breakdownNote(total, timeZone) }
-  return { total, breakdown }
+  const m = feed.metrics
+  const breakdown: SubscriberBreakdownView = metricsSubscriberRows(m, feed.appStore, timeZone)
+  return { total: m.subscribers, breakdown }
 }
 
 /**
@@ -214,7 +211,7 @@ function extraFigure(id: MetricId, m: Extract<StripeFeed, { kind: "live" }>["met
 }
 
 /**
- * Metrics › Subscribers (pending Simmons; Home keeps the Oct 14 total):
+ * Subscribers on Metrics, Home and the ticker (Rashad's active-only rule):
  * the headline is active paying coaches only — Stripe's paying count,
  * which Hill's split makes `active` only — with Past due (amber), App
  * Store and Free on their own lines, none of them added in. A server
@@ -242,7 +239,6 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
   if (!STRIPE_METRIC_IDS.has(id)) return notConnected(sourceFor(id))
   if (feed.kind === "not_connected") return notConnected("stripe")
   if (feed.kind === "loading") return feed.connecting ? { kind: "loading", connecting: true } : { kind: "loading" }
-  if (id === "subscribers" && isAppStoreConnecting(feed.appStore)) return { kind: "loading", connecting: true }
   const m = feed.metrics
   if (!HOME_STRIPE_METRIC_IDS.has(id)) {
     const figure = extraFigure(id, m)
@@ -259,9 +255,9 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
       },
     }
   }
-  const subscribers = id === "subscribers" ? liveSubscribers(feed, timeZone) : null
+  if (id === "subscribers") return { kind: "live", metric: metricsSubscribers(feed, timeZone) }
   const source: { value: Rate; previous: Rate; series: Rate[] } =
-    id === "mrr" ? m.mrr : id === "churn" ? m.churn : id === "trials" ? m.trialToPaid : subscribers!.total
+    id === "mrr" ? m.mrr : id === "churn" ? m.churn : m.trialToPaid
   return {
     kind: "live",
     metric: {
@@ -271,7 +267,6 @@ export function liveMetric(id: MetricId, feed: StripeFeed, timeZone: string): Li
       series: source.series,
       updated: feed.stale ? lastUpdatedLabel(feed.lastSyncedAt, timeZone) : null,
       empty: source.value === null ? (EMPTY[id] ?? "No data yet") : null,
-      ...(subscribers && { breakdown: subscribers.breakdown }),
     },
   }
 }
@@ -354,10 +349,6 @@ export function liveCard(
   entries: { expenses: readonly Expense[]; today: IsoDay | Date }
 ): LiveState {
   if (id === "expenses") return ownExpenses(entries.expenses, entries.today)
-  if (id === "subscribers") {
-    if (stripe.kind !== "live") return liveMetric(id, stripe, timeZone)
-    return { kind: "live", metric: metricsSubscribers(stripe, timeZone) }
-  }
   return POSTHOG_METRIC_IDS.has(id) ? posthogMetric(id, posthog, timeZone) : liveMetric(id, stripe, timeZone)
 }
 

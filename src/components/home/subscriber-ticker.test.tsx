@@ -281,25 +281,25 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
 
   const link = () => screen.getByRole("link")
 
-  it("the total's groups are the link's accessible description; the live region speaks the total only", () => {
+  it("the headline's other lines are the link's accessible description; the live region speaks the headline only", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,306, up 3 today")
+    expect(link()).toHaveAccessibleName("Subscribers: 1,079, up 2 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,079, App Store 53, Free (never paid) 174."
+      "Past due 31 · $1,519 MRR, App Store 53, Free (never paid) 174."
     )
     const id = link().getAttribute("aria-describedby")!
     expect(document.getElementById(id)).not.toBeVisible()
-    expect(spoken()).toBe("Subscribers: 1,306, up 3 today")
-    expect(status()).not.toHaveTextContent(/Stripe paying|App Store/)
+    expect(spoken()).toBe("Subscribers: 1,079, up 2 today")
+    expect(status()).not.toHaveTextContent(/Past due|App Store/)
   })
 
-  it("App Store not connected: described honestly, and the total leaves it out", () => {
+  it("App Store not connected: described honestly; the headline is unchanged", () => {
     setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_OFF))
     render(<SubscriberTicker variant="header" />)
-    expect(link()).toHaveAccessibleName("Subscribers: 1,253, up 3 today")
+    expect(link()).toHaveAccessibleName("Subscribers: 1,079, up 2 today")
     expect(link()).toHaveAccessibleDescription(
-      "Stripe paying 1,079, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
+      "Past due 31 · $1,519 MRR, App Store Not connected, Free (never paid) 174."
     )
   })
 
@@ -311,8 +311,8 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.tab()
     expect(link()).toHaveFocus()
     const tip = await screen.findByTestId("ticker-breakdown")
-    expect(tip).toHaveTextContent("Subscribers1,306")
-    expect(tip).toHaveTextContent("Stripe paying1,079")
+    expect(tip).toHaveTextContent("Subscribers1,079")
+    expect(tip).toHaveTextContent("Past due31 · $1,519 MRR")
     expect(tip).toHaveTextContent("App Store53")
     expect(tip).toHaveTextContent("Free (never paid)174")
     await user.keyboard("{Escape}")
@@ -327,7 +327,7 @@ describe("SubscriberTicker breakdown (Stripe live)", () => {
     await user.hover(link())
     const tip = await screen.findByTestId("ticker-breakdown")
     expect(tip).toHaveTextContent("App StoreNot connected")
-    expect(tip).toHaveTextContent("Total excludes App Store (not connected)")
+    expect(tip).not.toHaveTextContent("Total excludes App Store")
   })
 
   it("sample or loading: no description and no tooltip", async () => {

@@ -26,7 +26,6 @@ import {
   type Glyph,
   type TickerVariant,
 } from "@/lib/subscriber-ticker"
-import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { formatWallClock } from "@/lib/clock"
 import { staleLabel, type SubscriberSource, type TickerState } from "@/lib/subscriber-source"
 import { cn } from "@/lib/utils"
@@ -410,8 +409,7 @@ function rowFor(state: TickerState, maxTiles: number) {
  * aria-label of its own, spoken at most once a minute); the tiles are
  * aria-hidden. Only the total is ever announced.
  *
- * With Stripe live, the total's breakdown (Stripe paying, App Store, free
- * accounts) is the link's accessible description (`aria-describedby`, a
+ * With Stripe live, the headline's other groups (Past due, App Store, Free) is the link's accessible description (`aria-describedby`, a
  * hidden copy, so it is read on focus and never announced), and a tooltip
  * on hover or keyboard focus. The tooltip is portalled: nothing in the
  * header moves when it opens.
@@ -428,14 +426,10 @@ export function SubscriberTicker({
   source?: SubscriberSource
 }) {
   const { state, refresh, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
-  // #50: a key is set and the first sync (Stripe, or App Store's group) is
-  // running. The row stays the loading placeholder and says Connecting….
+  // #50: a key is set and Stripe's first sync is running. The row stays the
+  // loading placeholder and says Connecting….
   const feed = useStripeFeed()
-  const connecting =
-    !source &&
-    state.status === "loading" &&
-    ((feed.kind === "loading" && Boolean(feed.connecting)) ||
-      (feed.kind === "live" && isAppStoreConnecting(feed.appStore)))
+  const connecting = !source && state.status === "loading" && feed.kind === "loading" && Boolean(feed.connecting)
   const describedBy = `${React.useId()}-breakdown`
   const reduced = useReducedMotion()
   const row = rowFor(state, MAX_TILES[variant])

@@ -112,15 +112,6 @@ export function breakdownNote(total: SubscriberTotal, timeZone: string): string 
   return null
 }
 
-/** The breakdown as one sentence, for an accessible description. A suspect row says so. */
-export function breakdownText(total: SubscriberTotal, timeZone: string) {
-  const rows = breakdownRows(total)
-    .map((r) => `${r.label} ${r.value}${r.warning ? " (warning)" : ""}`)
-    .join(", ")
-  const note = breakdownNote(total, timeZone)
-  return `${rows}.${note ? ` ${note}.` : ""}`
-}
-
 /* ------------------------------------------------- Metrics › Subscribers */
 
 export const PAST_DUE_LABEL = "Past due"
@@ -164,3 +155,9 @@ export function metricsSubscriberRows(
 }
 
 const MONEY = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+
+/** Rows and fine print as one sentence, for an accessible description (the ticker's). */
+export function breakdownViewText(view: { rows: BreakdownRow[]; note: string | null }) {
+  const rows = view.rows.map((r) => `${r.label} ${r.value}${r.warning ? " (warning)" : ""}`).join(", ")
+  return `${rows}.${view.note ? ` ${view.note}.` : ""}`
+}

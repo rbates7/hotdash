@@ -6,7 +6,6 @@ import {
   EXCLUDES_APP_STORE,
   breakdownNote,
   breakdownRows,
-  breakdownText,
   subscriberTotal,
 } from "@/lib/subscriber-total"
 import { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, APP_STORE_ZERO_STALE, LIVE_METRICS } from "@/test/stripe-fixture"
@@ -65,9 +64,6 @@ describe("breakdown", () => {
     const t = subscriberTotal(LIVE_METRICS, APP_STORE_OFF)
     expect(breakdownRows(t)[1]).toEqual({ key: "appStore", label: "App Store", value: "Not connected" })
     expect(breakdownNote(t, CENTRAL)).toBe(EXCLUDES_APP_STORE)
-    expect(breakdownText(t, CENTRAL)).toBe(
-      "Stripe paying 1,079, App Store Not connected, Free (never paid) 174. Total excludes App Store (not connected)."
-    )
   })
 
   it("connected: no note; stale: when the App Store count is from", () => {
@@ -87,10 +83,6 @@ describe("breakdown", () => {
     expect(breakdownNote(t, CENTRAL)).toBe(APP_STORE_SUSPECT_NOTE)
     expect(breakdownNote(subscriberTotal(LIVE_METRICS, APP_STORE_ZERO_STALE), CENTRAL)).toBe(
       APP_STORE_SUSPECT_NOTE
-    )
-    expect(breakdownText(t, CENTRAL)).toBe(
-      "Stripe paying 1,079, App Store Check source (warning), Free (never paid) 174. " +
-        "App Store read 0 — check database access (likely a permissions/RLS issue)."
     )
   })
 

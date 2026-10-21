@@ -89,7 +89,7 @@ describe("Home ↔ Metrics parity (rendered)", () => {
     }
   })
 
-  it("with Stripe connected, Home's Subscribers total breaks down into the Metrics lines; ticker and MRR door match", () => {
+  it("with Stripe connected, Home's Subscribers headline and lines match Metrics; ticker and MRR door match", () => {
     setStripeSummaryForTest(liveSummary("connected"))
     const metrics = renderMetrics()
     const grid = screen.getByRole("region", { name: "Metric cards" })
@@ -105,21 +105,19 @@ describe("Home ↔ Metrics parity (rendered)", () => {
 
     renderHome()
     const homeCard = within(screen.getByRole("region", { name: "KPI strip" })).getByRole("article", { name: "Subscribers" })
-    const subs = "1,306"
-    expect(paying).toBe("1,079")
+    // One headline everywhere (active paying), with the same lines under it.
+    const subs = "1,079"
+    expect(paying).toBe(subs)
     expect(within(homeCard).getByText(subs)).toBeInTheDocument()
-    const homeRows = Object.fromEntries(
-      [...within(homeCard).getByTestId("subscriber-breakdown").querySelectorAll("[data-row]")].map((r) => [
-        r.getAttribute("data-row"),
-        r.querySelector("dd")?.textContent,
-      ])
-    )
-    // Home's Stripe paying row is Metrics' headline; App Store and Free are the same lines on both.
-    expect(homeRows.stripePaying).toBe(paying)
+    const homeRows = [...within(homeCard).getByTestId("subscriber-breakdown").querySelectorAll("[data-row]")].map((r) => [
+      r.getAttribute("data-row"),
+      r.querySelector("dd")?.textContent,
+    ])
+    expect(homeRows).toEqual(metricsRows)
     expect(metricsRows).toEqual([
       ["pastDue", "31 · $1,519 MRR"],
-      ["appStore", homeRows.appStore],
-      ["freeAccounts", homeRows.freeAccounts],
+      ["appStore", "53"],
+      ["freeAccounts", "174"],
     ])
     expect(screen.getByTestId("subscriber-ticker").querySelector(".sr-only")).toHaveTextContent(`Subscribers: ${subs}`)
     // Same six MRR points: $52,000 … $61,235 on the card, $52k → $61.2k on the door.
