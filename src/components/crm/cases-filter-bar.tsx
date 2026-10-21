@@ -140,8 +140,9 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
               onClick={() => set({ status: tab.value })}
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors max-xl:min-h-11 max-xl:min-w-11 max-xl:px-3",
-                // Phone sheet: labels never break across lines.
-                stacked && "whitespace-nowrap",
+                // Phone sheet: labels never break across lines, and each grid cell is a full
+                // 44px row (min-h-11) so sub-pixel grid rounding can't drop it to 43.99px.
+                stacked && "min-h-11 whitespace-nowrap",
                 active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >

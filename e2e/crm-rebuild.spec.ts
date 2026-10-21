@@ -395,6 +395,20 @@ test.describe("phone (390)", () => {
     await trigger.click()
     const sheet = page.getByRole("dialog", { name: "Filters" })
     await expect(sheet).toBeVisible()
+    // Measure only once the open animation has settled: no starting style, no running
+    // transitions, and the sheet's box unchanged across two frames.
+    await expect(sheet).not.toHaveAttribute("data-starting-style")
+    await expect
+      .poll(() =>
+        sheet.evaluate(async (el) => {
+          await Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})))
+          const a = el.getBoundingClientRect()
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+          const b = el.getBoundingClientRect()
+          return a.top === b.top && a.height === b.height
+        })
+      )
+      .toBe(true)
     for (const b of await sheet.getByRole("group", { name: "Status filter" }).getByRole("button").all())
       await expectTapTarget(b, "status filter")
     await expectTapTarget(sheet.getByRole("button", { name: "Needs my reply" }), "Needs my reply")
