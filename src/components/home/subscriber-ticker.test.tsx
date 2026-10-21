@@ -354,6 +354,8 @@ describe("SubscriberTicker with Stripe not connected", () => {
     expect(screen.queryByTestId("sample-data-tag")).toBeNull()
     expect(screen.queryByRole("status")).toBeNull()
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings#connected-data")
+    // Same wording as the live label ("Paying subscribers: …").
+    expect(screen.getByRole("link")).toHaveAccessibleName("Paying subscribers: not connected. Open Connected data in Settings")
     expect(screen.getByRole("link").className).toContain("min-h-11")
   })
 })

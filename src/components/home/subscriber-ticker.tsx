@@ -469,7 +469,7 @@ export function SubscriberTicker({
         )}
         <Link
           href="/settings#connected-data"
-          aria-label="Subscribers: not connected. Open Connected data in Settings"
+          aria-label="Paying subscribers: not connected. Open Connected data in Settings"
           className="focus-visible:ring-ring/50 flex min-h-11 items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none xl:min-h-0"
         >
           <NotConnectedBadge className={cn(!header && "px-2")} />
