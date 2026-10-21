@@ -194,8 +194,8 @@ export type SubscriberListView =
   | { phase: "loading" }
   | { phase: "ready"; list: StripeSubscriberList }
   | { phase: "unauthorized" }
-  /** The list failed to load with no rows to keep: a neutral line while polling retries. */
-  | { phase: "error" }
+  /** The list failed to load with no rows to keep: a neutral line while polling retries. `failures` in a row, the last at `lastTriedAt` (ISO). */
+  | { phase: "error"; failures: number; lastTriedAt: string }
 
 export type SubscriberListFetch =
   | { kind: "ok"; data: StripeSubscriberList }
@@ -209,22 +209,31 @@ export type SubscriberListFetch =
  *   error line (Stripe may well be live: the page says so), unless the
  *   server last said not connected.
  */
-export function subscriberListReducer(view: SubscriberListView, result: SubscriberListFetch, list: SubscriberListKind): SubscriberListView {
+export function subscriberListReducer(
+  view: SubscriberListView,
+  result: SubscriberListFetch,
+  list: SubscriberListKind,
+  at: Date = new Date()
+): SubscriberListView {
   if (result.kind === "ok") return { phase: "ready", list: result.data }
   if (result.kind === "unauthorized") return { phase: "unauthorized" }
   if (view.phase === "ready" && (view.list.status === "connected" || view.list.status === "stale")) {
     return { phase: "ready", list: { ...view.list, status: "stale" } }
   }
   if (view.phase === "ready" && view.list.status === "not_connected") return { phase: "ready", list: subscriberListNotConnected(list) }
-  return { phase: "error" }
+  return { phase: "error", failures: view.phase === "error" ? view.failures + 1 : 1, lastTriedAt: at.toISOString() }
 }
+
+/** The error line adds "Last tried …" once the list has failed this many times in a row (Piper's r3 nit). */
+export const LAST_TRIED_AFTER_FAILURES = 2
 
 /** What a list tab shows. */
 export type SubscriberListState =
   | { kind: "not_connected" }
   | { kind: "loading"; connecting?: boolean }
   | { kind: "session_expired" }
-  | { kind: "error" }
+  /** `lastTriedAt` is set once the failure has persisted (`LAST_TRIED_AFTER_FAILURES`). */
+  | { kind: "error"; lastTriedAt: Date | null }
   | {
       kind: "live"
       rows: StripeSubscriberRow[]
@@ -237,7 +246,9 @@ export type SubscriberListState =
 export function subscriberListState(view: SubscriberListView): SubscriberListState {
   if (view.phase === "loading") return { kind: "loading" }
   if (view.phase === "unauthorized") return { kind: "session_expired" }
-  if (view.phase === "error") return { kind: "error" }
+  if (view.phase === "error") {
+    return { kind: "error", lastTriedAt: view.failures >= LAST_TRIED_AFTER_FAILURES ? new Date(view.lastTriedAt) : null }
+  }
   const l = view.list
   if (l.status === "not_connected") return { kind: "not_connected" }
   if (l.status === "connecting") return { kind: "loading", connecting: true }
