@@ -401,9 +401,20 @@ describe("follow-ups: handoff, aborted waiters, Retry-After cap", () => {
     const controller = new AbortController()
     const raced = limit(async () => void ran.push("raced"), controller.signal).catch(() => "aborted")
     const next = limit(async () => void ran.push("next"))
-    release() // hands the slot to `raced`...
-    controller.abort() // ...which aborts before its continuation runs
+    // Abort at the exact moment of the handoff: `wake` detaches the abort listener and then
+    // resolves, so the queue listener can no longer catch this; only run's in-slot guard can.
+    const detach = controller.signal.removeEventListener.bind(controller.signal)
+    let handedOff = false
+    controller.signal.removeEventListener = ((...args: Parameters<AbortSignal["removeEventListener"]>) => {
+      detach(...args)
+      if (args[0] === "abort" && !handedOff) {
+        handedOff = true
+        controller.abort()
+      }
+    }) as AbortSignal["removeEventListener"]
+    release() // hands the slot to `raced`, which aborts during the handoff
     await first
+    expect(handedOff).toBe(true)
     expect(await raced).toBe("aborted")
     await next
     expect(ran).toEqual(["next"])
