@@ -48,9 +48,9 @@ export const METRICS_TABS_FADE =
 export const METRICS_TAB =
   "text-label flex-none px-3.5 py-1.5 font-medium tracking-tight max-xl:min-h-11! max-xl:h-11! max-xl:focus-visible:ring-inset"
 
-/** Overview card grid: 1 / 2 / 4 as develop already does. */
+/** Executive Grid: one column on phone, two from tablet, three only on very wide screens. */
 export const METRICS_GRID =
-  "grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 min-[1680px]:grid-cols-4"
+  "grid w-full grid-cols-1 gap-[18px] md:grid-cols-2 2xl:grid-cols-3"
 
 /** 16px inputs below 1280 so iOS does not zoom; 44px tall. */
 export const METRICS_FIELD = "max-xl:h-11! max-xl:min-h-11! max-xl:text-base"

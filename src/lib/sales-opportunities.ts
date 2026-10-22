@@ -88,6 +88,8 @@ export const CAPS = {
 export type Deal = {
   /** "deal-n". */
   id: string
+  /** Stable catalog id for map coloring; null for legacy or unmatched organisations. */
+  institutionId: string | null
   /** The person. */
   who: string
   /** Their school or organisation. */
@@ -112,6 +114,7 @@ export type Deal = {
 
 /** What the Add / Edit dialogs collect. */
 export type DealInput = {
+  institutionId: string | null
   who: string
   org: string
   what: string
@@ -124,6 +127,7 @@ export type DealInput = {
 
 export const DEAL_KEYS = [
   "id",
+  "institutionId",
   "who",
   "org",
   "what",
@@ -337,6 +341,9 @@ export function isDeal(value: unknown): value is Deal {
   return (
     isString(v.id) &&
     /^deal-\d+$/.test(v.id) &&
+    (v.institutionId === null ||
+      (isString(v.institutionId) &&
+        /^(public|private|college|nfl|hsfb):[A-Za-z0-9-]+$/.test(v.institutionId))) &&
     withinCap(v.who, CAPS.who) &&
     withinCap(v.org, CAPS.org) &&
     withinCap(v.what, CAPS.what) &&

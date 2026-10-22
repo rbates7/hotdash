@@ -39,12 +39,27 @@ const ENV_NAMES = [
   "GMAIL_CLIENT_ID",
   "GMAIL_CLIENT_SECRET",
   "GMAIL_REFRESH_TOKEN",
+  "CRM_DATABASE_URL",
+  "DATABASE_URL",
+  "CRM_TOKEN_SECRET",
+  "CRM_GOOGLE_CLIENT_ID",
+  "CRM_GOOGLE_CLIENT_SECRET",
+  "CRM_STRIPE_API_KEY",
+  "CRM_SUPABASE_DB_URL",
+  "CRON_SECRET",
   // The dashboard login gate: the one allowed email and the password/cookie key.
   "DASHBOARD_LOGIN_EMAIL",
   "DASHBOARD_GATE_SECRET",
 ]
 /** Not secret (shown in the UI), but client code has no business naming it. */
-const NAME_ONLY = ["GMAIL_MAILBOX"]
+const NAME_ONLY = [
+  "GMAIL_MAILBOX",
+  "CRM_GOOGLE_REDIRECT_URI",
+  "CRM_FOUNDER_ALIASES",
+  "CRM_GMAIL_INITIAL_SYNC_WINDOW",
+  "CRM_GMAIL_FORCE_FULL_RESYNC",
+  "CRM_GMAIL_FETCH_CONCURRENCY",
+]
 const buildDir = path.resolve(process.argv[2] ?? ".next")
 const staticDir = path.join(buildDir, "static")
 const prerenderDir = path.join(buildDir, "server", "app")

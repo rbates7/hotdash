@@ -4,7 +4,7 @@ import * as React from "react"
 import { usePathname } from "next/navigation"
 import { LockIcon } from "lucide-react"
 
-import { formatDate, formatPeriod, todayIn } from "@/lib/clock"
+import { formatDate, formatPeriod, formatWallClock, todayIn } from "@/lib/clock"
 import { UNLOCK_PATH } from "@/lib/gate/paths"
 import { lastUpdatedLabel } from "@/lib/live-metrics"
 import { formatCurrency } from "@/lib/metrics"
@@ -32,6 +32,10 @@ import { CELL, TableCard } from "@/components/table-bits"
 
 /** A list that failed with nothing to keep (the poller retries). */
 export const LIST_ERROR_TEXT = "Couldn\u2019t load subscribers. Retrying\u2026"
+/** Under the error line once the failure persists: "Last tried Tue, Oct 13 · 9:41 PM CDT". */
+export function lastTriedLabel(at: Date, timeZone: string) {
+  return `Last tried ${formatWallClock(at, timeZone)}`
+}
 
 export const LIST_COPY: Record<SubscriberListKind, { title: string; empty: string; hint: string }> = {
   new: {
@@ -86,6 +90,7 @@ function SessionExpired({ title }: { title: string }) {
  * - loading         → a table-shaped skeleton; Connecting… during the first sync;
  * - session_expired → Your session expired, with a way to sign in again;
  * - error           → a neutral "Couldn\u2019t load subscribers. Retrying\u2026" line, no figure;
+ *                     "Last tried …" under it once the failure persists;
  * - live, no rows   → the empty line, never sample rows;
  * - live            → "N in <window>" and the rows; stale adds "Last updated …" and an amber Stale badge.
  */
@@ -103,9 +108,14 @@ export function SubscriberListPanel({
   if (state.kind === "session_expired") return <SessionExpired title={copy.title} />
   if (state.kind === "error") {
     return (
-      <p role="status" data-testid="subscriber-list-error" className="text-muted-foreground py-6 text-center text-sm">
-        {LIST_ERROR_TEXT}
-      </p>
+      <div role="status" data-testid="subscriber-list-error" className="text-muted-foreground flex flex-col gap-1 py-6 text-center text-sm">
+        <p>{LIST_ERROR_TEXT}</p>
+        {state.lastTriedAt ? (
+          <p data-testid="subscriber-list-last-tried" className="text-caption tracking-tight">
+            {lastTriedLabel(state.lastTriedAt, timeZone)}
+          </p>
+        ) : null}
+      </div>
     )
   }
   if (state.kind === "loading") {

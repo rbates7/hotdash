@@ -99,7 +99,7 @@ for (const theme of ["light", "dark"] as const) {
 
       await open(page, "/home")
       const home = main(page).getByRole("region", { name: "KPI strip" }).getByRole("article", { name: "Subscribers", exact: true })
-      await expect(home).toContainText("1,306")
+      await expect(home).toContainText("1,079")
     })
 
     test("ARR, Revenue, ARPU, LTV, NRR and Trials per day carry Stripe's figures", async ({ page }) => {

@@ -26,7 +26,6 @@ import {
   type Glyph,
   type TickerVariant,
 } from "@/lib/subscriber-ticker"
-import { isAppStoreConnecting } from "@/lib/app-store-summary"
 import { formatWallClock } from "@/lib/clock"
 import { staleLabel, type SubscriberSource, type TickerState } from "@/lib/subscriber-source"
 import { cn } from "@/lib/utils"
@@ -36,6 +35,9 @@ import { useSubscriberTicker } from "@/hooks/use-subscriber-ticker"
 import { ConnectingBadge, NotConnectedBadge } from "@/components/home/not-connected"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SubscriberBreakdownView } from "@/lib/live-metrics"
+
+/** The ticker's visible label: active paying coaches, the same as its accessible "Paying subscribers: …". */
+export const TICKER_LABEL = "Paying"
 
 /** Metrics › New Subscribers: the list behind the number. */
 export const TICKER_HREF = "/metrics?tab=new"
@@ -347,7 +349,7 @@ function BreakdownTip({ total, view }: { total: string; view: SubscriberBreakdow
   return (
     <div data-testid="ticker-breakdown" className="flex min-w-52 flex-col gap-1 py-0.5 text-left">
       <p className="flex items-baseline justify-between gap-4 font-semibold">
-        <span>Subscribers</span>
+        <span>{TICKER_LABEL}</span>
         <span className="tabular-nums">{total}</span>
       </p>
       <dl className="flex flex-col gap-0.5">
@@ -402,16 +404,16 @@ function rowFor(state: TickerState, maxTiles: number) {
 
 /**
  * The Grand Central subscriber ticker (option A). `header` is the Home
- * header from tablet up ("Subscribers" + up to 7 tiles); `bar` is the phone
+ * header from tablet up ("Paying" + up to 7 tiles); `bar` is the phone
  * top bar (tiles only, up to 5). Both read
  * one shared store, so they always show the same number.
  *
  * role=status + aria-live=polite carries the figure as sr-only text (no
  * aria-label of its own, spoken at most once a minute); the tiles are
- * aria-hidden. Only the total is ever announced.
+ * aria-hidden. Only the headline (active paying) is ever announced.
  *
- * With Stripe live, the total's breakdown (Stripe paying, App Store, free
- * accounts) is the link's accessible description (`aria-describedby`, a
+ * With Stripe live, the headline's other groups (Past due, App Store,
+ * Free) are the link's accessible description (`aria-describedby`, a
  * hidden copy, so it is read on focus and never announced), and a tooltip
  * on hover or keyboard focus. The tooltip is portalled: nothing in the
  * header moves when it opens.
@@ -428,14 +430,10 @@ export function SubscriberTicker({
   source?: SubscriberSource
 }) {
   const { state, refresh, notConnected, timeZone, breakdown } = useSubscriberTicker(source)
-  // #50: a key is set and the first sync (Stripe, or App Store's group) is
-  // running. The row stays the loading placeholder and says Connecting….
+  // #50: a key is set and Stripe's first sync is running. The row stays the
+  // loading placeholder and says Connecting….
   const feed = useStripeFeed()
-  const connecting =
-    !source &&
-    state.status === "loading" &&
-    ((feed.kind === "loading" && Boolean(feed.connecting)) ||
-      (feed.kind === "live" && isAppStoreConnecting(feed.appStore)))
+  const connecting = !source && state.status === "loading" && feed.kind === "loading" && Boolean(feed.connecting)
   const describedBy = `${React.useId()}-breakdown`
   const reduced = useReducedMotion()
   const row = rowFor(state, MAX_TILES[variant])
@@ -467,11 +465,11 @@ export function SubscriberTicker({
         className={cn("flex min-w-0 flex-none items-center gap-2", className)}
       >
         {header && (
-          <span className="text-caption text-muted-foreground font-medium tracking-tight">Subscribers</span>
+          <span className="text-caption text-muted-foreground font-medium tracking-tight">{TICKER_LABEL}</span>
         )}
         <Link
           href="/settings#connected-data"
-          aria-label="Subscribers: not connected. Open Connected data in Settings"
+          aria-label="Paying subscribers: not connected. Open Connected data in Settings"
           className="focus-visible:ring-ring/50 flex min-h-11 items-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none xl:min-h-0"
         >
           <NotConnectedBadge className={cn(!header && "px-2")} />
@@ -515,7 +513,7 @@ export function SubscriberTicker({
             <span className="sr-only">{announced}</span>
             {header && (
               <span aria-hidden className="text-caption text-muted-foreground font-medium tracking-tight">
-                Subscribers
+                {TICKER_LABEL}
               </span>
             )}
             <span aria-hidden data-testid="ticker-tiles" className="inline-flex">

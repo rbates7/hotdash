@@ -21,8 +21,9 @@ export { APP_STORE_CONNECTED, APP_STORE_OFF, APP_STORE_STALE, APP_STORE_ZERO, AP
  * Answer the browser's `/api/stripe/summary` with `summary` — the server's
  * own route (no key and no database URL in e2e) is never reached, and
  * neither is Stripe or Chlk's database. `liveSummary()` has the App Store
- * connected (1,079 + 53 + 174 = 1,306); pass `APP_STORE_OFF` as its third
- * argument for not connected (1,253, "Total excludes App Store").
+ * connected (headline 1,079 active paying, with Past due 31, App Store 53
+ * and Free 174 as lines); pass `APP_STORE_OFF` as its third argument for
+ * not connected (the App Store line says Not connected; the headline stays 1,079).
  * Pass a function to change the answer mid-test (each poll reads it anew).
  * Returns the time-zone parameters the page asked with.
  */
@@ -37,20 +38,18 @@ export async function mockStripe(page: Page, summary: StripeSummary | (() => Str
 }
 
 /**
- * Connected (or stale) with a Subscribers total of `count`: the fixture's
- * free accounts and App Store payers, and Stripe paying the rest. Today's
- * net change is `today` (flat by default), all of it on Stripe.
+ * Connected (or stale) with a Subscribers headline of `count`: Stripe's
+ * active paying coaches (App Store and Free are lines, not added in).
+ * Today's net change is `today` (flat by default), all of it on Stripe.
  */
 export function withSubscribers(
   count: number,
   status: "connected" | "stale" = "connected",
   today = 0
 ): StripeSummary {
-  const free = LIVE_METRICS.freeAccounts.value
-  const app = "count" in APP_STORE_CONNECTED ? APP_STORE_CONNECTED.count : 0
   const metrics: StripeMetrics = {
     ...LIVE_METRICS,
-    subscribers: { ...LIVE_METRICS.subscribers, value: count - free - app, today },
+    subscribers: { ...LIVE_METRICS.subscribers, value: count, today },
     freeAccounts: { ...LIVE_METRICS.freeAccounts, today: 0 },
   }
   return liveSummary(status, metrics, APP_STORE_CONNECTED)

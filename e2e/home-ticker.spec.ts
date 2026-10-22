@@ -68,7 +68,7 @@ test.describe("Home ticker (1440)", () => {
     expect(await visibleStatuses(page)).toBe(1)
     await expect(status(page)).toHaveAttribute("aria-live", "polite")
     await expect(t.getByTestId("ticker-tiles")).toHaveAttribute("aria-hidden", "true")
-    await expect(t.getByText("Subscribers", { exact: true })).toBeVisible()
+    await expect(t.getByText("Paying", { exact: true })).toBeVisible()
     await expect(t.getByTestId("sample-data-tag")).toHaveCount(0)
 
     // Option A: top-right of the Home header, right of the title.

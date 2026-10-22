@@ -13,6 +13,12 @@ import {
 } from "@/lib/stripe-mrr-cash"
 import { useSettings } from "@/hooks/use-settings"
 import { useMrrCashView } from "@/hooks/use-stripe-mrr-cash"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 /** The same words as the Metrics overview while Stripe's first sync runs. */
 export const STRIPE_CONNECTING_PLACEHOLDER = "Stripe is connecting (first sync in progress)"
@@ -30,30 +36,32 @@ export function MrrCashPanel() {
 
 export function MrrCashPanelView({ state, timeZone }: { state: MrrCashPanelState; timeZone: string }) {
   return (
-    <section
-      aria-label="MRR and cash this week"
-      aria-busy={state.kind === "loading"}
-      data-testid="mrr-cash-panel"
-      data-state={state.kind === "loading" && state.connecting ? "connecting" : state.kind}
-      className="border-surface-border bg-card flex w-full flex-col gap-4 rounded-xl border p-4"
-    >
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-body text-foreground font-medium">MRR and cash this week</h2>
-        {state.kind === "live" && state.stale && (
-          <p data-testid="mrr-cash-updated" className="text-caption text-muted-foreground">
-            {lastUpdatedLabel(state.lastSyncedAt, timeZone)}
-          </p>
+    <TooltipProvider delay={100}>
+      <section
+        aria-label="MRR and cash this week"
+        aria-busy={state.kind === "loading"}
+        data-testid="mrr-cash-panel"
+        data-state={state.kind === "loading" && state.connecting ? "connecting" : state.kind}
+        className="border-surface-border bg-card flex w-full flex-col gap-4 rounded-xl border p-4"
+      >
+        <header className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-body text-foreground font-medium">MRR and cash this week</h2>
+          {state.kind === "live" && state.stale && (
+            <p data-testid="mrr-cash-updated" className="text-caption text-muted-foreground">
+              {lastUpdatedLabel(state.lastSyncedAt, timeZone)}
+            </p>
+          )}
+        </header>
+        {state.kind === "live" ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <MrrBars points={state.mrr.points} />
+            <CashDays value={state.cash.value} previous={state.cash.previous} days={state.cash.days} />
+          </div>
+        ) : (
+          <Placeholder state={state} />
         )}
-      </header>
-      {state.kind === "live" ? (
-        <div className="grid gap-6 md:grid-cols-2">
-          <MrrBars points={state.mrr.points} />
-          <CashDays value={state.cash.value} previous={state.cash.previous} days={state.cash.days} />
-        </div>
-      ) : (
-        <Placeholder state={state} />
-      )}
-    </section>
+      </section>
+    </TooltipProvider>
   )
 }
 
@@ -125,19 +133,27 @@ function MrrBars({ points }: { points: MrrPoint[] }) {
         style={{ height: BAR_H }}
       >
         {points.map((p) => (
-          <li
-            key={p.month}
-            data-testid="mrr-bar"
-            data-month={p.month}
-            title={`${monthLabel(p.month, true)}${p.partial ? " (so far)" : ""}: ${formatCurrency(p.value)}`}
-            className={`flex-1 rounded-sm ${p.partial ? "bg-primary/50" : "bg-primary"}`}
-            style={{ height: `${Math.max(2, (p.value / max) * BAR_H)}px` }}
-          >
-            <span className="sr-only">
+          <Tooltip key={p.month}>
+            <TooltipTrigger
+              render={
+                <li
+                  data-testid="mrr-bar"
+                  data-month={p.month}
+                  className={`flex-1 rounded-sm ${p.partial ? "bg-primary/50" : "bg-primary"}`}
+                  style={{ height: `${Math.max(2, (p.value / max) * BAR_H)}px` }}
+                >
+                  <span className="sr-only">
+                    {monthLabel(p.month, true)}
+                    {p.partial ? " so far" : ""}: {formatCurrency(p.value)}
+                  </span>
+                </li>
+              }
+            />
+            <TooltipContent>
               {monthLabel(p.month, true)}
-              {p.partial ? " so far" : ""}: {formatCurrency(p.value)}
-            </span>
-          </li>
+              {p.partial ? " so far" : ""} · {formatCurrency(p.value)}
+            </TooltipContent>
+          </Tooltip>
         ))}
       </ol>
       <div aria-hidden className="text-caption text-muted-foreground flex justify-between">
@@ -173,18 +189,38 @@ function CashDays({ value, previous, days }: { value: number; previous: number; 
       <ol aria-label="Cash in by day, Monday to Sunday" className="flex items-end gap-2" style={{ height: BAR_H }}>
         {days.map((d, i) => (
           <li key={d.date} data-testid="cash-day" data-date={d.date} className="flex flex-1 items-end gap-0.5">
-            <span
-              aria-hidden
-              data-testid="cash-bar-last-week"
-              className={`${CASH_LAST_WEEK_BAR} flex-1 rounded-sm`}
-              style={{ height: d.previous === null ? 0 : `${Math.max(2, (d.previous / max) * BAR_H)}px` }}
-            />
-            <span
-              aria-hidden
-              data-testid="cash-bar-this-week"
-              className={`${CASH_THIS_WEEK_BAR} flex-1 rounded-sm`}
-              style={{ height: d.value === null ? 0 : `${Math.max(2, (d.value / max) * BAR_H)}px` }}
-            />
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    aria-hidden
+                    data-testid="cash-bar-last-week"
+                    className={`${CASH_LAST_WEEK_BAR} flex-1 rounded-sm`}
+                    style={{ height: d.previous === null ? 0 : `${Math.max(2, (d.previous / max) * BAR_H)}px` }}
+                  />
+                }
+              />
+              <TooltipContent>
+                {weekdayLabel(i)} {formatDayShort(d.date)} · Last week{" "}
+                {d.previous === null ? "no amount" : formatCurrency(d.previous)}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    aria-hidden
+                    data-testid="cash-bar-this-week"
+                    className={`${CASH_THIS_WEEK_BAR} flex-1 rounded-sm`}
+                    style={{ height: d.value === null ? 0 : `${Math.max(2, (d.value / max) * BAR_H)}px` }}
+                  />
+                }
+              />
+              <TooltipContent>
+                {weekdayLabel(i)} {formatDayShort(d.date)} · This week{" "}
+                {d.value === null ? "still ahead" : formatCurrency(d.value)}
+              </TooltipContent>
+            </Tooltip>
             <span className="sr-only">
               {weekdayLabel(i)} {formatDayShort(d.date)}:{" "}
               {d.value === null ? "still ahead" : `${formatCurrency(d.value)}, last week ${formatCurrency(d.previous ?? 0)}`}

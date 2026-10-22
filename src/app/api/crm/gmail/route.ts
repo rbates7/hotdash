@@ -1,12 +1,10 @@
-import { after } from "next/server"
-
 import { CASE_ID } from "@/lib/crm/crm"
 import { gmailNotConnected } from "@/lib/crm/gmail-summary"
 import { emptyCrmList } from "@/lib/crm/gmail-view"
-import type { CrmThreadResponse } from "@/lib/crm/types"
-import { gmailService } from "@/lib/server/gmail"
 
-// Per request, never at build: the build must not call Gmail.
+// Legacy compatibility only. The durable CRM reads Gmail from Postgres via
+// its server modules, so this endpoint must not run the retired in-memory
+// sync pipeline and compete for Gmail quota.
 export const dynamic = "force-dynamic"
 
 const NO_STORE = { "Cache-Control": "no-store" }
@@ -25,19 +23,16 @@ const NO_STORE = { "Cache-Control": "no-store" }
  * Never an error body or error text: a failure is `stale` or `not_connected`.
  */
 export async function GET(request?: Request) {
-  after(() => gmailService.settled())
   const caseId = request ? new URL(request.url).searchParams.get("caseId") : null
   if (caseId !== null) {
     if (!CASE_ID.test(caseId)) return Response.json({ error: "bad_case_id" }, { status: 400, headers: NO_STORE })
-    const body = await gmailService
-      .thread(caseId)
-      .catch((): CrmThreadResponse => ({ status: "not_connected", lastUpdated: null, caseId, messages: [] }))
-    if (!body) return Response.json({ error: "not_found" }, { status: 404, headers: NO_STORE })
-    return Response.json(body, { headers: NO_STORE })
+    return Response.json(
+      { status: "not_connected", lastUpdated: null, caseId, messages: [] },
+      { headers: NO_STORE }
+    )
   }
-  const body = await gmailService.list().catch(() => ({ ...gmailNotConnected(), lastUpdated: null, ...emptyCrmList() }))
-  return Response.json(body, { headers: NO_STORE })
+  return Response.json(
+    { ...gmailNotConnected(), lastUpdated: null, ...emptyCrmList() },
+    { headers: NO_STORE }
+  )
 }
-
-/** A sync runs after the response, cut off at `SYNC_TIMEOUT_MS` (240 s). */
-export const maxDuration = 300

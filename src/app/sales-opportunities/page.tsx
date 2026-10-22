@@ -3,6 +3,7 @@ import { AddDealDialog } from "@/components/sales-opportunities/deal-dialogs"
 import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-persistence-note"
 import { DealsProvider } from "@/components/sales-opportunities/deals-store"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
+import { TerritoryMap } from "@/components/sales-opportunities/territory-map-canvas"
 
 export const metadata = {
   title: "Sales Opportunities · Chlk",
@@ -38,6 +39,7 @@ export default function SalesOpportunitiesPage() {
             <DealsPersistenceNote />
           </div>
         </header>
+        <TerritoryMap />
         <DealsScreen />
       </section>
     </DealsProvider>

@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -62,6 +62,9 @@ jobs:
           GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
+          CRM_DATABASE_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          CRM_TOKEN_SECRET: CI-DUMMY-not-a-real-encryption-secret-4f8a
+          CRON_SECRET: CI-DUMMY-not-a-real-cron-secret-2c7d
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
           SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
           DASHBOARD_LOGIN_EMAIL: ci-dummy-gate@example.invalid
@@ -77,6 +80,9 @@ jobs:
           GMAIL_CLIENT_ID: ci-dummy-not-a-real-client.apps.googleusercontent.com
           GMAIL_CLIENT_SECRET: GOCSPX-CI-DUMMY-not-a-real-secret-4b1e
           GMAIL_REFRESH_TOKEN: 1//CI-DUMMY-not-a-real-refresh-token-93d2
+          CRM_DATABASE_URL: postgresql://ci_dummy:CI-DUMMY-not-a-real-password@127.0.0.1:9/none
+          CRM_TOKEN_SECRET: CI-DUMMY-not-a-real-encryption-secret-4f8a
+          CRON_SECRET: CI-DUMMY-not-a-real-cron-secret-2c7d
           GITHUB_READONLY_TOKEN: ghp_CI-DUMMY-not-a-real-token-4b2e8d
           SENTRY_READONLY_TOKEN: sntrys_CI:DUMMY:not-a-real-token:5c1d9e
           DASHBOARD_LOGIN_EMAIL: ci-dummy-gate@example.invalid
@@ -101,6 +107,10 @@ jobs:
           GMAIL_CLIENT_ID: ""
           GMAIL_CLIENT_SECRET: ""
           GMAIL_REFRESH_TOKEN: ""
+          CRM_DATABASE_URL: ""
+          DATABASE_URL: ""
+          CRM_TOKEN_SECRET: ""
+          CRON_SECRET: ""
           GITHUB_READONLY_TOKEN: ""
           DASHBOARD_LOGIN_EMAIL: ""
           DASHBOARD_GATE_SECRET: ""

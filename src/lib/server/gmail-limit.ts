@@ -21,6 +21,11 @@ export const GMAIL_CONCURRENCY = 5
 export const GMAIL_MAX_RETRIES = 3
 /** First backoff; doubles each retry (250, 500, 1000 ms) plus up to as much again of jitter. */
 export const GMAIL_BACKOFF_MS = 250
+/**
+ * The longest `Retry-After` we will honor, even with no caller budget. When
+ * Google asks for more, the call fails at once (callers fall back to stale).
+ */
+export const GMAIL_RETRY_AFTER_MAX_MS = 30_000
 
 /**
  * The 403 reasons that mean "slow down and try again" within seconds.
@@ -30,7 +35,6 @@ export const GMAIL_BACKOFF_MS = 250
  */
 export const RETRY_REASONS: ReadonlySet<string> = new Set(["rateLimitExceeded", "userRateLimitExceeded"])
 
-/** Whether a failed call is worth retrying: a 429, or a 403 with a short-term rate reason. */
 /**
  * Google's `Retry-After` as a wait in ms: whole seconds, or an HTTP date
  * (measured from `nowMs`). Undefined when absent or unreadable; never negative.
@@ -43,6 +47,7 @@ export function parseRetryAfter(value: string | null | undefined, nowMs: number 
   return Number.isNaN(at) ? undefined : Math.max(0, at - nowMs)
 }
 
+/** Whether a failed call is worth retrying: a 429, or a 403 with a short-term rate reason. */
 export function isRetryableRateLimit(error: unknown): boolean {
   const detail = (error as { detail?: { status?: unknown; reasons?: unknown } } | null)?.detail
   if (!detail) return false
@@ -51,17 +56,19 @@ export function isRetryableRateLimit(error: unknown): boolean {
   return detail.status === 403 && reasons.some((r) => typeof r === "string" && RETRY_REASONS.has(r))
 }
 
+/** The error to throw for an aborted caller: its signal's reason, or a plain AbortError. */
+const abortError = (signal: AbortSignal) => signal.reason ?? new DOMException("Aborted", "AbortError")
+
 /**
  * At most `max` of the given tasks run at once; the rest queue in order.
  * A finished task hands its slot straight to the next waiter (the count
  * never drops and climbs back), so a caller arriving in between cannot
  * jump the queue or make it `max + 1`.
  */
-const abortError = (signal: AbortSignal) => signal.reason ?? new DOMException("Aborted", "AbortError")
-
 export function createLimiter(max: number) {
   let active = 0
   const queue: Array<() => void> = []
+  /** Hand the slot to the next live waiter without freeing it; free it only when nobody waits. */
   const release = () => {
     const next = queue.shift()
     if (next) next()
@@ -69,15 +76,28 @@ export function createLimiter(max: number) {
   }
   return async function run<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (signal?.aborted) throw abortError(signal)
-    if (active < max) active += 1
-    // The slot is ours when this resolves: `release` passed it on without freeing it.
-    else await new Promise<void>((resolve) => queue.push(resolve))
-    // The caller gave up while queued: pass the slot on instead of making a doomed call.
-    if (signal?.aborted) {
-      release()
-      throw abortError(signal)
+    if (active < max) {
+      active += 1
+    } else {
+      // Queued: the slot is ours when `wake` runs (`release` passed it on without freeing it).
+      // If the caller aborts first, leave the queue at once so no slot is ever handed to it.
+      await new Promise<void>((resolve, reject) => {
+        const wake = () => {
+          signal?.removeEventListener("abort", onAbort)
+          resolve()
+        }
+        const onAbort = () => {
+          const i = queue.indexOf(wake)
+          if (i !== -1) queue.splice(i, 1)
+          reject(abortError(signal!))
+        }
+        queue.push(wake)
+        signal?.addEventListener("abort", onAbort, { once: true })
+      })
     }
     try {
+      // Handed the slot but aborted before running (abort raced the handoff): pass it on, don't call.
+      if (signal?.aborted) throw abortError(signal)
       return await task()
     } finally {
       release()
@@ -111,6 +131,7 @@ export function createGmailGate({
   sleep = abortableSleep,
   random = Math.random,
   now = Date.now,
+  retryAfterMaxMs = GMAIL_RETRY_AFTER_MAX_MS,
 }: {
   concurrency?: number
   maxRetries?: number
@@ -118,6 +139,7 @@ export function createGmailGate({
   sleep?: Sleep
   random?: () => number
   now?: () => number
+  retryAfterMaxMs?: number
 } = {}): GmailGate {
   const limit = createLimiter(concurrency)
   return async (call, signal) => {
@@ -128,7 +150,10 @@ export function createGmailGate({
         if (attempt >= maxRetries || !isRetryableRateLimit(error) || signal?.aborted) throw error
         const backoff = baseMs * 2 ** attempt
         const retryAfter = (error as { detail?: { retryAfterMs?: unknown } }).detail?.retryAfterMs
-        const wait = typeof retryAfter === "number" ? retryAfter : backoff + Math.floor(random() * backoff)
+        const asked = typeof retryAfter === "number" ? retryAfter : undefined
+        // Google asked for longer than we ever wait: give up now rather than hold the caller.
+        if (asked !== undefined && asked > retryAfterMaxMs) throw error
+        const wait = asked ?? backoff + Math.floor(random() * backoff)
         // Google asked for longer than we have left: give up now (the caller falls back to stale).
         const deadline = deadlineOf(signal)
         if (deadline !== undefined && wait >= deadline - now()) throw error

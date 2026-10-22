@@ -126,7 +126,8 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
         aria-label="Status filter"
         className={cn(
           "bg-muted flex max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5",
-          stacked && "w-full"
+          // Phone sheet: an even two-column grid, so no label ("Closed") is left on a ragged row.
+          stacked && "grid w-full grid-cols-2"
         )}
       >
         {STATUS_TABS.map((tab) => {
@@ -139,6 +140,10 @@ function FilterControls({ filters, set, stacked = false }: { filters: CaseFilter
               onClick={() => set({ status: tab.value })}
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors max-xl:min-h-11 max-xl:min-w-11 max-xl:px-3",
+                // Phone sheet: labels never break across lines. min-h-11 here is belt-and-braces:
+                // max-xl:min-h-11 already covers 390, and the real fix for the 43.99px reads is
+                // the e2e waiting for the sheet to settle before measuring.
+                stacked && "min-h-11 whitespace-nowrap",
                 active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               )}
             >

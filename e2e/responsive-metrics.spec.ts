@@ -228,6 +228,14 @@ async function settle(locator: Locator) {
   await settleAnimations(locator.page())
 }
 
+async function expectGridColumns(page: Page, expected: number, label: string) {
+  await expect(grid(page)).toBeVisible()
+  const columns = await grid(page).evaluate((el) =>
+    getComputedStyle(el).gridTemplateColumns.split(/\s+/).filter(Boolean)
+  )
+  expect(columns, `${label}: metric grid columns`).toHaveLength(expected)
+}
+
 /* ------------------------------------------------------------------ phone */
 
 test.describe("responsive Metrics (phone 390)", () => {
@@ -240,6 +248,7 @@ test.describe("responsive Metrics (phone 390)", () => {
     await expect(main(page).getByRole("heading", { level: 1, name: "Metrics" })).toBeVisible()
     await expect(tab(page, "Overview")).toHaveAttribute("aria-selected", "true")
     await expect(grid(page).getByRole("article")).toHaveCount(9)
+    await expectGridColumns(page, 1, "390")
 
     for (const name of ["Overview", "New Subscribers", "Churned Subscribers", "Expenses"]) {
       await expectTapTarget(tab(page, name), `tab ${name}`)
@@ -371,6 +380,12 @@ test.describe("responsive Metrics (phone 390)", () => {
 for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
   test.describe(`responsive Metrics (${name} ${VIEWPORTS[name].width})`, () => {
     test.use({ viewport: VIEWPORTS[name] })
+
+    test("uses the two-column Executive Grid", async ({ page }) => {
+      await fresh(page)
+      await expectGridColumns(page, 2, String(VIEWPORTS[name].width))
+      expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
+    })
 
     test("subscriber lists say Not connected; the Expenses table keeps ≤5 columns; no page overflow", async ({ page }) => {
       await fresh(page, "/metrics?tab=new")
@@ -596,6 +611,7 @@ test.describe("responsive Metrics (desktop 1440)", () => {
   test("is unchanged: 9 cards, Not connected lists, desktop-sized dialog chrome", async ({ page }) => {
     await fresh(page)
     await expect(grid(page).getByRole("article")).toHaveCount(9)
+    await expectGridColumns(page, 2, "1440")
     await expect(tablist(page).getByRole("tab")).toHaveCount(4)
     await expect(panel(page, "Overview").getByRole("list")).toHaveCount(0)
 
@@ -688,6 +704,16 @@ test.describe("responsive Metrics B3–B4–B5–B7 (phone 390)", () => {
       await expectReadable(expensesEmpty(page), `390/${theme} expenses empty`, expect)
     }
     await setTheme(page, "light")
+  })
+})
+
+test.describe("responsive Metrics (wide desktop 1720)", () => {
+  test.use({ viewport: { width: 1720, height: 1050 } })
+
+  test("uses three Executive Grid columns without page overflow", async ({ page }) => {
+    await fresh(page)
+    await expectGridColumns(page, 3, "1720")
+    expect(await pageOverflowX(page)).toBeLessThanOrEqual(1)
   })
 })
 

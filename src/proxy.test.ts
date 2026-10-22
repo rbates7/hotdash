@@ -2,7 +2,13 @@ import { NextRequest } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GATE_COOKIE, signGateCookie } from "@/lib/gate/cookie"
-import { config, isApiPath, isPublicPath, proxy } from "@/proxy"
+import {
+  config,
+  isApiPath,
+  isCrmCronRequest,
+  isPublicPath,
+  proxy,
+} from "@/proxy"
 
 const EMAIL = "founder@example.test"
 const SECRET = "test-only-gate-password-1"
@@ -100,6 +106,18 @@ describe("proxy, gate on", () => {
       expect(passes(await proxy(req(path)))).toBe(true)
     }
   })
+
+  it("lets authenticated cron routes perform their own bearer-token check", async () => {
+    for (const source of ["gmail", "stripe", "supabase", "all"]) {
+      expect(
+        passes(await proxy(req(`/api/crm/sync/${source}`, undefined, { method: "GET" })))
+      ).toBe(true)
+    }
+    expect(
+      (await proxy(req("/api/crm/sync/gmail", undefined, { method: "POST" }))).status
+    ).toBe(401)
+    expect((await proxy(req("/api/crm/sync/runs"))).status).toBe(401)
+  })
 })
 
 describe("proxy, client-sent x-hotdash-bare", () => {
@@ -153,6 +171,8 @@ describe("paths and matcher", () => {
     expect(isPublicPath("/unlock")).toBe(true)
     expect(isPublicPath("/unlock/x")).toBe(false)
     expect(isPublicPath("/crm")).toBe(false)
+    expect(isCrmCronRequest(req("/api/crm/sync/gmail"))).toBe(true)
+    expect(isCrmCronRequest(req("/api/crm/sync/runs"))).toBe(false)
   })
 
   it("keeps every CRM page and the CRM's API private", async () => {

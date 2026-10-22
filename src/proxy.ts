@@ -23,6 +23,8 @@ const PUBLIC_PATHS = new Set([UNLOCK_PATH, LOGIN_PATH, LOGOUT_PATH])
 
 /** Root-level static files (src/app/icon.svg, a future public/ folder). */
 const STATIC_FILE = /^\/[\w.-]+\.(?:ico|svg|png|jpe?g|gif|webp|avif|txt|xml|webmanifest|woff2?)$/
+const CRM_CRON_PATH =
+  /^\/api\/crm\/sync\/(?:gmail|stripe|supabase|all)\/?$/
 
 export function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname) || STATIC_FILE.test(pathname)
@@ -30,6 +32,10 @@ export function isPublicPath(pathname: string) {
 
 export function isApiPath(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/")
+}
+
+export function isCrmCronRequest(request: NextRequest) {
+  return request.method === "GET" && CRM_CRON_PATH.test(request.nextUrl.pathname)
 }
 
 /** The unlock page renders without the app shell (no sidebar, no data widgets). */
@@ -54,6 +60,10 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === UNLOCK_PATH) return bare(request)
   if (isPublicPath(pathname)) return through(request)
+  // These GET handlers fail closed unless Vercel supplies the CRON_SECRET
+  // bearer token. Let that route-level authentication run before the
+  // dashboard's interactive login gate.
+  if (isCrmCronRequest(request)) return through(request)
 
   if (
     config.mode === "on" &&

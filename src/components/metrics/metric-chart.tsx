@@ -6,10 +6,15 @@ import type { BarShapeProps } from "recharts/types/cartesian/Bar"
 
 import { formatDayShort, formatWindowSpan, windowsEnding, type IsoDay } from "@/lib/clock"
 import { formatMetricValue, type ChartType, type MetricUnit } from "@/lib/metrics"
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 
-const WIDTH = 120
-const HEIGHT = 52
+const WIDTH = 320
+const HEIGHT = 88
 
 /**
  * The current 28-day window reads in ink; the five before it in a quiet
@@ -94,7 +99,7 @@ function WindowChart({
   /** The page's calendar day; the six points are the six 28-day windows ending on it. */
   today: IsoDay
 }) {
-  // The axis is 120×52px, far too small for ticks, so the chart's windows
+  // The compact axis is intentionally tick-free, so the chart's windows
   // and values live in its accessible name: each point is a 28-day window
   // labelled by the day it ends, derived from `today`.
   const windows = React.useMemo(() => windowsEnding(today, series.length), [today, series.length])
@@ -112,7 +117,7 @@ function WindowChart({
     <ChartContainer
       config={CHART_CONFIG}
       initialDimension={{ width: WIDTH, height: HEIGHT }}
-      className="aspect-auto h-[52px] w-[120px] flex-none"
+      className="aspect-auto h-[88px] w-full"
       role="img"
       aria-label={name}
       title={`${label}: ${span}`}
@@ -128,6 +133,27 @@ function WindowChart({
           accessibilityLayer={false}
         >
           <YAxis hide domain={domain} />
+          <ChartTooltip
+            cursor={false}
+            allowEscapeViewBox={{ x: true, y: true }}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                hideIndicator
+                formatter={(value, _name, item) => {
+                  const point = item.payload as { ends?: string }
+                  return (
+                    <div className="grid min-w-28 gap-1">
+                      <span className="text-muted-foreground">Ending {point.ends}</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {typeof value === "number" ? formatMetricValue(value, unit) : "No data"}
+                      </span>
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
           <Bar
             dataKey="v"
             shape={DottedColumn}
@@ -148,6 +174,27 @@ function WindowChart({
           accessibilityLayer={false}
         >
           <YAxis hide domain={domain} />
+          <ChartTooltip
+            cursor={false}
+            allowEscapeViewBox={{ x: true, y: true }}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                hideIndicator
+                formatter={(value, _name, item) => {
+                  const point = item.payload as { ends?: string }
+                  return (
+                    <div className="grid min-w-28 gap-1">
+                      <span className="text-muted-foreground">Ending {point.ends}</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {typeof value === "number" ? formatMetricValue(value, unit) : "No data"}
+                      </span>
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
           <Line
             dataKey="v"
             type="monotone"
@@ -185,7 +232,7 @@ function DailyColumn(props: BarShapeProps) {
 
 /**
  * One point a day (Trials per day: the 28 days of the current window), in
- * the same 120×52 style: today in ink, the days before in the quiet grey.
+ * the same compact style: today in ink, the days before in the quiet grey.
  * Its accessible name reads each day, as the window chart reads windows.
  */
 function DailyChart({
@@ -215,7 +262,7 @@ function DailyChart({
     <ChartContainer
       config={CHART_CONFIG}
       initialDimension={{ width: WIDTH, height: HEIGHT }}
-      className="aspect-auto h-[52px] w-[120px] flex-none"
+      className="aspect-auto h-[88px] w-full"
       role="img"
       aria-label={name}
       title={`${label}: ${span}`}
@@ -224,6 +271,27 @@ function DailyChart({
       {type === "bar" ? (
         <BarChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }} barCategoryGap="10%" accessibilityLayer={false}>
           <YAxis hide domain={domain} />
+          <ChartTooltip
+            cursor={false}
+            allowEscapeViewBox={{ x: true, y: true }}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                hideIndicator
+                formatter={(value, _name, item) => {
+                  const point = item.payload as { day?: string }
+                  return (
+                    <div className="grid min-w-28 gap-1">
+                      <span className="text-muted-foreground">{point.day}</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {typeof value === "number" ? formatMetricValue(value, unit) : "No data"}
+                      </span>
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
           <Bar dataKey="v" isAnimationActive={false} shape={DailyColumn}>
             {data.map((d) => (
               <Cell key={d.i} fill={d.i === last ? "var(--color-current)" : "var(--color-past)"} />
@@ -233,6 +301,27 @@ function DailyChart({
       ) : (
         <LineChart data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }} accessibilityLayer={false}>
           <YAxis hide domain={domain} />
+          <ChartTooltip
+            cursor={false}
+            allowEscapeViewBox={{ x: true, y: true }}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                hideIndicator
+                formatter={(value, _name, item) => {
+                  const point = item.payload as { day?: string }
+                  return (
+                    <div className="grid min-w-28 gap-1">
+                      <span className="text-muted-foreground">{point.day}</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {typeof value === "number" ? formatMetricValue(value, unit) : "No data"}
+                      </span>
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
           <Line
             dataKey="v"
             type="monotone"

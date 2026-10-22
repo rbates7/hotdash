@@ -119,12 +119,13 @@ describe("Stripe connecting", () => {
 describe("Stripe live, App Store still connecting", () => {
   beforeEach(() => setStripeSummaryForTest(liveSummary("connected", LIVE_METRICS, APP_STORE_CONNECTING)))
 
-  it("the headline and ticker wait for the App Store group; Cash this week is live", () => {
+  it("the headline and ticker (active paying) do not wait for the App Store line; Cash this week is live", () => {
     renderHome()
-    expect(kpi("Subscribers")).toHaveAttribute("data-source", "loading")
-    expect(within(kpi("Subscribers")).getByTestId("connecting")).toBeInTheDocument()
-    expect(ticker()).toHaveAttribute("data-state", "loading")
-    expect(within(ticker()).getByTestId("connecting")).toBeInTheDocument()
+    expect(kpi("Subscribers")).toHaveAttribute("data-source", "stripe")
+    expect(within(kpi("Subscribers")).getByText("1,079")).toBeInTheDocument()
+    expect(within(kpi("Subscribers")).queryByTestId("connecting")).toBeNull()
+    expect(ticker()).toHaveAttribute("data-state", "ready")
+    expect(within(ticker()).queryByTestId("connecting")).toBeNull()
     expect(within(kpi("Cash this week")).getByText("$4,322")).toBeInTheDocument()
     expect(within(kpi("Cash this week")).queryByTestId("connecting")).toBeNull()
   })

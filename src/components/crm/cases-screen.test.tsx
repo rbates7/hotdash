@@ -178,8 +178,9 @@ describe("Cases: live", () => {
     expect(screen.getByTestId("crm-filters-count")).toHaveTextContent("2")
     await user.click(trigger)
     const sheet = await screen.findByRole("dialog", { name: "Filters" })
+    expect(within(sheet).getByRole("group", { name: "Status filter" })).toHaveClass("grid", "grid-cols-2")
     for (const b of within(within(sheet).getByRole("group", { name: "Status filter" })).getAllByRole("button"))
-      expect(b).toHaveClass("max-xl:min-h-11")
+      expect(b).toHaveClass("max-xl:min-h-11", "whitespace-nowrap")
     expect(within(sheet).getByRole("combobox", { name: "Priority filter" })).toHaveClass("max-xl:h-11!")
     expect(within(sheet).getByRole("button", { name: "Needs my reply" })).toHaveClass("max-xl:h-11!")
     await user.click(within(within(sheet).getByRole("group", { name: "Status filter" })).getByRole("button", { name: "Closed" }))
@@ -193,6 +194,10 @@ describe("Cases: live", () => {
   it("desktop/tablet: the inline filters are hidden only below md; no count with no filters", () => {
     render(<CasesScreen />)
     expect(screen.getByRole("group", { name: "Status filter" }).parentElement).toHaveClass("max-md:hidden")
+    // The grid and no-wrap labels are the phone sheet's only.
+    expect(screen.getByRole("group", { name: "Status filter" })).not.toHaveClass("grid")
+    for (const b of within(screen.getByRole("group", { name: "Status filter" })).getAllByRole("button"))
+      expect(b).not.toHaveClass("whitespace-nowrap")
     expect(screen.getByTestId("crm-filters-trigger")).toHaveAccessibleName("Filters")
     expect(screen.queryByTestId("crm-filters-count")).not.toBeInTheDocument()
   })

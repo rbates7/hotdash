@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { THREAD_TIMEOUT_MS, TOKEN_URL, classifyGoogleError, createGmailService, gmailLoader, gmailThreadLoader, readGmailConfig } from "@/lib/server/gmail"
 import {
   GMAIL_CONCURRENCY,
+  GMAIL_RETRY_AFTER_MAX_MS,
   RETRY_REASONS,
   createGmailGate,
   createLimiter,
@@ -350,5 +351,90 @@ describe("one list of rate reasons", () => {
       expect(classifyGoogleError(detail)).toBe("GmailRateLimited")
       expect(isRetryableRateLimit({ detail })).toBe(false)
     }
+  })
+})
+
+describe("follow-ups: handoff, aborted waiters, Retry-After cap", () => {
+  it("an aborted waiter leaves the queue at once, while the slot is still held", async () => {
+    const limit = createLimiter(1)
+    let release!: () => void
+    const first = limit(() => new Promise<void>((r) => (release = r)))
+    const controller = new AbortController()
+    const task = vi.fn(async () => {})
+    const doomed = limit(task, controller.signal)
+    controller.abort(new Error("caller gave up"))
+    await expect(doomed).rejects.toThrow("caller gave up") // settles before the slot frees
+    release()
+    await first
+    expect(task).not.toHaveBeenCalled()
+  })
+
+  it("after an aborted waiter, the handoff keeps the count right: one at a time, no slot leaked", async () => {
+    const limit = createLimiter(1)
+    let release!: () => void
+    const first = limit(() => new Promise<void>((r) => (release = r)))
+    const controller = new AbortController()
+    const doomed = limit(async () => {}, controller.signal).catch(() => "aborted")
+    controller.abort()
+    expect(await doomed).toBe("aborted")
+    release()
+    await first
+    let active = 0
+    let peak = 0
+    const work = async () => {
+      active += 1
+      peak = Math.max(peak, active)
+      await new Promise((r) => setTimeout(r, 1))
+      active -= 1
+    }
+    await Promise.all([limit(work), limit(work), limit(work)])
+    expect(peak).toBe(1)
+    // The slot came back: a fresh call runs at once.
+    await expect(limit(async () => "ok")).resolves.toBe("ok")
+  })
+
+  it("a waiter aborted after it was handed the slot passes it on without running", async () => {
+    const limit = createLimiter(1)
+    let release!: () => void
+    const ran: string[] = []
+    const first = limit(() => new Promise<void>((r) => (release = r)))
+    const controller = new AbortController()
+    const raced = limit(async () => void ran.push("raced"), controller.signal).catch(() => "aborted")
+    const next = limit(async () => void ran.push("next"))
+    // Abort at the exact moment of the handoff: `wake` detaches the abort listener and then
+    // resolves, so the queue listener can no longer catch this; only run's in-slot guard can.
+    const detach = controller.signal.removeEventListener.bind(controller.signal)
+    let handedOff = false
+    controller.signal.removeEventListener = ((...args: Parameters<AbortSignal["removeEventListener"]>) => {
+      detach(...args)
+      if (args[0] === "abort" && !handedOff) {
+        handedOff = true
+        controller.abort()
+      }
+    }) as AbortSignal["removeEventListener"]
+    release() // hands the slot to `raced`, which aborts during the handoff
+    await first
+    expect(handedOff).toBe(true)
+    expect(await raced).toBe("aborted")
+    await next
+    expect(ran).toEqual(["next"])
+  })
+
+  it("caps Retry-After at a named limit: longer asks fail at once, the cap itself is waited", async () => {
+    expect(GMAIL_RETRY_AFTER_MAX_MS).toBe(30_000)
+    const seconds = GMAIL_RETRY_AFTER_MAX_MS / 1000
+    const tooLong = fakeGoogle(() => new Response("", { status: 429, headers: { "Retry-After": String(seconds + 1) } }))
+    const sleep = vi.fn(async () => {})
+    const error = await gmailThreadLoader(tooLong.fetchImpl, undefined, createGmailGate({ sleep }))(CONFIG, THREADS[0]!.id).catch(
+      (e: unknown) => e
+    )
+    expect((error as { type?: string }).type).toBe("GmailRateLimited")
+    expect(tooLong.reads()).toBe(1)
+    expect(sleep).not.toHaveBeenCalled()
+
+    const atCap = fakeGoogle((n) => (n === 1 ? new Response("", { status: 429, headers: { "Retry-After": String(seconds) } }) : undefined))
+    const waits: number[] = []
+    await gmailThreadLoader(atCap.fetchImpl, undefined, createGmailGate({ sleep: async (ms) => void waits.push(ms) }))(CONFIG, THREADS[0]!.id)
+    expect(waits).toEqual([GMAIL_RETRY_AFTER_MAX_MS])
   })
 })
