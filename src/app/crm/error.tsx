@@ -1,16 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { AlertTriangleIcon } from "lucide-react"
 
-import { CrmErrorAlert } from "@/components/crm/crm-error-alert"
-import { clearState } from "@/components/crm/crm-store"
+import { Button } from "@/components/ui/button"
 
-/**
- * Last line of defence for this route. The store lives in the page
- * (CrmApp), so a remount after Reset builds a fresh provider from empty
- * storage and the seed. clearState first so hydrate cannot revive a
- * broken copy.
- */
 export default function CrmError({
   error,
   reset,
@@ -23,13 +17,28 @@ export default function CrmError({
   }, [error])
 
   return (
-    <CrmErrorAlert
-      error={error}
-      onRetry={reset}
-      onReset={() => {
-        clearState(window.localStorage)
-        reset()
-      }}
-    />
+    <div
+      role="alert"
+      className="border-destructive/30 bg-destructive/5 mx-auto mt-10 flex max-w-lg flex-col gap-3 rounded-xl border p-5"
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangleIcon className="text-destructive size-5" aria-hidden />
+        <h1 className="font-semibold tracking-tight">CRM couldn’t load</h1>
+      </div>
+      <p className="text-muted-foreground text-sm">
+        The CRM could not reach its data service. Try again; your saved cases
+        and notes are not changed by this error.
+      </p>
+      {error.digest ? (
+        <p className="text-muted-foreground font-mono text-xs">
+          ref {error.digest}
+        </p>
+      ) : null}
+      <div>
+        <Button variant="outline" onClick={reset}>
+          Try again
+        </Button>
+      </div>
+    </div>
   )
 }

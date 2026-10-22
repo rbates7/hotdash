@@ -47,5 +47,9 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 
+# Local CRM and test scratch data
+/data/
+/.tmp/
+
 # My Desk shots stay local (pnpm screens:my-desk); never in git.
 docs/screenshots/my-desk/

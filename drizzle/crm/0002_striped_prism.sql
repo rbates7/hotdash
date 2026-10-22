@@ -1,0 +1,2 @@
+DROP INDEX "organizations_domain_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "organizations_domain_unique" ON "organizations" USING btree (lower("domain")) WHERE "organizations"."domain" is not null;

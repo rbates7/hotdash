@@ -43,12 +43,15 @@ token set, the first sync shows Connecting… (never sample bets); with no
 token, the Roadmap says Not connected and shows no bets. Setup, token scope
 and the property mapping: [docs/notion-roadmap.md](docs/notion-roadmap.md).
 
-**Live Gmail (read-only)** feeds the CRM — cases, contacts and triage from
-the support inbox (info@chlkapp.com) — when the server has `GMAIL_CLIENT_ID`,
-`GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` (server only; `GMAIL_MAILBOX`
-optional). Without them the CRM shows "Gmail not connected": a Not connected
-panel, and only the contacts the founder added in this browser. Setup (one consent, `pnpm gmail:consent`), states and checks:
-[docs/gmail-setup.md](docs/gmail-setup.md).
+**CRM** turns the read-only support inbox into durable cases, contacts,
+triage decisions and internal notes. Its Postgres store uses the Neon
+Marketplace `DATABASE_URL` (or `CRM_DATABASE_URL` override); scheduled syncs
+use `CRON_SECRET`. Gmail reuses the
+dashboard's existing `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+`GMAIL_REFRESH_TOKEN` and optional `GMAIL_MAILBOX`, while Stripe and Chlk
+enrichment reuse `STRIPE_READONLY_KEY` and `SUPABASE_READONLY_DB_URL`.
+Records and edits survive browsers and deployments. Setup and data behavior:
+[docs/crm-gmail-data.md](docs/crm-gmail-data.md).
 
 **Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
 open and recently merged pull requests with their CI and review state
@@ -90,7 +93,9 @@ Open http://localhost:3000 — it redirects to `/home`.
 |---|---|
 | `pnpm dev` | Dev server (Turbopack) |
 | `pnpm build` | Production build |
-| `pnpm check:bundle` | After a build: fail if the Stripe or PostHog key, the database URL, the Notion token, the GitHub or Sentry token or the Gmail credentials (or their env var names: `STRIPE_READONLY_KEY`, `POSTHOG_READONLY_KEY`, `SUPABASE_READONLY_DB_URL`, `NOTION_READONLY_TOKEN`, `GITHUB_READONLY_TOKEN`, `github_read_only`, `SENTRY_READONLY_TOKEN`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `DASHBOARD_LOGIN_EMAIL`, `DASHBOARD_GATE_SECRET`; `GMAIL_MAILBOX` by name) is in client output |
+| `pnpm crm:db:generate` | Generate a CRM Postgres migration after a schema change |
+| `pnpm crm:db:migrate` | Apply committed CRM migrations using `CRM_DATABASE_URL` or Neon’s `DATABASE_URL` |
+| `pnpm check:bundle` | After a build: fail if any dashboard or CRM server credential—or its environment-variable name—reaches client output |
 | `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |

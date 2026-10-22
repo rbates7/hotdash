@@ -1,0 +1,1 @@
+ALTER TABLE "oauth_tokens" ALTER COLUMN "expiry_date" SET DATA TYPE bigint;
