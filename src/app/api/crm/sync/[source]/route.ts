@@ -6,6 +6,7 @@ import { runSync } from "@/lib/crm/sync/runner"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const maxDuration = 300
 
 const paramsSchema = z.object({
   source: z.enum(["gmail", "stripe", "supabase", "all"]),
@@ -19,20 +20,28 @@ export async function POST(
     const refused = refuseCrossSite(request)
     if (refused) return refused
     const { source } = paramsSchema.parse(await params)
+    const fullGmailResync =
+      new URL(request.url).searchParams.get("full") === "1"
     const db = getDb()
     if (source === "all") {
       // Contacts must exist before Gmail classifies known senders, and Chlk
       // profile data should enrich the resulting contact set last.
       const results = []
       for (const nextSource of ["stripe", "gmail", "supabase"] as const) {
-        results.push(await runSync(db, nextSource, "manual"))
+        results.push(
+          await runSync(db, nextSource, "manual", {
+            fullGmailResync: nextSource === "gmail" && fullGmailResync,
+          })
+        )
       }
       return Response.json(
         { results },
         { status: results.some((result) => result.status === "error") ? 500 : 200 }
       )
     }
-    const result = await runSync(db, source, "manual")
+    const result = await runSync(db, source, "manual", {
+      fullGmailResync: source === "gmail" && fullGmailResync,
+    })
     return Response.json(result, {
       status: result.status === "error" ? 500 : 200,
     })
@@ -61,13 +70,17 @@ export async function GET(
       return Response.json({ error: "Unauthorized." }, { status: 401 })
     }
     const { source } = paramsSchema.parse(await params)
+    const fullGmailResync =
+      new URL(request.url).searchParams.get("full") === "1"
     if (source === "all") {
       return Response.json(
         { error: "Cron requests must target one source." },
         { status: 400 }
       )
     }
-    const result = await runSync(getDb(), source, "interval")
+    const result = await runSync(getDb(), source, "interval", {
+      fullGmailResync: source === "gmail" && fullGmailResync,
+    })
     return Response.json(result, {
       status: result.status === "error" ? 500 : 200,
     })

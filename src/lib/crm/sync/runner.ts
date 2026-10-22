@@ -6,6 +6,7 @@ import type { Db } from "@/lib/crm/db/client"
 import {
   syncLeases,
   syncRuns,
+  syncState,
   type SyncRun,
   type SyncSource,
 } from "@/lib/crm/db/schema"
@@ -26,11 +27,31 @@ type SourceResult = {
   stats?: Record<string, number>
 }
 
-async function runGmail(db: Db): Promise<SourceResult> {
+export type RunSyncOptions = {
+  /** Re-list mail from the configured initial window instead of history sync. */
+  fullGmailResync?: boolean
+}
+
+function gmailFetchConcurrency() {
+  const parsed = Number(process.env.CRM_GMAIL_FETCH_CONCURRENCY)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
+}
+
+async function runGmail(
+  db: Db,
+  options: RunSyncOptions = {}
+): Promise<SourceResult> {
+  const forceFull =
+    options.fullGmailResync ||
+    process.env.CRM_GMAIL_FORCE_FULL_RESYNC === "1"
+  if (forceFull) {
+    await db.delete(syncState).where(eq(syncState.source, "gmail"))
+  }
   const { api, accountEmail } = await createGmailApi(db)
   const stats = await syncGmail(db, api, accountEmail, {
     founderAliases: founderAliasesFromEnv(),
     initialWindow: process.env.CRM_GMAIL_INITIAL_SYNC_WINDOW ?? "30d",
+    fetchConcurrency: gmailFetchConcurrency(),
   })
   return { status: "success", stats: { ...stats } }
 }
@@ -53,10 +74,13 @@ async function runSupabase(db: Db): Promise<SourceResult> {
   }
 }
 
-const RUNNERS: Record<SyncSource, (db: Db) => Promise<SourceResult>> = {
+const RUNNERS: Record<
+  SyncSource,
+  (db: Db, options: RunSyncOptions) => Promise<SourceResult>
+> = {
   gmail: runGmail,
-  stripe: runStripe,
-  supabase: runSupabase,
+  stripe: (_db) => runStripe(_db),
+  supabase: (_db) => runSupabase(_db),
 }
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000
@@ -124,7 +148,8 @@ export type RunResult = {
 export async function runSync(
   db: Db,
   source: SyncSource,
-  trigger: "interval" | "manual"
+  trigger: "interval" | "manual",
+  options: RunSyncOptions = {}
 ): Promise<RunResult> {
   if (trigger === "interval" && (await isSyncPaused(db))) {
     return { runId: "", status: "skipped", message: "paused" }
@@ -154,7 +179,7 @@ export async function runSync(
       startedAt: new Date(),
     })
 
-    const result = await RUNNERS[source](db)
+    const result = await RUNNERS[source](db, options)
     await db.update(syncRuns)
       .set({
         status: result.status,

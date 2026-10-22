@@ -237,6 +237,15 @@ async function collectIncrementalIds(api: GmailApi, cursor: string) {
   return { ids: [...ids], newCursor }
 }
 
+/** Gmail list query for a full backfill (`30d`, `120d`, or `after:2026/07/01`). */
+export function gmailFullSyncListQuery(initialWindow: string): string {
+  const window = initialWindow.trim()
+  const timeFilter = window.startsWith("after:")
+    ? window
+    : `newer_than:${window}`
+  return `-in:chat ${timeFilter}`
+}
+
 async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
   // Capture the profile historyId BEFORE listing: anything that arrives
   // mid-backfill is replayed by the next incremental pass and deduped.
@@ -245,7 +254,7 @@ async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
   let pageToken: string | undefined
   do {
     const page = await api.listMessageIds({
-      q: `-in:chat newer_than:${initialWindow}`,
+      q: gmailFullSyncListQuery(initialWindow),
       pageToken,
     })
     for (const id of page.ids) ids.add(id)

@@ -57,6 +57,8 @@ const NAME_ONLY = [
   "CRM_GOOGLE_REDIRECT_URI",
   "CRM_FOUNDER_ALIASES",
   "CRM_GMAIL_INITIAL_SYNC_WINDOW",
+  "CRM_GMAIL_FORCE_FULL_RESYNC",
+  "CRM_GMAIL_FETCH_CONCURRENCY",
 ]
 const buildDir = path.resolve(process.argv[2] ?? ".next")
 const staticDir = path.join(buildDir, "static")

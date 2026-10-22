@@ -25,7 +25,16 @@ import {
   unknownHumanFollowup,
 } from "./__fixtures__/messages"
 import { FakeGmailApi } from "./fake-api"
-import { syncGmail } from "./sync"
+import { gmailFullSyncListQuery, syncGmail } from "./sync"
+
+describe("gmailFullSyncListQuery", () => {
+  it("supports relative windows and Gmail after: dates", () => {
+    expect(gmailFullSyncListQuery("30d")).toBe("-in:chat newer_than:30d")
+    expect(gmailFullSyncListQuery("after:2026/07/01")).toBe(
+      "-in:chat after:2026/07/01"
+    )
+  })
+})
 
 describe("syncGmail", () => {
   let db: Db
