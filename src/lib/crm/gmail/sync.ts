@@ -16,6 +16,11 @@ import {
   ignoredSenders,
   syncState,
 } from "@/lib/crm/db/schema"
+import {
+  deleteSetting,
+  getSetting,
+  setSetting,
+} from "@/lib/crm/settings/server"
 
 import { isExcludedByLabels, parseMessage } from "./parse"
 import type {
@@ -246,21 +251,45 @@ export function gmailFullSyncListQuery(initialWindow: string): string {
   return `-in:chat ${timeFilter}`
 }
 
-async function collectFullSyncIds(api: GmailApi, initialWindow: string) {
-  // Capture the profile historyId BEFORE listing: anything that arrives
-  // mid-backfill is replayed by the next incremental pass and deduped.
-  const profile = await api.getProfile()
-  const ids = new Set<string>()
-  let pageToken: string | undefined
-  do {
-    const page = await api.listMessageIds({
-      q: gmailFullSyncListQuery(initialWindow),
-      pageToken,
-    })
-    for (const id of page.ids) ids.add(id)
-    pageToken = page.nextPageToken
-  } while (pageToken)
-  return { ids: [...ids], newCursor: profile.historyId }
+const GMAIL_BACKFILL_PAGE_TOKEN_KEY = "gmail_backfill_page_token"
+const GMAIL_BACKFILL_HISTORY_ID_KEY = "gmail_backfill_history_id"
+
+export async function clearGmailBackfillProgress(db: Db) {
+  await deleteSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY)
+  await deleteSetting(db, GMAIL_BACKFILL_HISTORY_ID_KEY)
+}
+
+/** Lists and processes one Gmail page per run to stay under quota and time limits. */
+async function collectFullSyncBatch(
+  db: Db,
+  api: GmailApi,
+  initialWindow: string
+) {
+  let historyId = await getSetting(db, GMAIL_BACKFILL_HISTORY_ID_KEY)
+  if (!historyId) {
+    const profile = await api.getProfile()
+    historyId = profile.historyId
+    await setSetting(db, GMAIL_BACKFILL_HISTORY_ID_KEY, historyId)
+  }
+
+  const savedToken = await getSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY)
+  const page = await api.listMessageIds({
+    q: gmailFullSyncListQuery(initialWindow),
+    pageToken: savedToken ?? undefined,
+  })
+
+  const backfillPending = page.nextPageToken ? 1 : 0
+  if (page.nextPageToken) {
+    await setSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY, page.nextPageToken)
+  } else {
+    await clearGmailBackfillProgress(db)
+  }
+
+  return {
+    ids: page.ids,
+    newCursor: backfillPending ? null : historyId,
+    backfillPending,
+  }
 }
 
 export async function syncGmail(
@@ -285,18 +314,28 @@ export async function syncGmail(
 
   let ids: string[]
   let newCursor: string | null
+  let backfillPending = 0
   if (state?.cursor) {
     try {
       ;({ ids, newCursor } = await collectIncrementalIds(api, state.cursor))
     } catch (error) {
       if (error instanceof HistoryExpiredError) {
-        ;({ ids, newCursor } = await collectFullSyncIds(api, initialWindow))
+        await clearGmailBackfillProgress(db)
+        ;({ ids, newCursor, backfillPending } = await collectFullSyncBatch(
+          db,
+          api,
+          initialWindow
+        ))
       } else {
         throw error
       }
     }
   } else {
-    ;({ ids, newCursor } = await collectFullSyncIds(api, initialWindow))
+    ;({ ids, newCursor, backfillPending } = await collectFullSyncBatch(
+      db,
+      api,
+      initialWindow
+    ))
   }
 
   const rawMessages = await mapWithConcurrency(
@@ -329,5 +368,6 @@ export async function syncGmail(
       set: { cursor: newCursor, lastSyncedAt: now, updatedAt: now },
     })
 
+  if (backfillPending) stats.backfillPending = backfillPending
   return stats
 }

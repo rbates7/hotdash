@@ -15,7 +15,7 @@ import {
   createGmailApi,
   founderAliasesFromEnv,
 } from "@/lib/crm/gmail/client"
-import { syncGmail } from "@/lib/crm/gmail/sync"
+import { clearGmailBackfillProgress, syncGmail } from "@/lib/crm/gmail/sync"
 import { createStripeApi } from "@/lib/crm/stripe/client"
 import { syncStripe } from "@/lib/crm/stripe/sync"
 import { createSupabaseSource, syncSupabase } from "@/lib/crm/supabase/adapter"
@@ -46,6 +46,7 @@ async function runGmail(
     process.env.CRM_GMAIL_FORCE_FULL_RESYNC === "1"
   if (forceFull) {
     await db.delete(syncState).where(eq(syncState.source, "gmail"))
+    await clearGmailBackfillProgress(db)
   }
   const { api, accountEmail } = await createGmailApi(db)
   const stats = await syncGmail(db, api, accountEmail, {

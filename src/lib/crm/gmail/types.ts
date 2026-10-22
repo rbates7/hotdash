@@ -93,4 +93,6 @@ export type GmailSyncStats = {
   triaged: number
   skippedBulk: number
   backfilled: number
+  /** 1 when more Gmail list pages remain for the initial backfill window. */
+  backfillPending?: number
 }

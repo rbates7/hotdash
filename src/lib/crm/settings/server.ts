@@ -18,6 +18,10 @@ export async function setSetting(db: Db, key: string, value: string) {
     .onConflictDoUpdate({ target: settings.key, set: { value } })
 }
 
+export async function deleteSetting(db: Db, key: string) {
+  await db.delete(settings).where(eq(settings.key, key))
+}
+
 export async function isSyncPaused(db: Db): Promise<boolean> {
   return (await getSetting(db, "sync_paused")) === "true"
 }
