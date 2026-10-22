@@ -8,7 +8,7 @@ import type { Deal } from "@/lib/sales-opportunities"
  * `founderDeals`, the same rows under ids of the founder's own.
  */
 
-type SeedRow = Omit<Deal, "id" | "nextStepDue" | "lastTouch" | "createdAt" | "updatedAt"> & {
+type SeedRow = Omit<Deal, "id" | "institutionId" | "nextStepDue" | "lastTouch" | "createdAt" | "updatedAt"> & {
   /** Days from today the next step is due; null for no date. Negative = overdue. */
   dueIn: number | null
   /** Days ago the last conversation happened. */
@@ -126,6 +126,7 @@ export function seedDeals(nowMs: number): Deal[] {
       touchedDaysAgo === 0 ? at : `${addDays(today, -touchedDaysAgo)}T17:00:00.000Z`
     return {
       id: `deal-${i + 1}`,
+      institutionId: null,
       ...rest,
       nextStepDue: dueIn === null ? null : addDays(today, dueIn),
       lastTouch: touched,

@@ -5,6 +5,7 @@ import {
   METRICS_DIALOG,
   METRICS_EXPENSE_PIN,
   METRICS_FIELD,
+  METRICS_GRID,
   METRICS_HEADER,
   METRICS_ICON,
   METRICS_PRESSED,
@@ -43,6 +44,13 @@ describe("Metrics responsive layout", () => {
     expect(METRICS_PRESSED).toContain("aria-pressed:text-primary-foreground!")
     expect(METRICS_PRESSED).not.toContain("max-xl:")
     expect(METRICS_PRESSED).not.toContain("xl:")
+  })
+
+  it("uses the approved Executive Grid at phone, tablet, and wide desktop widths", () => {
+    expect(METRICS_GRID).toContain("grid-cols-1")
+    expect(METRICS_GRID).toContain("md:grid-cols-2")
+    expect(METRICS_GRID).toContain("2xl:grid-cols-3")
+    expect(METRICS_GRID).not.toContain("grid-cols-4")
   })
 
   it("pins Expenses' first column on phone only, and leaves desktop overflow alone", () => {

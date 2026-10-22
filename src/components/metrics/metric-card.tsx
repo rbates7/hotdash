@@ -32,28 +32,17 @@ import { METRICS_ICON, METRICS_PRESSED } from "@/components/metrics/responsive"
 import { ConnectingBadge } from "@/components/connecting-badge"
 import { NotConnectedBadge } from "@/components/home/not-connected"
 import { SubscriberBreakdown } from "@/components/subscriber-breakdown"
-
-function ToolButton({
-  className,
-  ...props
-}: React.ComponentProps<"button">) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "border-surface-border text-muted-foreground grid size-6 place-items-center rounded-md border transition-colors",
-        "hover:bg-surface-hover hover:text-foreground",
-        "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
-        "[&_svg]:size-[13px]",
-        METRICS_ICON,
-        METRICS_PRESSED,
-        "max-xl:focus-visible:ring-inset",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 export function TrendPill({
   snapshot,
@@ -66,11 +55,12 @@ export function TrendPill({
   })
   const Arrow = trend.up ? ArrowUpIcon : ArrowDownIcon
   return (
-    <span
+    <Badge
+      variant="secondary"
       data-testid="trend"
       data-good={trend.flat ? undefined : trend.good}
       className={cn(
-        "text-caption inline-flex items-center gap-[3px] rounded-full py-[3px] pr-2 pl-1.5 leading-[1.2] font-semibold tracking-tight",
+        "text-caption gap-[3px] rounded-full py-[3px] pr-2 pl-1.5 leading-[1.2] font-semibold tracking-tight",
         trend.flat
           ? "bg-muted text-muted-foreground"
           : trend.good
@@ -80,7 +70,7 @@ export function TrendPill({
     >
       {!trend.flat && <Arrow className="size-[11px]" strokeWidth={2.25} aria-hidden />}
       {trend.text}
-    </span>
+    </Badge>
   )
 }
 
@@ -140,110 +130,128 @@ export function MetricCard({
         ? `${snapshot.label} no expenses entered`
         : [snapshot.label, valueText, trend?.text ?? figure?.empty].filter(Boolean).join(" ")
   return (
-    <article
+    <Card
+      size="sm"
+      role="article"
       aria-label={name}
       aria-busy={loading || undefined}
       data-metric={snapshot.id}
       data-source={live.kind === "live" ? live.metric.source : live.kind}
       className={cn(
-        "group/metric bg-surface border-surface-border flex min-h-[176px] flex-col rounded-xl border px-5 pt-5 pb-[18px]",
+        "group/metric min-h-[232px] gap-0 py-0",
         className
       )}
     >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <CardHeader className="gap-0 px-4 pt-4">
+        <CardTitle className="text-label flex min-w-0 flex-wrap items-center gap-2 font-semibold tracking-tight">
           <h2 className="text-label font-semibold tracking-tight">{snapshot.label}</h2>
           {off && <NotConnectedBadge className="h-5 px-2" />}
           {connecting && <ConnectingBadge className="h-5 px-2" />}
-        </div>
-        <div
-          className="flex flex-none items-center gap-1"
-          role="group"
-          aria-label={`${snapshot.label} chart type`}
-        >
-          <ToolButton
-            aria-pressed={chart === "bar"}
-            aria-label={`${snapshot.label}: bar chart`}
-            onClick={() => onChartChange("bar")}
+        </CardTitle>
+        <CardAction className="flex items-center gap-1">
+          <ToggleGroup
+            value={[chart]}
+            onValueChange={(value) => {
+              const next = value[0]
+              if (next === "bar" || next === "line") onChartChange(next)
+            }}
+            variant="outline"
+            size="sm"
+            spacing={0}
+            aria-label={`${snapshot.label} chart type`}
+            className="flex-none"
           >
-            <ChartColumnIcon aria-hidden />
-          </ToolButton>
-          <ToolButton
-            aria-pressed={chart === "line"}
-            aria-label={`${snapshot.label}: line chart`}
-            onClick={() => onChartChange("line")}
-          >
-            <ChartLineIcon aria-hidden />
-          </ToolButton>
+            <ToggleGroupItem
+              value="bar"
+              aria-label={`${snapshot.label}: bar chart`}
+              className={cn(METRICS_ICON, METRICS_PRESSED, "max-xl:focus-visible:ring-inset")}
+            >
+              <ChartColumnIcon aria-hidden />
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="line"
+              aria-label={`${snapshot.label}: line chart`}
+              className={cn(METRICS_ICON, METRICS_PRESSED, "max-xl:focus-visible:ring-inset")}
+            >
+              <ChartLineIcon aria-hidden />
+            </ToggleGroupItem>
+          </ToggleGroup>
           {onRemove && (
-            <ToolButton
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label={`Remove ${snapshot.label}`}
               onClick={onRemove}
-              className="border-transparent opacity-40 group-hover/metric:opacity-85 hover:opacity-100 focus-visible:opacity-100"
+              className={cn(
+                METRICS_ICON,
+                "text-muted-foreground opacity-45 group-hover/metric:opacity-85 hover:opacity-100 focus-visible:opacity-100 max-xl:opacity-75 max-xl:focus-visible:ring-inset"
+              )}
             >
-              <XIcon aria-hidden />
-            </ToolButton>
+              <XIcon data-icon="inline-start" aria-hidden />
+            </Button>
           )}
-        </div>
-      </div>
+        </CardAction>
+      </CardHeader>
 
-      <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p
-            data-testid="metric-value"
-            className={cn(
-              "text-[28px] leading-[1.05] font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
-              (loading || off) && "text-muted-foreground"
-            )}
-          >
-            {off ? <span aria-label="No figure">{valueText}</span> : valueText}
+      <CardContent className="flex min-w-0 flex-1 flex-col px-4 pt-4 pb-3">
+        <p
+          data-testid="metric-value"
+          className={cn(
+            "text-[30px] leading-none font-bold tracking-[-0.04em] whitespace-nowrap tabular-nums",
+            (loading || off) && "text-muted-foreground"
+          )}
+        >
+          {off ? <span aria-label="No figure">{valueText}</span> : valueText}
+        </p>
+        {/* The illustrative-derivation note describes a fixture figure: only with one on the card. */}
+        {snapshot.note && !off && !loading && (
+          <p className="text-micro text-muted-foreground mt-1.5 font-medium tracking-tight">
+            {snapshot.note}
           </p>
-          {/* The illustrative-derivation note describes a fixture figure: only with one on the card. */}
-          {snapshot.note && !off && !loading && (
-            <p className="text-micro text-muted-foreground mt-1.5 font-medium tracking-tight">
-              {snapshot.note}
-            </p>
-          )}
-          {/* Fine print on Stripe's figure: only with one on the card (not Not connected or Connecting…). */}
-          {snapshot.id === "mrr" && figure && (
-            <p data-testid="metric-mrr-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
-              {MRR_NOTE}
-            </p>
-          )}
-          {figure?.note && (
-            <p data-testid="metric-live-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
-              {figure.note}
-            </p>
-          )}
-          {figure?.updated && (
-            <p data-testid="metric-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
-              {figure.updated}
-            </p>
-          )}
-          {figure?.breakdown && <SubscriberBreakdown breakdown={figure.breakdown} className="mt-2.5 max-w-64" />}
-          {trend ? (
-            <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
-              <TrendPill
-                snapshot={{ ...snapshot, value: shown.value!, previous: shown.previous! }}
-              />
-              <span className="text-caption text-muted-foreground tracking-tight whitespace-nowrap">
-                {VS_PREVIOUS_WINDOW}
-              </span>
-            </div>
-          ) : figure ? (
-            <p className="text-caption text-muted-foreground mt-2.5 tracking-tight">
-              {figure.empty ?? `No reading for the previous 28 days`}
-            </p>
-          ) : offText ? (
-            <p data-testid="metric-not-connected" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
-              {offText}
-            </p>
-          ) : entries ? (
-            <p data-testid="metric-entries-note" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
-              {live.value === null ? NO_EXPENSES_TEXT : NO_PRIOR_EXPENSES_TEXT}
-            </p>
-          ) : null}
-        </div>
+        )}
+        {/* Fine print on Stripe's figure: only with one on the card (not Not connected or Connecting…). */}
+        {snapshot.id === "mrr" && figure && (
+          <p data-testid="metric-mrr-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+            {MRR_NOTE}
+          </p>
+        )}
+        {figure?.note && (
+          <p data-testid="metric-live-note" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+            {figure.note}
+          </p>
+        )}
+        {figure?.updated && (
+          <p data-testid="metric-updated" className="text-caption text-muted-foreground mt-1.5 tracking-tight">
+            {figure.updated}
+          </p>
+        )}
+        {figure?.breakdown && <SubscriberBreakdown breakdown={figure.breakdown} className="mt-2.5 max-w-64" />}
+        {trend ? (
+          <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-2">
+            <TrendPill
+              snapshot={{ ...snapshot, value: shown.value!, previous: shown.previous! }}
+            />
+            <span className="text-caption text-muted-foreground tracking-tight whitespace-nowrap">
+              {VS_PREVIOUS_WINDOW}
+            </span>
+          </div>
+        ) : figure ? (
+          <p className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+            {figure.empty ?? `No reading for the previous 28 days`}
+          </p>
+        ) : offText ? (
+          <p data-testid="metric-not-connected" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+            {offText}
+          </p>
+        ) : entries ? (
+          <p data-testid="metric-entries-note" className="text-caption text-muted-foreground mt-2.5 tracking-tight">
+            {live.value === null ? NO_EXPENSES_TEXT : NO_PRIOR_EXPENSES_TEXT}
+          </p>
+        ) : null}
+      </CardContent>
+
+      <CardFooter className="mt-auto block min-h-[113px] px-4 py-3">
         {charted ? (
           <MetricChart
             series={shown.series}
@@ -254,9 +262,14 @@ export function MetricCard({
             days={figure?.days}
           />
         ) : (
-          <div aria-hidden className="h-[52px] w-[120px] flex-none" />
+          <div
+            aria-hidden
+            className="text-caption text-muted-foreground flex h-[88px] w-full items-center justify-center text-center"
+          >
+            Chart appears when data is available
+          </div>
         )}
-      </div>
-    </article>
+      </CardFooter>
+    </Card>
   )
 }

@@ -47,7 +47,7 @@ function PanelSkeleton({ tab }: { tab: MetricsTab }) {
         className={METRICS_GRID}
       >
         {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-[176px] rounded-xl" />
+          <Skeleton key={i} className="h-[232px] rounded-xl" />
         ))}
       </div>
     )

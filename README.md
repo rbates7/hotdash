@@ -53,6 +53,15 @@ enrichment reuse `STRIPE_READONLY_KEY` and `SUPABASE_READONLY_DB_URL`.
 Records and edits survive browsers and deployments. Setup and data behavior:
 [docs/crm-gmail-data.md](docs/crm-gmail-data.md).
 
+**Sales Opportunities territory map** renders the real U.S. and state
+outlines with MaxPreps high school football teams, EADA college football
+programs, and all 32 NFL teams. Zoom United States → state → city; colored
+dots are teams only. Deals link to stable institution IDs: closed-won is green,
+an active pipeline is yellow, and unmatched/no-active-deal teams are gray.
+Source roster: `data/sales-map/high-school-football.csv` (import with
+`pnpm sales-map:import-hs-football`). Generated catalog:
+`public/data/sales-map` via `pnpm sales-map:refresh`.
+
 **Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
 open and recently merged pull requests with their CI and review state
 when the server has `GITHUB_READONLY_TOKEN` (or `github_read_only`, the
@@ -97,6 +106,7 @@ Open http://localhost:3000 — it redirects to `/home`.
 | `pnpm crm:db:migrate` | Apply committed CRM migrations using `CRM_DATABASE_URL` or Neon’s `DATABASE_URL` |
 | `pnpm check:bundle` | After a build: fail if any dashboard or CRM server credential—or its environment-variable name—reaches client output |
 | `pnpm gmail:consent` | One-time: sign in as the support inbox and print the Gmail env vars (see docs/gmail-setup.md) |
+| `pnpm sales-map:refresh` | Regenerate and validate the versioned U.S. institution, city, and state map catalog |
 | `pnpm start` | Serve the production build |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |

@@ -62,6 +62,7 @@ export type EditAction = Exclude<Action, { type: "hydrate" | "save-result" | "re
 /** Trim, cap and round the dialog's fields the one way the store accepts them. */
 export function normalizeInput(input: DealInput): DealInput {
   return {
+    institutionId: input.institutionId,
     who: clampText(input.who, CAPS.who),
     org: clampText(input.org, CAPS.org),
     what: clampText(input.what, CAPS.what),
@@ -76,7 +77,7 @@ export function normalizeInput(input: DealInput): DealInput {
   }
 }
 
-const INPUT_KEYS = ["who", "org", "what", "value", "stage", "nextStep", "nextStepDue", "owner"] as const
+const INPUT_KEYS = ["institutionId", "who", "org", "what", "value", "stage", "nextStep", "nextStepDue", "owner"] as const
 
 function sameInput(deal: Deal, input: DealInput) {
   return INPUT_KEYS.every((k) => deal[k] === input[k])
@@ -211,7 +212,8 @@ export function shellReducer(shell: Shell, action: Action): Shell {
  * validated whole on load, Clear my entries clears the key, and the old
  * sample is dropped on load. Bump the version when the shape changes.
  */
-export const STORAGE_KEY = "hotdash.sales-opportunities.v1"
+export const STORAGE_KEY = "hotdash.sales-opportunities.v2"
+export const LEGACY_STORAGE_KEY = "hotdash.sales-opportunities.v1"
 
 /**
  * Every deal is checked field by field (see `isDeal`), ids are unique and
@@ -236,11 +238,37 @@ export function parseState(value: unknown): State | null {
   return isState(value) ? dropSeed(fromSaved(value)) : null
 }
 
-export const dealsStorage = createStorage<State>({ key: STORAGE_KEY, parse: parseState })
+/** Adopt the v1 shape without guessing an organisation match. */
+export function parseLegacyState(value: unknown): State | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const saved = value as Record<string, unknown>
+  if (!Array.isArray(saved.deals)) return null
+  const migrated = {
+    ...saved,
+    deals: saved.deals.map((deal) =>
+      deal && typeof deal === "object" && !Array.isArray(deal)
+        ? { ...(deal as Record<string, unknown>), institutionId: null }
+        : deal
+    ),
+  }
+  return parseState(migrated)
+}
+
+export const dealsStorage = createStorage<State>({
+  key: STORAGE_KEY,
+  legacyKeys: [LEGACY_STORAGE_KEY],
+  parse: parseState,
+})
+const legacyDealsStorage = createStorage<State>({ key: LEGACY_STORAGE_KEY, parse: parseLegacyState })
+
+function loadResult(storage: Storage | undefined): LoadResult<State> {
+  const current = dealsStorage.load(storage)
+  return current.status === "empty" ? legacyDealsStorage.load(storage) : current
+}
 
 /** Read the saved copy; `null` when there is none or it was rejected. */
 export function loadState(storage: Storage | undefined): State | null {
-  return dealsStorage.load(storage).state
+  return loadResult(storage).state
 }
 
 export function saveState(storage: Storage | undefined, state: State): boolean {
@@ -249,6 +277,7 @@ export function saveState(storage: Storage | undefined, state: State): boolean {
 
 export function clearState(storage: Storage | undefined) {
   dealsStorage.clear(storage)
+  legacyDealsStorage.clear(storage)
 }
 
 /* --------------------------------------------------------------- provider */
@@ -298,7 +327,7 @@ export function DealsProvider({
   // first visible frame is already the user's data, never a flash of the empty list. This is
   // the one hydrate dated by the request's instant.
   React.useLayoutEffect(() => {
-    dispatch({ type: "hydrate", result: dealsStorage.load(window.localStorage), nowMs: requestNowMs })
+    dispatch({ type: "hydrate", result: loadResult(window.localStorage), nowMs: requestNowMs })
   }, [requestNowMs])
 
   // Other tabs and writes, the shared way: a hydrate never writes; only a
