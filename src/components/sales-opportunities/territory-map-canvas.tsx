@@ -63,6 +63,13 @@ const STATUS_COLOR = {
   available: "#9aa29d",
 } as const
 
+/** Match Sales Opportunities: 44px tap targets below desktop (1280). */
+const MAP_TAP = "max-xl:min-h-11"
+const MAP_KIND =
+  "border-input rounded-full border px-2.5 py-1.5 text-xs font-medium max-xl:min-h-11 max-xl:px-3 max-xl:py-2 max-xl:text-sm"
+const MAP_LIST_BTN =
+  "hover:bg-muted focus-visible:ring-ring/50 flex w-full rounded-lg px-2 text-left focus-visible:ring-[3px] focus-visible:outline-none max-xl:min-h-11 max-xl:items-center max-xl:py-2"
+
 function loadJson<T>(path: string, signal: AbortSignal): Promise<T> {
   return fetch(path, { signal }).then((response) => {
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
@@ -495,7 +502,8 @@ export function TerritoryMap() {
           {(selectedState || selectedMetro || selectedCity) && (
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
+              className="max-xl:size-11"
               aria-label={
                 selectedCity
                   ? selectedMetro
@@ -569,7 +577,7 @@ export function TerritoryMap() {
               setQuery("")
               setHighlightedId("")
             }}
-            className="border-input bg-surface mt-1.5 h-10 w-full rounded-md border px-3 text-sm"
+            className={cn("border-input bg-surface mt-1.5 h-10 w-full rounded-md border px-3 text-sm", MAP_TAP, "max-xl:h-11")}
           >
             <option value="">All United States</option>
             {stateOptions.map((state) => <option key={state.code} value={state.code}>{state.name}</option>)}
@@ -585,7 +593,7 @@ export function TerritoryMap() {
                   aria-pressed={kinds.has(kind)}
                   onClick={() => toggleKind(kind)}
                   className={cn(
-                    "border-input rounded-full border px-2.5 py-1.5 text-xs font-medium",
+                    MAP_KIND,
                     kinds.has(kind) ? "bg-primary text-primary-foreground border-primary" : "bg-surface text-muted-foreground"
                   )}
                 >
@@ -602,7 +610,7 @@ export function TerritoryMap() {
               onChange={(event) => setQuery(event.target.value)}
               aria-label={selectedState ? `Search ${selectedName} teams, metros, and cities` : "Search teams"}
               placeholder={selectedState ? "Search teams, metros, or cities" : "Search teams"}
-              className="pl-9"
+              className={cn("pl-9", MAP_TAP)}
             />
           </div>
 

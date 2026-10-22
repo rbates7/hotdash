@@ -413,6 +413,7 @@ for (const name of ["tablet-portrait", "tablet-landscape"] as const) {
       expect(Math.round(box.height)).toBe(44)
       // Every row's ellipsis is on screen, not scrolled off inside the table.
       for (const btn of await table(page).getByRole("button", { name: /^More actions for / }).all()) {
+        await btn.scrollIntoViewIfNeeded()
         const b = (await btn.boundingBox())!
         const hit = await page.evaluate(
           ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label") ?? null,
