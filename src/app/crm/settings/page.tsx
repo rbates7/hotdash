@@ -22,7 +22,8 @@ import {
 import { getDb } from "@/lib/crm/db/client"
 import { syncState } from "@/lib/crm/db/schema"
 import { getGoogleConnection } from "@/lib/crm/gmail/client"
-import { isSyncPaused } from "@/lib/crm/settings/server"
+import { GmailAutoBackfillButton } from "@/components/crm/sync/gmail-auto-backfill-button"
+import { getSetting, isSyncPaused } from "@/lib/crm/settings/server"
 import { listRuns } from "@/lib/crm/sync/runner"
 import { cn } from "@/lib/utils"
 
@@ -59,6 +60,11 @@ export default async function SettingsPage({
   const supabaseConfigured = Boolean(
     process.env.CRM_SUPABASE_DB_URL || process.env.SUPABASE_READONLY_DB_URL
   )
+  const gmailBackfillInProgress = Boolean(
+    await getSetting(db, "gmail_backfill_page_token")
+  )
+  const gmailHistoryCursor = stateRows.find((row) => row.source === "gmail")
+    ?.cursor
 
   const lastSyncedLabel = (source: "gmail" | "stripe" | "supabase") => {
     const at = lastSyncedBySource.get(source)
@@ -97,27 +103,35 @@ export default async function SettingsPage({
               {google.connected
                 ? google.errorMessage
                   ? google.errorMessage
-                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")}`
+                  : `Connected as ${google.accountEmail ?? "unknown account"}. ${lastSyncedLabel("gmail")}${
+                      gmailBackfillInProgress || !gmailHistoryCursor
+                        ? " June 2026 backfill runs in batches (~100 messages per batch)."
+                        : ""
+                    }`
                 : "Not connected. Email-to-case needs read access to your inbox."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center gap-2">
-            {/* Full-page navigation so the OAuth redirect chain works. */}
-            <a
-              href="/api/crm/google/connect"
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              {google.connected
-                ? google.errorMessage
-                  ? "Reconnect"
-                  : "Reconnect"
-                : "Connect Google"}
-            </a>
-            {google.connected ? (
-              <>
-                <RefreshButton source="gmail" label="Sync now" />
-                <GoogleDisconnectButton />
-              </>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/crm/google/connect"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                {google.connected
+                  ? google.errorMessage
+                    ? "Reconnect"
+                    : "Reconnect"
+                  : "Connect Google"}
+              </a>
+              {google.connected ? (
+                <>
+                  <RefreshButton source="gmail" label="Sync one batch" />
+                  <GoogleDisconnectButton />
+                </>
+              ) : null}
+            </div>
+            {google.connected && !google.errorMessage ? (
+              <GmailAutoBackfillButton disabled={paused} />
             ) : null}
           </CardContent>
         </Card>
