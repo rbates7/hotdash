@@ -243,7 +243,7 @@ export function CrmShell({ children }: { children: React.ReactNode }) {
       <CrmTabs pathname={pathname} triageCount={connecting ? 0 : triageCount} />
 
       {children}
-      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      <CommandPalette />
     </div>
   )
 }

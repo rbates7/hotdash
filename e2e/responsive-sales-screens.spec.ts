@@ -20,7 +20,7 @@ const OUT_DIRS = [
   ...(process.env.SCREENSHOT_DIR ? [path.resolve(process.env.SCREENSHOT_DIR)] : []),
 ]
 
-const STORAGE_KEY = "hotdash.sales-opportunities.v1"
+const STORAGE_KEY = "hotdash.sales-opportunities.v2"
 
 const SIZES = {
   phone: { width: 390, height: 844 },

@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GMAIL_NOT_CONNECTED } from "@/lib/crm/gmail-summary"
 import { emptyCrmList } from "@/lib/crm/gmail-view"
-import { liveGmailSummary } from "@/test/gmail-fixture"
 
 // The routes' dependency, mocked: these tests never reach Gmail, even on a
 // machine that has credentials in its environment.
@@ -29,40 +28,25 @@ beforeEach(() => {
 describe("GET /api/crm/gmail", () => {
   const url = (q = "") => new Request(`http://localhost/api/crm/gmail${q}`)
 
-  it("answers without waiting for a sync, and keeps the background sync alive after the response", async () => {
-    service.list.mockResolvedValue({ ...GMAIL_NOT_CONNECTED, lastUpdated: null, ...emptyCrmList() })
-    await summary(url())
-    expect(after).toHaveBeenCalledTimes(1)
-    expect(service.settled).not.toHaveBeenCalled()
-    await after.mock.calls[0]![0]()
-    expect(service.settled).toHaveBeenCalledTimes(1)
-  })
-
-  it("is never cached by a browser or CDN, and passes the service's list through", async () => {
-    const live = { ...liveGmailSummary(Date.parse("2026-10-14T17:00:00.000Z")), lastUpdated: "2026-10-14T16:59:00.000Z", ...emptyCrmList() }
-    service.list.mockResolvedValue(live)
+  it("is never cached and returns the retired endpoint's empty contract", async () => {
     const res = await summary(url())
     expect(res.headers.get("cache-control")).toBe("no-store")
-    expect(await res.json()).toEqual(live)
+    expect(await res.json()).toEqual({ ...GMAIL_NOT_CONNECTED, lastUpdated: null, ...emptyCrmList() })
+    expect(service.list).not.toHaveBeenCalled()
+    expect(after).not.toHaveBeenCalled()
   })
 
-  it("an unexpected throw is not_connected with the empty contract, never the error", async () => {
-    service.list.mockRejectedValue(new Error(`invalid_grant ${SECRET}`))
-    const res = await summary(url())
-    expect(res.status).toBe(200)
-    const text = await res.text()
-    expect(JSON.parse(text)).toEqual({ ...GMAIL_NOT_CONNECTED, lastUpdated: null, ...emptyCrmList() })
-    expect(text).not.toContain(SECRET)
-  })
-
-  it("?caseId= returns that case's thread", async () => {
-    const body = { status: "connected", lastUpdated: "2026-10-14T16:59:00.000Z", caseId: "case-3", messages: [] }
-    service.thread.mockResolvedValue(body)
+  it("?caseId= returns an empty retired thread without asking Gmail", async () => {
     const res = await summary(url("?caseId=case-3"))
-    expect(service.thread).toHaveBeenCalledWith("case-3")
     expect(res.status).toBe(200)
     expect(res.headers.get("cache-control")).toBe("no-store")
-    expect(await res.json()).toEqual(body)
+    expect(await res.json()).toEqual({
+      status: "not_connected",
+      lastUpdated: null,
+      caseId: "case-3",
+      messages: [],
+    })
+    expect(service.thread).not.toHaveBeenCalled()
   })
 
   it.each(["", "3", "case-x", "../case-1", "thread-1"])("?caseId=%s is 400 without asking Gmail", async (id) => {
@@ -71,18 +55,6 @@ describe("GET /api/crm/gmail", () => {
     expect(service.thread).not.toHaveBeenCalled()
   })
 
-  it("an unknown case is 404", async () => {
-    service.thread.mockResolvedValue(null)
-    expect((await summary(url("?caseId=case-999"))).status).toBe(404)
-  })
-
-  it("a thread throw is not_connected with no messages and no error text", async () => {
-    service.thread.mockRejectedValue(new Error(SECRET))
-    const res = await summary(url("?caseId=case-1"))
-    const text = await res.text()
-    expect(JSON.parse(text)).toEqual({ status: "not_connected", lastUpdated: null, caseId: "case-1", messages: [] })
-    expect(text).not.toContain(SECRET)
-  })
 })
 
 describe("GET /api/health/gmail", () => {

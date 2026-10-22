@@ -133,6 +133,12 @@ test.describe("Stripe connected (1440)", () => {
       await expect(metricCard(page, name).getByTestId("metric-value")).toHaveText(value)
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)
     }
+    const mrrChart = metricCard(page, "MRR").getByRole("img")
+    await mrrChart.locator("rect").last().hover()
+    const chartTooltip = mrrChart.locator(".recharts-tooltip-wrapper")
+    await expect(chartTooltip).toBeVisible()
+    await expect(chartTooltip).toContainText("Ending")
+    await expect(chartTooltip).toContainText("$61,235")
     for (const name of ["Retention"]) {
       await expect(metricCard(page, name)).toHaveAttribute("data-source", "not_connected")
       await expect(metricCard(page, name).getByTestId("sample-data-tag")).toHaveCount(0)

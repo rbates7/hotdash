@@ -7,6 +7,7 @@ import { founderDealsState, seedDeals } from "@/lib/sales-opportunities-fixture"
 import { initialShell, type LoadResult } from "@/lib/persistence"
 import {
   DealsProvider,
+  LEGACY_STORAGE_KEY,
   STORAGE_KEY,
   dealsStorage,
   fromSaved,
@@ -15,6 +16,7 @@ import {
   loadState,
   normalizeInput,
   parseState,
+  parseLegacyState,
   reducer,
   saveState,
   shellReducer,
@@ -28,6 +30,7 @@ const AT = FIXED_NOW.toISOString()
 const LATER = "2026-08-27T15:00:00.000Z"
 
 const WESTLAKE: DealInput = {
+  institutionId: null,
   who: "  Coach Jordan Reyes ",
   org: "Westlake HS",
   what: "Staff seats × 6",
@@ -70,6 +73,7 @@ describe("reducer", () => {
     const added = s.deals.at(-1)!
     expect(added).toEqual({
       id: "deal-109",
+      institutionId: null,
       who: "Coach Jordan Reyes",
       org: "Westlake HS",
       what: "Staff seats × 6",
@@ -114,6 +118,7 @@ describe("reducer", () => {
     const s = seed()
     const deal = s.deals[0]
     const same: DealInput = {
+      institutionId: deal.institutionId,
       who: deal.who,
       org: deal.org,
       what: deal.what,
@@ -328,9 +333,29 @@ describe("isState rejects a bad saved copy", () => {
 })
 
 describe("localStorage", () => {
-  it("uses the v1 key", () => {
-    expect(STORAGE_KEY).toBe("hotdash.sales-opportunities.v1")
+  it("uses the v2 key", () => {
+    expect(STORAGE_KEY).toBe("hotdash.sales-opportunities.v2")
     expect(dealsStorage.key).toBe(STORAGE_KEY)
+  })
+
+  it("adopts v1 deals as unmatched and moves them on the first real save", () => {
+    const old = {
+      ...seed(),
+      deals: seed().deals.map((saved) => {
+        const deal = { ...saved } as Partial<Deal>
+        delete deal.institutionId
+        return deal
+      }),
+    }
+    expect(parseLegacyState(old)?.deals.every((deal) => deal.institutionId === null)).toBe(true)
+    window.localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(old))
+    expect(loadState(window.localStorage)?.deals).toHaveLength(old.deals.length)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
+
+    const adopted = loadState(window.localStorage)!
+    expect(saveState(window.localStorage, reducer(adopted, { type: "add-deal", input: WESTLAKE, at: AT }))).toBe(true)
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+    expect(window.localStorage.getItem(LEGACY_STORAGE_KEY)).toBeNull()
   })
 
   it("saves and loads the same state; a failed save returns false", () => {
@@ -375,7 +400,7 @@ function Probe({ label = "" }: { label?: string }) {
       <button type="button" onClick={() => addDeal(WESTLAKE)}>add</button>
       <button type="button" onClick={() => setStage("deal-101", "closed-won")}>win</button>
       <button type="button" onClick={() => setStage("deal-101", "proposal")}>noop</button>
-      <button type="button" onClick={() => { const d = deals[0]; if (d) editDeal(d.id, { who: d.who, org: d.org, what: d.what, value: d.value, stage: d.stage, nextStep: d.nextStep, nextStepDue: d.nextStepDue, owner: d.owner }) }}>
+      <button type="button" onClick={() => { const d = deals[0]; if (d) editDeal(d.id, { institutionId: d.institutionId, who: d.who, org: d.org, what: d.what, value: d.value, stage: d.stage, nextStep: d.nextStep, nextStepDue: d.nextStepDue, owner: d.owner }) }}>
         edit-same
       </button>
       <button type="button" onClick={resetDemoData}>reset</button>
@@ -594,7 +619,7 @@ describe("types", () => {
   it("Deal has exactly the keys the guard checks", () => {
     const d: Deal = seed().deals[0]
     expect(Object.keys(d).sort()).toEqual(
-      ["createdAt", "id", "lastTouch", "nextStep", "nextStepDue", "org", "owner", "stage", "updatedAt", "value", "what", "who"]
+      ["createdAt", "id", "institutionId", "lastTouch", "nextStep", "nextStepDue", "org", "owner", "stage", "updatedAt", "value", "what", "who"]
     )
   })
 })

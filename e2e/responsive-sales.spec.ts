@@ -20,7 +20,7 @@ import { setTheme } from "./support/theme"
  * 5-column table with one ellipsis per row; desktop (≥1280) is unchanged.
  */
 
-const STORAGE_KEY = "hotdash.sales-opportunities.v1"
+const STORAGE_KEY = "hotdash.sales-opportunities.v2"
 
 const VIEWPORTS = {
   phone: { width: 390, height: 844 },

@@ -1,46 +1,64 @@
-# CRM data from Gmail (`GET /api/crm/gmail`)
+# Durable CRM data
 
-Contract: `src/lib/crm/types.ts` (agreed with Koenig, Oct 19 2026). Server data only; the UI is Koenig's.
+The production CRM stores cases, contacts, email messages, notes, triage
+decisions, OAuth tokens and sync history in Postgres. Browser storage is not
+part of the copied CRM's data model.
 
-## Endpoints (both behind the dashboard gate; logged out = 401)
+## Sources
 
-- `GET /api/crm/gmail` → `CrmListResponse`: `status`, `lastUpdated`, `counts`, `cases`, `accounts`, `recentActivity`.
-  For the current CRM screens it also still carries the older fields (`lastSyncedAt`, `mailbox`, `data`) until the new UI lands; new code should not read them.
-- `GET /api/crm/gmail?caseId=case-<n>` → `CrmThreadResponse` with full message bodies for one thread. 400 for a malformed id, 404 for an unknown case.
+- **Stripe first:** customers become contacts and active subscription prices
+  become Monthly, Annual or Staff plan labels.
+- **Gmail second:** known contacts become cases; unknown human senders enter
+  Triage. Whole-thread backfill preserves earlier replies.
+- **Chlk database third:** `chlk.profiles` enriches names and
+  `chlk.organizations` provides authoritative organization names.
 
-Never an error body and never a secret: Gmail failures show as `stale` (last good data) or `not_connected`.
+Manual edits take precedence over Chlk enrichment, then Stripe, then Gmail.
+Every sync is idempotent: Gmail message IDs, thread IDs, normalized contact
+emails, Stripe customer IDs and case numbers are unique.
 
-## Freshness
+## Case behavior
 
-## Caching
+- One Gmail thread maps to one case.
+- An inbound message on a closed case reopens it.
+- Statuses are `new`, `open`, `waiting` and `closed`.
+- Priority is `low`, `normal`, `high` or `urgent`.
+- User and system notes share the case timeline.
+- Replies remain in Gmail; the CRM links to the original thread.
+- Unknown senders can be promoted, linked to an existing contact, ignored for
+  one conversation or ignored permanently.
 
-- **List (`GET /api/crm/gmail`):** read from Gmail at most every 5 minutes into a last-good cache. A failed read keeps the last good copy and reports `stale`, and retries after 1 minute. A request never waits for Gmail; a due sync runs after the response.
-- **One case (`?caseId=case-<n>`):** that thread's full messages are fetched on demand and cached 5 minutes per thread. The Gmail call is cut off after 8 seconds; on a timeout or failure the last cached copy (or the list's snippets) is returned as `stale`.
+## Message safety
 
-## Message bodies are plain text only
+Email is rendered as plain text. HTML is reduced to text server-side; scripts,
+event attributes, unsafe links and remote tracking images do not reach the
+browser. Attachment names, MIME types and sizes are stored, but attachment
+bytes are not downloaded.
 
-No HTML is ever sent. `CrmMessage` has no `bodyHtml`; `bodyText` is the text/plain part, or the HTML part reduced to text on the server (script/style/head dropped, every tag and comment removed, entities decoded and stripped again), or the snippet. Scripts, `on*` attributes, `javascript:` links and remote images never reach the browser, so the UI has nothing to sanitize.
+## Synchronization
 
-## How fields are derived
+Vercel Cron calls the authenticated `GET /api/crm/sync/<source>` routes using
+`CRON_SECRET`. Manual refresh uses same-origin `POST` requests behind the
+dashboard gate. A Postgres lease prevents overlapping runs across Vercel
+instances. Pause state, cursors and the most recent sync runs are durable.
 
-- **Case** = one Gmail thread with a customer the inbox has replied to (existing rules from #46/#58). Bounces, billing notices and outbound-only threads are dropped. Unanswered first contacts are triage and are not cases.
-- **status**
-  - `closed`: the thread was archived (no INBOX label) after the customer wrote.
-  - `waiting_on_us`: the last message is from the customer.
-  - `waiting_on_them`: the last message is from us.
-  - `open`: not produced from Gmail today (Gmail has no "open" marker); kept for the UI's filters. `counts.open` counts every case that is not closed.
-- **waitingOnUsSince**: the first customer message after our last reply.
-- **priority**: starred → `high`; starred and waiting on us for over 24 hours → `urgent`; otherwise `normal`. `low` is never derived.
-- **unread**: any message in the thread has Gmail's UNREAD label.
-- **labels**: Gmail system labels only (inbox, starred, important, unread, sent). Custom labels need an extra call to get their names and are left out for now.
-- **Account** = the contact's email domain. Personal domains (gmail.com, yahoo.com, outlook.com) have no account (`accountId: null`).
-- **recentActivity**: `received`/`sent` from messages. `status_changed` is never emitted: Gmail keeps no status history.
+The full bootstrap order is:
 
-## Gaps (the design shows these, Gmail cannot supply them)
+1. `POST /api/crm/sync/stripe`
+2. `POST /api/crm/sync/gmail`
+3. `POST /api/crm/sync/supabase`
 
-- School name: account `name` is the domain.
-- Owner/assignee, plan, Stripe standing: left out by decision.
-- Status history and case notes.
-- `low` priority and an explicit `open` status.
-- Custom label names.
-- Attachments: name, size and type only, never the file.
+`POST /api/crm/sync/all` performs that sequence automatically.
+
+## Required production configuration
+
+- Neon Marketplace `DATABASE_URL` (or the `CRM_DATABASE_URL` override)
+- `CRM_TOKEN_SECRET`
+- `CRON_SECRET`
+
+The CRM reuses the dashboard's existing `GMAIL_*`, `STRIPE_READONLY_KEY` and
+`SUPABASE_READONLY_DB_URL` credentials. `CRM_GOOGLE_*`,
+`CRM_STRIPE_API_KEY` and `CRM_SUPABASE_DB_URL` are optional overrides.
+
+Apply committed database migrations with `pnpm crm:db:migrate` before
+deploying code that depends on them.

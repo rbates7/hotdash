@@ -7,7 +7,7 @@ import { founderDealsState } from "../src/lib/sales-opportunities-fixture"
 import { CLEAR_CONFIRM_NAME, NOTE, clearMyEntries, countWrites, expectWritesSettled, persistenceNote, storeFounderCopy } from "./support/persistence"
 import { setTheme } from "./support/theme"
 
-const STORAGE_KEY = "hotdash.sales-opportunities.v1"
+const STORAGE_KEY = "hotdash.sales-opportunities.v2"
 
 /**
  * Today on the founder's calendar (America/Chicago), from the same helper the
@@ -69,6 +69,57 @@ async function addDeal(page: Page, who: string, org: string, what: string, value
 }
 
 test.describe("Sales Opportunities", () => {
+  test("maps football teams and zooms to city level in Texas and Delaware", async ({ page }) => {
+    await page.goto("/sales-opportunities")
+    const territory = screen(page).getByRole("region", { name: "United States territory", exact: true })
+    await expect(territory.getByRole("heading", { name: "United States territory" })).toBeVisible()
+    await expect(territory).toContainText("14,563 football teams nationwide")
+    await expect(territory.getByLabel("Interactive United States sales map")).toBeVisible()
+
+    const map = screen(page)
+    const state = map.getByRole("combobox", { name: "State" })
+    await state.selectOption("TX")
+    const texas = map.getByRole("region", { name: "Texas territory", exact: true })
+    await expect(texas).toContainText("metro areas")
+    await expect(texas).toContainText("1,243 teams")
+    await texas.getByRole("button", { name: /^Dallas area \d+$/ }).click()
+    const dallasMetro = map.getByRole("region", { name: "Dallas area, Texas territory", exact: true })
+    await expect(dallasMetro.getByRole("heading", { name: "Dallas area, Texas territory" })).toBeVisible()
+    await dallasMetro.getByRole("button", { name: /^Dallas \d+$/ }).click()
+    const dallas = map.getByRole("region", { name: "Dallas, Texas territory", exact: true })
+    await expect(dallas.getByRole("heading", { name: "Dallas, Texas territory" })).toBeVisible()
+    await expect(dallas).toContainText("teams in Dallas")
+
+    await state.selectOption("DE")
+    const delaware = map.getByRole("region", { name: "Delaware territory", exact: true })
+    await expect(delaware).toContainText("22 cities · 50 teams")
+    await delaware.getByRole("button", { name: /^Wilmington/ }).click()
+    await expect(map.getByRole("region", { name: "Wilmington, Delaware territory", exact: true })).toBeVisible()
+  })
+
+  test("links a deal to a stable institution and updates its map status", async ({ page }) => {
+    await page.goto("/sales-opportunities")
+    await deals(page).getByRole("button", { name: "Add deal", exact: true }).click()
+    const add = dialog(page, "Add deal")
+    await add.getByRole("textbox", { name: "Who" }).fill("Coach Jordan Reyes")
+    await add.getByRole("textbox", { name: "School / org" }).fill("Dallas Cowboys")
+    await add.getByRole("option", { name: /Dallas Cowboys/ }).click()
+    await add.getByRole("textbox", { name: "What they're buying" }).fill("Staff seats × 6")
+    await add.getByRole("textbox", { name: "Next step" }).fill("Send the quote")
+    await add.getByRole("button", { name: "Add deal", exact: true }).click()
+
+    const saved = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)
+    expect(saved).toContain('"institutionId":"nfl:dallas-cowboys"')
+    await screen(page).getByRole("combobox", { name: "State" }).selectOption("TX")
+    const texas = screen(page).getByRole("region", { name: "Texas territory", exact: true })
+    await expect(texas.locator("dl").getByText("engaged", { exact: true }).locator("..")).toContainText("1")
+
+    const reyes = row(page, /Jordan Reyes/)
+    await reyes.getByRole("button", { name: "Stage: Talking" }).click()
+    await page.getByRole("menu").getByRole("menuitemradio", { name: "Closed-won" }).click()
+    await expect(texas.locator("dl").getByText("customer", { exact: true }).locator("..")).toContainText("1")
+  })
+
   test("is reachable from the sidebar and shows the founder's live deals, soonest next step first", async ({ page }) => {
     await founderDeals(page)
     await page.goto("/home")

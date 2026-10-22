@@ -13,7 +13,8 @@ const KNOWN_SECRETS = [
   "STRIPE_READONLY_KEY", "STRIPE_API_BASE", "SUPABASE_READONLY_DB_URL", "POSTHOG_READONLY_KEY", "POSTHOG_HOST",
   "GITHUB_READONLY_TOKEN", "github_read_only", "SENTRY_READONLY_TOKEN", "NOTION_READONLY_TOKEN",
   "NOTION_ROADMAP_PAGE_ID", "NOTION_API_BASE", "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN",
-  "GMAIL_MAILBOX", "DASHBOARD_LOGIN_EMAIL", "DASHBOARD_GATE_SECRET",
+  "GMAIL_MAILBOX", "CRM_DATABASE_URL", "DATABASE_URL", "CRM_TOKEN_SECRET", "CRON_SECRET",
+  "DASHBOARD_LOGIN_EMAIL", "DASHBOARD_GATE_SECRET",
 ]
 const serverEnv = blankSecretLike(process.env, KNOWN_SECRETS)
 assertNoSecrets({ ...process.env, ...serverEnv }, "playwright webServer env")
@@ -63,8 +64,10 @@ export default defineConfig({
     // e2e never talks to Stripe, PostHog, Notion, Chlk's database, GitHub,
     // Sentry or Gmail: the server it starts has every secret-like variable
     // blank, KNOWN_SECRETS included (so all are "not connected"), and specs
-    // mock /api/stripe/*, /api/posthog/*, /api/notion/roadmap, /api/crm/gmail
-    // and /api/inbox in the browser for the connected and stale states. This
+    // mock /api/stripe/*, /api/posthog/*, /api/notion/roadmap and /api/inbox
+    // in the browser for connected and stale states. CRM e2e runs without a
+    // database and verifies that the copied navigation and durable-data error
+    // state remain usable; real CRM data flows are validated in Preview. This
     // holds even on a machine whose shell has any of them
     // (src/test/shot-env.test.ts).
     env: serverEnv,

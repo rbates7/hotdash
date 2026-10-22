@@ -17,6 +17,7 @@ import {
   type Owner,
   type Stage,
 } from "@/lib/sales-opportunities"
+import type { InstitutionRecord } from "@/lib/sales-map"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -69,6 +70,7 @@ const PAIR = "max-md:grid-cols-1"
 /* ----------------------------------------------------------------- form */
 
 type Draft = {
+  institutionId: string | null
   who: string
   org: string
   what: string
@@ -82,6 +84,7 @@ type Draft = {
 }
 
 const EMPTY_DRAFT: Draft = {
+  institutionId: null,
   who: "",
   org: "",
   what: "",
@@ -94,6 +97,7 @@ const EMPTY_DRAFT: Draft = {
 
 function draftFrom(deal: Deal): Draft {
   return {
+    institutionId: deal.institutionId,
     who: deal.who,
     org: deal.org,
     what: deal.what,
@@ -115,6 +119,7 @@ export function inputFrom(draft: Draft): DealInput | null {
   if (draft.value !== "" && !/^\d+$/.test(draft.value)) return null
   if (draft.nextStepDue !== "" && !isIsoDay(draft.nextStepDue)) return null
   return normalizeInput({
+    institutionId: draft.institutionId,
     who,
     org,
     what,
@@ -126,7 +131,7 @@ export function inputFrom(draft: Draft): DealInput | null {
   })
 }
 
-const INPUT_KEYS = ["who", "org", "what", "value", "stage", "nextStep", "nextStepDue", "owner"] as const
+const INPUT_KEYS = ["institutionId", "who", "org", "what", "value", "stage", "nextStep", "nextStepDue", "owner"] as const
 
 function unchanged(deal: Deal, input: DealInput) {
   return INPUT_KEYS.every((k) => deal[k] === input[k])
@@ -198,6 +203,97 @@ function OwnerSelect({ value, onChange }: { value: Owner; onChange: (o: Owner) =
   )
 }
 
+let institutionCatalog: InstitutionRecord[] | null = null
+let institutionRequest: Promise<InstitutionRecord[]> | null = null
+
+function loadInstitutions() {
+  if (institutionCatalog) return Promise.resolve(institutionCatalog)
+  institutionRequest ??= fetch("/data/sales-map/institutions.json")
+    .then((response) => {
+      if (!response.ok) throw new Error("Institution catalog could not be loaded")
+      return response.json() as Promise<{ records: InstitutionRecord[] }>
+    })
+    .then((payload) => {
+      institutionCatalog = payload.records
+      return payload.records
+    })
+  return institutionRequest
+}
+
+function InstitutionField({
+  draft,
+  onChange,
+}: {
+  draft: Draft
+  onChange: (next: Draft) => void
+}) {
+  const [catalog, setCatalog] = React.useState<InstitutionRecord[]>(institutionCatalog ?? [])
+  const [open, setOpen] = React.useState(false)
+  const query = draft.org.trim().toLocaleLowerCase()
+  const suggestions = React.useMemo(
+    () =>
+      query.length < 2
+        ? []
+        : catalog
+            .filter((item) => `${item[1]} ${item[4]} ${item[3]}`.toLocaleLowerCase().includes(query))
+            .slice(0, 8),
+    [catalog, query]
+  )
+  const linkLabel = draft.institutionId ? "linked to map" : "choose a result to map"
+
+  const ensureCatalog = () => {
+    setOpen(true)
+    void loadInstitutions().then(setCatalog).catch(() => setCatalog([]))
+  }
+
+  return (
+    <Field label="School / org" hint={linkLabel}>
+      <div className="relative">
+        <Input
+          className={FIELD}
+          value={draft.org}
+          onFocus={ensureCatalog}
+          onBlur={() => setOpen(false)}
+          onChange={(event) => {
+            onChange({ ...draft, org: event.target.value, institutionId: null })
+            setOpen(true)
+          }}
+          maxLength={CAPS.org}
+          placeholder="Search every school, college or NFL team"
+          aria-label="School / org"
+          role="textbox"
+          required
+        />
+        {open && suggestions.length > 0 && (
+          <div
+            id="institution-options"
+            role="listbox"
+            className="bg-popover border-input absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border p-1 shadow-lg"
+          >
+            {suggestions.map((item) => (
+              <button
+                key={item[0]}
+                type="button"
+                role="option"
+                aria-selected={draft.institutionId === item[0]}
+                className="hover:bg-muted focus-visible:bg-muted flex min-h-11 w-full flex-col justify-center rounded px-2 py-1.5 text-left outline-none"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange({ ...draft, institutionId: item[0], org: item[1] })
+                  setOpen(false)
+                }}
+              >
+                <span className="truncate text-sm font-medium">{item[1]}</span>
+                <span className="text-caption text-muted-foreground truncate">{item[4]}, {item[3]}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Field>
+  )
+}
+
 function DealFields({
   draft,
   onChange,
@@ -223,17 +319,7 @@ function DealFields({
             required
           />
         </Field>
-        <Field label="School / org" hint={`${draft.org.length}/${CAPS.org}`}>
-          <Input
-            className={FIELD}
-            value={draft.org}
-            onChange={(e) => set("org", e.target.value)}
-            maxLength={CAPS.org}
-            placeholder="Westlake HS"
-            aria-label="School / org"
-            required
-          />
-        </Field>
+        <InstitutionField draft={draft} onChange={onChange} />
       </div>
       <div className={`grid grid-cols-[1fr_140px] gap-3 ${PAIR}`}>
         <Field label="What they're buying" hint={`${draft.what.length}/${CAPS.what}`}>
