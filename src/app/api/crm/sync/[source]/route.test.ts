@@ -55,6 +55,18 @@ describe("CRM sync route", () => {
     expect(mocks.runSync).toHaveBeenCalledWith({}, "gmail", "interval")
   })
 
+  it("accepts the cron secret in the manual operations header", async () => {
+    process.env.CRON_SECRET = "expected"
+    const response = await GET(
+      new Request("https://dashboard.example/api/crm/sync/stripe", {
+        headers: { "x-crm-cron-secret": "expected" },
+      }),
+      context("stripe")
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.runSync).toHaveBeenCalledWith({}, "stripe", "interval")
+  })
+
   it("reports a failed cron run as an HTTP failure", async () => {
     process.env.CRON_SECRET = "expected"
     mocks.runSync.mockResolvedValueOnce({

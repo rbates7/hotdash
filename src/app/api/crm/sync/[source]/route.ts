@@ -53,7 +53,11 @@ export async function GET(
         { status: 503 }
       )
     }
-    if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+    const bearerMatches =
+      request.headers.get("authorization") === `Bearer ${secret}`
+    const manualSecretMatches =
+      request.headers.get("x-crm-cron-secret") === secret
+    if (!bearerMatches && !manualSecretMatches) {
       return Response.json({ error: "Unauthorized." }, { status: 401 })
     }
     const { source } = paramsSchema.parse(await params)
