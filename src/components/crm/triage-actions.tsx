@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useCrm } from "@/components/crm/crm-store"
+import { useTriageBulk } from "@/components/crm/triage/triage-bulk"
 import {
   CRM_44,
   CRM_DANGER_TEXT,
@@ -41,6 +42,7 @@ export function TriageActions({
 }) {
   const { contacts, organizations, promoteTriage, linkTriage, ignoreTriage, ignoreSender } =
     useCrm()
+  const bulk = useTriageBulk()
   const [isLinkOpen, setIsLinkOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
 
@@ -76,6 +78,11 @@ export function TriageActions({
           <ChevronDownIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {bulk ? (
+            <DropdownMenuItem className={CRM_ROW_44} onClick={() => bulk.selectSender(senderEmail)}>
+              Select all from {senderEmail}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem className={CRM_ROW_44} onClick={() => ignoreTriage(threadId)}>
             Ignore this thread
           </DropdownMenuItem>
