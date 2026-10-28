@@ -17,6 +17,7 @@ for (const viewport of [
     const nav = page.getByRole("navigation", { name: "CRM", exact: true })
     await expect(nav.getByRole("link")).toHaveText([
       "Dashboard",
+      "Accounts",
       "Cases",
       "Contacts",
       "Triage",
