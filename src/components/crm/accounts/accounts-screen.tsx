@@ -182,7 +182,7 @@ function SummaryTiles({ data, state }: { data: AccountsResponse | null; state: T
         state={state}
         icon={<UsersIcon aria-hidden className="size-4" />}
         value={t?.usersAttached ?? 0}
-        sub={t ? `${pct(t.usersAttached, t.usersAttached + t.usersNoOrg)} of users with an org` : null}
+        sub={t ? (t.usersAttached + t.usersNoOrg === 0 ? "no users yet" : `${pct(t.usersAttached, t.usersAttached + t.usersNoOrg)} of users with an org`) : null}
       />
       <StatTile
         testId="tile-users-no-org"
@@ -206,7 +206,7 @@ function SummaryTiles({ data, state }: { data: AccountsResponse | null; state: T
         state={state}
         icon={<UsersIcon aria-hidden className="size-4" />}
         value={t?.seatsUsed ?? 0}
-        sub={t ? `${pct(t.seatsUsed, t.totalSeats)} of total seats used` : null}
+        sub={t ? (t.totalSeats === 0 ? "no seats yet" : `${pct(t.seatsUsed, t.totalSeats)} of total seats used`) : null}
       />
       <StatTile
         testId="tile-open-seats"
@@ -262,7 +262,7 @@ function LiveAccounts({ data, nowMs, tab, setTab, sort, setSort, q, setQ, expand
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={SEARCH_PLACEHOLDER}
-            className={cn("h-9 pl-8", CRM_44)}
+            className={cn("h-9 pl-8!", CRM_44)}
           />
         </div>
         <label className="text-muted-foreground flex items-center gap-1.5 text-sm max-md:w-full">

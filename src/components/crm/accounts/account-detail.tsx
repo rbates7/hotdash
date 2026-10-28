@@ -214,7 +214,7 @@ function OrgUsers({ org }: { org: AccountOrg }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search users…"
-            className={cn("h-9 pl-8", CRM_44)}
+            className={cn("h-9 pl-8!", CRM_44)}
           />
         </div>
       </div>

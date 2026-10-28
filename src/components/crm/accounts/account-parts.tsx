@@ -25,10 +25,12 @@ import { NotConnectedBadge } from "@/components/home/not-connected"
 
 /* ------------------------------------------------------------------ chips */
 
+// Colours carry `!`: Nova's unlayered `.cn-badge-variant-*` beats a plain utility.
+
 const CHIP_CLASSES: Record<SeatChip["kind"], string> = {
-  open: "bg-success/15 text-success-text",
-  full: "bg-warning/15 text-warning-text",
-  over: "bg-destructive/15 text-danger-text",
+  open: "bg-success/15! text-success-text!",
+  full: "bg-warning/15! text-warning-text!",
+  over: "bg-destructive/15! text-danger-text!",
 }
 
 const BAR_CLASSES: Record<SeatChip["kind"], string> = {
@@ -110,7 +112,7 @@ export function RenewalTagBadge({ org, nowMs }: { org: AccountOrg; nowMs: number
       data-kind={tag.kind}
       className={cn(
         "border-transparent",
-        tag.kind === "lapsed" ? "bg-destructive/15 text-danger-text" : "bg-warning/15 text-warning-text"
+        tag.kind === "lapsed" ? "bg-destructive/15! text-danger-text!" : "bg-warning/15! text-warning-text!"
       )}
     >
       {renewalTagLabel(tag)}
