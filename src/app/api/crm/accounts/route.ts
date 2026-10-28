@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 const NO_STORE = { "Cache-Control": "no-store" }
 
 /**
- * `GET /api/crm/accounts`: organizations, seats and their users, from
+ * `GET /api/crm/accounts`: organizations and their users, from
  * Stripe and the CRM database (src/lib/server/stripe-accounts.ts, cached
  * about five minutes on the server). Behind the dashboard gate
  * (src/proxy.ts answers 401 when logged out). Never an error body: a

@@ -2,47 +2,25 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowLeftIcon, ExternalLinkIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { ArrowLeftIcon, SearchIcon } from "lucide-react"
 
-import {
-  formatDay,
-  formatMonthYear,
-  formatMrr,
-  searchUsers,
-  seatChip,
-  stripeSubscriptionUrl,
-  termLabel,
-  type AccountOrg,
-} from "@/lib/crm/accounts/model"
+import { formatMrr, searchUsers, type AccountOrg } from "@/lib/crm/accounts/model"
 import { now } from "@/lib/clock"
 import { cn } from "@/lib/utils"
 import { useCrmAccount } from "@/hooks/use-crm-accounts"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NotConnectedPanel } from "@/components/not-connected-panel"
 import { NotConnectedBadge } from "@/components/home/not-connected"
 import { CrmSessionExpired } from "@/components/crm/crm-data"
 import { CRM_44, CRM_LINK_44 } from "@/components/crm/crm-touch"
-import {
-  FreshnessNote,
-  OrgAvatar,
-  OrgPlanChip,
-  RenewalTagBadge,
-  SeatBar,
-  SeatChipBadge,
-  UserCards,
-  UsersTable,
-} from "@/components/crm/accounts/account-parts"
+import { FreshnessNote, OrgAvatar, OrgPlanChip, QuietTag, UserCards, UsersTable } from "@/components/crm/accounts/account-parts"
 import { ACCOUNTS_HINT } from "@/components/crm/accounts/accounts-screen"
 
-export const ADD_SEATS = "Add seats"
-
 /**
- * One organization (`/crm/accounts/<id>`): breadcrumb, header, the seats
- * hero, six tiles and its users with a search. "Add seats" never writes:
- * it opens the subscription in Stripe's dashboard (a new tab), and is
- * disabled when there is no subscription.
+ * One organization (`/crm/accounts/<id>`): breadcrumb, header, three tiles
+ * and its users with a search. Read-only.
  */
 export function AccountDetail({ orgId }: { orgId: string }) {
   const view = useCrmAccount(orgId)
@@ -89,7 +67,7 @@ export function AccountDetail({ orgId }: { orgId: string }) {
       ) : (
         <>
           <FreshnessNote {...view.data} nowMs={nowMs} />
-          <OrgHeader org={view.data.org} nowMs={nowMs} />
+          <OrgHeader org={view.data.org} />
           <OrgUsers org={view.data.org} />
         </>
       )}
@@ -97,11 +75,7 @@ export function AccountDetail({ orgId }: { orgId: string }) {
   )
 }
 
-function OrgHeader({ org, nowMs }: { org: AccountOrg; nowMs: number }) {
-  const total = org.seatsTotal
-  const open = total === null ? null : Math.max(0, total - org.seatsUsed)
-  const chip = seatChip(org.seatsUsed, total)
-  const stripeUrl = stripeSubscriptionUrl(org.subscriptionId)
+function OrgHeader({ org }: { org: AccountOrg }) {
   return (
     <section aria-label={org.name} className="bg-surface border-surface-border flex flex-col gap-4 rounded-xl border p-4">
       <div className="flex min-w-0 items-start gap-3">
@@ -111,58 +85,14 @@ function OrgHeader({ org, nowMs }: { org: AccountOrg; nowMs: number }) {
           <p className="text-muted-foreground truncate font-mono text-[0.8rem]">
             {[org.domain, org.stripeCustomerId ? `Stripe customer ${org.stripeCustomerId}` : null].filter(Boolean).join(" · ") || "No Stripe customer"}
           </p>
-          <div>
+          <div className="flex flex-wrap items-center gap-1.5">
             <OrgPlanChip org={org} />
+            {org.canceled ? <QuietTag>Canceled</QuietTag> : null}
           </div>
         </div>
       </div>
 
-      <div data-testid="seats-hero" className="bg-muted/40 flex flex-col gap-3 rounded-lg border p-4">
-        <div className="flex flex-wrap items-end gap-x-10 gap-y-3">
-          <HeroFigure label="Seats used" value={org.seatsUsed} />
-          <HeroFigure label="Open seats" value={open ?? "—"} tone={chip?.kind === "open" ? "text-success-text" : undefined} />
-          <HeroFigure label="Total seats" value={total ?? "—"} />
-          <div className="ml-auto flex items-center gap-2">
-            {org.canceled ? null : <SeatChipBadge used={org.seatsUsed} total={total} />}
-            {stripeUrl ? (
-              <a
-                href={stripeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="add-seats"
-                className={cn(buttonVariants({ variant: "outline" }), CRM_44, "gap-1.5")}
-              >
-                <PlusIcon aria-hidden />
-                {ADD_SEATS}
-                <ExternalLinkIcon aria-hidden className="size-3.5 opacity-70" />
-                <span className="sr-only">(opens the subscription in Stripe)</span>
-              </a>
-            ) : (
-              <Button variant="outline" disabled data-testid="add-seats" className={cn(CRM_44, "gap-1.5")} title="No Stripe subscription to add seats to">
-                <PlusIcon aria-hidden />
-                {ADD_SEATS}
-              </Button>
-            )}
-          </div>
-        </div>
-        <SeatBar used={org.seatsUsed} total={total} kind={org.canceled ? null : (chip?.kind ?? null)} className="h-1.5 w-full" />
-        <p className="text-caption text-muted-foreground">
-          {total === null
-            ? "No Stripe subscription: seats are counted once the organization subscribes."
-            : `${org.seatsUsed} of ${total} seats used · each attached user takes one seat${
-                org.seatMonthlyCents ? ` · $${(org.seatMonthlyCents / 100).toFixed(org.seatMonthlyCents % 100 ? 2 : 0)} per seat / month` : ""
-              }`}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <DetailTile label="Customer since" value={formatMonthYear(org.customerSince)} />
-        <DetailTile
-          label={org.canceled ? "Ended" : org.renewalKind === "trial_ends" ? "Trial ends" : org.renewalKind === "cancels" ? "Cancels" : "Renews"}
-          value={formatDay(org.renewsAt)}
-          extra={<RenewalTagBadge org={org} nowMs={nowMs} />}
-        />
-        <DetailTile label="Term" value={termLabel(org.termMonths)} />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <DetailTile label="Users" value={org.users.length} />
         <DetailTile label="MRR" value={org.canceled ? "—" : formatMrr(org.mrrCents)} />
         <DetailTile label="Open cases" value={org.openCases === null ? null : org.openCases} />
@@ -171,27 +101,15 @@ function OrgHeader({ org, nowMs }: { org: AccountOrg; nowMs: number }) {
   )
 }
 
-function HeroFigure({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-caption text-muted-foreground">{label}</span>
-      <span className={cn("font-mono text-2xl font-semibold tabular-nums", tone)}>{value}</span>
-    </div>
-  )
-}
-
 /** A detail tile; `null` is a source that could not be read: Not connected, never 0. */
-function DetailTile({ label, value, extra }: { label: string; value: React.ReactNode | null; extra?: React.ReactNode }) {
+function DetailTile({ label, value }: { label: string; value: React.ReactNode | null }) {
   return (
     <div className="bg-background flex min-w-0 flex-col gap-1 rounded-lg border px-3 py-2.5">
       <span className="text-caption text-muted-foreground truncate">{label}</span>
       {value === null ? (
         <NotConnectedBadge className="self-start" />
       ) : (
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-base font-semibold tabular-nums">{value}</span>
-          {extra}
-        </span>
+        <span className="font-mono text-base font-semibold tabular-nums">{value}</span>
       )}
     </div>
   )

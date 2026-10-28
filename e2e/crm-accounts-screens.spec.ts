@@ -12,13 +12,22 @@ import { setTheme } from "./support/theme"
  * the real server's Not connected state at 1440 and 390, in light and
  * dark, and the search empty state. That one needs the screen live, so
  * `/api/crm/accounts` answers connected with no rows at all (no sample
- * data); every other /api call is vetted for live data.
+ * data); every other /api call is vetted for live data. Organizations and
+ * users only: three tiles, no seats or dates.
  *
- *   pnpm build && CI=true SCREENSHOTS=1 SCREENSHOT_DIR=… playwright test e2e/crm-accounts-screens.spec.ts
+ *   pnpm build && CI=true SCREENSHOTS=1 playwright test e2e/crm-accounts-screens.spec.ts
+ *
+ * Stills go to /workspace/screenshots/accounts-tab-v2/ (SCREENSHOT_DIR overrides).
  */
 test.skip(!process.env.SCREENSHOTS, "set SCREENSHOTS=1 to capture")
 
-const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "test-results/crm-accounts-shots")
+const OUT = path.resolve(process.env.SCREENSHOT_DIR ?? "/workspace/screenshots/accounts-tab-v2")
+const TILES = ["tile-organizations", "tile-users-attached", "tile-users-no-org"]
+
+async function expectThreeTiles(page: Page) {
+  await expect(page.getByRole("region", { name: "Accounts summary" }).getByTestId(/^tile-/)).toHaveCount(3)
+  for (const id of TILES) await expect(page.getByTestId(id)).toBeVisible()
+}
 
 async function shoot(page: Page, name: string) {
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" }).catch(() => undefined)
@@ -38,6 +47,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/crm/accounts")
     await setTheme(page, theme)
     await expect(page.getByTestId("accounts-not-connected")).toBeVisible()
+    await expectThreeTiles(page)
     await shoot(page, `accounts-desktop-1440${suffix}.png`)
     check()
   })
@@ -48,6 +58,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/crm/accounts")
     await setTheme(page, theme)
     await expect(page.getByTestId("accounts-not-connected")).toBeVisible()
+    await expectThreeTiles(page)
     await shoot(page, `accounts-phone-390${suffix}.png`)
     check()
   })
@@ -64,6 +75,8 @@ for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme)
     await page.getByRole("searchbox", { name: "Search organizations or users" }).fill("zephyr academy")
     await expect(page.getByTestId("accounts-no-results")).toBeVisible()
+    await expectThreeTiles(page)
+    await expect(page.getByTestId("tile-organizations")).toContainText("0")
     await shoot(page, `accounts-search-empty-1440${suffix}.png`)
     check()
   })

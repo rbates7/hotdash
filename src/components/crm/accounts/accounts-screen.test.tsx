@@ -18,7 +18,6 @@ const user = (id: string, name: string, org: string | null): AccountUser => ({
   name,
   email: `${id}@test.invalid`,
   organization: org,
-  startedAt: "2025-03-10T00:00:00.000Z",
   plan: "Monthly",
   planStatus: "active",
 })
@@ -26,18 +25,9 @@ function org(o: Partial<AccountOrg> & { id: string; name: string }): AccountOrg 
   return {
     domain: null,
     stripeCustomerId: "cus_T1",
-    subscriptionId: "sub_T1",
     status: "active",
     canceled: false,
     plan: "Monthly",
-    interval: "month",
-    seatsUsed: 0,
-    seatsTotal: 5,
-    seatMonthlyCents: 1_500,
-    customerSince: "2025-03-01T00:00:00.000Z",
-    renewsAt: at(200),
-    renewalKind: "renews",
-    termMonths: 12,
     mrrCents: 7_500,
     openCases: 1,
     users: [],
@@ -45,10 +35,10 @@ function org(o: Partial<AccountOrg> & { id: string; name: string }): AccountOrg 
   }
 }
 
-const westside = org({ id: "o-west", name: "Westside High", seatsUsed: 2, seatsTotal: 2, users: [user("u1", "Marcus Hill", "Westside High"), user("u2", "Dana Ortiz", "Westside High")] })
-const lakeview = org({ id: "o-lake", name: "Lakeview Middle", seatsUsed: 1, seatsTotal: 5, renewsAt: at(13), users: [user("u3", "Kim Nguyen", "Lakeview Middle")] })
-const oak = org({ id: "o-oak", name: "Oak Hollow", seatsUsed: 4, seatsTotal: 3, renewsAt: at(90) })
-const birch = org({ id: "o-birch", name: "Birchwood Labs", seatsUsed: 3, seatsTotal: 3, canceled: true, status: "canceled", renewsAt: at(-27), renewalKind: "ended" })
+const westside = org({ id: "o-west", name: "Westside High", users: [user("u1", "Marcus Hill", "Westside High"), user("u2", "Dana Ortiz", "Westside High")] })
+const lakeview = org({ id: "o-lake", name: "lakeview Middle", users: [user("u3", "Kim Nguyen", "lakeview Middle")] })
+const oak = org({ id: "o-oak", name: "Oak Hollow" })
+const birch = org({ id: "o-birch", name: "Birchwood Labs", canceled: true, status: "canceled", mrrCents: 0, users: [user("u4", "Ana Ruiz", "Birchwood Labs")] })
 
 const LIVE: AccountsResponse = {
   status: "connected",
@@ -80,28 +70,30 @@ async function renderScreen() {
 const orgNames = () => screen.getAllByTestId("org-row").map((r) => within(r).getByRole("link").textContent)
 
 describe("Accounts screen", () => {
-  it("lists orgs sorted by soonest renewal, canceled last, with the right chips and tags", async () => {
+  it("lists orgs A to Z by name, case-insensitively, with users, plan and MRR; no seats or dates", async () => {
     await renderScreen()
-    expect(orgNames()).toEqual(["Lakeview Middle", "Oak Hollow", "Westside High", "Birchwood Labs"])
-    const lake = screen.getAllByTestId("org-row")[0]!
-    expect(within(lake).getByTestId("seat-chip")).toHaveTextContent("4 open")
-    expect(within(lake).getByTestId("renewal-tag")).toHaveTextContent("in 13 days")
-    const oakRow = screen.getAllByTestId("org-row")[1]!
-    expect(within(oakRow).getByTestId("seat-chip")).toHaveTextContent("+1 over")
-    expect(within(screen.getAllByTestId("org-row")[2]!).getByTestId("seat-chip")).toHaveTextContent("Full")
-    const birchRow = screen.getAllByTestId("org-row")[3]!
-    expect(within(birchRow).queryByTestId("seat-chip")).toBeNull()
+    expect(orgNames()).toEqual(["Birchwood Labs", "lakeview Middle", "Oak Hollow", "Westside High"])
+    const headers = within(screen.getByRole("table", { name: "Organizations" }))
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent)
+    expect(headers).toEqual(["", "Organization", "Users", "Plan", "MRR"])
+    const birchRow = screen.getAllByTestId("org-row")[0]!
     expect(within(birchRow).getByText("Canceled")).toBeInTheDocument()
-    expect(within(birchRow).getByTestId("renewal-tag")).toHaveTextContent("Lapsed")
+    const westRow = screen.getAllByTestId("org-row")[3]!
+    expect(westRow).toHaveTextContent("2")
+    expect(westRow).toHaveTextContent("$75")
+    expect(screen.queryByTestId("seat-chip")).toBeNull()
+    expect(screen.queryByTestId("renewal-tag")).toBeNull()
+    expect(screen.queryByText(/seat/i)).toBeNull()
+    expect(screen.queryByRole("combobox", { name: "Sort organizations" })).toBeNull()
   })
 
-  it("summary tiles add up the live seats", async () => {
+  it("summary tiles: organizations, users attached, users with no org", async () => {
     await renderScreen()
     expect(screen.getByTestId("tile-organizations")).toHaveTextContent("4")
-    expect(screen.getByTestId("tile-total-seats")).toHaveTextContent("10")
-    expect(screen.getByTestId("tile-seats-used")).toHaveTextContent("7")
-    expect(screen.getByTestId("tile-open-seats")).toHaveTextContent("4")
+    expect(screen.getByTestId("tile-users-attached")).toHaveTextContent("4")
     expect(screen.getByTestId("tile-users-no-org")).toHaveTextContent("1")
+    expect(within(screen.getByRole("region", { name: "Accounts summary" })).getAllByTestId(/^tile-/)).toHaveLength(3)
   })
 
   it("expands a row to its users and an Open organization link", async () => {
@@ -115,10 +107,10 @@ describe("Accounts screen", () => {
     expect(screen.getAllByRole("link", { name: /Open organization/ })[0]).toHaveAttribute("href", "/crm/accounts/o-west")
   })
 
-  it("tabs filter by seat state, and No organization lists those users", async () => {
+  it("tabs: Canceled and No organization; no seat tabs", async () => {
     await renderScreen()
-    fireEvent.click(screen.getByRole("tab", { name: /Over limit/ }))
-    expect(orgNames()).toEqual(["Oak Hollow"])
+    expect(screen.getAllByRole("tab")).toHaveLength(3)
+    expect(screen.queryByRole("tab", { name: /Open seats|Full|Over/ })).toBeNull()
     fireEvent.click(screen.getByRole("tab", { name: /Canceled/ }))
     expect(orgNames()).toEqual(["Birchwood Labs"])
     fireEvent.click(screen.getByRole("tab", { name: /No organization/ }))
@@ -126,12 +118,10 @@ describe("Accounts screen", () => {
     expect(within(screen.getByRole("table", { name: "Users with no organization" })).getByText("Greg Tan")).toBeInTheDocument()
   })
 
-  it("the Renews header toggles the sort; the sort control picks others", async () => {
+  it("the No organization row sits under the orgs on All", async () => {
     await renderScreen()
-    fireEvent.click(screen.getByRole("button", { name: "Renews" }))
-    expect(orgNames()).toEqual(["Westside High", "Oak Hollow", "Lakeview Middle", "Birchwood Labs"])
-    fireEvent.change(screen.getByRole("combobox", { name: "Sort organizations" }), { target: { value: "name" } })
-    expect(orgNames()).toEqual(["Birchwood Labs", "Lakeview Middle", "Oak Hollow", "Westside High"])
+    expect(screen.getByTestId("no-org-row")).toHaveTextContent("No organization")
+    expect(screen.getByTestId("no-org-row")).toHaveTextContent("1")
   })
 
   it("search matches orgs and users; no match shows the empty state with Clear search", async () => {
@@ -157,7 +147,9 @@ describe("Accounts screen", () => {
     body = { status: "not_connected", missing: ["stripe"], lastSyncedAt: null, lastTriedAt: null, stripeContacts: 0, orgs: [], noOrgUsers: [] }
     await renderScreen()
     expect(screen.getByTestId("accounts-not-connected")).toBeInTheDocument()
-    expect(within(screen.getByTestId("tile-total-seats")).getByTestId("not-connected")).toBeInTheDocument()
+    for (const id of ["tile-organizations", "tile-users-attached", "tile-users-no-org"]) {
+      expect(within(screen.getByTestId(id)).getByTestId("not-connected")).toBeInTheDocument()
+    }
     expect(screen.queryByTestId("org-row")).toBeNull()
   })
 
@@ -190,20 +182,15 @@ describe("Organization detail", () => {
     await act(async () => {})
   }
 
-  it("Add seats links to the subscription in Stripe's dashboard, in a new tab; it never writes", async () => {
+  it("shows the org, its users, MRR and open cases; read-only, no seats or dates", async () => {
     await renderDetail(westside)
-    const add = screen.getByTestId("add-seats")
-    expect(add.tagName).toBe("A")
-    expect(add).toHaveAttribute("href", "https://dashboard.stripe.com/subscriptions/sub_T1")
-    expect(add).toHaveAttribute("target", "_blank")
-    expect(add).toHaveAttribute("rel", expect.stringContaining("noopener"))
-    expect(screen.getByTestId("seats-hero")).toHaveTextContent("Full")
+    expect(screen.getByRole("heading", { level: 1, name: "Westside High" })).toBeInTheDocument()
+    expect(screen.getByText("Users", { selector: "span" }).parentElement).toHaveTextContent("2")
+    expect(screen.getByText("MRR").parentElement).toHaveTextContent("$75")
+    expect(screen.queryByTestId("add-seats")).toBeNull()
+    expect(screen.queryByTestId("seats-hero")).toBeNull()
+    expect(screen.queryByText(/seat|renews|customer since|started/i)).toBeNull()
     expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("href", "/crm/accounts")
-  })
-
-  it("Add seats is disabled without a subscription", async () => {
-    await renderDetail(org({ id: "o-none", name: "None", subscriptionId: null, seatsTotal: null }))
-    expect(screen.getByTestId("add-seats")).toBeDisabled()
   })
 
   it("Open cases says Not connected when cases could not be read", async () => {

@@ -9,18 +9,17 @@ import type {
   AccountUser,
   AccountsResponse,
   AccountsSource,
-  RenewalKind,
 } from "@/lib/crm/accounts/model"
-import { emptyAccounts } from "@/lib/crm/accounts/model"
+import { emptyAccounts, sortOrgs } from "@/lib/crm/accounts/model"
 import { getDb } from "@/lib/crm/db/client"
 import { cases, contacts, organizations } from "@/lib/crm/db/schema"
 import { planLabelFor } from "@/lib/crm/stripe/plan-map"
-import { itemMonthlyCents, subscriptionMrrCents, type StripeSubscription } from "@/lib/stripe-metrics"
+import { subscriptionMrrCents, type StripeSubscription } from "@/lib/stripe-metrics"
 import { failureKind, readStripeConfig, type StripeConfig } from "@/lib/server/stripe"
 import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 /**
- * Accounts (organizations and seats), server only. Two read-only sources:
+ * Accounts (organizations and their users), server only. Two read-only sources:
  *
  * - **Stripe** (the dashboard's `STRIPE_READONLY_KEY`, through
  *   `readStripeConfig`): `customers.list` and `subscriptions.list`. Only
@@ -31,8 +30,8 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
  * Organization identity: a contact's CRM organization (synced from Chlk's
  * `organization_id`) wins; a Stripe customer whose contact has none can
  * name one in its metadata (`organization`, `org`, `school`, …), matched to
- * a CRM organization by name or shown on its own. Seats total is the
- * subscription items' quantity; seats used is the contacts attached.
+ * a CRM organization by name or shown on its own. Its users are the
+ * contacts attached; its plan, status and MRR come from its subscriptions.
  *
  * Cached like the other Stripe reads: a copy is served for `CACHE_TTL_MS`
  * and the last good one is kept through an outage (stale). A request never
@@ -42,7 +41,7 @@ import { SYNC_TIMEOUT_MS, withTimeout } from "@/lib/server/time-limit"
 
 export const CACHE_TTL_MS = 5 * 60_000
 export const RETRY_AFTER_MS = 60_000
-/** Above this, the lists are not complete enough to count seats from. */
+/** Above this, the lists are not complete enough to group from. */
 const MAX_ROWS = 10_000
 
 /* ------------------------------------------------------------------ input */
@@ -51,17 +50,11 @@ export type AccountsCustomer = {
   id: string
   name: string | null
   email: string | null
-  created: number
   metadata: Record<string, string>
 }
 
 export type AccountsSubscription = StripeSubscription & {
   customer: string | null
-  metadata: Record<string, string>
-  cancel_at_period_end: boolean
-  cancel_at: number | null
-  /** Unix seconds; on the items since API 2025-03, on the subscription before. */
-  current_period_end: number | null
   price_id: string | null
   product_id: string | null
 }
@@ -78,7 +71,6 @@ export type AppContact = {
   stripeCustomerId: string | null
   plan: string | null
   planStatus: string | null
-  createdAt: number
 }
 export type AppAccountsData = {
   orgs: AppOrg[]
@@ -107,9 +99,7 @@ function stringMetadata(m: Stripe.Metadata | null | undefined): Record<string, s
 
 /** One subscription, slimmed to what Accounts reads (no payment details). */
 export function slimSubscription(s: Stripe.Subscription): AccountsSubscription {
-  const first = s.items.data[0]
-  const legacyEnd = (s as unknown as { current_period_end?: number | null }).current_period_end ?? null
-  const price = first?.price
+  const price = s.items.data[0]?.price
   return {
     id: s.id,
     customer: typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null),
@@ -121,10 +111,6 @@ export function slimSubscription(s: Stripe.Subscription): AccountsSubscription {
     trial_end: s.trial_end,
     ended_at: s.ended_at,
     canceled_at: s.canceled_at,
-    cancel_at: s.cancel_at ?? null,
-    cancel_at_period_end: Boolean(s.cancel_at_period_end),
-    current_period_end: first?.current_period_end ?? legacyEnd,
-    metadata: stringMetadata(s.metadata),
     price_id: price?.id ?? null,
     product_id: typeof price?.product === "string" ? price.product : (price?.product?.id ?? null),
     discounts: (s.discounts ?? []).map((d) => (typeof d === "string" ? d : { start: d.start, end: d.end, source: { coupon: typeof d.source?.coupon === "object" ? d.source.coupon : null } })),
@@ -150,7 +136,7 @@ export function slimSubscription(s: Stripe.Subscription): AccountsSubscription {
 export function slimCustomer(c: Stripe.Customer | Stripe.DeletedCustomer): AccountsCustomer | null {
   if ("deleted" in c && c.deleted) return null
   const cu = c as Stripe.Customer
-  return { id: cu.id, name: cu.name ?? null, email: cu.email ?? null, created: cu.created, metadata: stringMetadata(cu.metadata) }
+  return { id: cu.id, name: cu.name ?? null, email: cu.email ?? null, metadata: stringMetadata(cu.metadata) }
 }
 
 export type StripeAccountsLoader = (config: Extract<StripeConfig, { kind: "ok" }>) => Promise<StripeAccountsData>
@@ -188,7 +174,6 @@ export const loadAppAccounts: AppAccountsLoader = async () => {
         stripeCustomerId: contacts.stripeCustomerId,
         plan: contacts.plan,
         planStatus: contacts.planStatus,
-        createdAt: contacts.createdAt,
       })
       .from(contacts),
   ])
@@ -206,17 +191,15 @@ export const loadAppAccounts: AppAccountsLoader = async () => {
   }
   return {
     orgs: orgRows,
-    contacts: contactRows.map((c) => ({ ...c, createdAt: c.createdAt.getTime() })),
+    contacts: contactRows,
     openCasesByOrg,
   }
 }
 
-/* ---------------------------------------------------------------- renewal */
+/* --------------------------------------------------------------- metadata */
 
 /** Metadata keys (any case) that name a customer's organization, in order. */
 export const ORG_METADATA_KEYS = ["organization", "organization_name", "org", "org_name", "school", "school_name", "company"]
-const CONTRACT_END_KEYS = ["contract_end", "contract_end_date", "contract_ends_at", "renewal_date", "renews_at"]
-const TERM_KEYS = ["contract_term_months", "term_months", "contract_months", "term"]
 
 function metaValue(meta: Record<string, string>, keys: readonly string[]) {
   const lower = new Map(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v.trim()]))
@@ -227,73 +210,10 @@ function metaValue(meta: Record<string, string>, keys: readonly string[]) {
   return null
 }
 
-/** A metadata date: unix seconds, unix ms, or an ISO date; seconds out, or null. */
-export function parseMetaDate(raw: string | null): number | null {
-  if (!raw) return null
-  if (/^\d{9,10}$/.test(raw)) return Number(raw)
-  if (/^\d{12,13}$/.test(raw)) return Math.floor(Number(raw) / 1000)
-  if (!/^\d{4}-\d{2}-\d{2}/.test(raw)) return null
-  const ms = Date.parse(raw)
-  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null
-}
-
-function parseTerm(raw: string | null): number | null {
-  if (!raw) return null
-  const m = /^(\d{1,3})\s*(?:m|mo|months?)?$/i.exec(raw)
-  const n = m ? Number(m[1]) : NaN
-  return n >= 1 && n <= 120 ? n : null
-}
-
-/** `sec` plus whole calendar months in UTC, clamped to the month's last day (Jan 31 + 1 → Feb 28). */
-export function addMonthsUtc(sec: number, months: number) {
-  const d = new Date(sec * 1000)
-  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()))
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
-  target.setUTCDate(Math.min(d.getUTCDate(), lastDay))
-  return Math.floor(target.getTime() / 1000)
-}
-
-export type Renewal = { at: number | null; kind: RenewalKind | null; termMonths: number | null }
-
 const LIVE = new Set(["active", "trialing", "past_due", "unpaid", "paused", "incomplete"])
 
 export function isLive(sub: Pick<AccountsSubscription, "status">) {
   return LIVE.has(sub.status)
-}
-
-/**
- * The seat contract's renewal — never the monthly billing date:
- *
- * - canceled: when it ended (Lapsed);
- * - a contract end in metadata wins;
- * - trialing: when the trial ends;
- * - set to cancel: when it will;
- * - yearly (any interval in years): the current period's end;
- * - otherwise (monthly): the next contract anniversary after now, counted
- *   from `start_date` in steps of the term (12 months unless metadata
- *   says), rolled forward past every anniversary already gone.
- */
-export function deriveRenewal(sub: AccountsSubscription, nowSec: number): Renewal {
-  const item = sub.items.data[0]
-  const recurring = item?.price.recurring
-  const yearly = recurring?.interval === "year"
-  const term = parseTerm(metaValue(sub.metadata, TERM_KEYS)) ?? (yearly ? 12 * Math.max(1, recurring?.interval_count || 1) : 12)
-  if (!isLive(sub)) return { at: sub.ended_at ?? sub.canceled_at ?? sub.cancel_at ?? null, kind: "ended", termMonths: term }
-  const contractEnd = parseMetaDate(metaValue(sub.metadata, CONTRACT_END_KEYS))
-  if (contractEnd) return { at: contractEnd, kind: "renews", termMonths: term }
-  if (sub.status === "trialing" && sub.trial_end) return { at: sub.trial_end, kind: "trial_ends", termMonths: term }
-  if (sub.cancel_at) return { at: sub.cancel_at, kind: "cancels", termMonths: term }
-  if (sub.cancel_at_period_end && sub.current_period_end) return { at: sub.current_period_end, kind: "cancels", termMonths: term }
-  if (yearly && sub.current_period_end) return { at: sub.current_period_end, kind: "renews", termMonths: term }
-  const anchor = sub.start_date || sub.created
-  if (!anchor) return { at: null, kind: null, termMonths: term }
-  let k = 1
-  let at = addMonthsUtc(anchor, term)
-  while (at <= nowSec && k < 1200) {
-    k += 1
-    at = addMonthsUtc(anchor, term * k)
-  }
-  return { at, kind: "renews", termMonths: term }
 }
 
 /* ---------------------------------------------------------------- mapping */
@@ -309,33 +229,18 @@ const STATUS_RANK: Record<string, number> = {
   incomplete_expired: 0,
 }
 
-/** Licensed seats on a subscription: its items' quantities (metered items carry none). */
-export function seatQuantity(sub: AccountsSubscription) {
-  return sub.items.data.reduce(
-    (sum, item) => (item.price.recurring?.usage_type === "metered" ? sum : sum + (item.quantity ?? 1)),
-    0
-  )
-}
-
 /**
- * The organization's seat subscription: the live one with the most seats
- * (then the better status, then the oldest); with none live, the one that
+ * The organization's main subscription (its plan and status): the live one
+ * with the best status, then the oldest; with none live, the one that
  * ended last.
  */
 export function primarySubscription(subs: readonly AccountsSubscription[]) {
   const live = subs.filter(isLive)
   if (live.length > 0) {
-    return [...live].sort(
-      (a, b) =>
-        seatQuantity(b) - seatQuantity(a) ||
-        (STATUS_RANK[b.status] ?? 0) - (STATUS_RANK[a.status] ?? 0) ||
-        a.created - b.created
-    )[0]!
+    return [...live].sort((a, b) => (STATUS_RANK[b.status] ?? 0) - (STATUS_RANK[a.status] ?? 0) || a.created - b.created)[0]!
   }
   return [...subs].sort((a, b) => (b.ended_at ?? b.canceled_at ?? b.created) - (a.ended_at ?? a.canceled_at ?? a.created))[0] ?? null
 }
-
-const iso = (sec: number | null | undefined) => (sec ? new Date(sec * 1000).toISOString() : null)
 
 function displayName(c: Pick<AppContact, "firstName" | "lastName" | "email">) {
   return [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email
@@ -366,8 +271,8 @@ function metaOrgId(name: string) {
 }
 
 /**
- * Stripe + CRM rows → the Accounts body. Pure: `nowSec` decides only the
- * rolled-forward anniversaries.
+ * Stripe + CRM rows → the Accounts body. Pure: `nowSec` only dates the
+ * MRR's discounts.
  */
 export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, nowSec: number) {
   const customers = new Map(stripe.customers.map((c) => [c.id, c]))
@@ -407,7 +312,7 @@ export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, 
       (contact.organizationId && groups.has(contact.organizationId) ? contact.organizationId : null) ??
       orgFromMetadata(contact.stripeCustomerId)
     if (!orgId) {
-      // Users are Stripe customers: a Gmail-only sender is not a seat anywhere.
+      // Users are Stripe customers: a Gmail-only sender is not a user anywhere.
       if (contact.stripeCustomerId) noOrg.push(contact)
       continue
     }
@@ -416,25 +321,18 @@ export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, 
     if (contact.stripeCustomerId) g.customerIds.add(contact.stripeCustomerId)
   }
   // A paying Stripe customer with no CRM contact still brings its
-  // subscription to the org its metadata names (not a user, not a seat used).
+  // subscription to the org its metadata names (not a user).
   for (const c of stripe.customers) {
     if (linked.has(c.id)) continue
     const orgId = orgFromMetadata(c.id)
     if (orgId) groups.get(orgId)!.customerIds.add(c.id)
   }
 
-  const startedAt = (contact: AppContact) => {
-    const subs = contact.stripeCustomerId ? (subsByCustomer.get(contact.stripeCustomerId) ?? []) : []
-    const start = subs.reduce<number | null>((m, s) => (m === null || s.start_date < m ? s.start_date : m), null)
-    const cust = contact.stripeCustomerId ? customers.get(contact.stripeCustomerId) : undefined
-    return iso(start ?? cust?.created ?? null) ?? new Date(contact.createdAt).toISOString()
-  }
   const toUser = (contact: AppContact, organization: string | null): AccountUser => ({
     id: contact.id,
     name: displayName(contact),
     email: contact.email,
     organization,
-    startedAt: startedAt(contact),
     plan: contact.plan,
     planStatus: contact.planStatus,
   })
@@ -448,13 +346,9 @@ export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, 
     const live = subs.filter(isLive)
     const primary = primarySubscription(subs)
     const canceled = Boolean(primary && !isLive(primary))
-    const renewal = primary ? deriveRenewal(primary, nowSec) : null
-    const seatsTotal = live.length > 0 ? live.reduce((n, s) => n + seatQuantity(s), 0) : primary ? seatQuantity(primary) : null
     const paying = live.filter((s) => s.status === "active" || s.status === "past_due")
     const mrrCents = Math.round(paying.reduce((n, s) => n + subscriptionMrrCents(s, nowSec), 0))
     const item = primary?.items.data[0]
-    const seatMonthlyCents = item ? Math.round(itemMonthlyCents({ ...item, quantity: 1 })) || null : null
-    const since = [...custs.map((c) => c.created), ...subs.map((s) => s.start_date)].filter(Boolean)
     const plan = primary
       ? primary.status === "trialing"
         ? "Trial"
@@ -465,18 +359,9 @@ export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, 
       name: g.org.name,
       domain: g.org.domain ?? commonDomain(users),
       stripeCustomerId: primary?.customer ?? custs[0]?.id ?? null,
-      subscriptionId: primary?.id ?? null,
       status: primary?.status ?? "none",
       canceled,
       plan,
-      interval: item?.price.recurring?.interval ?? null,
-      seatsUsed: users.length,
-      seatsTotal,
-      seatMonthlyCents,
-      customerSince: iso(since.length ? Math.min(...since) : null),
-      renewsAt: iso(renewal?.at ?? null),
-      renewalKind: renewal?.kind ?? null,
-      termMonths: renewal?.termMonths ?? null,
       mrrCents,
       openCases: app.openCasesByOrg ? (app.openCasesByOrg.get(g.org.id) ?? 0) : null,
       users,
@@ -485,7 +370,7 @@ export function buildAccounts(stripe: StripeAccountsData, app: AppAccountsData, 
 
   return {
     stripeContacts: app.contacts.filter((c) => c.stripeCustomerId).length,
-    orgs,
+    orgs: sortOrgs(orgs),
     noOrgUsers: noOrg.map((c) => toUser(c, null)).sort(byUserName),
   }
 }

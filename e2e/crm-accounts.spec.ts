@@ -11,11 +11,10 @@ import { expectTapTarget } from "./support/tap-target"
  */
 
 const crmNav = (page: Page) => page.getByRole("navigation", { name: "CRM", exact: true })
-const DAY = 86_400_000
-const at = (days: number) => new Date(Date.now() + days * DAY).toISOString()
+const at = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
 
 function user(id: string, name: string, org: string | null) {
-  return { id, name, email: `${id}@test.invalid`, organization: org, startedAt: at(-300), plan: "Monthly", planStatus: "active" }
+  return { id, name, email: `${id}@test.invalid`, organization: org, plan: "Monthly", planStatus: "active" }
 }
 
 function org(id: string, name: string, o: Record<string, unknown> = {}) {
@@ -24,18 +23,9 @@ function org(id: string, name: string, o: Record<string, unknown> = {}) {
     name,
     domain: `${id}.invalid`,
     stripeCustomerId: "cus_TEST",
-    subscriptionId: "sub_TEST",
     status: "active",
     canceled: false,
     plan: "Monthly",
-    interval: "month",
-    seatsUsed: 1,
-    seatsTotal: 3,
-    seatMonthlyCents: 1500,
-    customerSince: at(-400),
-    renewsAt: at(120),
-    renewalKind: "renews",
-    termMonths: 12,
     mrrCents: 4500,
     openCases: 0,
     users: [user(`${id}-u1`, `Test Person ${id}`, name)],
@@ -49,11 +39,14 @@ const LIVE = {
   lastSyncedAt: at(0),
   lastTriedAt: null,
   stripeContacts: 5,
+  // Out of order on purpose: the screen sorts A to Z, case-insensitively.
   orgs: [
-    org("t-alpha", "Test Org Alpha", { renewsAt: at(10) }),
-    org("t-bravo", "Test Org Bravo", { seatsUsed: 3, seatsTotal: 3 }),
-    org("t-charlie", "Test Org Charlie", { seatsUsed: 4, seatsTotal: 3 }),
-    org("t-delta", "Test Org Delta", { canceled: true, status: "canceled", renewsAt: at(-20), renewalKind: "ended", mrrCents: 0 }),
+    org("t-charlie", "Test Org Charlie"),
+    org("t-delta", "Test Org Delta", { canceled: true, status: "canceled", mrrCents: 0 }),
+    org("t-alpha", "test org alpha"),
+    org("t-bravo", "Test Org Bravo", {
+      users: [user("t-bravo-u1", "Test Person t-bravo", "Test Org Bravo"), user("t-bravo-u2", "Test Person Two", "Test Org Bravo")],
+    }),
   ],
   noOrgUsers: [user("t-loose", "Test Loose User", null)],
 }
@@ -79,7 +72,9 @@ test.describe("CRM Accounts", () => {
   test("without Stripe and the CRM database it is Not connected, never an error or a figure", async ({ page }) => {
     await page.goto("/crm/accounts")
     await expect(page.getByTestId("accounts-not-connected")).toBeVisible()
-    await expect(page.getByTestId("tile-total-seats").getByTestId("not-connected")).toBeVisible()
+    for (const id of ["tile-organizations", "tile-users-attached", "tile-users-no-org"]) {
+      await expect(page.getByTestId(id).getByTestId("not-connected")).toBeVisible()
+    }
     await expect(page.getByTestId("org-row")).toHaveCount(0)
     await expect(page.locator('[role="alert"]').filter({ hasText: "CRM couldn’t load" })).toHaveCount(0)
   })
@@ -98,30 +93,39 @@ test.describe("CRM Accounts", () => {
     await expect(page.getByTestId("tile-organizations")).toContainText("0")
   })
 
-  test("tabs filter, rows expand, and a search with no match offers Clear search", async ({ page }) => {
+  test("orgs A to Z with users, three tiles, tabs filter, rows expand, and a search with no match offers Clear search", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await mockAccounts(page, LIVE)
     await page.goto("/crm/accounts")
     const table = page.getByRole("table", { name: "Organizations" })
     await expect(table.getByTestId("org-row")).toHaveCount(4)
-    // Renewal (soonest) by default; canceled last.
-    await expect(table.getByTestId("org-row").first()).toContainText("Test Org Alpha")
-    await expect(table.getByTestId("org-row").first().getByTestId("renewal-tag")).toHaveText("in 10 days")
-    await expect(table.getByTestId("org-row").last()).toContainText("Lapsed")
+    await expect(table.getByTestId("org-row")).toHaveText([/test org alpha/, /Test Org Bravo/, /Test Org Charlie/, /Test Org Delta/])
+    await expect(table.getByRole("columnheader")).toHaveText(["", "Organization", "Users", "Plan", "MRR"])
+    await expect(table.getByTestId("org-row").last()).toContainText("Canceled")
 
-    await page.getByRole("tab", { name: /Over limit/ }).click()
+    await expect(page.getByTestId("tile-organizations")).toContainText("4")
+    await expect(page.getByTestId("tile-users-attached")).toContainText("5")
+    await expect(page.getByTestId("tile-users-no-org")).toContainText("1")
+    await expect(page.getByRole("region", { name: "Accounts summary" }).getByTestId(/^tile-/)).toHaveCount(3)
+    const screen = page.getByTestId("accounts-screen")
+    await expect(screen.getByText(/seats?\b|Renews|Customer since|Started/i)).toHaveCount(0)
+    await expect(page.getByRole("combobox", { name: "Sort organizations" })).toHaveCount(0)
+
+    await expect(page.getByRole("tab")).toHaveCount(3)
+    await page.getByRole("tab", { name: /Canceled/ }).click()
     await expect(table.getByTestId("org-row")).toHaveCount(1)
-    await expect(table.getByTestId("org-row")).toContainText("+1 over")
-    await page.getByRole("tab", { name: /Full/ }).click()
-    await expect(table.getByTestId("org-row")).toContainText("Test Org Bravo")
+    await expect(table.getByTestId("org-row")).toContainText("Test Org Delta")
     await page.getByRole("tab", { name: /No organization/ }).click()
     await expect(page.getByRole("table", { name: "Users with no organization" })).toContainText("Test Loose User")
     await page.getByRole("tab", { name: /^All/ }).click()
+    await expect(page.getByTestId("no-org-row")).toContainText("No organization")
 
-    const toggle = page.getByRole("button", { name: "Show users of Test Org Alpha" })
+    const toggle = page.getByRole("button", { name: "Show users of Test Org Bravo" })
     await toggle.click()
-    await expect(page.getByRole("button", { name: "Hide users of Test Org Alpha" })).toHaveAttribute("aria-expanded", "true")
-    await expect(page.getByRole("table", { name: "Users of Test Org Alpha" })).toContainText("Test Person t-alpha")
+    await expect(page.getByRole("button", { name: "Hide users of Test Org Bravo" })).toHaveAttribute("aria-expanded", "true")
+    const users = page.getByRole("table", { name: "Users of Test Org Bravo" })
+    await expect(users).toContainText("Test Person t-bravo")
+    await expect(users).toContainText("Test Person Two")
 
     await page.getByRole("searchbox", { name: "Search organizations or users" }).fill("zephyr academy")
     await expect(page.getByTestId("accounts-no-results")).toContainText("No organizations or users match “zephyr academy”")
@@ -129,14 +133,14 @@ test.describe("CRM Accounts", () => {
     await expect(table.getByTestId("org-row")).toHaveCount(4)
   })
 
-  test("the organization page links Add seats to Stripe in a new tab", async ({ page }) => {
+  test("the organization page shows its users, read-only, with no seats or dates", async ({ page }) => {
     await mockAccounts(page, LIVE)
     await page.goto("/crm/accounts/t-bravo")
     await expect(page.getByRole("heading", { level: 1, name: "Test Org Bravo" })).toBeVisible()
-    const add = page.getByTestId("add-seats")
-    await expect(add).toHaveAttribute("href", "https://dashboard.stripe.com/subscriptions/sub_TEST")
-    await expect(add).toHaveAttribute("target", "_blank")
-    await expect(page.getByTestId("seats-hero")).toContainText("Full")
+    await expect(page.getByRole("table", { name: "Users of Test Org Bravo" })).toContainText("Test Person Two")
+    await expect(page.getByTestId("add-seats")).toHaveCount(0)
+    await expect(page.getByTestId("seats-hero")).toHaveCount(0)
+    await expect(page.getByTestId("account-detail").getByText(/seats?\b|Renews|Customer since|Started/i)).toHaveCount(0)
   })
 
   for (const body of [
@@ -149,6 +153,7 @@ test.describe("CRM Accounts", () => {
       await page.goto("/crm/accounts")
       if (body.data) {
         await expect(page.getByTestId("org-card")).toHaveCount(4)
+        await expect(page.getByTestId("org-card").first()).toContainText("test org alpha")
         await expect(page.getByRole("table", { name: "Organizations" })).toBeHidden()
         await expectTapTarget(page.getByTestId("org-card").first().getByRole("button"), "org card")
         await expectTapTarget(page.getByRole("tab", { name: /^All/ }), "All tab")
