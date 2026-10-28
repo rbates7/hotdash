@@ -232,4 +232,23 @@ describe("Triage bulk select", () => {
     expect(checkbox(/Invoice question/)).not.toBeChecked()
     expect(within(bar()).getByText("3 selected")).toBeInTheDocument()
   })
+
+  it("each card has a visible Ignore button that ignores just that thread and refreshes the count", async () => {
+    const user = userEvent.setup()
+    const calls = mockResolve()
+    render(<TriageList threads={THREADS} />)
+    const card = checkbox("Select thread from Ben Diaz: Invoice question").closest("[data-slot='triage-card']") as HTMLElement
+    await user.click(within(card).getByRole("button", { name: "Ignore" }))
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(calls).toEqual([{ gmailThreadId: "t-2", action: "ignore" }])
+  })
+
+  it("the card menu keeps Always ignore but no longer duplicates single Ignore", async () => {
+    const user = userEvent.setup()
+    render(<TriageList threads={THREADS} />)
+    const card = checkbox("Select thread from Ben Diaz: Invoice question").closest("[data-slot='triage-card']") as HTMLElement
+    await user.click(within(card).getByRole("button", { name: "More actions" }))
+    expect(await screen.findByRole("menuitem", { name: "Always ignore ben@club.org" })).toBeInTheDocument()
+    expect(screen.queryByRole("menuitem", { name: "Ignore this thread" })).not.toBeInTheDocument()
+  })
 })

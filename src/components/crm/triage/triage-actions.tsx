@@ -131,6 +131,19 @@ export function TriageActions({
       >
         Link contact
       </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={isBusy || bulk?.busy}
+        onClick={() =>
+          run(
+            () => resolve({ gmailThreadId, action: "ignore" }),
+            "Thread ignored."
+          )
+        }
+      >
+        Ignore
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -145,16 +158,6 @@ export function TriageActions({
               Select all from {senderEmail}
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem
-            onClick={() =>
-              run(
-                () => resolve({ gmailThreadId, action: "ignore" }),
-                "Thread ignored."
-              )
-            }
-          >
-            Ignore this thread
-          </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             onClick={() =>

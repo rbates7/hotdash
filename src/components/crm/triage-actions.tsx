@@ -69,6 +69,9 @@ export function TriageActions({
       <Button size="sm" variant="outline" className={CRM_44} onClick={() => setIsLinkOpen(true)}>
         Link contact
       </Button>
+      <Button size="sm" variant="secondary" className={CRM_44} onClick={() => ignoreTriage(threadId)}>
+        Ignore
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -83,9 +86,6 @@ export function TriageActions({
               Select all from {senderEmail}
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem className={CRM_ROW_44} onClick={() => ignoreTriage(threadId)}>
-            Ignore this thread
-          </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             className={cn(CRM_ROW_44, CRM_DANGER_TEXT)}
