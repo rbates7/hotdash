@@ -236,7 +236,7 @@ describe("shell, triage and error state", () => {
     await user.keyboard("{Escape}")
     const tabs = within(screen.getByRole("navigation", { name: "CRM sections" })).getAllByRole("link")
     for (const tab of tabs) expect(tab).toHaveClass("max-xl:h-11", "max-xl:min-w-11", "shrink-0")
-    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
+    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Accounts", "Cases", "Triage", "Contacts"])
     // No Customers or Settings tab; the strip scrolls itself, with decorative fades.
     expect(screen.getByRole("navigation", { name: "CRM sections" })).toHaveClass("overflow-x-auto")
     for (const id of ["crm-tab-fade-start", "crm-tab-fade-end"]) {

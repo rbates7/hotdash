@@ -60,13 +60,13 @@ export function isRebuiltScreen(pathname: string) {
 
 const TABS = [
   { href: "/crm", label: "Overview", icon: LayoutDashboardIcon, match: (path: string) => path === "/crm" },
-  { href: "/crm/cases", label: "Cases", icon: InboxIcon, match: (path: string) => path.startsWith("/crm/cases") },
   {
     href: "/crm/accounts",
     label: "Accounts",
     icon: Building2Icon,
     match: (path: string) => path.startsWith("/crm/accounts"),
   },
+  { href: "/crm/cases", label: "Cases", icon: InboxIcon, match: (path: string) => path.startsWith("/crm/cases") },
   {
     href: "/crm/triage",
     label: "Triage",
@@ -85,8 +85,9 @@ const TABS = [
 const EDGE_SLACK = 2
 
 /**
- * The section tabs, exactly Overview · Cases · Accounts · Triage (count) ·
- * Contacts (Deke's spec, per Simmons): the current segmented pill look
+ * The section tabs, exactly Overview · Accounts · Cases · Triage (count) ·
+ * Contacts (Deke's spec, per Simmons; Accounts after Overview per the
+ * Accounts frames): the current segmented pill look
  * (muted track, active `surface` + shadow-sm), each with its Sept icon, as
  * real routes so every view is a link. On a phone they scroll sideways
  * inside their own strip, never the page, with an edge fade on whichever
