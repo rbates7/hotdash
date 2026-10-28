@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { useTriageBulk } from "@/components/crm/triage/triage-bulk"
 
 type ContactOption = {
   id: string
@@ -28,7 +29,17 @@ type ContactOption = {
   organization: string | null
 }
 
-async function resolve(body: {
+/** A failed resolve, with its HTTP status (404: the thread is no longer pending). */
+export class TriageResolveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+  }
+}
+
+export async function resolve(body: {
   gmailThreadId: string
   action: "promote" | "link" | "ignore"
   contactId?: string
@@ -39,8 +50,8 @@ async function resolve(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  const payload = (await response.json()) as { error?: string }
-  if (!response.ok) throw new Error(payload.error ?? "Failed.")
+  const payload = (await response.json().catch(() => ({}))) as { error?: string }
+  if (!response.ok) throw new TriageResolveError(payload.error ?? "Failed.", response.status)
   return payload
 }
 
@@ -54,6 +65,7 @@ export function TriageActions({
   senderName: string | null
 }) {
   const router = useRouter()
+  const bulk = useTriageBulk()
   const [isBusy, setIsBusy] = React.useState(false)
   const [isLinkOpen, setIsLinkOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -101,7 +113,7 @@ export function TriageActions({
     <div className="flex items-center gap-1.5">
       <Button
         size="sm"
-        disabled={isBusy}
+        disabled={isBusy || bulk?.busy}
         onClick={() =>
           run(
             () => resolve({ gmailThreadId, action: "promote" }),
@@ -119,6 +131,19 @@ export function TriageActions({
       >
         Link contact
       </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={isBusy || bulk?.busy}
+        onClick={() =>
+          run(
+            () => resolve({ gmailThreadId, action: "ignore" }),
+            "Thread ignored."
+          )
+        }
+      >
+        Ignore
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -128,16 +153,11 @@ export function TriageActions({
           <ChevronDownIcon />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={() =>
-              run(
-                () => resolve({ gmailThreadId, action: "ignore" }),
-                "Thread ignored."
-              )
-            }
-          >
-            Ignore this thread
-          </DropdownMenuItem>
+          {bulk ? (
+            <DropdownMenuItem onClick={() => bulk.selectSender(senderEmail)}>
+              Select all from {senderEmail}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             variant="destructive"
             onClick={() =>
