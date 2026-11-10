@@ -2,18 +2,25 @@
 
 import * as React from "react"
 import { geoAlbersUsa, geoContains, geoMercator, geoPath, type GeoProjection } from "d3-geo"
-import type { Feature, FeatureCollection, Geometry, Polygon } from "geojson"
+import type { Feature, FeatureCollection, Geometry } from "geojson"
 import { ArrowLeftIcon, LoaderCircleIcon, MapPinIcon, SearchIcon } from "lucide-react"
 
 import {
+  boundsCorners,
   cityPopulation,
+  displayCityName,
+  focusInstitutionBounds,
   institutionMetro,
-  institutionRecordsBounds,
   isMajorCity,
+  metroLabel,
   opportunityStatus,
   paddedInstitutionBounds,
+  placeLabels,
   pointInBounds,
+  rankSearchMatches,
+  relaxScreenPoints,
   spreadScreenPoints,
+  type SearchCandidate,
   territoryCityKey,
   territoryMetroKey,
   type CityRecord,
@@ -92,17 +99,12 @@ function useCanvasSize(ref: React.RefObject<HTMLDivElement | null>) {
   return size
 }
 
-function boundsFeature(bounds: [[number, number], [number, number]]): Feature<Polygon> {
-  const [[west, south], [east, north]] = bounds
-  return {
-    type: "Feature",
-    properties: {},
-    geometry: {
-      type: "Polygon",
-      coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
-    },
-  }
-}
+const KIND_WEIGHT: Record<InstitutionKind, number> = { nfl: 3, college: 2, "high-school": 1 }
+
+type SearchValue =
+  | { type: "institution"; item: InstitutionRecord }
+  | { type: "metro"; item: MetroWithTeams }
+  | { type: "city"; item: CityWithTeams }
 
 function projectionFor(
   width: number,
@@ -112,7 +114,7 @@ function projectionFor(
   focusBounds: [[number, number], [number, number]] | null
 ): GeoProjection {
   const extent: [[number, number], [number, number]] = [[24, 24], [width - 24, height - 24]]
-  if (focusBounds) return geoMercator().fitExtent(extent, boundsFeature(focusBounds))
+  if (focusBounds) return geoMercator().fitExtent(extent, boundsCorners(focusBounds))
   return selected ? geoMercator().fitExtent(extent, selected) : geoAlbersUsa().fitExtent(extent, states)
 }
 
@@ -144,8 +146,9 @@ function navigationCitiesFrom(majorCities: CityRecord[], withTeams: CityWithTeam
   const grouped = new Map<string, CityWithTeams>()
   for (const city of withTeams) grouped.set(city.key, city)
   for (const city of majorCities) {
-    const key = territoryCityKey(city[1], city[3])
-    if (!grouped.has(key)) grouped.set(key, { key, name: city[1], state: city[3], teamCount: 0 })
+    const name = displayCityName(city[1])
+    const key = territoryCityKey(name, city[3])
+    if (!grouped.has(key)) grouped.set(key, { key, name, state: city[3], teamCount: 0 })
   }
   return [...grouped.values()].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }))
 }
@@ -157,7 +160,7 @@ function shouldLabelCity(
   selectedCity: string
 ): boolean {
   const pop = cityPopulation(city)
-  if (selectedCity) return territoryCityKey(city[1], city[3]) === territoryCityKey(selectedCity, selectedState)
+  if (selectedCity) return territoryCityKey(displayCityName(city[1]), city[3]) === territoryCityKey(selectedCity, selectedState)
   if (selectedMetro) return pop >= 25_000
   if (selectedState) return pop >= 75_000
   return pop >= 250_000
@@ -235,16 +238,19 @@ export function TerritoryMap() {
   )
   const focusBounds = React.useMemo(() => {
     if (!selectedCity && !selectedMetro) return null
-    const bounds = institutionRecordsBounds(visibleInstitutions)
+    const bounds = focusInstitutionBounds(
+      visibleInstitutions,
+      selectedCity ? { trim: 0, maxRadius: 0.4 } : { trim: 0.04 }
+    )
     if (bounds) {
       return paddedInstitutionBounds(bounds, {
-        padding: selectedCity ? 0.22 : 0.12,
+        padding: selectedCity ? 0.18 : 0.1,
         minSpan: selectedCity ? 0.04 : 0.07,
       })
     }
     if (selectedCity) {
       const place = stateMajorCities.find(
-        (city) => territoryCityKey(city[1], city[3]) === territoryCityKey(selectedCity, selectedState)
+        (city) => territoryCityKey(displayCityName(city[1]), city[3]) === territoryCityKey(selectedCity, selectedState)
       )
       if (!place) return null
       return paddedInstitutionBounds([[place[4], place[5]], [place[4], place[5]]], { padding: 0.25, minSpan: 0.05 })
@@ -259,10 +265,27 @@ export function TerritoryMap() {
     }
     return scoped
   }, [cities, focusBounds, selectedCity, selectedMetro, selectedState, stateMajorCities])
+  // In a metro, list only the cities that hold that metro's teams, never
+  // every major city in the state (Abilene is not in the Houston area).
   const navigationCities = React.useMemo(
-    () => navigationCitiesFrom(stateMajorCities, citiesWithTeams),
-    [citiesWithTeams, stateMajorCities]
+    () => navigationCitiesFrom(selectedMetro ? [] : stateMajorCities, citiesWithTeams),
+    [citiesWithTeams, selectedMetro, stateMajorCities]
   )
+  // Teams with no street address share the city-center point; the map fans
+  // them out, and the city view says so instead of implying exact spots.
+  const centerStacked = React.useMemo(() => {
+    if (!selectedCity) return 0
+    const stacks = new Map<string, number>()
+    for (const item of visibleInstitutions) {
+      const key = `${item[5].toFixed(4)}|${item[6].toFixed(4)}`
+      stacks.set(key, (stacks.get(key) ?? 0) + 1)
+    }
+    return [...stacks.values()].filter((count) => count > 8).reduce((sum, count) => sum + count, 0)
+  }, [selectedCity, visibleInstitutions])
+  const outsideView = React.useMemo(() => {
+    if (!focusBounds) return 0
+    return visibleInstitutions.filter((item) => !pointInBounds(item[5], item[6], focusBounds)).length
+  }, [focusBounds, visibleInstitutions])
 
   React.useEffect(() => {
     const canvas = canvasRef.current
@@ -294,8 +317,12 @@ export function TerritoryMap() {
       context.stroke()
     }
 
+    const labelFont = "600 11px system-ui, sans-serif"
+    const labelCandidates: Array<{ id: string; x: number; y: number; width: number; height: number; text: string }> = []
     if (zoomed || !selectedState) {
-      for (const city of visibleMajorCities) {
+      context.font = labelFont
+      const byPopulation = [...visibleMajorCities].sort((a, b) => cityPopulation(b) - cityPopulation(a))
+      for (const city of byPopulation) {
         const point = projection([city[4], city[5]])
         if (!point) continue
         context.beginPath()
@@ -306,17 +333,39 @@ export function TerritoryMap() {
         context.lineWidth = 1
         context.stroke()
         if (shouldLabelCity(city, selectedState, selectedMetro, selectedCity)) {
-          context.font = "600 11px system-ui, sans-serif"
-          context.fillStyle = "#334155"
-          context.fillText(city[1], point[0] + 5, point[1] - 5)
+          const text = displayCityName(city[1])
+          labelCandidates.push({
+            id: city[0],
+            x: point[0],
+            y: point[1],
+            width: Math.ceil(context.measureText(text).width),
+            height: 11,
+            text,
+          })
         }
       }
     }
 
     const spreadRadius = selectedCity ? 16 : selectedMetro ? 12 : 0
+    const pinRadius = (kind: InstitutionKind) =>
+      selectedCity
+        ? (kind === "nfl" ? 7 : 5.5)
+        : selectedMetro
+          ? (kind === "nfl" ? 6 : 4.4)
+          : zoomed
+            ? (kind === "nfl" ? 4.2 : 2.5)
+            : (kind === "nfl" ? 2.8 : 1.35)
     const layout =
       spreadRadius > 0
-        ? spreadScreenPoints(visibleInstitutions, (lon, lat) => projection([lon, lat]), spreadRadius)
+        ? relaxScreenPoints(
+            spreadScreenPoints(
+              visibleInstitutions,
+              (lon, lat) => projection([lon, lat]),
+              spreadRadius,
+              selectedCity ? 14 : 10
+            ),
+            selectedCity ? 12.5 : 9.5
+          )
         : new Map(
             visibleInstitutions.flatMap((item) => {
               const point = projection([item[5], item[6]])
@@ -335,13 +384,7 @@ export function TerritoryMap() {
       const point = layout.get(item[0])
       if (!point) continue
       const status = statuses.get(item[0]) ?? "available"
-      const radius = selectedCity
-        ? (item[2] === "nfl" ? 6 : 4.2)
-        : selectedMetro
-          ? (item[2] === "nfl" ? 5 : 3.4)
-          : zoomed
-            ? (item[2] === "nfl" ? 4.2 : 2.5)
-            : (item[2] === "nfl" ? 2.8 : 1.35)
+      const radius = pinRadius(item[2])
       context.beginPath()
       context.arc(point[0], point[1], radius, 0, Math.PI * 2)
       context.fillStyle = STATUS_COLOR[status]
@@ -361,6 +404,21 @@ export function TerritoryMap() {
         context.stroke()
       }
     }
+
+    // Labels go on top of the dots, biggest city first; a label that would
+    // overlap one already drawn (or run off the map) is skipped.
+    context.font = labelFont
+    context.textBaseline = "top"
+    context.lineJoin = "round"
+    for (const label of placeLabels(labelCandidates, size.width, size.height)) {
+      const text = labelCandidates.find((item) => item.id === label.id)?.text ?? ""
+      context.strokeStyle = "rgba(255,255,255,0.9)"
+      context.lineWidth = 3
+      context.strokeText(text, label.left, label.top)
+      context.fillStyle = "#334155"
+      context.fillText(text, label.left, label.top)
+    }
+    context.textBaseline = "alphabetic"
   }, [
     focusBounds,
     highlightedId,
@@ -383,41 +441,60 @@ export function TerritoryMap() {
   const territoryTitle = selectedCity && selectedName
     ? `${selectedCity}, ${selectedName} territory`
     : selectedMetro && selectedName
-      ? `${selectedMetro} area, ${selectedName} territory`
+      ? `${metroLabel(selectedMetro)}, ${selectedName} territory`
       : selectedName
         ? `${selectedName} territory`
         : "United States territory"
-  const nationwideTeams = manifest
-    ? manifest.counts.highSchools + manifest.counts.colleges + manifest.counts.nflTeams
-    : 0
+  // Follows the Show filters once the team list has loaded (NFL only -> 32).
+  const nationwideTeams = institutions.length
+    ? stateInstitutions.length
+    : manifest
+      ? manifest.counts.highSchools + manifest.counts.colleges + manifest.counts.nflTeams
+      : 0
+  const nationwideNoun =
+    kinds.size === 1 && kinds.has("nfl")
+      ? "NFL teams"
+      : kinds.size === 1 && kinds.has("college")
+        ? "college football teams"
+        : kinds.size === 1 && kinds.has("high-school")
+          ? "high school football teams"
+          : "football teams"
+  const plural = (count: number, one: string, many: string) => `${count.toLocaleString()} ${count === 1 ? one : many}`
   const subtitle = selectedCity
-    ? `${visibleInstitutions.length.toLocaleString()} teams in ${selectedCity}`
+    ? `${plural(visibleInstitutions.length, "team", "teams")} in ${selectedCity}${outsideView ? ` · ${outsideView.toLocaleString()} outside this view` : ""}`
     : selectedMetro
-      ? `${visibleInstitutions.length.toLocaleString()} teams in the ${selectedMetro} area · ${citiesWithTeams.length.toLocaleString()} cities`
+      ? `${plural(visibleInstitutions.length, "team", "teams")} in the ${metroLabel(selectedMetro)} · ${plural(citiesWithTeams.length, "city", "cities")}${outsideView ? ` · ${outsideView.toLocaleString()} outside this view` : ""}`
       : selectedState
         ? `${metrosWithTeams.length.toLocaleString()} metro areas · ${citiesWithTeams.length.toLocaleString()} cities · ${stateInstitutions.length.toLocaleString()} teams`
       : manifest
-        ? `${nationwideTeams.toLocaleString()} football teams nationwide`
+        ? `${nationwideTeams.toLocaleString()} ${nationwideNoun} nationwide`
         : "Loading high school, college, and NFL teams"
   const normalizedQuery = query.trim().toLocaleLowerCase()
+  const searchCities = React.useMemo(
+    () => (selectedState ? navigationCitiesFrom(stateMajorCities, citiesWithTeamsFrom(stateInstitutions)) : citiesWithTeamsFrom(stateInstitutions)),
+    [selectedState, stateInstitutions, stateMajorCities]
+  )
   const results = React.useMemo(() => {
     if (!normalizedQuery) return []
-    const institutionMatches = stateInstitutions
-      .filter((item) => `${item[1]} ${item[4]} ${item[3]}`.toLocaleLowerCase().includes(normalizedQuery))
-      .slice(0, 10)
-      .map((item) => ({ type: "institution" as const, item }))
-    let room = Math.max(0, 12 - institutionMatches.length)
-    const metroMatches = metrosWithTeams
-      .filter((item) => item.name.toLocaleLowerCase().includes(normalizedQuery))
-      .slice(0, room)
-      .map((item) => ({ type: "metro" as const, item }))
-    room = Math.max(0, room - metroMatches.length)
-    const cityMatches = navigationCities
-      .filter((item) => item.name.toLocaleLowerCase().includes(normalizedQuery))
-      .slice(0, room)
-      .map((item) => ({ type: "city" as const, item }))
-    return [...institutionMatches, ...metroMatches, ...cityMatches]
-  }, [metrosWithTeams, navigationCities, normalizedQuery, stateInstitutions])
+    function* candidates(): Generator<SearchCandidate<SearchValue>> {
+      for (const item of metrosWithTeams) {
+        yield { type: "metro", name: item.name, weight: item.teamCount, value: { type: "metro", item } }
+      }
+      for (const item of searchCities) {
+        yield { type: "city", name: item.name, weight: item.teamCount, value: { type: "city", item } }
+      }
+      for (const item of stateInstitutions) {
+        yield {
+          type: "institution",
+          name: item[1],
+          place: item[4],
+          weight: KIND_WEIGHT[item[2]],
+          value: { type: "institution", item },
+        }
+      }
+    }
+    return rankSearchMatches(normalizedQuery, candidates()).map((match) => match.value)
+  }, [metrosWithTeams, normalizedQuery, searchCities, stateInstitutions])
   const highlighted = institutions.find((item) => item[0] === highlightedId)
 
   const resetCity = () => {
@@ -487,7 +564,7 @@ export function TerritoryMap() {
       const projected = projection([city[4], city[5]])
       if (!projected) continue
       const distance = Math.hypot(projected[0] - point[0], projected[1] - point[1])
-      if (distance < closestCity.distance) closestCity = { name: city[1], distance }
+      if (distance < closestCity.distance) closestCity = { name: displayCityName(city[1]), distance }
     }
     if (closestCity.name) {
       setSelectedCity(closestCity.name)
@@ -507,7 +584,7 @@ export function TerritoryMap() {
               aria-label={
                 selectedCity
                   ? selectedMetro
-                    ? `Back to ${selectedMetro} area`
+                    ? `Back to ${metroLabel(selectedMetro)}`
                     : `Back to ${selectedName}`
                   : selectedMetro
                     ? `Back to ${selectedName}`
@@ -604,13 +681,13 @@ export function TerritoryMap() {
           </div>
 
           <div className="relative mt-4">
-            <SearchIcon aria-hidden className="text-muted-foreground absolute top-3 left-3 size-4" />
+            <SearchIcon aria-hidden className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label={selectedState ? `Search ${selectedName} teams, metros, and cities` : "Search teams"}
               placeholder={selectedState ? "Search teams, metros, or cities" : "Search teams"}
-              className={cn("pl-9", MAP_TAP)}
+              className={cn("pl-9!", MAP_TAP)}
             />
           </div>
 
@@ -658,9 +735,9 @@ export function TerritoryMap() {
                       >
                         <MapPinIcon className="text-muted-foreground mt-0.5 size-3.5 shrink-0" aria-hidden />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium">{item.name} area</span>
+                          <span className="block truncate text-sm font-medium">{metroLabel(item.name)}</span>
                           <span className="text-caption text-muted-foreground block truncate">
-                            {`${item.teamCount.toLocaleString()} teams · ${item.state}`}
+                            {`${item.teamCount.toLocaleString()} ${item.teamCount === 1 ? "team" : "teams"} · ${item.state}`}
                           </span>
                         </span>
                       </button>
@@ -674,6 +751,7 @@ export function TerritoryMap() {
                       className="hover:bg-muted focus-visible:ring-ring/50 flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left focus-visible:ring-[3px] focus-visible:outline-none"
                       onClick={() => {
                         setSelectedState(item.state)
+                        setSelectedMetro("")
                         setSelectedCity(item.name)
                         setHighlightedId("")
                       }}
@@ -682,7 +760,7 @@ export function TerritoryMap() {
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">{item.name}</span>
                         <span className="text-caption text-muted-foreground block truncate">
-                          {`${item.teamCount.toLocaleString()} teams · ${item.state}`}
+                          {`${item.teamCount.toLocaleString()} ${item.teamCount === 1 ? "team" : "teams"} · ${item.state}`}
                         </span>
                       </span>
                     </button>
@@ -719,7 +797,7 @@ export function TerritoryMap() {
                               setHighlightedId("")
                             }}
                           >
-                            <span className="truncate font-medium">{metro.name} area</span>
+                            <span className="truncate font-medium">{metroLabel(metro.name)}</span>
                             <span className="text-caption text-muted-foreground shrink-0 tabular-nums">{metro.teamCount}</span>
                           </button>
                         </li>
@@ -752,7 +830,7 @@ export function TerritoryMap() {
             ) : selectedMetro && !selectedCity ? (
               <>
                 <p className="text-caption text-muted-foreground px-1">
-                  Metro view for {selectedMetro}. Pick a city to zoom further in.
+                  Metro view for the {metroLabel(selectedMetro)}. Pick a city to zoom further in.
                 </p>
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
                   {(["customer", "engaged", "available"] as const).map((status) => (
@@ -789,6 +867,12 @@ export function TerritoryMap() {
                 <p className="text-caption text-muted-foreground px-1">
                   City view shows every team in {selectedCity}. Click a dot for details.
                 </p>
+                {centerStacked > 0 && (
+                  <p className="text-caption text-muted-foreground mt-2 px-1">
+                    {centerStacked.toLocaleString()} of these teams only have a city-center location, so they are fanned out
+                    around the center of {selectedCity} rather than at their street address.
+                  </p>
+                )}
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
                   {(["customer", "engaged", "available"] as const).map((status) => (
                     <div key={status} className="bg-muted/50 rounded-lg px-1 py-2">
