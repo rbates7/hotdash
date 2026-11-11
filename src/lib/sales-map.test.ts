@@ -1,7 +1,10 @@
+import { geoArea } from "d3-geo"
 import { describe, expect, it } from "vitest"
 
 import {
+  boundsPolygon,
   featureBounds,
+  IDENTITY_VIEW,
   institutionFeatures,
   institutionRecordsBounds,
   isMajorCity,
@@ -9,11 +12,14 @@ import {
   opportunityStatus,
   overviewStates,
   paddedInstitutionBounds,
+  panView,
+  placeLabels,
   spreadScreenPoints,
   territoryCityKey,
   territoryMatchKey,
   type CityRecord,
   type InstitutionRecord,
+  zoomViewAt,
 } from "@/lib/sales-map"
 import type { Deal } from "@/lib/sales-opportunities"
 
@@ -123,5 +129,44 @@ describe("map features", () => {
     expect("coordinates" in moved.features[0].geometry && moved.features[0].geometry.coordinates)
       .not.toEqual(states.features[0].geometry.coordinates)
     expect(featureBounds(states.features[0])).toEqual([[-140, 55], [-130, 60]])
+  })
+})
+
+describe("free zoom", () => {
+  it("keeps the point under the cursor fixed while zooming", () => {
+    const view = zoomViewAt(IDENTITY_VIEW, 4, [100, 50])
+    expect(view.k).toBe(4)
+    // A fitted point at the cursor stays at the cursor: 100 * 4 + x = 100.
+    expect(100 * view.k + view.x).toBeCloseTo(100)
+    expect(50 * view.k + view.y).toBeCloseTo(50)
+  })
+
+  it("clamps to the limits and snaps back to the fitted view at the minimum", () => {
+    expect(zoomViewAt({ k: 2, x: -40, y: -10 }, 0.25, [0, 0])).toEqual(IDENTITY_VIEW)
+    expect(zoomViewAt(IDENTITY_VIEW, 1e9, [0, 0], { min: 1, max: 64 }).k).toBe(64)
+  })
+
+  it("pans only once zoomed in", () => {
+    expect(panView(IDENTITY_VIEW, 10, 10)).toBe(IDENTITY_VIEW)
+    expect(panView({ k: 2, x: 0, y: 0 }, 10, -5)).toEqual({ k: 2, x: 10, y: -5 })
+  })
+})
+
+describe("boundsPolygon", () => {
+  it("winds the box so d3 reads it as the box, not the rest of the globe", () => {
+    const area = geoArea(boundsPolygon([[-97, 32], [-96, 33]]))
+    expect(area).toBeGreaterThan(0)
+    expect(area).toBeLessThan(0.001)
+  })
+})
+
+describe("placeLabels", () => {
+  it("keeps earlier labels and drops ones that overlap them", () => {
+    const placed = placeLabels([
+      { id: "a", box: { x: 0, y: 0, width: 50, height: 14 } },
+      { id: "b", box: { x: 20, y: 5, width: 50, height: 14 } },
+      { id: "c", box: { x: 0, y: 20, width: 50, height: 14 } },
+    ])
+    expect(placed.map((label) => label.id)).toEqual(["a", "c"])
   })
 })
