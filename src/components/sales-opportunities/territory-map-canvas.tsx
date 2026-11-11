@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { geoAlbersUsa, geoContains, geoMercator, geoPath, type GeoProjection } from "d3-geo"
 import type { Feature, FeatureCollection, Geometry } from "geojson"
 import { ArrowLeftIcon, LoaderCircleIcon, MapPinIcon, MinusIcon, PlusIcon, RotateCcwIcon, SearchIcon } from "lucide-react"
@@ -8,6 +9,7 @@ import { ArrowLeftIcon, LoaderCircleIcon, MapPinIcon, MinusIcon, PlusIcon, Rotat
 import {
   boundsPolygon,
   cityPopulation,
+  featureBounds,
   IDENTITY_VIEW,
   institutionMetro,
   institutionRecordsBounds,
@@ -29,8 +31,15 @@ import {
 } from "@/lib/sales-map"
 import { cn } from "@/lib/utils"
 import { useDeals } from "@/components/sales-opportunities/deals-store"
+import type { GoogleMapsConfig } from "@/components/sales-opportunities/google-territory-map"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+// Google's map script only runs in the browser, and only when a key is set.
+const GoogleTerritoryMap = dynamic(
+  () => import("@/components/sales-opportunities/google-territory-map").then((mod) => mod.GoogleTerritoryMap),
+  { ssr: false }
+)
 
 type StateProperties = { code: string; name: string; fips: string }
 type StateFeature = Feature<Geometry, StateProperties>
@@ -182,7 +191,11 @@ function shouldLabelCity(
   return pop >= 250_000
 }
 
-export function TerritoryMap() {
+/**
+ * `googleMaps` set: Google Maps with street, town and satellite detail.
+ * Not set (no key yet, tests, CI): the built-in drawn map below.
+ */
+export function TerritoryMap({ googleMaps = null }: { googleMaps?: GoogleMapsConfig | null }) {
   const { deals } = useDeals()
   const frameRef = React.useRef<HTMLDivElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -288,6 +301,14 @@ export function TerritoryMap() {
     }
     return scoped
   }, [cities, focusBounds, selectedCity, selectedMetro, selectedState, stateMajorCities])
+  const kindInstitutions = React.useMemo(
+    () => institutions.filter((item) => kinds.has(item[2])),
+    [institutions, kinds]
+  )
+  const googleFocus = React.useMemo(
+    () => focusBounds ?? (selectedFeature ? featureBounds(selectedFeature) : null),
+    [focusBounds, selectedFeature]
+  )
   const navigationCities = React.useMemo(
     () => navigationCitiesFrom(stateMajorCities, citiesWithTeams),
     [citiesWithTeams, stateMajorCities]
@@ -691,6 +712,19 @@ export function TerritoryMap() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
         <div ref={frameRef} className="relative h-[420px] bg-[#f6f7f4] lg:h-[560px]">
+          {googleMaps ? (
+            states && (
+              <GoogleTerritoryMap
+                config={googleMaps}
+                institutions={kindInstitutions}
+                statuses={statuses}
+                focusBounds={googleFocus}
+                highlightedId={highlightedId}
+                onSelect={setHighlightedId}
+              />
+            )
+          ) : (
+          <>
           <canvas
             ref={canvasRef}
             aria-label="Interactive United States sales map. Scroll or pinch to zoom, drag to move."
@@ -734,6 +768,8 @@ export function TerritoryMap() {
               )}
             </div>
           )}
+          </>
+          )}
           {!states && !error && (
             <div className="absolute inset-0 grid place-items-center text-sm text-slate-600">
               <span className="inline-flex items-center gap-2"><LoaderCircleIcon className="size-4 animate-spin" />Loading territory map</span>
@@ -745,7 +781,13 @@ export function TerritoryMap() {
             </div>
           )}
           {highlighted && (
-            <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-900 shadow">
+            <div
+              className={cn(
+                "absolute left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-900 shadow",
+                // Clear Google's logo and terms along the bottom edge.
+                googleMaps ? "bottom-9" : "bottom-3"
+              )}
+            >
               <strong>{highlighted[1]}</strong>
               <span className="ml-1.5 text-slate-600">
                 {`${KIND_SHORT[highlighted[2]]} · ${highlighted[4]}, ${highlighted[3]} · ${STATUS_LABEL[statuses.get(highlighted[0]) ?? "available"]}`}
