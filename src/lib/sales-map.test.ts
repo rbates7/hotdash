@@ -7,6 +7,7 @@ import {
   featureBounds,
   focusInstitutionBounds,
   IDENTITY_VIEW,
+  maxprepsLink,
   metroLabel,
   panView,
   placeLabels,
@@ -300,5 +301,29 @@ describe("free zoom", () => {
   it("pans only once zoomed in", () => {
     expect(panView(IDENTITY_VIEW, 10, 10)).toBe(IDENTITY_VIEW)
     expect(panView({ k: 2, x: 0, y: 0 }, 10, -5)).toEqual({ k: 2, x: 10, y: -5 })
+  })
+})
+
+describe("maxprepsLink", () => {
+  it("links MaxPreps-roster teams in a rollout state straight to their football page", () => {
+    expect(maxprepsLink(["hsfb:juneau-douglas-crimson-bears", "Juneau-Douglas", "high-school", "AK", "Juneau", 0, 0])).toEqual({
+      href: "https://www.maxpreps.com/ak/juneau/juneau-douglas-crimson-bears/football/",
+      direct: true,
+    })
+    expect(maxprepsLink(["hsfb:x-hawks", "X", "high-school", "IA", "Le Mars", 0, 0])?.href).toBe(
+      "https://www.maxpreps.com/ia/le-mars/x-hawks/football/"
+    )
+  })
+
+  it("searches MaxPreps for schools without a MaxPreps slug, or with a made-unique one", () => {
+    const nces = maxprepsLink(["public:190001", "Ankeny", "high-school", "IA", "Ankeny", 0, 0])
+    expect(nces?.direct).toBe(false)
+    expect(nces?.href).toContain(encodeURIComponent("site:maxpreps.com Ankeny Ankeny IA football"))
+    expect(maxprepsLink(["hsfb:central-ia", "Central", "high-school", "IA", "Elkader", 0, 0])?.direct).toBe(false)
+  })
+
+  it("is off outside the rollout states and for colleges", () => {
+    expect(maxprepsLink(["hsfb:paschal-panthers", "Paschal", "high-school", "TX", "Fort Worth", 0, 0])).toBeNull()
+    expect(maxprepsLink(["college:1", "Iowa", "college", "IA", "Iowa City", 0, 0])).toBeNull()
   })
 })

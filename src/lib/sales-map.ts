@@ -578,3 +578,45 @@ export function panView(view: MapView, dx: number, dy: number): MapView {
   if (view.k === 1) return view
   return { k: view.k, x: view.x + dx, y: view.y + dy }
 }
+
+/* --------------------------------------------------------------- MaxPreps */
+
+/**
+ * States whose school profiles link to MaxPreps for coaches. Contacts change
+ * every week, so nothing is copied: the link opens MaxPreps' own current
+ * page. Starting with Alaska and Iowa; add a state code to roll it out.
+ */
+export const MAXPREPS_STATES: ReadonlySet<string> = new Set(["AK", "IA"])
+
+function maxprepsPathPart(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/['’.]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+/**
+ * Where a high school's coaches are on MaxPreps. Teams imported from the
+ * MaxPreps roster keep its page slug in their id (`hsfb:paschal-panthers`),
+ * so they link straight to the team's football page
+ * (maxpreps.com/{state}/{city}/{slug}/football/, coaches on its Staff tab).
+ * Others, and ids that were made unique with a state/city suffix, open a
+ * search for the school's MaxPreps page instead.
+ */
+export function maxprepsLink(record: InstitutionRecord): { href: string; direct: boolean } | null {
+  const [id, name, kind, state, city] = record
+  if (kind !== "high-school" || !MAXPREPS_STATES.has(state)) return null
+  const slug = id.startsWith("hsfb:") ? id.slice("hsfb:".length) : ""
+  const suffixed = slug.endsWith(`-${state.toLowerCase()}`) || slug.includes(`-${state.toLowerCase()}-`)
+  if (slug && !suffixed) {
+    return {
+      href: `https://www.maxpreps.com/${state.toLowerCase()}/${maxprepsPathPart(city)}/${slug}/football/`,
+      direct: true,
+    }
+  }
+  const query = `site:maxpreps.com ${name} ${city} ${state} football`
+  return { href: `https://www.google.com/search?q=${encodeURIComponent(query)}`, direct: false }
+}

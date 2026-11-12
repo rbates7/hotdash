@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { MapPinnedIcon, PencilIcon, PlusIcon, XIcon } from "lucide-react"
+import { MapPinnedIcon, PencilIcon, PlusIcon, UsersIcon, XIcon } from "lucide-react"
 
 import { formatDate } from "@/lib/clock"
 import { formatCurrency } from "@/lib/metrics"
-import { metroLabel, type InstitutionKind, type InstitutionRecord, type OpportunityStatus } from "@/lib/sales-map"
+import { maxprepsLink, metroLabel, type InstitutionKind, type InstitutionRecord, type OpportunityStatus } from "@/lib/sales-map"
 import { isOverdue, STAGE_CONFIG, STAGES } from "@/lib/sales-opportunities"
 import { cn } from "@/lib/utils"
 import { AddDealDialog, EditDealDialog } from "@/components/sales-opportunities/deal-dialogs"
@@ -58,6 +58,12 @@ export function SchoolProfileCard({
   // few teams the map still only places at their city's center.
   const directions = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${kind === "high-school" ? "High School " : ""}${city}, ${state}`)}`
   const titleId = `school-profile-${id.replace(/[^a-z0-9]/gi, "-")}`
+  const maxpreps = maxprepsLink(school)
+  const linkButton = cn(
+    buttonVariants({ variant: "outline", size: "sm" }),
+    "border-slate-300 bg-white text-slate-900 hover:bg-slate-100",
+    ACTION
+  )
 
   return (
     <section
@@ -143,19 +149,24 @@ export function SchoolProfileCard({
             </Button>
           }
         />
-        <a
-          href={directions}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "border-slate-300 bg-white text-slate-900 hover:bg-slate-100",
-            ACTION
-          )}
-        >
+        <a href={directions} target="_blank" rel="noopener noreferrer" className={linkButton}>
           <MapPinnedIcon aria-hidden />
           Directions
         </a>
+        {maxpreps && (
+          // Coaches change weekly, so the profile links to MaxPreps' own page
+          // rather than keeping a copy that goes stale.
+          <a
+            href={maxpreps.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkButton}
+            title={maxpreps.direct ? "MaxPreps football page: coaches are on its Staff tab" : "Find this school on MaxPreps"}
+          >
+            <UsersIcon aria-hidden />
+            Coaches on MaxPreps
+          </a>
+        )}
       </footer>
     </section>
   )
