@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection, Geometry, Point } from "geojson"
+import type { Feature, FeatureCollection, Geometry, MultiPoint, Point } from "geojson"
 
 import type { Deal, Stage } from "@/lib/sales-opportunities"
 
@@ -192,11 +192,17 @@ export function pointInBounds(
   return lon >= west && lon <= east && lat >= south && lat <= north
 }
 
-/** Fan out teams that share one coordinate so dots stay readable when zoomed in. */
+/**
+ * Fan out teams that share one coordinate so dots stay readable when zoomed
+ * in. A handful go on a small ring; a big stack (57 Houston teams have only
+ * the city-center point, no street address) becomes a sunflower spiral with
+ * `spacing` px between neighbours so every dot can be seen and tapped.
+ */
 export function spreadScreenPoints(
   records: readonly InstitutionRecord[],
   project: (lon: number, lat: number) => [number, number] | null,
-  ringRadius: number
+  ringRadius: number,
+  spacing = 0
 ): Map<string, [number, number]> {
   const groups = new Map<string, InstitutionRecord[]>()
   for (const record of records) {
@@ -212,6 +218,15 @@ export function spreadScreenPoints(
     if (!base) continue
     if (group.length === 1) {
       layout.set(group[0][0], base)
+      continue
+    }
+    if (spacing > 0 && group.length > 8) {
+      const golden = Math.PI * (3 - Math.sqrt(5))
+      group.forEach((record, index) => {
+        const r = spacing * 0.62 * Math.sqrt(index + 0.5)
+        const angle = index * golden
+        layout.set(record[0], [base[0] + Math.cos(angle) * r, base[1] + Math.sin(angle) * r])
+      })
       continue
     }
     const radius = Math.min(ringRadius, 6 + group.length * 0.65)
@@ -289,4 +304,319 @@ export function featureBounds(feature: Feature<Geometry>): [[number, number], [n
   }
   if ("coordinates" in feature.geometry) visit(feature.geometry.coordinates)
   return [[west, south], [east, north]]
+}
+
+type Bounds = [[number, number], [number, number]]
+
+function quantile(sorted: readonly number[], q: number): number {
+  if (sorted.length === 0) return NaN
+  const position = (sorted.length - 1) * q
+  const lower = Math.floor(position)
+  const upper = Math.ceil(position)
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower)
+}
+
+/**
+ * Bounds that hold the bulk of a metro or city's teams. A few teams carry a
+ * metro tag far from the metro itself (Houston has one near the Oklahoma
+ * line), so with 20+ teams the outer `trim` share on each side is ignored
+ * instead of stretching the view across the whole state.
+ */
+export function focusInstitutionBounds(
+  allRecords: readonly InstitutionRecord[],
+  { trim = 0.04, minRecords = 20, maxRadius = 0 }: { trim?: number; minRecords?: number; maxRadius?: number } = {}
+): Bounds | null {
+  if (allRecords.length === 0) return null
+  let records = allRecords
+  if (maxRadius > 0) {
+    // City view: keep teams within maxRadius degrees of the median point, so
+    // a "Houston" team geocoded near the Oklahoma line can't shrink the city.
+    const lon = quantile(allRecords.map((record) => record[5]).sort((a, b) => a - b), 0.5)
+    const lat = quantile(allRecords.map((record) => record[6]).sort((a, b) => a - b), 0.5)
+    const scale = Math.cos((lat * Math.PI) / 180)
+    const near = allRecords.filter(
+      (record) => Math.hypot((record[5] - lon) * scale, record[6] - lat) <= maxRadius
+    )
+    if (near.length) records = near
+  }
+  if (records.length < minRecords || trim <= 0) return institutionRecordsBounds(records)
+  const lons = records.map((record) => record[5]).sort((a, b) => a - b)
+  const lats = records.map((record) => record[6]).sort((a, b) => a - b)
+  return [
+    [quantile(lons, trim), quantile(lats, trim)],
+    [quantile(lons, 1 - trim), quantile(lats, 1 - trim)],
+  ]
+}
+
+/**
+ * The four corners of a lon/lat box as a MultiPoint. d3-geo reads polygon
+ * rings by winding order on the sphere, so a counter-clockwise box ring is
+ * "the whole globe except this box" and fitExtent zooms all the way out.
+ * Corners have no winding, so the projection fits the box itself.
+ */
+export function boundsCorners(bounds: Bounds): Feature<MultiPoint> {
+  const [[west, south], [east, north]] = bounds
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "MultiPoint", coordinates: [[west, south], [east, south], [east, north], [west, north]] },
+  }
+}
+
+/** "Bay Area" is already an area; everything else reads "Houston area". */
+export function metroLabel(metro: string): string {
+  const name = metro.trim()
+  return /\barea$/i.test(name) ? name : `${name} area`
+}
+
+const CITY_NAME_OVERRIDES: Record<string, string> = {
+  "butte silver bow": "Butte",
+  "urban honolulu": "Honolulu",
+}
+
+/**
+ * Census place names, cleaned for labels and lists:
+ * "Nashville-Davidson metropolitan government (balance)" -> "Nashville",
+ * "Urban Honolulu" -> "Honolulu", "San Buenaventura (Ventura)" -> "Ventura".
+ * Ordinary hyphenated names (Winston-Salem, Wilkes-Barre) stay as they are.
+ */
+export function displayCityName(name: string): string {
+  const trimmed = name.trim()
+  let value = trimmed.replace(/\s*\(balance\)\s*$/i, "")
+  const alias = value.match(/\(([^)]+)\)\s*$/)
+  if (alias) return alias[1].trim()
+  const override = CITY_NAME_OVERRIDES[normalizeTerritoryToken(value)]
+  if (override) return override
+  // Only "Indianapolis city (balance)" carries a legal suffix; "Texas City"
+  // and "League City" are real names and keep their "City".
+  if (value !== trimmed) value = value.replace(/\s+(city|town|village|municipality)$/i, "")
+  if (/\b(government|urban county|county)\b/i.test(value) && /[-/]/.test(value)) {
+    value = value.split(/[-/]/)[0]
+  }
+  return value.trim()
+}
+
+export type LabelCandidate = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type PlacedLabel = LabelCandidate & { left: number; top: number }
+
+/**
+ * Greedy label placement: candidates come in priority order (biggest city
+ * first); each tries right of its dot, then left, and is dropped when both
+ * spots would overlap a label already placed or leave the canvas.
+ */
+export function placeLabels(
+  candidates: readonly LabelCandidate[],
+  width: number,
+  height: number,
+  { gap = 5, margin = 2 }: { gap?: number; margin?: number } = {}
+): PlacedLabel[] {
+  const placed: PlacedLabel[] = []
+  const overlaps = (left: number, top: number, w: number, h: number) =>
+    placed.some(
+      (other) =>
+        left < other.left + other.width + margin &&
+        left + w + margin > other.left &&
+        top < other.top + other.height + margin &&
+        top + h + margin > other.top
+    )
+  for (const candidate of candidates) {
+    const top = candidate.y - gap - candidate.height
+    const spots = [candidate.x + gap, candidate.x - gap - candidate.width]
+    for (const left of spots) {
+      if (left < 0 || top < 0 || left + candidate.width > width || top + candidate.height > height) continue
+      if (overlaps(left, top, candidate.width, candidate.height)) continue
+      placed.push({ ...candidate, left, top })
+      break
+    }
+  }
+  return placed
+}
+
+/**
+ * Push apart dots that sit closer than `minDistance` (different schools on
+ * near-identical coordinates) so each one can be seen and tapped. A few
+ * passes of pairwise repulsion on a coarse grid; ids keep their order.
+ */
+export function relaxScreenPoints(
+  layout: ReadonlyMap<string, [number, number]>,
+  minDistance: number,
+  iterations = 6
+): Map<string, [number, number]> {
+  const ids = [...layout.keys()]
+  const points = ids.map((id) => [...(layout.get(id) as [number, number])] as [number, number])
+  if (minDistance <= 0 || points.length < 2) return new Map(ids.map((id, index) => [id, points[index]]))
+  for (let pass = 0; pass < iterations; pass += 1) {
+    const grid = new Map<string, number[]>()
+    points.forEach(([x, y], index) => {
+      const key = `${Math.floor(x / minDistance)}|${Math.floor(y / minDistance)}`
+      const cell = grid.get(key) ?? []
+      cell.push(index)
+      grid.set(key, cell)
+    })
+    let moved = false
+    points.forEach((point, index) => {
+      const cx = Math.floor(point[0] / minDistance)
+      const cy = Math.floor(point[1] / minDistance)
+      for (let dx = -1; dx <= 1; dx += 1) {
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (const other of grid.get(`${cx + dx}|${cy + dy}`) ?? []) {
+            if (other <= index) continue
+            const target = points[other]
+            let vx = target[0] - point[0]
+            let vy = target[1] - point[1]
+            let distance = Math.hypot(vx, vy)
+            if (distance >= minDistance) continue
+            if (distance < 1e-6) {
+              const angle = (other * 2.399963) % (Math.PI * 2)
+              vx = Math.cos(angle)
+              vy = Math.sin(angle)
+              distance = 1
+            } else {
+              vx /= distance
+              vy /= distance
+            }
+            const push = (minDistance - Math.min(distance, minDistance)) / 2
+            point[0] -= vx * push
+            point[1] -= vy * push
+            target[0] += vx * push
+            target[1] += vy * push
+            moved = true
+          }
+        }
+      }
+    })
+    if (!moved) break
+  }
+  return new Map(ids.map((id, index) => [id, points[index]]))
+}
+
+export type SearchCandidate<T> = {
+  type: "metro" | "city" | "institution"
+  /** What the user is most likely typing: the metro, city, or team name. */
+  name: string
+  /** For a team, its city; matched after the name. */
+  place?: string
+  /** Bigger places first among equal matches (team count). */
+  weight: number
+  value: T
+}
+
+const SEARCH_TYPE_ORDER = { metro: 0, city: 1, institution: 2 } as const
+
+function searchTier(query: string, name: string, place: string | undefined): number {
+  const value = normalizeTerritoryToken(name)
+  if (value === query) return 0
+  if (value.startsWith(`${query} `) || value.startsWith(query)) return 1
+  if (place && normalizeTerritoryToken(place) === query) return 2
+  if (` ${value}`.includes(` ${query}`)) return 3
+  if (value.includes(query)) return 4
+  if (place && normalizeTerritoryToken(place).includes(query)) return 5
+  return -1
+}
+
+/**
+ * Rank search hits so "Dallas" leads with the Dallas metro and Dallas, TX
+ * (the biggest exact matches), then teams named Dallas, then teams in a
+ * town called Dallas, then looser matches.
+ */
+export function rankSearchMatches<T>(
+  rawQuery: string,
+  candidates: Iterable<SearchCandidate<T>>,
+  limit = 12
+): SearchCandidate<T>[] {
+  const query = normalizeTerritoryToken(rawQuery)
+  if (!query) return []
+  const scored: Array<{ candidate: SearchCandidate<T>; tier: number }> = []
+  for (const candidate of candidates) {
+    const tier = searchTier(query, candidate.name, candidate.place)
+    if (tier >= 0) scored.push({ candidate, tier })
+  }
+  scored.sort(
+    (a, b) =>
+      a.tier - b.tier ||
+      SEARCH_TYPE_ORDER[a.candidate.type] - SEARCH_TYPE_ORDER[b.candidate.type] ||
+      b.candidate.weight - a.candidate.weight ||
+      a.candidate.name.localeCompare(b.candidate.name, "en", { sensitivity: "base" })
+  )
+  return scored.slice(0, limit).map((item) => item.candidate)
+}
+
+/* ---------------------------------------------------------------- free zoom */
+
+/**
+ * The user's own zoom on top of the fitted map: screen = fitted × k + (x, y).
+ * k = 1 with no offset is the fitted view of the current state, metro or city.
+ */
+export type MapView = { k: number; x: number; y: number }
+
+export const IDENTITY_VIEW: MapView = { k: 1, x: 0, y: 0 }
+
+/** Outer bounds; the map narrows the max to street level for the view it starts from. */
+export const MAP_ZOOM_LIMITS = { min: 1, max: 1024 } as const
+
+/** Zoom by `factor` keeping `point` (screen px) under the cursor or fingers. */
+export function zoomViewAt(
+  view: MapView,
+  factor: number,
+  point: readonly [number, number],
+  limits: { min: number; max: number } = MAP_ZOOM_LIMITS
+): MapView {
+  const k = Math.min(limits.max, Math.max(limits.min, view.k * factor))
+  if (k === limits.min) return IDENTITY_VIEW
+  const ratio = k / view.k
+  return { k, x: point[0] - (point[0] - view.x) * ratio, y: point[1] - (point[1] - view.y) * ratio }
+}
+
+export function panView(view: MapView, dx: number, dy: number): MapView {
+  if (view.k === 1) return view
+  return { k: view.k, x: view.x + dx, y: view.y + dy }
+}
+
+/* --------------------------------------------------------------- MaxPreps */
+
+/**
+ * States whose school profiles link to MaxPreps for coaches. Contacts change
+ * every week, so nothing is copied: the link opens MaxPreps' own current
+ * page. Starting with Alaska and Iowa; add a state code to roll it out.
+ */
+export const MAXPREPS_STATES: ReadonlySet<string> = new Set(["AK", "IA"])
+
+function maxprepsPathPart(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/['’.]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+/**
+ * Where a high school's coaches are on MaxPreps. Teams imported from the
+ * MaxPreps roster keep its page slug in their id (`hsfb:paschal-panthers`),
+ * so they link straight to the team's football page
+ * (maxpreps.com/{state}/{city}/{slug}/football/, coaches on its Staff tab).
+ * Others, and ids that were made unique with a state/city suffix, open a
+ * search for the school's MaxPreps page instead.
+ */
+export function maxprepsLink(record: InstitutionRecord): { href: string; direct: boolean } | null {
+  const [id, name, kind, state, city] = record
+  if (kind !== "high-school" || !MAXPREPS_STATES.has(state)) return null
+  const slug = id.startsWith("hsfb:") ? id.slice("hsfb:".length) : ""
+  const suffixed = slug.endsWith(`-${state.toLowerCase()}`) || slug.includes(`-${state.toLowerCase()}-`)
+  if (slug && !suffixed) {
+    return {
+      href: `https://www.maxpreps.com/${state.toLowerCase()}/${maxprepsPathPart(city)}/${slug}/football/`,
+      direct: true,
+    }
+  }
+  const query = `site:maxpreps.com ${name} ${city} ${state} football`
+  return { href: `https://www.google.com/search?q=${encodeURIComponent(query)}`, direct: false }
 }
