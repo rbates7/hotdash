@@ -6,8 +6,8 @@ import type { InstitutionRecord } from "@/lib/sales-map"
 /**
  * Guards on the shipped map data (public/data/sales-map). Before pinning
  * (scripts/pin-sales-map-locations.mjs), 3,048 high school teams sat stacked
- * on city-center points and 204 sat 40+ km from their city; after, 561 and
- * 52. A rebuild that drops the pins fails here instead of quietly piling
+ * on city-center points and 204 sat 40+ km from their city; after, 144 and
+ * 33. A rebuild that drops the pins fails here instead of quietly piling
  * names back up on the map.
  */
 const records = (
@@ -23,7 +23,7 @@ describe("sales map data", () => {
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     const stacked = [...counts.values()].filter((count) => count > 1).reduce((sum, count) => sum + count, 0)
-    expect(stacked).toBeLessThan(800)
+    expect(stacked).toBeLessThan(300)
   })
 
   it("keeps metro areas compact: Dallas no longer reaches Clarksville or Paris", () => {

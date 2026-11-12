@@ -18,6 +18,10 @@
  *              and private school location rows (NCESSCH/PPIN, NAME, STREET,
  *              CITY, STATE, ZIP, LAT, LON) from the services listed in
  *              scripts/build-sales-map-data.mjs.
+ * --geocoded   Optional JSON { "<team id>": [lon, lat] }: school addresses
+ *              geocoded by the US Census batch geocoder
+ *              (geocoding.geo.census.gov, benchmark Public_AR_Current) for
+ *              teams steps 1-2 could not place.
  *
  * How a team gets pinned, most certain first:
  *   1. Find the team in the address list (same state, same city, team name
@@ -25,6 +29,7 @@
  *      street, or same ZIP and house number): NCES's coordinates.
  *   2. No address match: an NCES school with the team's name in the same
  *      city that looks like a high school.
+ *   3. The team's school address, geocoded by the Census (--geocoded).
  * A pin more than 60 km from the team's city is refused, and so is a school
  * already used by another team. Ids never change, so deals stay linked.
  *
@@ -39,6 +44,7 @@ const { values: args } = parseArgs({
   options: {
     addresses: { type: "string" },
     nces: { type: "string" },
+    geocoded: { type: "string" },
     apply: { type: "boolean" },
     "dry-run": { type: "boolean" },
   },
@@ -144,6 +150,7 @@ const institutions = await readJson(INSTITUTIONS)
 const cities = await readJson(CITIES)
 const savedPins = args.apply ? await readJson(PINS) : null
 const addresses = args.apply ? [] : await readJson(args.addresses)
+const geocoded = args.geocoded ? await readJson(args.geocoded) : {}
 const ncesRows = args.apply
   ? []
   : [
@@ -270,13 +277,18 @@ function pinFor(record) {
     (school) => school.highSchool && nameFits(tokens, school.tokens)
   )
   const choice = unique(named)
-  return accept(choice, "name")
+  const byName = accept(choice, "name")
+  if (byName) return byName
+
+  // 3. The school's address, geocoded by the Census.
+  const point = geocoded[record[0]]
+  return point ? accept({ id: `census:${point.join(",")}`, point }, "census") : null
 }
 
 /* -------------------------------------------------------------------- run */
 
 const pins = {}
-const tally = { stacked: 0, far: 0, pinned: 0, address: 0, name: 0 }
+const tally = { stacked: 0, far: 0, pinned: 0, address: 0, name: 0, census: 0 }
 const updated = records.map((record) => {
   if (record[2] !== "high-school") return record
   if (savedPins) {
@@ -352,7 +364,7 @@ console.log(
     {
       highSchoolTeams: records.filter((record) => record[2] === "high-school").length,
       checked: { stackedOnOnePoint: tally.stacked, farFromCity: tally.far },
-      pinned: { total: tally.pinned, byAddress: tally.address, byName: tally.name },
+      pinned: { total: tally.pinned, byAddress: tally.address, byName: tally.name, byCensus: tally.census },
       after: { stillStackedOnOnePoint: stillStacked, stillFarFromCity: stillFar },
       metros: { ...metroTally, dallasTeamsBefore: dallas(records), dallasTeamsAfter: dallas(final) },
     },
