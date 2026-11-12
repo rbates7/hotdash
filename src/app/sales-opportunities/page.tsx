@@ -4,6 +4,7 @@ import { DealsPersistenceNote } from "@/components/sales-opportunities/deals-per
 import { DealsProvider } from "@/components/sales-opportunities/deals-store"
 import { DealsScreen } from "@/components/sales-opportunities/deals-screen"
 import { TerritoryMap } from "@/components/sales-opportunities/territory-map-canvas"
+import { googleMapsConfig } from "@/lib/google-maps-config"
 
 export const metadata = {
   title: "Sales Opportunities · Chlk",
@@ -39,7 +40,7 @@ export default function SalesOpportunitiesPage() {
             <DealsPersistenceNote />
           </div>
         </header>
-        <TerritoryMap />
+        <TerritoryMap googleMaps={googleMapsConfig()} />
         <DealsScreen />
       </section>
     </DealsProvider>
