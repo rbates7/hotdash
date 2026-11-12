@@ -22,7 +22,7 @@ import type { InstitutionRecord, OpportunityStatus } from "@/lib/sales-map"
 export type GoogleMapsConfig = { apiKey: string; mapId: string }
 
 type Bounds = [[number, number], [number, number]]
-type PointProps = { id: string; name: string; status: OpportunityStatus; nfl: boolean }
+type PointProps = { id: string; name: string; status: OpportunityStatus; nfl: boolean; city: string; state: string }
 type ClusterProps = { customers: number; engaged: number }
 
 export const STATUS_COLOR = {
@@ -51,7 +51,30 @@ type Props = {
   /** The current state, metro or city; null for the whole country. */
   focusBounds: Bounds | null
   highlightedId: string
+  /** A team was clicked; "" when the empty map was clicked (closes the card). */
   onSelect: (id: string) => void
+  /** A pile of teams that share one spot was clicked: list that city's teams. */
+  onSelectPlace: (city: string, state: string) => void
+}
+
+const STATUS_RANK = { customer: 0, engaged: 1, available: 2 } as const
+
+/**
+ * Teams with no street address in the data all sit on their city's center
+ * point (22 in Fort Worth, 58 in Houston). Drawn one by one their names pile
+ * up into nonsense, so a shared point becomes one "N teams" marker.
+ */
+function groupBySpot<T extends { geometry: { coordinates: number[] } }>(features: readonly T[]): T[][] {
+  // globalThis: `Map` here is Google's map component.
+  const groups = new globalThis.Map<string, T[]>()
+  for (const feature of features) {
+    const [lng, lat] = feature.geometry.coordinates
+    const key = `${lng.toFixed(4)}|${lat.toFixed(4)}`
+    const group = groups.get(key)
+    if (group) group.push(feature)
+    else groups.set(key, [feature])
+  }
+  return [...groups.values()]
 }
 
 export function GoogleTerritoryMap({ config, ...props }: Props) {
@@ -67,6 +90,8 @@ export function GoogleTerritoryMap({ config, ...props }: Props) {
         streetViewControl={false}
         fullscreenControl
         clickableIcons={false}
+        // Clicking empty map closes the team card.
+        onClick={() => props.onSelect("")}
         className="size-full"
       >
         <TeamMarkers {...props} />
@@ -75,7 +100,14 @@ export function GoogleTerritoryMap({ config, ...props }: Props) {
   )
 }
 
-function TeamMarkers({ institutions, statuses, focusBounds, highlightedId, onSelect }: Omit<Props, "config">) {
+function TeamMarkers({
+  institutions,
+  statuses,
+  focusBounds,
+  highlightedId,
+  onSelect,
+  onSelectPlace,
+}: Omit<Props, "config">) {
   const map = useMap()
   const [camera, setCamera] = React.useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null)
 
@@ -93,9 +125,9 @@ function TeamMarkers({ institutions, statuses, focusBounds, highlightedId, onSel
       },
     })
     cluster.load(
-      institutions.map(([id, name, kind, , , lon, lat]) => ({
+      institutions.map(([id, name, kind, state, city, lon, lat]) => ({
         type: "Feature" as const,
-        properties: { id, name, status: statuses.get(id) ?? "available", nfl: kind === "nfl" },
+        properties: { id, name, status: statuses.get(id) ?? "available", nfl: kind === "nfl", city, state },
         geometry: { type: "Point" as const, coordinates: [lon, lat] },
       }))
     )
@@ -111,9 +143,15 @@ function TeamMarkers({ institutions, statuses, focusBounds, highlightedId, onSel
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, focusKey])
 
-  // A team picked from search or the list: fly to it.
+  // A team picked from search or the list: fly to it. One clicked on the map
+  // is already in view, so the map stays put while its profile opens.
+  const clickedRef = React.useRef("")
+  const select = (id: string) => {
+    clickedRef.current = id
+    onSelect(id)
+  }
   React.useEffect(() => {
-    if (!map || !highlightedId) return
+    if (!map || !highlightedId || clickedRef.current === highlightedId) return
     const record = institutions.find((item) => item[0] === highlightedId)
     if (!record) return
     map.panTo({ lat: record[6], lng: record[5] })
@@ -137,10 +175,55 @@ function TeamMarkers({ institutions, statuses, focusBounds, highlightedId, onSel
   if (!camera) return null
   const features = index.getClusters(camera.bbox, camera.zoom)
   const showLabels = camera.zoom >= LABEL_ZOOM
+  const clusters = features.filter((feature) => "cluster" in feature.properties && feature.properties.cluster)
+  const spots = groupBySpot(features.filter((feature) => !("cluster" in feature.properties && feature.properties.cluster)))
 
   return (
     <>
-      {features.map((feature) => {
+      {spots.map((group) => {
+        if (group.length === 1) return null
+        const [lng, lat] = group[0].geometry.coordinates
+        const teams = group.map((feature) => feature.properties as PointProps)
+        const best = teams.reduce((top, team) => (STATUS_RANK[team.status] < STATUS_RANK[top] ? team.status : top), "available" as OpportunityStatus)
+        const highlighted = teams.find((team) => team.id === highlightedId)
+        const { city, state } = teams[0]
+        return (
+          <AdvancedMarker
+            key={`spot-${teams[0].id}`}
+            position={{ lat, lng }}
+            title={`${teams.length} teams in ${city} placed at the city center: exact locations not pinned yet. Click to list them.`}
+            anchorLeft="-14px"
+            anchorTop="-50%"
+            zIndex={highlighted ? 1000 : 4}
+            onClick={() => onSelectPlace(city, state)}
+          >
+            <div className="flex items-center gap-1">
+              {/* Dashed ring: a pile of teams placed at the city center, not one school. */}
+              <span
+                className="grid size-7 shrink-0 place-items-center rounded-full border-2 border-dashed border-white text-[11px] font-semibold text-white shadow"
+                style={{
+                  backgroundColor: STATUS_COLOR[best],
+                  outline: highlighted ? "3px solid #2563eb" : undefined,
+                  outlineOffset: 2,
+                }}
+              >
+                {teams.length}
+              </span>
+              {(showLabels || highlighted) && (
+                <span className="rounded bg-white/90 px-1 text-[11px] leading-4 font-semibold whitespace-nowrap text-slate-900 shadow-sm">
+                  {highlighted ? (
+                    <span style={{ color: "#1d4ed8" }}>{highlighted.name}</span>
+                  ) : (
+                    `${teams.length} teams · ${city}`
+                  )}
+                  <span className="font-normal text-slate-600"> · exact spots not pinned</span>
+                </span>
+              )}
+            </div>
+          </AdvancedMarker>
+        )
+      })}
+      {[...clusters, ...spots.filter((group) => group.length === 1).map((group) => group[0])].map((feature) => {
         const [lng, lat] = feature.geometry.coordinates
         if ("cluster" in feature.properties && feature.properties.cluster) {
           const { cluster_id, point_count, point_count_abbreviated, customers, engaged } = feature.properties
@@ -180,7 +263,7 @@ function TeamMarkers({ institutions, statuses, focusBounds, highlightedId, onSel
             anchorLeft={`-${dot / 2}px`}
             anchorTop="-50%"
             zIndex={highlighted ? 1000 : status === "customer" ? 3 : status === "engaged" ? 2 : 1}
-            onClick={() => onSelect(id)}
+            onClick={() => select(id)}
           >
             {/* The dot sits on the school; the name hangs to its right. */}
             <div className="flex items-center gap-1">
