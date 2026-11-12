@@ -51,15 +51,16 @@ const institutions: InstitutionRecord[] = [
 ]
 const statuses = new Map<string, OpportunityStatus>([["hs:2", "customer"]])
 
-function renderMap(onSelect = vi.fn()) {
+function renderMap(onSelect = vi.fn(), onSelectPlace = vi.fn(), records = institutions) {
   render(
     <GoogleTerritoryMap
       config={{ apiKey: "test-key", mapId: "DEMO_MAP_ID" }}
-      institutions={institutions}
+      institutions={records}
       statuses={statuses}
       focusBounds={null}
       highlightedId=""
       onSelect={onSelect}
+      onSelectPlace={onSelectPlace}
     />
   )
   return onSelect
@@ -103,6 +104,22 @@ describe("GoogleTerritoryMap", () => {
     expect(screen.queryByText("Austin Westlake")).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Frisco Memorial" }))
     expect(onSelect).toHaveBeenCalledWith("hs:3")
+  })
+
+  it("shows teams that share the city-center point as one marker, and lists them on click", async () => {
+    // Three Fort Worth teams with no street address, all on the city center.
+    const stacked: InstitutionRecord[] = [
+      ["hs:5", "Paschal", "high-school", "TX", "Fort Worth", -97.34857, 32.78195],
+      ["hs:6", "Arlington Heights", "high-school", "TX", "Fort Worth", -97.34857, 32.78195],
+      ["hs:7", "North Side", "high-school", "TX", "Fort Worth", -97.34857, 32.78195],
+    ]
+    const onSelectPlace = vi.fn()
+    renderMap(vi.fn(), onSelectPlace, stacked)
+    settle({ west: -97.4, south: 32.7, east: -97.3, north: 32.8, zoom: 16 })
+    expect(screen.queryByText("Paschal")).not.toBeInTheDocument()
+    expect(screen.getByText("3 teams · Fort Worth")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /^3 teams in Fort Worth placed at the city center/ }))
+    expect(onSelectPlace).toHaveBeenCalledWith("Fort Worth", "TX")
   })
 
   it("frames the whole country when nothing is picked", () => {

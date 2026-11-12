@@ -824,6 +824,13 @@ export function TerritoryMap({ googleMaps = null }: { googleMaps?: GoogleMapsCon
                 focusBounds={googleFocus}
                 highlightedId={highlightedId}
                 onSelect={setHighlightedId}
+                onSelectPlace={(city, state) => {
+                  setSelectedState(state)
+                  setSelectedMetro("")
+                  setSelectedCity(city)
+                  setQuery("")
+                  setHighlightedId("")
+                }}
               />
             )
           ) : (
