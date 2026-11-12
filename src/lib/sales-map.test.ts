@@ -6,7 +6,9 @@ import {
   displayCityName,
   featureBounds,
   focusInstitutionBounds,
+  IDENTITY_VIEW,
   metroLabel,
+  panView,
   placeLabels,
   rankSearchMatches,
   relaxScreenPoints,
@@ -23,6 +25,7 @@ import {
   territoryMatchKey,
   type CityRecord,
   type InstitutionRecord,
+  zoomViewAt,
 } from "@/lib/sales-map"
 import type { Deal } from "@/lib/sales-opportunities"
 
@@ -277,5 +280,25 @@ describe("territory map zoom and labels (Nov 10 fixes)", () => {
     expect(ranked.indexOf("AL school")).toBeGreaterThan(ranked.indexOf("Dallas HS, OR"))
     expect(rankSearchMatches("  ", candidates)).toEqual([])
     expect(rankSearchMatches("dallas", candidates, 2)).toHaveLength(2)
+  })
+})
+
+describe("free zoom", () => {
+  it("keeps the point under the cursor fixed while zooming", () => {
+    const view = zoomViewAt(IDENTITY_VIEW, 4, [100, 50])
+    expect(view.k).toBe(4)
+    // A fitted point at the cursor stays at the cursor: 100 * 4 + x = 100.
+    expect(100 * view.k + view.x).toBeCloseTo(100)
+    expect(50 * view.k + view.y).toBeCloseTo(50)
+  })
+
+  it("clamps to the limits and snaps back to the fitted view at the minimum", () => {
+    expect(zoomViewAt({ k: 2, x: -40, y: -10 }, 0.25, [0, 0])).toEqual(IDENTITY_VIEW)
+    expect(zoomViewAt(IDENTITY_VIEW, 1e9, [0, 0], { min: 1, max: 64 }).k).toBe(64)
+  })
+
+  it("pans only once zoomed in", () => {
+    expect(panView(IDENTITY_VIEW, 10, 10)).toBe(IDENTITY_VIEW)
+    expect(panView({ k: 2, x: 0, y: 0 }, 10, -5)).toEqual({ k: 2, x: 10, y: -5 })
   })
 })

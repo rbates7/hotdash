@@ -60,7 +60,10 @@ dots are teams only. Deals link to stable institution IDs: closed-won is green,
 an active pipeline is yellow, and unmatched/no-active-deal teams are gray.
 Source roster: `data/sales-map/high-school-football.csv` (import with
 `pnpm sales-map:import-hs-football`). Generated catalog:
-`public/data/sales-map` via `pnpm sales-map:refresh`.
+`public/data/sales-map` via `pnpm sales-map:refresh`. With `GOOGLE_MAPS_BROWSER_KEY` set the map runs on
+Google Maps (streets, satellite, numbered bubbles that split into named
+school dots as you zoom); without it, the built-in drawn map, which also
+zooms to school level. Setup: [docs/google-maps.md](docs/google-maps.md).
 
 **Live GitHub (read-only)**: `GET /api/workboard` returns rbates7/hotdash's
 open and recently merged pull requests with their CI and review state

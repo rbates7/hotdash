@@ -547,3 +547,34 @@ export function rankSearchMatches<T>(
   )
   return scored.slice(0, limit).map((item) => item.candidate)
 }
+
+/* ---------------------------------------------------------------- free zoom */
+
+/**
+ * The user's own zoom on top of the fitted map: screen = fitted × k + (x, y).
+ * k = 1 with no offset is the fitted view of the current state, metro or city.
+ */
+export type MapView = { k: number; x: number; y: number }
+
+export const IDENTITY_VIEW: MapView = { k: 1, x: 0, y: 0 }
+
+/** Outer bounds; the map narrows the max to street level for the view it starts from. */
+export const MAP_ZOOM_LIMITS = { min: 1, max: 1024 } as const
+
+/** Zoom by `factor` keeping `point` (screen px) under the cursor or fingers. */
+export function zoomViewAt(
+  view: MapView,
+  factor: number,
+  point: readonly [number, number],
+  limits: { min: number; max: number } = MAP_ZOOM_LIMITS
+): MapView {
+  const k = Math.min(limits.max, Math.max(limits.min, view.k * factor))
+  if (k === limits.min) return IDENTITY_VIEW
+  const ratio = k / view.k
+  return { k, x: point[0] - (point[0] - view.x) * ratio, y: point[1] - (point[1] - view.y) * ratio }
+}
+
+export function panView(view: MapView, dx: number, dy: number): MapView {
+  if (view.k === 1) return view
+  return { k: view.k, x: view.x + dx, y: view.y + dy }
+}

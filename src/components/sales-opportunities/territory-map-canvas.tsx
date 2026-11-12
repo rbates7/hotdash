@@ -1,20 +1,25 @@
 "use client"
 
 import * as React from "react"
+import dynamic from "next/dynamic"
 import { geoAlbersUsa, geoContains, geoMercator, geoPath, type GeoProjection } from "d3-geo"
 import type { Feature, FeatureCollection, Geometry } from "geojson"
-import { ArrowLeftIcon, LoaderCircleIcon, MapPinIcon, SearchIcon } from "lucide-react"
+import { ArrowLeftIcon, LoaderCircleIcon, MapPinIcon, MinusIcon, PlusIcon, RotateCcwIcon, SearchIcon } from "lucide-react"
 
 import {
   boundsCorners,
   cityPopulation,
   displayCityName,
+  featureBounds,
   focusInstitutionBounds,
+  IDENTITY_VIEW,
   institutionMetro,
   isMajorCity,
+  MAP_ZOOM_LIMITS,
   metroLabel,
   opportunityStatus,
   paddedInstitutionBounds,
+  panView,
   placeLabels,
   pointInBounds,
   rankSearchMatches,
@@ -26,11 +31,20 @@ import {
   type CityRecord,
   type InstitutionKind,
   type InstitutionRecord,
+  type MapView,
+  zoomViewAt,
 } from "@/lib/sales-map"
 import { cn } from "@/lib/utils"
 import { useDeals } from "@/components/sales-opportunities/deals-store"
+import type { GoogleMapsConfig } from "@/components/sales-opportunities/google-territory-map"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+// Google's map script only runs in the browser, and only when a key is set.
+const GoogleTerritoryMap = dynamic(
+  () => import("@/components/sales-opportunities/google-territory-map").then((mod) => mod.GoogleTerritoryMap),
+  { ssr: false }
+)
 
 type StateProperties = { code: string; name: string; fips: string }
 type StateFeature = Feature<Geometry, StateProperties>
@@ -111,12 +125,35 @@ function projectionFor(
   height: number,
   states: States,
   selected: StateFeature | undefined,
-  focusBounds: [[number, number], [number, number]] | null
+  focusBounds: [[number, number], [number, number]] | null,
+  view: MapView = IDENTITY_VIEW
 ): GeoProjection {
   const extent: [[number, number], [number, number]] = [[24, 24], [width - 24, height - 24]]
-  if (focusBounds) return geoMercator().fitExtent(extent, boundsCorners(focusBounds))
-  return selected ? geoMercator().fitExtent(extent, selected) : geoAlbersUsa().fitExtent(extent, states)
+  const fitted = focusBounds
+    ? geoMercator().fitExtent(extent, boundsCorners(focusBounds))
+    : selected
+      ? geoMercator().fitExtent(extent, selected)
+      : geoAlbersUsa().fitExtent(extent, states)
+  if (view.k === 1 && view.x === 0 && view.y === 0) return fitted
+  const [tx, ty] = fitted.translate()
+  return fitted.scale(fitted.scale() * view.k).translate([tx * view.k + view.x, ty * view.k + view.y])
 }
+
+/** Wheel notches and trackpad pinches (ctrlKey) as a zoom factor. */
+function wheelFactor(event: WheelEvent): number {
+  const lines = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1
+  const delta = event.deltaY * lines * (event.ctrlKey ? 0.01 : 0.0015)
+  return Math.exp(-Math.max(-1, Math.min(1, delta)))
+}
+
+/** Projection scale (px per radian) at ~10 m per pixel: Earth's radius / 10 m. */
+const STREET_LEVEL_SCALE = 637_100
+
+/** Schools get names on the map once this few are on screen. */
+const LABEL_TEAM_LIMIT = 150
+
+const STATUS_PRIORITY = { customer: 0, engaged: 1, available: 2 } as const
+const STATUS_LABEL = { customer: "Customer", engaged: "Engaged", available: "Not a customer" } as const
 
 function metrosWithTeamsFrom(records: InstitutionRecord[]): MetroWithTeams[] {
   const grouped = new Map<string, MetroWithTeams>()
@@ -157,16 +194,24 @@ function shouldLabelCity(
   city: CityRecord,
   selectedState: string,
   selectedMetro: string,
-  selectedCity: string
+  selectedCity: string,
+  zoom = 1
 ): boolean {
   const pop = cityPopulation(city)
-  if (selectedCity) return territoryCityKey(displayCityName(city[1]), city[3]) === territoryCityKey(selectedCity, selectedState)
-  if (selectedMetro) return pop >= 25_000
-  if (selectedState) return pop >= 75_000
+  if (selectedCity && zoom < 2) {
+    return territoryCityKey(displayCityName(city[1]), city[3]) === territoryCityKey(selectedCity, selectedState)
+  }
+  if (selectedCity || selectedMetro || zoom >= 6) return pop >= 25_000
+  if (selectedState || zoom >= 3) return pop >= 75_000
   return pop >= 250_000
 }
 
-export function TerritoryMap() {
+/**
+ * `googleMaps` set: Google Maps with street, town and satellite detail.
+ * Not set (no key yet, tests, CI): the built-in drawn map below, which
+ * scrolls, pinches and drags down to school level too.
+ */
+export function TerritoryMap({ googleMaps = null }: { googleMaps?: GoogleMapsConfig | null }) {
   const { deals } = useDeals()
   const frameRef = React.useRef<HTMLDivElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -185,6 +230,16 @@ export function TerritoryMap() {
   const [highlightedId, setHighlightedId] = React.useState("")
   const [kinds, setKinds] = React.useState<Set<InstitutionKind>>(
     () => new Set(["high-school", "college", "nfl"])
+  )
+  // The user's zoom belongs to one fitted view: picking another state, metro
+  // or city (or resizing) starts that view unzoomed, with no effect needed.
+  const scopeKey = `${selectedState}|${selectedMetro}|${selectedCity}|${size.width}x${size.height}`
+  const [zoomState, setZoomState] = React.useState<{ scope: string; view: MapView }>({ scope: "", view: IDENTITY_VIEW })
+  const view = zoomState.scope === scopeKey ? zoomState.view : IDENTITY_VIEW
+  const setView = React.useCallback(
+    (next: (current: MapView) => MapView) =>
+      setZoomState((state) => ({ scope: scopeKey, view: next(state.scope === scopeKey ? state.view : IDENTITY_VIEW) })),
+    [scopeKey]
   )
 
   React.useEffect(() => {
@@ -282,6 +337,22 @@ export function TerritoryMap() {
     }
     return [...stacks.values()].filter((count) => count > 8).reduce((sum, count) => sum + count, 0)
   }, [selectedCity, visibleInstitutions])
+  const kindInstitutions = React.useMemo(
+    () => institutions.filter((item) => kinds.has(item[2])),
+    [institutions, kinds]
+  )
+  const googleFocus = React.useMemo(
+    () => focusBounds ?? (selectedFeature ? featureBounds(selectedFeature) : null),
+    [focusBounds, selectedFeature]
+  )
+  // Deepest zoom is about street level (~10 m per pixel) whatever view you start from.
+  const zoomLimits = React.useMemo(() => {
+    if (!states || !size.width || !size.height) return MAP_ZOOM_LIMITS
+    const fittedScale = projectionFor(size.width, size.height, states, selectedFeature, focusBounds).scale()
+    return { min: 1, max: Math.max(2, Math.min(MAP_ZOOM_LIMITS.max, STREET_LEVEL_SCALE / fittedScale)) }
+  }, [focusBounds, selectedFeature, size.height, size.width, states])
+  const zoomBy = (factor: number) =>
+    setView((current) => zoomViewAt(current, factor, [size.width / 2, size.height / 2], zoomLimits))
   const outsideView = React.useMemo(() => {
     if (!focusBounds) return 0
     return visibleInstitutions.filter((item) => !pointInBounds(item[5], item[6], focusBounds)).length
@@ -302,10 +373,14 @@ export function TerritoryMap() {
     context.fillStyle = "#f6f7f4"
     context.fillRect(0, 0, size.width, size.height)
 
-    const projection = projectionFor(size.width, size.height, states, selectedFeature, focusBounds)
+    const projection = projectionFor(size.width, size.height, states, selectedFeature, focusBounds, view)
     projectionRef.current = projection
     const path = geoPath(projection, context)
-    const zoomed = Boolean(selectedFeature)
+    const zoomed = Boolean(selectedFeature) || view.k >= 2
+    // Dots grow as you zoom, but slowly, so a city of schools stays readable.
+    const grow = Math.min(1 + Math.log2(view.k) * 0.45, 3)
+    const onScreen = ([x, y]: [number, number], margin = 24) =>
+      x >= -margin && y >= -margin && x <= size.width + margin && y <= size.height + margin
 
     for (const state of selectedFeature ? [selectedFeature] : states.features) {
       context.beginPath()
@@ -313,18 +388,26 @@ export function TerritoryMap() {
       context.fillStyle = "#ffffff"
       context.fill()
       context.strokeStyle = "#66756c"
-      context.lineWidth = zoomed ? 1.8 : 0.85
+      context.lineWidth = selectedFeature ? 1.8 : 0.85
       context.stroke()
     }
 
     const labelFont = "600 11px system-ui, sans-serif"
-    const labelCandidates: Array<{ id: string; x: number; y: number; width: number; height: number; text: string }> = []
+    const labelCandidates: Array<{
+      id: string
+      x: number
+      y: number
+      width: number
+      height: number
+      text: string
+      color: string
+    }> = []
     if (zoomed || !selectedState) {
       context.font = labelFont
       const byPopulation = [...visibleMajorCities].sort((a, b) => cityPopulation(b) - cityPopulation(a))
       for (const city of byPopulation) {
         const point = projection([city[4], city[5]])
-        if (!point) continue
+        if (!point || !onScreen(point)) continue
         context.beginPath()
         context.arc(point[0], point[1], selectedCity ? 3.2 : 2.4, 0, Math.PI * 2)
         context.fillStyle = "#dfe5e0"
@@ -332,7 +415,7 @@ export function TerritoryMap() {
         context.strokeStyle = "#7a8a82"
         context.lineWidth = 1
         context.stroke()
-        if (shouldLabelCity(city, selectedState, selectedMetro, selectedCity)) {
+        if (shouldLabelCity(city, selectedState, selectedMetro, selectedCity, view.k)) {
           const text = displayCityName(city[1])
           labelCandidates.push({
             id: city[0],
@@ -341,20 +424,23 @@ export function TerritoryMap() {
             width: Math.ceil(context.measureText(text).width),
             height: 11,
             text,
+            color: "#334155",
           })
         }
       }
     }
 
-    const spreadRadius = selectedCity ? 16 : selectedMetro ? 12 : 0
-    const pinRadius = (kind: InstitutionKind) =>
+    const fanOut = Boolean(selectedCity) || view.k >= 4
+    const spreadRadius = fanOut ? 16 : selectedMetro ? 12 : 0
+    const baseRadius = (kind: InstitutionKind) =>
       selectedCity
         ? (kind === "nfl" ? 7 : 5.5)
         : selectedMetro
           ? (kind === "nfl" ? 6 : 4.4)
-          : zoomed
+          : selectedState
             ? (kind === "nfl" ? 4.2 : 2.5)
             : (kind === "nfl" ? 2.8 : 1.35)
+    const pinRadius = (kind: InstitutionKind) => Math.min(baseRadius(kind) * grow, 9)
     const layout =
       spreadRadius > 0
         ? relaxScreenPoints(
@@ -362,9 +448,9 @@ export function TerritoryMap() {
               visibleInstitutions,
               (lon, lat) => projection([lon, lat]),
               spreadRadius,
-              selectedCity ? 14 : 10
+              fanOut ? 14 : 10
             ),
-            selectedCity ? 12.5 : 9.5
+            fanOut ? 12.5 : 9.5
           )
         : new Map(
             visibleInstitutions.flatMap((item) => {
@@ -380,11 +466,13 @@ export function TerritoryMap() {
       return 0
     })
 
+    const shown: Array<{ item: InstitutionRecord; point: [number, number]; radius: number }> = []
     for (const item of drawOrder) {
       const point = layout.get(item[0])
-      if (!point) continue
+      if (!point || !onScreen(point)) continue
       const status = statuses.get(item[0]) ?? "available"
       const radius = pinRadius(item[2])
+      shown.push({ item, point, radius })
       context.beginPath()
       context.arc(point[0], point[1], radius, 0, Math.PI * 2)
       context.fillStyle = STATUS_COLOR[status]
@@ -405,18 +493,47 @@ export function TerritoryMap() {
       }
     }
 
-    // Labels go on top of the dots, biggest city first; a label that would
+    // School names once you are close enough to read them. They go ahead of
+    // the city labels: the highlighted school, then customers, engaged, the rest.
+    if (shown.length <= LABEL_TEAM_LIMIT && (selectedState || view.k >= 8)) {
+      context.font = labelFont
+      const schools = [...shown]
+        .sort((a, b) => {
+          if (a.item[0] === highlightedId) return -1
+          if (b.item[0] === highlightedId) return 1
+          return (
+            STATUS_PRIORITY[statuses.get(a.item[0]) ?? "available"] -
+              STATUS_PRIORITY[statuses.get(b.item[0]) ?? "available"] || a.item[1].localeCompare(b.item[1])
+          )
+        })
+        .map(({ item, point, radius }) => ({
+          id: item[0],
+          // placeLabels puts a label `gap` (5px) right of x and its bottom 5px
+          // above y: these offsets clear the dot and centre the name on it.
+          x: point[0] + radius - 3,
+          y: point[1] + 10.5,
+          width: Math.ceil(context.measureText(item[1]).width),
+          height: 11,
+          text: item[1],
+          color: item[0] === highlightedId ? "#1d4ed8" : "#0f172a",
+        }))
+      labelCandidates.unshift(...schools)
+    }
+
+    // Labels go on top of the dots, in priority order; a label that would
     // overlap one already drawn (or run off the map) is skipped.
     context.font = labelFont
     context.textBaseline = "top"
     context.lineJoin = "round"
+    const byId = new Map(labelCandidates.map((item) => [item.id, item]))
     for (const label of placeLabels(labelCandidates, size.width, size.height)) {
-      const text = labelCandidates.find((item) => item.id === label.id)?.text ?? ""
+      const candidate = byId.get(label.id)
+      if (!candidate) continue
       context.strokeStyle = "rgba(255,255,255,0.9)"
       context.lineWidth = 3
-      context.strokeText(text, label.left, label.top)
-      context.fillStyle = "#334155"
-      context.fillText(text, label.left, label.top)
+      context.strokeText(candidate.text, label.left, label.top)
+      context.fillStyle = candidate.color
+      context.fillText(candidate.text, label.left, label.top)
     }
     context.textBaseline = "alphabetic"
   }, [
@@ -429,9 +546,70 @@ export function TerritoryMap() {
     size,
     states,
     statuses,
+    view,
     visibleInstitutions,
     visibleMajorCities,
   ])
+
+  // Wheel and trackpad zoom. Native listener: React's wheel handler is passive
+  // and cannot stop the page from scrolling while you zoom the map.
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const point: [number, number] = [event.clientX - rect.left, event.clientY - rect.top]
+      setView((current) => zoomViewAt(current, wheelFactor(event), point, zoomLimits))
+    }
+    canvas.addEventListener("wheel", onWheel, { passive: false })
+    return () => canvas.removeEventListener("wheel", onWheel)
+  }, [setView, states, zoomLimits])
+
+  // Drag to pan, two fingers to pinch. A press that barely moves stays a click.
+  const pointersRef = React.useRef(new Map<number, [number, number]>())
+  const gestureRef = React.useRef({ moved: false, distance: 0 })
+  const localPoint = (event: React.PointerEvent<HTMLCanvasElement>): [number, number] => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return [event.clientX - rect.left, event.clientY - rect.top]
+  }
+  const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    pointersRef.current.set(event.pointerId, localPoint(event))
+    if (pointersRef.current.size === 1) gestureRef.current = { moved: false, distance: 0 }
+    if (pointersRef.current.size === 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      gestureRef.current = { moved: true, distance: Math.hypot(a[0] - b[0], a[1] - b[1]) }
+    }
+  }
+  const onPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const previous = pointersRef.current.get(event.pointerId)
+    if (!previous) return
+    const point = localPoint(event)
+    pointersRef.current.set(event.pointerId, point)
+    if (pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()]
+      const distance = Math.hypot(a[0] - b[0], a[1] - b[1])
+      const center: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+      const last = gestureRef.current.distance
+      gestureRef.current = { moved: true, distance }
+      if (last > 0 && distance > 0) setView((current) => zoomViewAt(current, distance / last, center, zoomLimits))
+      return
+    }
+    const dx = point[0] - previous[0]
+    const dy = point[1] - previous[1]
+    if (!gestureRef.current.moved && Math.hypot(dx, dy) < 4) {
+      pointersRef.current.set(event.pointerId, previous)
+      return
+    }
+    gestureRef.current.moved = true
+    setView((current) => panView(current, dx, dy))
+  }
+  const onPointerEnd = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    pointersRef.current.delete(event.pointerId)
+    if (pointersRef.current.size === 1) gestureRef.current.distance = 0
+  }
 
   const stateOptions = React.useMemo(
     () => states?.features.map((item) => item.properties).sort((a, b) => a.name.localeCompare(b.name)) ?? [],
@@ -496,6 +674,17 @@ export function TerritoryMap() {
     return rankSearchMatches(normalizedQuery, candidates()).map((match) => match.value)
   }, [metrosWithTeams, normalizedQuery, searchCities, stateInstitutions])
   const highlighted = institutions.find((item) => item[0] === highlightedId)
+  const cityTeams = React.useMemo(
+    () =>
+      selectedCity
+        ? [...visibleInstitutions].sort(
+            (a, b) =>
+              STATUS_PRIORITY[statuses.get(a[0]) ?? "available"] - STATUS_PRIORITY[statuses.get(b[0]) ?? "available"] ||
+              a[1].localeCompare(b[1])
+          )
+        : [],
+    [selectedCity, statuses, visibleInstitutions]
+  )
 
   const resetCity = () => {
     setSelectedCity("")
@@ -531,9 +720,13 @@ export function TerritoryMap() {
   const pickFromCanvas = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const projection = projectionRef.current
     if (!projection || !states) return
+    if (gestureRef.current.moved) {
+      gestureRef.current.moved = false
+      return
+    }
     const rect = event.currentTarget.getBoundingClientRect()
     const point: [number, number] = [event.clientX - rect.left, event.clientY - rect.top]
-    if (!selectedState) {
+    if (!selectedState && view.k < 3) {
       const coordinate = projection.invert?.(point)
       const state = coordinate && states.features.find((item) => geoContains(item, coordinate))
       if (state) {
@@ -546,7 +739,7 @@ export function TerritoryMap() {
       return
     }
 
-    const hitRadius = selectedCity ? 16 : selectedMetro ? 14 : 10
+    const hitRadius = Math.max(selectedCity ? 16 : selectedMetro ? 14 : 10, 10 + Math.log2(view.k) * 2)
     let closestTeam = { id: "", distance: hitRadius }
     for (const item of visibleInstitutions) {
       const projected = layoutRef.current.get(item[0]) ?? projection([item[5], item[6]])
@@ -559,17 +752,23 @@ export function TerritoryMap() {
       return
     }
 
-    let closestCity = { name: "", distance: 12 }
+    let closestCity = { name: "", state: "", distance: 12 }
     for (const city of visibleMajorCities) {
       const projected = projection([city[4], city[5]])
       if (!projected) continue
       const distance = Math.hypot(projected[0] - point[0], projected[1] - point[1])
-      if (distance < closestCity.distance) closestCity = { name: displayCityName(city[1]), distance }
+      if (distance < closestCity.distance) closestCity = { name: displayCityName(city[1]), state: city[3], distance }
     }
     if (closestCity.name) {
+      if (!selectedState) setSelectedState(closestCity.state)
       setSelectedCity(closestCity.name)
       setHighlightedId("")
     }
+  }
+
+  const zoomInAt = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setView((current) => zoomViewAt(current, 2.5, [event.clientX - rect.left, event.clientY - rect.top], zoomLimits))
   }
 
   return (
@@ -616,12 +815,64 @@ export function TerritoryMap() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
         <div ref={frameRef} className="relative h-[420px] bg-[#f6f7f4] lg:h-[560px]">
-          <canvas
-            ref={canvasRef}
-            aria-label="Interactive United States sales map"
-            onClick={pickFromCanvas}
-            className="block size-full cursor-pointer"
-          />
+          {googleMaps ? (
+            states && (
+              <GoogleTerritoryMap
+                config={googleMaps}
+                institutions={kindInstitutions}
+                statuses={statuses}
+                focusBounds={googleFocus}
+                highlightedId={highlightedId}
+                onSelect={setHighlightedId}
+              />
+            )
+          ) : (
+            <>
+              <canvas
+                ref={canvasRef}
+                aria-label="Interactive United States sales map. Scroll or pinch to zoom, drag to move."
+                onClick={pickFromCanvas}
+                onDoubleClick={zoomInAt}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerEnd}
+                onPointerCancel={onPointerEnd}
+                className={cn("block size-full touch-none", view.k > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-pointer")}
+              />
+              {states && !error && (
+                <div className="absolute top-3 right-3 flex flex-col overflow-hidden rounded-lg border border-slate-300 bg-white/95 text-slate-800 shadow-sm">
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    onClick={() => zoomBy(2)}
+                    disabled={view.k >= zoomLimits.max}
+                    className="grid size-9 place-items-center hover:bg-slate-100 disabled:opacity-40 max-xl:size-11"
+                  >
+                    <PlusIcon className="size-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    onClick={() => zoomBy(0.5)}
+                    disabled={view.k <= MAP_ZOOM_LIMITS.min}
+                    className="grid size-9 place-items-center border-t border-slate-200 hover:bg-slate-100 disabled:opacity-40 max-xl:size-11"
+                  >
+                    <MinusIcon className="size-4" aria-hidden />
+                  </button>
+                  {view.k > 1 && (
+                    <button
+                      type="button"
+                      aria-label="Reset zoom"
+                      onClick={() => setView(() => IDENTITY_VIEW)}
+                      className="grid size-9 place-items-center border-t border-slate-200 hover:bg-slate-100 max-xl:size-11"
+                    >
+                      <RotateCcwIcon className="size-4" aria-hidden />
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           {!states && !error && (
             <div className="absolute inset-0 grid place-items-center text-sm text-slate-600">
               <span className="inline-flex items-center gap-2"><LoaderCircleIcon className="size-4 animate-spin" />Loading territory map</span>
@@ -633,10 +884,16 @@ export function TerritoryMap() {
             </div>
           )}
           {highlighted && (
-            <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-900 shadow">
+            <div
+              className={cn(
+                "absolute left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-900 shadow",
+                // Clear Google's logo and terms along the bottom edge.
+                googleMaps ? "bottom-9" : "bottom-3"
+              )}
+            >
               <strong>{highlighted[1]}</strong>
               <span className="ml-1.5 text-slate-600">
-                {`${KIND_SHORT[highlighted[2]]} · ${highlighted[4]}, ${highlighted[3]}`}
+                {`${KIND_SHORT[highlighted[2]]} · ${highlighted[4]}, ${highlighted[3]} · ${STATUS_LABEL[statuses.get(highlighted[0]) ?? "available"]}`}
               </span>
             </div>
           )}
@@ -865,7 +1122,7 @@ export function TerritoryMap() {
             ) : selectedCity ? (
               <>
                 <p className="text-caption text-muted-foreground px-1">
-                  City view shows every team in {selectedCity}. Click a dot for details.
+                  Every team in {selectedCity}. Pick one to find it on the map, or zoom in on the map.
                 </p>
                 {centerStacked > 0 && (
                   <p className="text-caption text-muted-foreground mt-2 px-1">
@@ -883,10 +1140,38 @@ export function TerritoryMap() {
                     </div>
                   ))}
                 </dl>
+                <ul aria-label={`Teams in ${selectedCity}`} className="mt-3 space-y-1">
+                  {cityTeams.map((item) => {
+                    const status = statuses.get(item[0]) ?? "available"
+                    return (
+                      <li key={item[0]}>
+                        <button
+                          type="button"
+                          aria-pressed={item[0] === highlightedId}
+                          className={cn(MAP_LIST_BTN, "items-start gap-2 py-2", item[0] === highlightedId && "bg-muted")}
+                          onClick={() => setHighlightedId(item[0])}
+                        >
+                          <i
+                            aria-hidden
+                            className="mt-1 size-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: STATUS_COLOR[status] }}
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{item[1]}</span>
+                            <span className="text-caption text-muted-foreground block truncate">
+                              {`${KIND_SHORT[item[2]]} · ${STATUS_LABEL[status]}`}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
               </>
             ) : (
               <p className="text-caption text-muted-foreground px-1">
-                Click a state to zoom, then open a metro area or city. Alaska and Hawaii use map insets.
+                Click a state, or scroll, pinch and drag to zoom anywhere. School names appear as you get close. Alaska and
+                Hawaii use map insets.
               </p>
             )}
           </div>
