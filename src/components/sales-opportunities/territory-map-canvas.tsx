@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useDeals } from "@/components/sales-opportunities/deals-store"
 import type { GoogleMapsConfig } from "@/components/sales-opportunities/google-territory-map"
+import { SchoolProfileCard } from "@/components/sales-opportunities/school-profile-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -891,18 +892,14 @@ export function TerritoryMap({ googleMaps = null }: { googleMaps?: GoogleMapsCon
             </div>
           )}
           {highlighted && (
-            <div
-              className={cn(
-                "absolute left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-white/95 px-3 py-2 text-xs text-slate-900 shadow",
-                // Clear Google's logo and terms along the bottom edge.
-                googleMaps ? "bottom-9" : "bottom-3"
-              )}
-            >
-              <strong>{highlighted[1]}</strong>
-              <span className="ml-1.5 text-slate-600">
-                {`${KIND_SHORT[highlighted[2]]} · ${highlighted[4]}, ${highlighted[3]} · ${STATUS_LABEL[statuses.get(highlighted[0]) ?? "available"]}`}
-              </span>
-            </div>
+            <SchoolProfileCard
+              key={highlighted[0]}
+              school={highlighted}
+              status={statuses.get(highlighted[0]) ?? "available"}
+              onClose={() => setHighlightedId("")}
+              // Clear Google's logo and terms along the bottom edge.
+              className={cn("absolute left-3 z-10", googleMaps ? "bottom-9 max-h-[calc(100%-3rem)]" : "bottom-3")}
+            />
           )}
         </div>
 

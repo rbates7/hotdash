@@ -411,15 +411,27 @@ function useDialogOpen({ open, onOpenChange }: DialogControl) {
 
 /* ------------------------------------------------------------ add / edit */
 
-export function AddDealDialog({ trigger, finalFocus, ...control }: DialogControl = {}) {
+export function AddDealDialog({
+  trigger,
+  finalFocus,
+  school,
+  ...control
+}: DialogControl & {
+  /** Opened from a school on the map: the deal starts linked to it. */
+  school?: { id: string; name: string }
+} = {}) {
   const { addDeal } = useDeals()
   const [open, setOpen] = useDialogOpen(control)
-  const [draft, setDraft] = React.useState<Draft>(EMPTY_DRAFT)
+  const start = React.useMemo<Draft>(
+    () => (school ? { ...EMPTY_DRAFT, institutionId: school.id, org: school.name.slice(0, CAPS.org) } : EMPTY_DRAFT),
+    [school]
+  )
+  const [draft, setDraft] = React.useState<Draft>(start)
   const input = inputFrom(draft)
 
   function close() {
     setOpen(false)
-    setDraft(EMPTY_DRAFT)
+    setDraft(start)
   }
 
   function submit(event: React.FormEvent) {

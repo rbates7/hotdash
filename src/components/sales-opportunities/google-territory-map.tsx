@@ -143,9 +143,15 @@ function TeamMarkers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, focusKey])
 
-  // A team picked from search or the list: fly to it.
+  // A team picked from search or the list: fly to it. One clicked on the map
+  // is already in view, so the map stays put while its profile opens.
+  const clickedRef = React.useRef("")
+  const select = (id: string) => {
+    clickedRef.current = id
+    onSelect(id)
+  }
   React.useEffect(() => {
-    if (!map || !highlightedId) return
+    if (!map || !highlightedId || clickedRef.current === highlightedId) return
     const record = institutions.find((item) => item[0] === highlightedId)
     if (!record) return
     map.panTo({ lat: record[6], lng: record[5] })
@@ -257,7 +263,7 @@ function TeamMarkers({
             anchorLeft={`-${dot / 2}px`}
             anchorTop="-50%"
             zIndex={highlighted ? 1000 : status === "customer" ? 3 : status === "engaged" ? 2 : 1}
-            onClick={() => onSelect(id)}
+            onClick={() => select(id)}
           >
             {/* The dot sits on the school; the name hangs to its right. */}
             <div className="flex items-center gap-1">
