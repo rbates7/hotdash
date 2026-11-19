@@ -19,6 +19,7 @@ import { GmailApiError } from "@/lib/crm/gmail/errors"
 import {
   catchUpGmail,
   clearGmailBackfillProgress,
+  DEFAULT_GMAIL_FETCH_CONCURRENCY,
   syncGmail,
 } from "@/lib/crm/gmail/sync"
 import { createStripeApi } from "@/lib/crm/stripe/client"
@@ -41,7 +42,9 @@ export type RunSyncOptions = {
 
 function gmailFetchConcurrency() {
   const parsed = Number(process.env.CRM_GMAIL_FETCH_CONCURRENCY)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_GMAIL_FETCH_CONCURRENCY
 }
 
 async function runGmail(
