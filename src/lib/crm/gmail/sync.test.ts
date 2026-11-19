@@ -155,7 +155,9 @@ describe("syncGmail", () => {
     api.historyId = "2000"
     const stats = await syncGmail(db, api, FOUNDER)
 
-    expect(stats.fetched).toBe(2)
+    // m_dana_1 is already stored, so the backfill only fetches the new reply.
+    expect(stats.fetched).toBe(1)
+    expect(stats.stored).toBe(1)
     expect(api.calls.listMessageIds).toBe(2)
     const [cursor] = await db
       .select()
@@ -372,6 +374,45 @@ describe("syncGmail", () => {
     await expect(syncGmail(db, api, FOUNDER)).rejects.toThrow("network blip")
     // Page two was not stored, so its token was not advanced past.
     expect(await getSetting(db, "gmail_backfill_page_token")).toBe("1")
+  })
+
+  it("saves the cursor when a run hits the message cap and the next run resumes", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER)
+    const afterFirst = await gmailState(db)
+    expect(afterFirst?.cursor).toBe("1000")
+    const lastSyncedAt = afterFirst!.lastSyncedAt!
+
+    api.add(inboundReplyDana)
+    api.add(unknownHuman)
+    api.historyId = "1800"
+    api.historyBatches = [
+      { historyId: "1700", ids: ["m_dana_3"] },
+      { historyId: "1800", ids: ["m_lena_1"] },
+    ]
+
+    const capped = await syncGmail(db, api, FOUNDER, { maxMessagesPerRun: 1 })
+    expect(capped.fetched).toBe(1)
+    expect(capped.stored).toBe(1)
+    expect(capped.moreRemaining).toBe(1)
+    const afterCap = await gmailState(db)
+    expect(afterCap?.cursor).toBe("1700")
+    expect(afterCap?.lastSyncedAt?.getTime()).toBe(lastSyncedAt.getTime())
+    expect(await db.select().from(emailMessages)).toHaveLength(2)
+    expect(
+      (await db.select().from(emailMessages).where(eq(emailMessages.triageState, "pending")))
+    ).toHaveLength(0)
+
+    const resumed = await syncGmail(db, api, FOUNDER, { maxMessagesPerRun: 1 })
+    expect(resumed.fetched).toBe(1)
+    expect(resumed.triaged).toBe(1)
+    expect(resumed.moreRemaining).toBeUndefined()
+    const afterResume = await gmailState(db)
+    expect(afterResume?.cursor).toBe("1800")
+    expect(afterResume!.lastSyncedAt!.getTime()).toBeGreaterThan(lastSyncedAt.getTime())
+    expect(
+      (await db.select().from(emailMessages).where(eq(emailMessages.triageState, "pending")))
+    ).toHaveLength(1)
   })
 })
 
