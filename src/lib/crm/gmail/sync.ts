@@ -22,7 +22,7 @@ import {
   setSetting,
 } from "@/lib/crm/settings/server"
 
-import { isGoogleNotFound } from "./errors"
+import { isGoogleNotFound, isGoogleRateLimited } from "./errors"
 import { isExcludedByLabels, parseMessage } from "./parse"
 import type {
   GmailApi,
@@ -268,6 +268,51 @@ const GMAIL_CATCHUP_AFTER_KEY = "gmail_catchup_after"
 const CATCHUP_OVERLAP_SECONDS = 60 * 60
 const CATCHUP_TIME_BUDGET_MS = 120_000
 
+/** How many users.messages.get calls run at once. Kept small so a
+ * catch-up does not blow Gmail's per-user query-cost quota. */
+export const DEFAULT_GMAIL_FETCH_CONCURRENCY = 3
+const RATE_LIMIT_RETRIES = 4
+const RATE_LIMIT_BASE_DELAY_MS = 2_000
+const RATE_LIMIT_MAX_DELAY_MS = 16_000
+// Stay well under the sync route's maxDuration (300s).
+const RATE_LIMIT_BUDGET_MS = 90_000
+
+/** Test hook so the retry test does not wait on real timers. */
+export const gmailRateLimitRetry = {
+  sleep: (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+}
+
+function rateLimitDelayMs(attempt: number): number {
+  const exp = RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt
+  const jitter = Math.floor(Math.random() * RATE_LIMIT_BASE_DELAY_MS)
+  return Math.min(exp + jitter, RATE_LIMIT_MAX_DELAY_MS)
+}
+
+async function getMessageRespectingQuota(
+  api: GmailApi,
+  id: string,
+  budget: { remainingMs: number }
+): Promise<GmailRawMessage> {
+  for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
+    try {
+      return await api.getMessage(id)
+    } catch (error) {
+      if (!isGoogleRateLimited(error) || attempt === RATE_LIMIT_RETRIES) {
+        throw error
+      }
+      const delay = Math.min(rateLimitDelayMs(attempt), budget.remainingMs)
+      if (delay <= 0) throw error
+      console.warn(
+        `[crm gmail] users.messages.get hit a rate limit for message ${id}; retrying in ${delay}ms.`
+      )
+      budget.remainingMs -= delay
+      await gmailRateLimitRetry.sleep(delay)
+    }
+  }
+  throw new Error("unreachable")
+}
+
 export async function clearGmailBackfillProgress(db: Db) {
   await deleteSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY)
   await deleteSetting(db, GMAIL_BACKFILL_HISTORY_ID_KEY)
@@ -328,9 +373,10 @@ async function fetchMessages(
   concurrency: number,
   stats: GmailSyncStats
 ): Promise<GmailRawMessage[]> {
+  const budget = { remainingMs: RATE_LIMIT_BUDGET_MS }
   const results = await mapWithConcurrency(ids, concurrency, async (id) => {
     try {
-      return await api.getMessage(id)
+      return await getMessageRespectingQuota(api, id, budget)
     } catch (error) {
       if (!isGoogleNotFound(error)) throw error
       console.warn(
@@ -437,7 +483,7 @@ export async function syncGmail(
     api,
     founderAddresses,
     ids,
-    options.fetchConcurrency ?? 5,
+    options.fetchConcurrency ?? DEFAULT_GMAIL_FETCH_CONCURRENCY,
     stats
   )
 
@@ -510,7 +556,7 @@ export async function catchUpGmail(
       api,
       founderAddresses,
       page.ids,
-      options.fetchConcurrency ?? 5,
+      options.fetchConcurrency ?? DEFAULT_GMAIL_FETCH_CONCURRENCY,
       stats
     )
     pageToken = page.nextPageToken
