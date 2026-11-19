@@ -15,7 +15,12 @@ import {
   createGmailApi,
   founderAliasesFromEnv,
 } from "@/lib/crm/gmail/client"
-import { clearGmailBackfillProgress, syncGmail } from "@/lib/crm/gmail/sync"
+import { GmailApiError } from "@/lib/crm/gmail/errors"
+import {
+  catchUpGmail,
+  clearGmailBackfillProgress,
+  syncGmail,
+} from "@/lib/crm/gmail/sync"
 import { createStripeApi } from "@/lib/crm/stripe/client"
 import { syncStripe } from "@/lib/crm/stripe/sync"
 import { createSupabaseSource, syncSupabase } from "@/lib/crm/supabase/adapter"
@@ -30,6 +35,8 @@ type SourceResult = {
 export type RunSyncOptions = {
   /** Re-list mail from the configured initial window instead of history sync. */
   fullGmailResync?: boolean
+  /** Pull Gmail mail since the last successful sync by search, then reset the cursor. */
+  gmailCatchUp?: boolean
 }
 
 function gmailFetchConcurrency() {
@@ -41,6 +48,14 @@ async function runGmail(
   db: Db,
   options: RunSyncOptions = {}
 ): Promise<SourceResult> {
+  if (options.gmailCatchUp) {
+    const { api, accountEmail } = await createGmailApi(db)
+    const stats = await catchUpGmail(db, api, accountEmail, {
+      founderAliases: founderAliasesFromEnv(),
+      fetchConcurrency: gmailFetchConcurrency(),
+    })
+    return { status: "success", stats: { ...stats } }
+  }
   const forceFull =
     options.fullGmailResync ||
     process.env.CRM_GMAIL_FORCE_FULL_RESYNC === "1"
@@ -198,6 +213,14 @@ export async function runSync(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown sync error."
+    // Name the failing call and status for the Vercel logs. Never log the
+    // error object itself: a Google error's request config holds the token.
+    console.error(
+      `[crm sync] ${source} ${trigger} run failed`,
+      error instanceof GmailApiError
+        ? { method: error.method, status: error.status ?? null, message }
+        : { name: error instanceof Error ? error.name : typeof error, message }
+    )
     await db.update(syncRuns)
       .set({ status: "error", message, finishedAt: new Date() })
       .where(eq(syncRuns.id, runId))

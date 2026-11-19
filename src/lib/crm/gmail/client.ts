@@ -7,6 +7,7 @@ import { IntegrationError } from "@/lib/crm/core/errors"
 import type { Db } from "@/lib/crm/db/client"
 import { oauthTokens } from "@/lib/crm/db/schema"
 
+import { GmailApiError, isGoogleNotFound } from "./errors"
 import type { GmailApi, GmailRawMessage } from "./types"
 import { HistoryExpiredError, ReconnectRequiredError } from "./types"
 
@@ -148,11 +149,6 @@ function isInvalidGrant(error: unknown): boolean {
   )
 }
 
-function statusOf(error: unknown): number | undefined {
-  const err = error as { status?: number; response?: { status?: number } }
-  return err?.response?.status ?? err?.status
-}
-
 export async function createGmailApi(
   db: Db
 ): Promise<{ api: GmailApi; accountEmail: string }> {
@@ -200,7 +196,13 @@ export async function createGmailApi(
 
   const raw = gmail({ version: "v1", auth: client, retry: true } as never)
 
-  const translate = async <T>(fn: () => Promise<T>): Promise<T> => {
+  // Every call is named so a failure says which Gmail request broke. The
+  // wrapped error keeps the HTTP status (so 404 handling still works) but
+  // drops the request config, which carries the OAuth bearer token.
+  const translate = async <T>(
+    method: string,
+    fn: () => Promise<T>
+  ): Promise<T> => {
     try {
       return await fn()
     } catch (error) {
@@ -211,20 +213,22 @@ export async function createGmailApi(
         )
         throw new ReconnectRequiredError()
       }
-      throw error
+      throw new GmailApiError(method, error)
     }
   }
 
   const api: GmailApi = {
     async getProfile() {
-      const res = await translate(() => raw.users.getProfile({ userId: "me" }))
+      const res = await translate("users.getProfile", () =>
+        raw.users.getProfile({ userId: "me" })
+      )
       return {
         emailAddress: res.data.emailAddress ?? "",
         historyId: String(res.data.historyId ?? ""),
       }
     },
     async listMessageIds({ q, pageToken }) {
-      const res = await translate(() =>
+      const res = await translate("users.messages.list", () =>
         raw.users.messages.list({ userId: "me", q, maxResults: 100, pageToken })
       )
       return {
@@ -235,14 +239,14 @@ export async function createGmailApi(
       }
     },
     async getMessage(id) {
-      const res = await translate(() =>
+      const res = await translate("users.messages.get", () =>
         raw.users.messages.get({ userId: "me", id, format: "full" })
       )
       return res.data as GmailRawMessage
     },
     async listHistory({ startHistoryId, pageToken }) {
       try {
-        const res = await translate(() =>
+        const res = await translate("users.history.list", () =>
           raw.users.history.list({
             userId: "me",
             startHistoryId,
@@ -263,12 +267,13 @@ export async function createGmailApi(
           nextPageToken: res.data.nextPageToken ?? undefined,
         }
       } catch (error) {
-        if (statusOf(error) === 404) throw new HistoryExpiredError()
+        // Gmail answers an expired or invalid startHistoryId with 404.
+        if (isGoogleNotFound(error)) throw new HistoryExpiredError()
         throw error
       }
     },
     async getThread(threadId) {
-      const res = await translate(() =>
+      const res = await translate("users.threads.get", () =>
         raw.users.threads.get({ userId: "me", id: threadId, format: "full" })
       )
       return {

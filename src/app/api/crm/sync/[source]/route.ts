@@ -20,8 +20,16 @@ export async function POST(
     const refused = refuseCrossSite(request)
     if (refused) return refused
     const { source } = paramsSchema.parse(await params)
-    const fullGmailResync =
-      new URL(request.url).searchParams.get("full") === "1"
+    const searchParams = new URL(request.url).searchParams
+    const fullGmailResync = searchParams.get("full") === "1"
+    // Catch-up is a signed-in POST from Settings only; cron GETs can't ask for it.
+    const gmailCatchUp = searchParams.get("catchup") === "1"
+    if (gmailCatchUp && source !== "gmail") {
+      return Response.json(
+        { error: "Catch-up is only available for Gmail.", code: "validation_error" },
+        { status: 400 }
+      )
+    }
     const db = getDb()
     if (source === "all") {
       // Contacts must exist before Gmail classifies known senders, and Chlk
@@ -39,9 +47,14 @@ export async function POST(
         { status: results.some((result) => result.status === "error") ? 500 : 200 }
       )
     }
-    const result = await runSync(db, source, "manual", {
-      fullGmailResync: source === "gmail" && fullGmailResync,
-    })
+    const result = await runSync(
+      db,
+      source,
+      "manual",
+      gmailCatchUp
+        ? { gmailCatchUp: true }
+        : { fullGmailResync: source === "gmail" && fullGmailResync }
+    )
     return Response.json(result, {
       status: result.status === "error" ? 500 : 200,
     })

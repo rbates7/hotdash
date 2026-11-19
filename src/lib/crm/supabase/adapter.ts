@@ -3,6 +3,7 @@ import postgres from "postgres"
 import { normalizeEmail } from "@/lib/crm/contacts/matching"
 import { enrichContactName, findContactByEmail } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
+import { markSourceSynced } from "@/lib/crm/sync/state"
 
 import { chlkMapping, type SupabaseProfileRow } from "./mapping"
 
@@ -96,5 +97,6 @@ export async function syncSupabase(
     if (rows.length < PAGE_SIZE) break
     offset += PAGE_SIZE
   }
+  await markSourceSynced(db, "supabase")
   return stats
 }
