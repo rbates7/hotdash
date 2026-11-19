@@ -22,6 +22,7 @@ import {
   setSetting,
 } from "@/lib/crm/settings/server"
 
+import { isGoogleNotFound } from "./errors"
 import { isExcludedByLabels, parseMessage } from "./parse"
 import type {
   GmailApi,
@@ -45,6 +46,7 @@ function emptyStats(): GmailSyncStats {
     triaged: 0,
     skippedBulk: 0,
     backfilled: 0,
+    skippedMissing: 0,
   }
 }
 
@@ -251,15 +253,37 @@ export function gmailFullSyncListQuery(initialWindow: string): string {
   return `-in:chat ${timeFilter}`
 }
 
+/** Gmail list query for "Catch up since last sync" (`after:` takes epoch seconds). */
+export function gmailCatchUpListQuery(afterEpochSeconds: number): string {
+  return `-in:chat after:${Math.floor(afterEpochSeconds)}`
+}
+
 const GMAIL_BACKFILL_PAGE_TOKEN_KEY = "gmail_backfill_page_token"
 const GMAIL_BACKFILL_HISTORY_ID_KEY = "gmail_backfill_history_id"
+const GMAIL_CATCHUP_PAGE_TOKEN_KEY = "gmail_catchup_page_token"
+const GMAIL_CATCHUP_HISTORY_ID_KEY = "gmail_catchup_history_id"
+const GMAIL_CATCHUP_AFTER_KEY = "gmail_catchup_after"
+
+/** Catch-up looks back this far before the last success, in case that run missed a few. */
+const CATCHUP_OVERLAP_SECONDS = 60 * 60
+const CATCHUP_TIME_BUDGET_MS = 120_000
 
 export async function clearGmailBackfillProgress(db: Db) {
   await deleteSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY)
   await deleteSetting(db, GMAIL_BACKFILL_HISTORY_ID_KEY)
 }
 
-/** Lists and processes one Gmail page per run to stay under quota and time limits. */
+async function clearGmailCatchUpProgress(db: Db) {
+  await deleteSetting(db, GMAIL_CATCHUP_PAGE_TOKEN_KEY)
+  await deleteSetting(db, GMAIL_CATCHUP_HISTORY_ID_KEY)
+  await deleteSetting(db, GMAIL_CATCHUP_AFTER_KEY)
+}
+
+/**
+ * Lists one Gmail page of the backfill window. The next page token is only
+ * saved once this page's messages are stored (see `syncGmail`), so a run that
+ * dies mid-page redoes that page instead of skipping it.
+ */
 async function collectFullSyncBatch(
   db: Db,
   api: GmailApi,
@@ -279,17 +303,87 @@ async function collectFullSyncBatch(
   })
 
   const backfillPending = page.nextPageToken ? 1 : 0
-  if (page.nextPageToken) {
-    await setSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY, page.nextPageToken)
-  } else {
-    await clearGmailBackfillProgress(db)
-  }
-
   return {
     ids: page.ids,
     newCursor: backfillPending ? null : historyId,
     backfillPending,
+    commit: async () => {
+      if (page.nextPageToken) {
+        await setSetting(db, GMAIL_BACKFILL_PAGE_TOKEN_KEY, page.nextPageToken)
+      } else {
+        await clearGmailBackfillProgress(db)
+      }
+    },
   }
+}
+
+/**
+ * Fetches full messages. A message Gmail no longer has (404: a deleted draft
+ * or purged mail that history still lists) is skipped and logged instead of
+ * failing the whole run, which would otherwise pin the cursor forever.
+ */
+async function fetchMessages(
+  api: GmailApi,
+  ids: string[],
+  concurrency: number,
+  stats: GmailSyncStats
+): Promise<GmailRawMessage[]> {
+  const results = await mapWithConcurrency(ids, concurrency, async (id) => {
+    try {
+      return await api.getMessage(id)
+    } catch (error) {
+      if (!isGoogleNotFound(error)) throw error
+      console.warn(
+        `[crm gmail] users.messages.get returned 404 for message ${id}; skipping it.`
+      )
+      stats.skippedMissing += 1
+      return null
+    }
+  })
+  return results.filter((raw): raw is GmailRawMessage => raw !== null)
+}
+
+async function processMessageIds(
+  db: Db,
+  api: GmailApi,
+  founderAddresses: Set<string>,
+  ids: string[],
+  concurrency: number,
+  stats: GmailSyncStats
+) {
+  const rawMessages = await fetchMessages(api, ids, concurrency, stats)
+  stats.fetched += rawMessages.length
+
+  const parsed = rawMessages
+    .filter((raw) => !isExcludedByLabels(raw.labelIds))
+    .map((raw) => parseMessage(raw, founderAddresses))
+    .filter((m): m is ParsedMessage => m !== null)
+    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+
+  for (const message of parsed) {
+    await processParsedMessage(db, api, founderAddresses, message, stats)
+  }
+}
+
+function founderAddressSet(accountEmail: string, aliases: string[] = []) {
+  return new Set(
+    [accountEmail, ...aliases].map((a) => a.trim().toLowerCase())
+  )
+}
+
+async function saveGmailSuccess(db: Db, cursor: string | null) {
+  const now = new Date()
+  await db.insert(syncState)
+    .values({
+      source: "gmail",
+      cursor,
+      lastSyncedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: syncState.source,
+      set: { cursor, lastSyncedAt: now, updatedAt: now },
+    })
 }
 
 export async function syncGmail(
@@ -299,11 +393,7 @@ export async function syncGmail(
   options: GmailSyncOptions = {}
 ): Promise<GmailSyncStats> {
   const stats = emptyStats()
-  const founderAddresses = new Set(
-    [accountEmail, ...(options.founderAliases ?? [])].map((a) =>
-      a.trim().toLowerCase()
-    )
-  )
+  const founderAddresses = founderAddressSet(accountEmail, options.founderAliases)
   const initialWindow = options.initialWindow ?? "30d"
 
   const [state] = await db
@@ -315,59 +405,126 @@ export async function syncGmail(
   let ids: string[]
   let newCursor: string | null
   let backfillPending = 0
+  let commit: (() => Promise<void>) | undefined
   if (state?.cursor) {
     try {
       ;({ ids, newCursor } = await collectIncrementalIds(api, state.cursor))
     } catch (error) {
-      if (error instanceof HistoryExpiredError) {
-        await clearGmailBackfillProgress(db)
-        ;({ ids, newCursor, backfillPending } = await collectFullSyncBatch(
-          db,
-          api,
-          initialWindow
-        ))
-      } else {
-        throw error
-      }
+      if (!(error instanceof HistoryExpiredError)) throw error
+      // Switch to a backfill exactly once: drop the expired cursor now so
+      // later runs resume the backfill from its saved page instead of
+      // hitting the expired cursor and restarting from page one.
+      await db.update(syncState)
+        .set({ cursor: null, updatedAt: new Date() })
+        .where(eq(syncState.source, "gmail"))
+      await clearGmailBackfillProgress(db)
+      ;({ ids, newCursor, backfillPending, commit } = await collectFullSyncBatch(
+        db,
+        api,
+        initialWindow
+      ))
     }
   } else {
-    ;({ ids, newCursor, backfillPending } = await collectFullSyncBatch(
+    ;({ ids, newCursor, backfillPending, commit } = await collectFullSyncBatch(
       db,
       api,
       initialWindow
     ))
   }
 
-  const rawMessages = await mapWithConcurrency(
+  await processMessageIds(
+    db,
+    api,
+    founderAddresses,
     ids,
     options.fetchConcurrency ?? 5,
-    (id) => api.getMessage(id)
+    stats
   )
-  stats.fetched = rawMessages.length
 
-  const parsed = rawMessages
-    .filter((raw) => !isExcludedByLabels(raw.labelIds))
-    .map((raw) => parseMessage(raw, founderAddresses))
-    .filter((m): m is ParsedMessage => m !== null)
-    .sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
-
-  for (const message of parsed) {
-    await processParsedMessage(db, api, founderAddresses, message, stats)
-  }
-
-  const now = new Date()
-  await db.insert(syncState)
-    .values({
-      source: "gmail",
-      cursor: newCursor,
-      lastSyncedAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: syncState.source,
-      set: { cursor: newCursor, lastSyncedAt: now, updatedAt: now },
-    })
+  await commit?.()
+  await saveGmailSuccess(db, newCursor)
 
   if (backfillPending) stats.backfillPending = backfillPending
+  return stats
+}
+
+export class GmailNeverSyncedError extends Error {
+  constructor() {
+    super(
+      "Gmail has never synced successfully, so there is no last sync to catch up from. Use Sync now for the first import."
+    )
+    this.name = "GmailNeverSyncedError"
+  }
+}
+
+export type GmailCatchUpOptions = GmailSyncOptions & {
+  /** Stop listing new pages after this long; the next click resumes. */
+  timeBudgetMs?: number
+}
+
+/**
+ * "Catch up since last sync": pulls every message Gmail search finds after
+ * the last successful sync (minus a short overlap), without the history
+ * cursor. When done it resets the cursor to the mailbox historyId read before
+ * listing, so regular syncs carry on from there. Messages already stored are
+ * skipped, so overlap and repeat clicks are safe.
+ */
+export async function catchUpGmail(
+  db: Db,
+  api: GmailApi,
+  accountEmail: string,
+  options: GmailCatchUpOptions = {}
+): Promise<GmailSyncStats> {
+  const stats = emptyStats()
+  const founderAddresses = founderAddressSet(accountEmail, options.founderAliases)
+  const budgetMs = options.timeBudgetMs ?? CATCHUP_TIME_BUDGET_MS
+
+  let after = await getSetting(db, GMAIL_CATCHUP_AFTER_KEY)
+  let historyId = await getSetting(db, GMAIL_CATCHUP_HISTORY_ID_KEY)
+  if (!after || !historyId) {
+    const [state] = await db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.source, "gmail"))
+      .limit(1)
+    if (!state?.lastSyncedAt) throw new GmailNeverSyncedError()
+    await clearGmailCatchUpProgress(db)
+    after = String(
+      Math.floor(state.lastSyncedAt.getTime() / 1000) - CATCHUP_OVERLAP_SECONDS
+    )
+    // Read before listing: anything that arrives mid-catch-up is picked up
+    // by the next regular sync from this point.
+    historyId = (await api.getProfile()).historyId
+    await setSetting(db, GMAIL_CATCHUP_AFTER_KEY, after)
+    await setSetting(db, GMAIL_CATCHUP_HISTORY_ID_KEY, historyId)
+  }
+
+  const query = gmailCatchUpListQuery(Number(after))
+  let pageToken =
+    (await getSetting(db, GMAIL_CATCHUP_PAGE_TOKEN_KEY)) ?? undefined
+  const startedAt = Date.now()
+  do {
+    const page = await api.listMessageIds({ q: query, pageToken })
+    await processMessageIds(
+      db,
+      api,
+      founderAddresses,
+      page.ids,
+      options.fetchConcurrency ?? 5,
+      stats
+    )
+    pageToken = page.nextPageToken
+    if (pageToken) await setSetting(db, GMAIL_CATCHUP_PAGE_TOKEN_KEY, pageToken)
+  } while (pageToken && Date.now() - startedAt < budgetMs)
+
+  if (pageToken) {
+    stats.catchUpPending = 1
+    return stats
+  }
+
+  await saveGmailSuccess(db, historyId)
+  await clearGmailCatchUpProgress(db)
+  // The fresh cursor supersedes any half-finished backfill.
+  await clearGmailBackfillProgress(db)
   return stats
 }

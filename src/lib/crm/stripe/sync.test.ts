@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { createContact } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { createTestDb } from "@/lib/crm/db/test-client"
-import { contacts } from "@/lib/crm/db/schema"
+import { contacts, syncState } from "@/lib/crm/db/schema"
 
 import { syncStripe } from "./sync"
 import type {
@@ -150,5 +150,15 @@ describe("syncStripe", () => {
     expect(stats.contactsCreated).toBe(0)
     expect(stats.contactsUpdated).toBe(0)
     expect(stats.plansSet).toBe(0)
+  })
+  it("records lastSyncedAt so Settings stops saying Never synced", async () => {
+    await syncStripe(db, fakeApi([], []))
+    const [state] = await db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.source, "stripe"))
+      .limit(1)
+    expect(state?.lastSyncedAt).toBeInstanceOf(Date)
+    expect(state?.cursor).toBeNull()
   })
 })

@@ -101,7 +101,7 @@ export default async function SettingsPage({
                 : "Not connected. Email-to-case needs read access to your inbox."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center gap-2">
+          <CardContent className="flex flex-wrap items-center gap-2">
             {/* Full-page navigation so the OAuth redirect chain works. */}
             <a
               href="/api/crm/google/connect"
@@ -116,6 +116,13 @@ export default async function SettingsPage({
             {google.connected ? (
               <>
                 <RefreshButton source="gmail" label="Sync now" />
+                {lastSyncedBySource.get("gmail") ? (
+                  <RefreshButton
+                    source="gmail"
+                    label="Catch up since last sync"
+                    catchUp
+                  />
+                ) : null}
                 <GoogleDisconnectButton />
               </>
             ) : null}

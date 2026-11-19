@@ -19,11 +19,14 @@ export function RefreshButton({
   source,
   label = "Refresh",
   fullBackfill = false,
+  catchUp = false,
 }: {
   source: "gmail" | "stripe" | "supabase" | "all"
   label?: string
   /** Clears the Gmail cursor and restarts the configured backfill window. */
   fullBackfill?: boolean
+  /** Gmail only: pulls mail since the last successful sync, then resets the cursor. */
+  catchUp?: boolean
 }) {
   const router = useRouter()
   const [isRunning, setIsRunning] = React.useState(false)
@@ -32,7 +35,13 @@ export function RefreshButton({
     setIsRunning(true)
     try {
       const query =
-        source === "gmail" && fullBackfill ? "?full=1" : ""
+        source !== "gmail"
+          ? ""
+          : catchUp
+            ? "?catchup=1"
+            : fullBackfill
+              ? "?full=1"
+              : ""
       const response = await fetch(`/api/crm/sync/${source}${query}`, {
         method: "POST",
       })
@@ -52,7 +61,13 @@ export function RefreshButton({
         toast.info(payload.message ?? "Sync skipped.")
       } else {
         const summary = summarize(payload.stats)
-        if (payload.stats?.backfillPending) {
+        if (payload.stats?.catchUpPending) {
+          toast.success(
+            summary
+              ? `${summary}. More mail remains — click Catch up again.`
+              : "Batch imported. Click Catch up again for more mail."
+          )
+        } else if (payload.stats?.backfillPending) {
           toast.success(
             summary
               ? `${summary}. More mail remains — run Sync again.`

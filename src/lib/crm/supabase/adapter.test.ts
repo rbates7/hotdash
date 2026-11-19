@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { createContact } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { createTestDb } from "@/lib/crm/db/test-client"
-import { contacts, organizations } from "@/lib/crm/db/schema"
+import { contacts, organizations, syncState } from "@/lib/crm/db/schema"
 
 import { syncSupabase, type SupabaseSource } from "./adapter"
 import type { SupabaseProfileRow } from "./mapping"
@@ -107,5 +107,25 @@ describe("syncSupabase", () => {
     }))
     const stats = await syncSupabase(db, fakeSource(rows))
     expect(stats.rowsSeen).toBe(1200)
+  })
+  it("records lastSyncedAt so Settings stops saying Never synced", async () => {
+    await syncSupabase(db, fakeSource([]))
+    const first = await db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.source, "supabase"))
+    expect(first).toHaveLength(1)
+    expect(first[0]!.lastSyncedAt).toBeInstanceOf(Date)
+
+    // A second run updates the same row.
+    await syncSupabase(db, fakeSource([]))
+    const second = await db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.source, "supabase"))
+    expect(second).toHaveLength(1)
+    expect(second[0]!.lastSyncedAt!.getTime()).toBeGreaterThanOrEqual(
+      first[0]!.lastSyncedAt!.getTime()
+    )
   })
 })
