@@ -32,6 +32,7 @@ import {
   catchUpGmail,
   gmailCatchUpListQuery,
   gmailFullSyncListQuery,
+  gmailRateLimitRetry,
   GmailNeverSyncedError,
   syncGmail,
 } from "./sync"
@@ -258,6 +259,43 @@ describe("syncGmail", () => {
     expect(stats.fetched).toBe(1)
     expect(stats.stored).toBe(1)
     expect((await gmailState(db))?.cursor).toBe("1700")
+  })
+
+  it("retries a quota 403 from messages.get and then succeeds", async () => {
+    const originalSleep = gmailRateLimitRetry.sleep
+    const slept: number[] = []
+    gmailRateLimitRetry.sleep = async (ms) => {
+      slept.push(ms)
+    }
+    try {
+      const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+      const realGetMessage = api.getMessage.bind(api)
+      let attempts = 0
+      api.getMessage = async (id) => {
+        attempts += 1
+        if (attempts === 1) {
+          throw new GmailApiError(
+            "users.messages.get",
+            Object.assign(
+              new Error(
+                "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user'."
+              ),
+              { status: 403 }
+            )
+          )
+        }
+        return realGetMessage(id)
+      }
+      const stats = await syncGmail(db, api, FOUNDER)
+      expect(attempts).toBe(2)
+      expect(slept).toHaveLength(1)
+      expect(slept[0]).toBeGreaterThanOrEqual(2_000)
+      expect(stats.fetched).toBe(1)
+      expect(stats.stored).toBe(1)
+      expect((await gmailState(db))?.cursor).toBe("1000")
+    } finally {
+      gmailRateLimitRetry.sleep = originalSleep
+    }
   })
 
   it("still fails the run for errors other than 404", async () => {
