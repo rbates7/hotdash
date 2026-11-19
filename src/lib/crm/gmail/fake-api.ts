@@ -106,10 +106,11 @@ export class FakeGmailApi implements GmailApi {
       this.expireHistoryOnce = false
       throw new HistoryExpiredError()
     }
-    const ids = this.historyBatches
+    const records = this.historyBatches
       .filter((batch) => Number(batch.historyId) > Number(startHistoryId))
-      .flatMap((batch) => batch.ids)
-    return { historyId: this.historyId, messageIds: ids }
+      .sort((a, b) => Number(a.historyId) - Number(b.historyId))
+      .map((batch) => ({ historyId: batch.historyId, messageIds: batch.ids }))
+    return { historyId: this.historyId, records }
   }
 
   async getThread(threadId: string) {
