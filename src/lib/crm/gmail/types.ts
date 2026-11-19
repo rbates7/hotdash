@@ -93,6 +93,10 @@ export type GmailSyncStats = {
   triaged: number
   skippedBulk: number
   backfilled: number
+  /** Listed messages Gmail no longer has (deleted drafts, purged mail). */
+  skippedMissing: number
   /** 1 when more Gmail list pages remain for the initial backfill window. */
   backfillPending?: number
+  /** 1 when "Catch up since last sync" has more Gmail pages to pull. */
+  catchUpPending?: number
 }

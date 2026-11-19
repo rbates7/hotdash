@@ -24,8 +24,26 @@ import {
   unknownHuman,
   unknownHumanFollowup,
 } from "./__fixtures__/messages"
-import { FakeGmailApi } from "./fake-api"
-import { gmailFullSyncListQuery, syncGmail } from "./sync"
+import { getSetting } from "@/lib/crm/settings/server"
+
+import { GmailApiError } from "./errors"
+import { FakeGmailApi, gaxiosNotFoundError } from "./fake-api"
+import {
+  catchUpGmail,
+  gmailCatchUpListQuery,
+  gmailFullSyncListQuery,
+  GmailNeverSyncedError,
+  syncGmail,
+} from "./sync"
+
+async function gmailState(db: Db) {
+  const [row] = await db
+    .select()
+    .from(syncState)
+    .where(eq(syncState.source, "gmail"))
+    .limit(1)
+  return row
+}
 
 describe("gmailFullSyncListQuery", () => {
   it("supports relative windows and Gmail after: dates", () => {
@@ -33,6 +51,10 @@ describe("gmailFullSyncListQuery", () => {
     expect(gmailFullSyncListQuery("after:2026/07/01")).toBe(
       "-in:chat after:2026/07/01"
     )
+  })
+
+  it("builds the catch-up query from epoch seconds", () => {
+    expect(gmailCatchUpListQuery(1761680400.9)).toBe("-in:chat after:1761680400")
   })
 })
 
@@ -217,5 +239,203 @@ describe("syncGmail", () => {
     await syncGmail(db, api, FOUNDER)
     expect(await db.select().from(emailMessages)).toHaveLength(0)
     expect(await db.select().from(cases)).toHaveLength(0)
+  })
+  it("skips a message Gmail no longer has (404) and still advances the cursor", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER)
+
+    // History lists a deleted draft next to a real new reply; the draft's
+    // users.messages.get answers 404 exactly like production.
+    api.add(inboundReplyDana)
+    api.deletedIds.add("m_deleted_draft")
+    api.historyId = "1700"
+    api.historyBatches = [
+      { historyId: "1700", ids: ["m_deleted_draft", "m_dana_3"] },
+    ]
+    const stats = await syncGmail(db, api, FOUNDER)
+
+    expect(stats.skippedMissing).toBe(1)
+    expect(stats.fetched).toBe(1)
+    expect(stats.stored).toBe(1)
+    expect((await gmailState(db))?.cursor).toBe("1700")
+  })
+
+  it("still fails the run for errors other than 404", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    api.getMessage = async () => {
+      throw new GmailApiError(
+        "users.messages.get",
+        Object.assign(new Error("Backend Error"), { status: 500 })
+      )
+    }
+    await expect(syncGmail(db, api, FOUNDER)).rejects.toThrow(
+      "Gmail users.messages.get failed (500): Backend Error"
+    )
+    expect(await gmailState(db)).toBeUndefined()
+  })
+
+  it("treats a wrapped gaxios 404 from messages.get as missing, not fatal", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    api.deletedIds.add("m_gone")
+    const realGetMessage = api.getMessage.bind(api)
+    api.getMessage = async (id) => {
+      try {
+        return await realGetMessage(id)
+      } catch (error) {
+        throw new GmailApiError("users.messages.get", error)
+      }
+    }
+    const stats = await syncGmail(db, api, FOUNDER)
+    expect(stats.skippedMissing).toBe(1)
+    expect((await gmailState(db))?.cursor).toBe("1000")
+  })
+
+  it("after the cursor expires, resumes the backfill from its saved page instead of restarting", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await syncGmail(db, api, FOUNDER)
+
+    api.add(inboundReplyDana)
+    api.add(unknownHuman)
+    api.pageSize = 1
+    api.expireHistoryOnce = true
+    api.historyId = "3000"
+
+    const first = await syncGmail(db, api, FOUNDER)
+    expect(first.backfillPending).toBe(1)
+    // The expired cursor is dropped right away, so the next run resumes.
+    expect((await gmailState(db))?.cursor).toBeNull()
+    expect(await getSetting(db, "gmail_backfill_page_token")).toBe("1")
+
+    const second = await syncGmail(db, api, FOUNDER)
+    expect(second.backfillPending).toBe(1)
+    expect(await getSetting(db, "gmail_backfill_page_token")).toBe("2")
+
+    const third = await syncGmail(db, api, FOUNDER)
+    expect(third.backfillPending).toBeUndefined()
+    expect(api.calls.listHistory).toBe(1)
+    expect(api.calls.listMessageIds).toBe(4)
+    expect((await gmailState(db))?.cursor).toBe("3000")
+    expect(await getSetting(db, "gmail_backfill_page_token")).toBeNull()
+  })
+
+  it("keeps the backfill page token when a run fails mid-page", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana, unknownHuman])
+    api.pageSize = 1
+    const realGetMessage = api.getMessage.bind(api)
+    let failNext = false
+    api.getMessage = async (id) => {
+      if (failNext) throw new Error("network blip")
+      return realGetMessage(id)
+    }
+    await syncGmail(db, api, FOUNDER)
+    expect(await getSetting(db, "gmail_backfill_page_token")).toBe("1")
+
+    failNext = true
+    await expect(syncGmail(db, api, FOUNDER)).rejects.toThrow("network blip")
+    // Page two was not stored, so its token was not advanced past.
+    expect(await getSetting(db, "gmail_backfill_page_token")).toBe("1")
+  })
+})
+
+describe("catchUpGmail", () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = (await createTestDb()).db
+    await createContact(db, {
+      email: "dana@acme.com",
+      firstName: "Dana",
+      lastName: "Whitfield",
+      nameSource: "supabase",
+      source: "stripe",
+    })
+  })
+
+  it("refuses when Gmail never synced", async () => {
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    await expect(catchUpGmail(db, api, FOUNDER)).rejects.toBeInstanceOf(
+      GmailNeverSyncedError
+    )
+    expect(api.calls.listMessageIds).toBe(0)
+  })
+
+  it("searches after the last success, skips missing mail, and resets the cursor", async () => {
+    const lastSyncedAt = new Date("2026-10-28T19:40:00Z")
+    await db.insert(syncState).values({
+      source: "gmail",
+      cursor: "stale-21-days",
+      lastSyncedAt,
+      updatedAt: lastSyncedAt,
+    })
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana, unknownHuman])
+    api.deletedIds.add("m_deleted_draft")
+    api.historyId = "9000"
+
+    const stats = await catchUpGmail(db, api, FOUNDER)
+
+    const expectedAfter = Math.floor(lastSyncedAt.getTime() / 1000) - 3600
+    expect(api.listQueries).toEqual([`-in:chat after:${expectedAfter}`])
+    expect(api.calls.listHistory).toBe(0)
+    expect(stats.fetched).toBe(2)
+    expect(stats.skippedMissing).toBe(1)
+    expect(stats.casesCreated).toBe(1)
+    expect(stats.triaged).toBe(1)
+    expect(stats.catchUpPending).toBeUndefined()
+
+    const state = await gmailState(db)
+    expect(state?.cursor).toBe("9000")
+    expect(state!.lastSyncedAt!.getTime()).toBeGreaterThan(lastSyncedAt.getTime())
+    expect(await getSetting(db, "gmail_catchup_after")).toBeNull()
+
+    // Regular syncs carry on from the new cursor.
+    api.historyBatches = []
+    await syncGmail(db, api, FOUNDER)
+    expect(api.calls.listHistory).toBe(1)
+  })
+
+  it("stops at the time budget and resumes on the next click", async () => {
+    const lastSyncedAt = new Date("2026-10-28T19:40:00Z")
+    await db.insert(syncState).values({
+      source: "gmail",
+      cursor: "stale",
+      lastSyncedAt,
+      updatedAt: lastSyncedAt,
+    })
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana, unknownHuman])
+    api.pageSize = 1
+    api.historyId = "9100"
+
+    const first = await catchUpGmail(db, api, FOUNDER, { timeBudgetMs: 0 })
+    expect(first.catchUpPending).toBe(1)
+    expect((await gmailState(db))?.cursor).toBe("stale")
+
+    // Mailbox moves on; the resumed catch-up keeps its original start point.
+    api.historyId = "9999"
+    const second = await catchUpGmail(db, api, FOUNDER, { timeBudgetMs: 0 })
+    expect(second.catchUpPending).toBeUndefined()
+    expect(api.calls.getProfile).toBe(1)
+    expect(new Set(api.listQueries).size).toBe(1)
+    expect((await gmailState(db))?.cursor).toBe("9100")
+    expect(await db.select().from(emailMessages)).toHaveLength(2)
+  })
+
+  it("propagates real Gmail failures", async () => {
+    await db.insert(syncState).values({
+      source: "gmail",
+      cursor: "stale",
+      lastSyncedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    const api = new FakeGmailApi(FOUNDER, [inboundPlainDana])
+    api.listMessageIds = async () => {
+      throw new GmailApiError(
+        "users.messages.list",
+        gaxiosNotFoundError("https://gmail.googleapis.com/gmail/v1/users/me/messages")
+      )
+    }
+    await expect(catchUpGmail(db, api, FOUNDER)).rejects.toThrow(
+      "Gmail users.messages.list failed (404)"
+    )
+    expect((await gmailState(db))?.cursor).toBe("stale")
   })
 })

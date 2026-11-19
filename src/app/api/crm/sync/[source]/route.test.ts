@@ -131,4 +131,44 @@ describe("CRM sync route", () => {
       ["supabase", "manual", { fullGmailResync: false }],
     ])
   })
+
+  it("runs a signed-in Gmail catch-up from Settings", async () => {
+    const response = await POST(
+      new Request("https://dashboard.example/api/crm/sync/gmail?catchup=1", {
+        method: "POST",
+        headers: { origin: "https://dashboard.example" },
+      }),
+      context("gmail")
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.runSync).toHaveBeenCalledWith({}, "gmail", "manual", {
+      gmailCatchUp: true,
+    })
+  })
+
+  it("refuses catch-up for sources other than Gmail", async () => {
+    const response = await POST(
+      new Request("https://dashboard.example/api/crm/sync/stripe?catchup=1", {
+        method: "POST",
+        headers: { origin: "https://dashboard.example" },
+      }),
+      context("stripe")
+    )
+    expect(response.status).toBe(400)
+    expect(mocks.runSync).not.toHaveBeenCalled()
+  })
+
+  it("ignores catch-up on cron GETs", async () => {
+    process.env.CRON_SECRET = "expected"
+    const response = await GET(
+      new Request("https://dashboard.example/api/crm/sync/gmail?catchup=1", {
+        headers: { authorization: "Bearer expected" },
+      }),
+      context("gmail")
+    )
+    expect(response.status).toBe(200)
+    expect(mocks.runSync).toHaveBeenCalledWith({}, "gmail", "interval", {
+      fullGmailResync: false,
+    })
+  })
 })

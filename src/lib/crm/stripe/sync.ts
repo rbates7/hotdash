@@ -8,6 +8,7 @@ import {
 } from "@/lib/crm/contacts/server"
 import type { Db } from "@/lib/crm/db/client"
 import { contacts, type Contact } from "@/lib/crm/db/schema"
+import { markSourceSynced } from "@/lib/crm/sync/state"
 
 import { planLabelFor } from "./plan-map"
 import type { StripeApi, StripeSubscription, StripeSyncStats } from "./types"
@@ -115,5 +116,6 @@ export async function syncStripe(
     stats.plansSet += 1
   }
 
+  await markSourceSynced(db, "stripe")
   return stats
 }
