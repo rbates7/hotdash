@@ -1,9 +1,7 @@
 import type { Metadata } from "next"
 import { CircleCheckIcon } from "lucide-react"
 
-import { TriageActions } from "@/components/crm/triage/triage-actions"
-import { CrmAvatar } from "@/components/crm/crm-avatar"
-import { Badge } from "@/components/ui/badge"
+import { TriageList } from "@/components/crm/triage/triage-list"
 import { getDb } from "@/lib/crm/db/client"
 import { relativeTime } from "@/lib/crm/format"
 import { listTriageThreads } from "@/lib/crm/triage/server"
@@ -33,48 +31,17 @@ export default async function TriagePage() {
             </p>
           </div>
         ) : (
-          threads.map((thread) => (
-            <div
-              key={thread.gmailThreadId}
-              data-slot="triage-card"
-              className="rounded-xl border bg-card px-4 py-3.5"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="flex items-center gap-2.5">
-                  <CrmAvatar name={thread.senderName ?? thread.senderEmail} />
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-sm font-medium">
-                      {thread.senderName ?? thread.senderEmail}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {thread.senderEmail}
-                    </span>
-                  </span>
-                </span>
-                <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {thread.messageCount > 1 ? (
-                    <Badge variant="secondary">
-                      {thread.messageCount} messages
-                    </Badge>
-                  ) : null}
-                  {relativeTime(thread.latestAt)}
-                </span>
-              </div>
-              <p className="mt-2.5 text-sm font-medium">{thread.subject}</p>
-              {thread.snippet ? (
-                <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-                  {thread.snippet}
-                </p>
-              ) : null}
-              <div className="mt-3">
-                <TriageActions
-                  gmailThreadId={thread.gmailThreadId}
-                  senderEmail={thread.senderEmail}
-                  senderName={thread.senderName}
-                />
-              </div>
-            </div>
-          ))
+          <TriageList
+            threads={threads.map((thread) => ({
+              gmailThreadId: thread.gmailThreadId,
+              senderEmail: thread.senderEmail,
+              senderName: thread.senderName,
+              subject: thread.subject,
+              snippet: thread.snippet,
+              messageCount: thread.messageCount,
+              latestLabel: relativeTime(thread.latestAt),
+            }))}
+          />
         )}
       </div>
     </div>

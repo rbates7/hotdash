@@ -59,6 +59,7 @@ import {
 } from "@/lib/persistence"
 import type { CrmLiveData, GmailFeed } from "@/lib/crm/gmail-summary"
 import { useGmailFeed } from "@/hooks/use-gmail-summary"
+import { runBulk, type BulkOutcome, type BulkTriageThread, type TriageBulkAction } from "@/lib/crm/triage/bulk"
 
 export type State = {
   organizations: Organization[]
@@ -680,6 +681,12 @@ export type CrmStore = State &
     linkTriage: (threadId: string, contactId: string) => void
     ignoreTriage: (threadId: string) => void
     ignoreSender: (email: string) => void
+    /**
+     * Ignore, promote or always-ignore several Triage threads, each on its
+     * own: one that throws is reported and the rest still go through.
+     * Always ignore runs once per sender.
+     */
+    bulkTriage: (action: TriageBulkAction, threads: BulkTriageThread[]) => Promise<BulkOutcome[]>
     contactById: (id: string) => Contact | undefined
     orgById: (id: string | null) => Organization | null
     caseById: (id: string) => Case | undefined
@@ -757,6 +764,17 @@ export function CrmProvider({
         edit({ type: "link-triage", threadId, contactId, at: new Date().toISOString() }),
       ignoreTriage: (threadId) => edit({ type: "ignore-triage", threadId }),
       ignoreSender: (email) => edit({ type: "ignore-sender", email }),
+      bulkTriage: (action, threads) =>
+        runBulk(
+          threads,
+          (thread) => {
+            const at = new Date().toISOString()
+            if (action === "promote") edit({ type: "promote-triage", threadId: thread.id, at })
+            else if (action === "ignore") edit({ type: "ignore-triage", threadId: thread.id })
+            else edit({ type: "ignore-sender", email: thread.senderEmail })
+          },
+          { group: action === "ignore-sender" ? (t) => normalizeEmail(t.senderEmail) : undefined }
+        ),
       contactById: (id) => contactOf(state.contacts, id),
       orgById: (id) => orgOf(state.organizations, id),
       caseById: (id) => state.cases.find((c) => c.id === id),

@@ -8,10 +8,17 @@ import { useCrm } from "@/components/crm/crm-store"
 import { CrmTableSkeleton } from "@/components/crm/crm-skeleton"
 import { TriageActions } from "@/components/crm/triage-actions"
 import { GmailNotConnected } from "@/components/crm/gmail-not-connected"
+import { TriageBulk, TriageSelectCheckbox } from "@/components/crm/triage/triage-bulk"
 
 export function TriageScreen() {
   const store = useCrm()
   const threads = listTriageThreads(store.messages)
+  const bulkThreads = threads.map((t) => ({
+    id: t.threadId,
+    senderEmail: t.senderEmail,
+    senderName: t.senderName,
+    subject: t.subject,
+  }))
 
   if (!store.persisted) return <CrmTableSkeleton label="Loading saved triage" />
 
@@ -29,6 +36,7 @@ export function TriageScreen() {
         <GmailNotConnected screen="triage" />
       ) : (
       <div className="flex flex-col gap-3">
+        <TriageBulk threads={bulkThreads} run={store.bulkTriage}>
         {threads.length === 0 ? (
           <div
             role="status"
@@ -42,7 +50,7 @@ export function TriageScreen() {
             </p>
           </div>
         ) : (
-          threads.map((thread) => (
+          threads.map((thread, i) => (
             <div
               key={thread.threadId}
               data-slot="triage-card"
@@ -50,6 +58,7 @@ export function TriageScreen() {
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="flex items-center gap-2.5 max-md:min-w-0">
+                  <TriageSelectCheckbox thread={bulkThreads[i]!} />
                   <CrmAvatar name={thread.senderName ?? thread.senderEmail} />
                     <span className="flex flex-col leading-tight">
                       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
@@ -83,6 +92,7 @@ export function TriageScreen() {
             </div>
           ))
         )}
+        </TriageBulk>
       </div>
       )}
     </div>
