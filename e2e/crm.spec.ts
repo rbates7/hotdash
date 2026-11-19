@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test"
 
-const CRM_SECTIONS = ["Dashboard", "Cases", "Contacts", "Triage", "Settings"]
+const CRM_SECTIONS = ["Dashboard", "Accounts", "Cases", "Contacts", "Triage", "Settings"]
 
 const crmNav = (page: Page) =>
   page.getByRole("navigation", { name: "CRM", exact: true })
@@ -13,6 +13,10 @@ async function expectCopiedNavigation(page: Page) {
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
     "href",
     "/crm"
+  )
+  await expect(nav.getByRole("link", { name: "Accounts" })).toHaveAttribute(
+    "href",
+    "/crm/accounts"
   )
   await expect(nav.getByRole("link", { name: "Cases" })).toHaveAttribute(
     "href",
@@ -31,7 +35,6 @@ async function expectCopiedNavigation(page: Page) {
     "/crm/settings"
   )
   await expect(nav.getByRole("link", { name: "Overview" })).toHaveCount(0)
-  await expect(nav.getByRole("link", { name: "Accounts" })).toHaveCount(0)
 }
 
 test.describe("copied production CRM", () => {
@@ -72,17 +75,18 @@ test.describe("copied production CRM", () => {
     }
   })
 
-  test("retires Accounts by redirecting its old URL to Contacts", async ({
+  test("opens Accounts from its tab, right after Dashboard", async ({
     page,
   }) => {
     await page.goto("/crm/accounts")
-    await expect(page).toHaveURL(/\/crm\/contacts$/)
+    await expect(page).toHaveURL(/\/crm\/accounts$/)
+    await expectCopiedNavigation(page)
     await expect(
-      crmNav(page).getByRole("link", { name: "Contacts" })
+      crmNav(page).getByRole("link", { name: "Accounts" })
     ).toHaveAttribute("aria-current", "page")
-    await expect(crmNav(page).getByRole("link", { name: "Accounts" })).toHaveCount(
-      0
-    )
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Accounts" })
+    ).toBeVisible()
   })
 
   test("cron sync fails closed without its server secret", async ({

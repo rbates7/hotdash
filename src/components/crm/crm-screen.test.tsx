@@ -108,9 +108,9 @@ describe("CRM shell", () => {
     expect(within(header).queryByTestId("persistence-note")).not.toBeInTheDocument()
     expect(within(header).getAllByRole("button", { name: new RegExp(FIND_CONTACT) })[0]).toBeEnabled()
     expect(screen.queryByTestId("sample-data-tag")).not.toBeInTheDocument()
-    // Exactly Overview · Cases · Accounts · Triage · Contacts; no Customers or Settings.
+    // Exactly Overview · Accounts · Cases · Triage · Contacts; no Customers or Settings.
     const nav = screen.getByRole("navigation", { name: "CRM sections" })
-    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Overview", "Cases", "Accounts", "Triage", "Contacts"])
+    expect(within(nav).getAllByRole("link").map((l) => l.textContent)).toEqual(["Overview", "Accounts", "Cases", "Triage", "Contacts"])
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page")
     expect(within(nav).getByRole("link", { name: "Overview" })).toHaveClass("bg-surface", "shadow-sm")
 

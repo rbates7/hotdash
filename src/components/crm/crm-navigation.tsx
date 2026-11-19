@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
+  Building2Icon,
   ContactIcon,
   FlameIcon,
   InboxIcon,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils"
 
 const items = [
   { href: "/crm", label: "Dashboard", icon: LayoutDashboardIcon },
+  { href: "/crm/accounts", label: "Accounts", icon: Building2Icon },
   { href: "/crm/cases", label: "Cases", icon: InboxIcon },
   { href: "/crm/contacts", label: "Contacts", icon: ContactIcon },
   { href: "/crm/triage", label: "Triage", icon: FlameIcon },

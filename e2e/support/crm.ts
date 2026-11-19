@@ -41,7 +41,7 @@ export const GMAIL_READ_ONLY_NOTE = "Read-only · edits here aren't saved"
 export const EDITS_NOTE = "Edits save in this browser"
 
 /** Exactly these section tabs, in this order (Triage carries its count while live). */
-export const CRM_TABS = ["Overview", "Cases", "Accounts", "Triage", "Contacts"] as const
+export const CRM_TABS = ["Overview", "Accounts", "Cases", "Triage", "Contacts"] as const
 
 /** The CRM header row: the title and lede, Find a contact… and the ⋯ menu button. */
 export function crmHeader(page: Page) {
