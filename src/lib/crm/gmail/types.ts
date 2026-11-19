@@ -66,7 +66,7 @@ export interface GmailApi {
     pageToken?: string
   }): Promise<{
     historyId: string | null
-    messageIds: string[]
+    records: { historyId: string; messageIds: string[] }[]
     nextPageToken?: string
   }>
   getThread(threadId: string): Promise<{ messages: GmailRawMessage[] }>
@@ -99,4 +99,6 @@ export type GmailSyncStats = {
   backfillPending?: number
   /** 1 when "Catch up since last sync" has more Gmail pages to pull. */
   catchUpPending?: number
+  /** 1 when this run stopped at the per-run cap with more mail to process. */
+  moreRemaining?: number
 }

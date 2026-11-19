@@ -255,15 +255,18 @@ export async function createGmailApi(
             pageToken,
           })
         )
-        const messageIds: string[] = []
+        const records: { historyId: string; messageIds: string[] }[] = []
         for (const entry of res.data.history ?? []) {
+          if (!entry.id) continue
+          const messageIds: string[] = []
           for (const added of entry.messagesAdded ?? []) {
             if (added.message?.id) messageIds.push(added.message.id)
           }
+          records.push({ historyId: String(entry.id), messageIds })
         }
         return {
           historyId: res.data.historyId ? String(res.data.historyId) : null,
-          messageIds,
+          records,
           nextPageToken: res.data.nextPageToken ?? undefined,
         }
       } catch (error) {
